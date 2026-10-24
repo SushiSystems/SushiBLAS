@@ -9,7 +9,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 
 | File | Declares |
 | --- | --- |
-| `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` in SushiBLAS |
+| `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in SushiBLAS |
 | `recorded_graph.hpp` | `RecordedGraph`, the one owner of the graph recorded tasks wait in |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
@@ -249,7 +249,8 @@ not change a task already recorded.
 
 ## `task_recorder.hpp`
 
-`TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` in SushiBLAS. It is bound to
+`TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in
+SushiBLAS. It is bound to
 the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds the execution mode.
 `Engine` owns one; a test or a layer above may build its own over a graph it owns.
 
@@ -278,6 +279,35 @@ identity and the task's sequence number. If the runtime's recorder refuses the r
 recording: <the runtime's message>`, as every other record-time failure throws. The refusal stays
 in the runtime's recorder: the next run returns it and empties the graph, and
 `Engine::discard_recorded()` forgets it with the tasks.
+
+### `TaskRecorder::record_late_pair`
+
+Records a task over `capacity` indices whose live width is an `INT32` a previous node writes. It
+takes what `record_pair` takes, plus the count tensor, the capacity, a host body and a per-index
+kernel. Under `ForceReference` it records the host body, wrapped in `Detail::HostOnlyBody`, through
+`record_pair`: the body runs after the task's predecessors and reads the count itself. Under every
+other mode it records `Recorder::dynamic_kernel` with `sized_from_device`, so the runtime reads the
+width in the kernel when the task runs, and the runtime fails the run for a width above the
+capacity.
+
+The count tensor is checked before the mode is looked at, so both modes refuse the same tensors:
+it must hold at least one element, have storage, be contiguous, be `INT32` and live in
+`Residency::Host`. The runtime takes the width as a `Buffer<std::uint32_t>` in host USM, so the call
+borrows one with the runtime's `borrow` call over the whole allocation of the count's storage, reached through
+`ScratchPool::runtime()`, and names the word at `storage_offset` (one word for each `INT32`
+element). `Storage` is not involved beyond its address, size, device and residency. `INT64` is refused, not narrowed:
+narrowing would be a copy of the count or a silent loss of its high word, and the runtime reads one
+32-bit word. A negative `INT32` reads as a width above the capacity, so it fails the run.
+
+A device-mode task cannot hold its operands' storage itself, because the runtime's kernel captures
+must be device copyable. The recorder holds it instead: the owner token passed to `borrow` is a
+`LivenessToken` whose deleter holds one reference to every storage in `operands` and to the count,
+and the recorder keeps the token in `late_owners_`. The runtime watches the token, so a run after the
+recorder is destroyed is refused as `DanglingResource` and never reads freed memory. The tokens are
+released when a late task is recorded on an empty graph, which is after a run or
+`Engine::discard_recorded()`, or when the recorder is destroyed; a recorder that records late tasks
+and never empties its graph keeps their storages. The recorder reaches the runtime through the pool's
+`runtime()`, so the pool and the recorder must share one runtime.
 
 ### `TaskRecorder::require_host_reachable`
 
@@ -324,7 +354,9 @@ both fields are. The handle exposes no event and no way to wait: the work finish
 ## `task_description.hpp`
 
 `TaskDescription` is what an operation states about one task besides its operands: the `name` it
-reports under, the `SushiRuntime::OperationID` in `operation`, and `K_MAX_PARAMETERS` (eight) slots
+reports under, the `SushiRuntime::OperationID` in `operation`, the `SushiRuntime::Determinism` in
+`determinism` (`Unstated` by default, copied to `NodeOptions::determinism` and read back as
+`PlanNode::determinism`), and `K_MAX_PARAMETERS` (eight) slots
 of 64 bits in `parameters`. `set_parameter<T>(index, value)` copies the bytes of a trivially
 copyable value of at most 64 bits into one slot and `parameter<T>(index)` reads them back; a slot
 never written holds 0. An index outside the slots is an `SB_ASSERT`, and a build with `NDEBUG`
@@ -332,9 +364,9 @@ ignores the write and reads `T{}`. `TaskRecorder` hands the slots to the runtime
 `NodeOptions::parameters`, and a `static_assert` beside that call holds `K_MAX_PARAMETERS` at or
 below `SushiRuntime::NodeOptions::K_MAX_PARAMETERS`.
 
-The type belongs to SushiBLAS and names nothing of the runtime but `OperationID`.
-`TaskRecorder` turns it into `SushiRuntime::NodeOptions` when it records: the name, the
-operation, and all eight slots as the node's parameters. The runtime copies the name and the
+The type belongs to SushiBLAS and names nothing of the runtime but `OperationID` and
+`Determinism`. `TaskRecorder` turns it into `SushiRuntime::NodeOptions` when it records: the name,
+the operation, the determinism, and all eight slots as the node's parameters. The runtime copies the name and the
 slots, so `name` has to outlive the record call only as far as the runtime is concerned; a seam
 that keeps the pointer for its own diagnostics, as `execute_typed_task` does, needs it for the
 life of the task, and every operation passes a string literal.
@@ -401,7 +433,8 @@ builds a `Storage` for scratch itself.
 
 `ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
 the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
-blocks sit idle and `trim()` frees them; neither touches a block out on lease. `Engine` owns one
+blocks sit idle and `trim()` frees them; neither touches a block out on lease. `runtime()` returns the
+runtime the pool was built over; `TaskRecorder::record_late_pair` takes the `Interop` facade from it. `Engine` owns one
 pool and its recorder hands it to operations through `TaskRecorder::scratch_pool()`.
 
 ## `scratch_shelf.hpp`

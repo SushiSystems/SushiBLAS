@@ -64,6 +64,12 @@ namespace SushiBLAS
                 return shelf_;
             }
 
+            /** @brief Returns the runtime the pool was built over. */
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept
+            {
+                return shelf_->runtime();
+            }
+
             /** @brief Returns how many blocks sit idle in the pool. */
             [[nodiscard]] std::size_t idle_block_count() const { return shelf_->idle_block_count(); }
 

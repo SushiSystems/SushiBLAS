@@ -29,6 +29,7 @@
 
 #include <mutex>
 #include <atomic>
+#include <memory>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -92,6 +94,34 @@ namespace SushiBLAS
 
                     /// @brief The storages that stay allocated until the task is destroyed.
                     StorageKeepAlive retained_;
+            };
+
+            /**
+             * @brief Adapts a host-only callable to the body shape record_pair() takes.
+             * @tparam Host Callable `() -> void`, copyable.
+             */
+            template<typename Host>
+            class HostOnlyBody
+            {
+                public:
+                    /** @brief Holds the callable. */
+                    explicit HostOnlyBody(Host host) : host_(std::move(host))
+                    {
+
+                    }
+
+                    /** @brief Waits for the events it is given, then runs the callable on the host. */
+                    sycl::event operator()(const KernelPairDispatcher&, sycl::queue&,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        sycl::event::wait(deps);
+                        host_();
+                        return sycl::event();
+                    }
+
+                private:
+                    /// @brief The callable the task runs.
+                    Host host_;
             };
         } // namespace Detail
     } // namespace Internal
@@ -177,6 +207,49 @@ namespace SushiBLAS
             }
 
             /**
+             * @brief Records a task over capacity indices whose width is the INT32 in count.
+             * @param count A contiguous INT32 tensor in Residency::Host that a previous node writes.
+             * @param host_body Callable `() -> void` that runs the indices under ForceReference.
+             * @param kernel Device-copyable callable `(std::size_t i)` for every other mode.
+             * @note Outside ForceReference the recorder holds the storages it names; see the README.
+             * @see modules/engine/engine/README.md
+             */
+            template<typename HostBody, typename Kernel>
+            TaskHandle record_late_pair(const TaskDescription& description,
+                                        const OperandSet& operands, const char* family,
+                                        const Tensor& count, std::size_t capacity,
+                                        HostBody&& host_body, Kernel&& kernel)
+            {
+                require_late_count(count, description.name);
+                if (mode_ == ExecutionMode::ForceReference)
+                {
+                    return record_pair(
+                        description, operands, family,
+                        Internal::Detail::HostOnlyBody<std::decay_t<HostBody>>(
+                            std::forward<HostBody>(host_body)));
+                }
+
+                require_host_reachable(operands, family, description.name);
+                prune_late_owners();
+                const SushiRuntime::LivenessToken owner = keep_alive_token(operands, count);
+                const TaskHandle handle = insert(
+                    description,
+                    [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
+                    {
+                        recorder.dynamic_kernel(
+                            SushiRuntime::sized_from_device(
+                                borrow_count(count, owner),
+                                static_cast<std::size_t>(count.storage_offset)),
+                            capacity,
+                            SushiRuntime::Access(operands.read_regions(),
+                                                 operands.write_regions()),
+                            std::forward<Kernel>(kernel), options);
+                    });
+                retain_late_owner(owner);
+                return handle;
+            }
+
+            /**
              * @brief Runs work while no record call of this recorder adds a task, and returns
              *        what it returns.
              * @param work Callable with no argument; it must not record on this recorder.
@@ -202,6 +275,26 @@ namespace SushiBLAS
             TaskHandle insert(const TaskDescription& description,
                               const OperandSet& operands, Work&& work)
             {
+                return insert(
+                    description,
+                    [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
+                    {
+                        recorder.task(SushiRuntime::Access(operands.read_regions(),
+                                                           operands.write_regions()),
+                                      std::forward<Work>(work), options);
+                    });
+            }
+
+            /**
+             * @brief Records one node under the name, the operation, the determinism and the
+             *        parameters of description.
+             * @param record Callable `(SushiRuntime::Recorder&, const SushiRuntime::NodeOptions&)`
+             *        that adds exactly one node.
+             * @throws std::runtime_error as the overload above.
+             */
+            template<typename Record>
+            TaskHandle insert(const TaskDescription& description, Record&& record)
+            {
                 static_assert(TaskDescription::K_MAX_PARAMETERS <=
                                   SushiRuntime::NodeOptions::K_MAX_PARAMETERS,
                               "A task description carries more parameters than a runtime node "
@@ -209,15 +302,14 @@ namespace SushiBLAS
                 SushiRuntime::NodeOptions options;
                 options.name = description.name;
                 options.operation = description.operation;
+                options.determinism = description.determinism;
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
                     description.parameters, TaskDescription::K_MAX_PARAMETERS);
 
                 // The count before, the recording and the sequence number are one step.
                 const std::lock_guard<std::mutex> lock(recording_mutex_);
                 const std::size_t recorded_before = recorder_->node_count();
-                recorder_->task(
-                    SushiRuntime::Access(operands.read_regions(), operands.write_regions()),
-                    std::forward<Work>(work), options);
+                std::forward<Record>(record)(*recorder_, options);
                 if (recorder_->node_count() == recorded_before)
                 {
                     const SushiRuntime::Error* refusal = recorder_->refusal();
@@ -227,6 +319,68 @@ namespace SushiBLAS
                 }
 
                 return TaskHandle(identity_, next_sequence_++);
+            }
+
+            /**
+             * @brief Checks the tensor a late width is read from.
+             * @throws std::invalid_argument for a count that is not a contiguous INT32 tensor of
+             *         at least one element with storage in Residency::Host.
+             */
+            static void require_late_count(const Tensor& count, const char* name)
+            {
+                Dispatch::require_min_elements(count, 1, name, "count");
+                Dispatch::require_storage(count, name, "count");
+                Dispatch::require_contiguous(count, name, "count");
+                Dispatch::require_dtype(count, Core::DataType::Int32, name, "count");
+                Dispatch::require_operand(
+                    count.storage->residency() == SushiRuntime::Residency::Host, name, "count",
+                    "lives in {} memory; the runtime reads a late width from Residency::Host",
+                    SushiRuntime::residency_name(count.storage->residency()));
+            }
+
+            /**
+             * @brief Makes the token the runtime watches for a late task's memory.
+             *
+             * The token's deleter holds one reference to every storage the task touches, so the
+             * memory lives while the token does; the recorder keeps the token in late_owners_.
+             */
+            [[nodiscard]] static SushiRuntime::LivenessToken
+            keep_alive_token(const OperandSet& operands, const Tensor& count)
+            {
+                Internal::StorageKeepAlive held = operands.retained();
+                held.retain(count.storage);
+                return SushiRuntime::LivenessToken(
+                    new SushiRuntime::Liveness(),
+                    [held = std::move(held)](SushiRuntime::Liveness* life)
+                    {
+                        delete life;
+                    });
+            }
+
+            /** @brief Views the whole allocation of count as the runtime's word buffer, owned by owner. */
+            [[nodiscard]] SushiRuntime::Buffer<std::uint32_t>
+            borrow_count(const Tensor& count, const SushiRuntime::LivenessToken& owner) const
+            {
+                const Storage& storage = *count.storage;
+                return scratch_pool_->runtime().interop().borrow<std::uint32_t>(
+                    static_cast<std::uint32_t*>(storage.allocation_base()),
+                    storage.size_bytes() / sizeof(std::uint32_t),
+                    SushiRuntime::DeviceIndex{storage.device_index()}, storage.residency(), owner);
+            }
+
+            /** @brief Keeps owner until prune_late_owners() finds the graph empty. */
+            void retain_late_owner(const SushiRuntime::LivenessToken& owner)
+            {
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
+                late_owners_.push_back(owner);
+            }
+
+            /** @brief Releases the owners of a graph that has been run or discarded. */
+            void prune_late_owners()
+            {
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
+                if (recorder_->node_count() == 0)
+                    late_owners_.clear();
             }
 
             /// @brief The graph recorder every record call adds to; never null.
@@ -244,7 +398,10 @@ namespace SushiBLAS
             /// @brief The sequence number the next recorded task takes; guarded by recording_mutex_.
             std::uint64_t next_sequence_ = 0;
 
-            /// @brief Serialises every use of recorder_ and next_sequence_.
+            /// @brief The tokens late tasks watch, which hold their storages; guarded by recording_mutex_.
+            std::vector<SushiRuntime::LivenessToken> late_owners_;
+
+            /// @brief Serialises every use of recorder_, next_sequence_ and late_owners_.
             std::mutex recording_mutex_;
     };
 } // namespace SushiBLAS

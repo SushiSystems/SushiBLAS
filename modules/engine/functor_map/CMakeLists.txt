@@ -18,6 +18,7 @@ sushiblas_add_test_program(
     MODULE functor_map
     TESTS
         test_functor_map_log_category.cpp
+        test_index_task.cpp
         test_map_task.cpp
         test_read_binding.cpp
         test_scalar.cpp

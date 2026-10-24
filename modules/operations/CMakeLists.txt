@@ -7,6 +7,7 @@
 # The operations tier: one module per operation family.
 add_subdirectory(blas)
 add_subdirectory(elementwise)
+add_subdirectory(index)
 add_subdirectory(nonlinear)
 add_subdirectory(reductions)
 add_subdirectory(random)

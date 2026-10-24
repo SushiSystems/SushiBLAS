@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1 to B4, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
+**Status:** Open — B1 to B4 and B6 to B12 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -121,6 +121,25 @@ gtest-free base in `engine_fixture` would serve both, a boundary for the owner.
 `print_environment` and `device_supports` still take an `Engine&` for a probe tensor and the
 layout.
 
+## B7 and B10
+
+`IndexOps::for_each(count, bound, options)` and `for_each(capacity, count_tensor, bound, options)`
+take only a `bind_writes` bundle, so a task always declares a write. A fixed count runs through
+`IndexTask`; a late count goes through `TaskRecorder::record_late_pair`, which records the
+runtime's dynamic node, so the launch is the count a previous node wrote, not the capacity with a
+guard (the owner's ruling of 2026-10-24). The count is an INT32 tensor in host memory, named to
+the runtime by `Interop::borrow` over its storage; an INT64 count is refused. A first version
+retyped `Storage` as a `Buffer<std::uint32_t>` for this one consumer and was reverted. The kernel
+capture of a dynamic node must be device-copyable and cannot hold the operands' storage, so the
+recorder keeps a liveness token over every operand's storage and the count until the next late
+record on an empty graph; a run after the recorder is gone is refused as `DanglingResource`. The
+determinism class rides `TaskDescription` into `NodeOptions::determinism` (the owner's ruling).
+B10's test shows a node recorded inside `Recorder::within` carries the scope's class and key.
+
+Seen and kept: `ScratchPool` now hands `TaskRecorder` its runtime; a `Runtime&` on the
+`TaskRecorder` constructor is the cleaner shape and lands with B5, which changes every
+construction site anyway.
+
 ## Dispatches
 
 ```
@@ -132,5 +151,7 @@ dispatch: B9 — sonnet medium, 77 turns, passed, rung 1
 dispatch: B12 — opus low, 99 turns, passed, rung 1
 dispatch: B3 — sonnet medium, 53 turns, passed, rung 1
 dispatch: B4 — sonnet medium, passed, rung 1
+dispatch: B7 — sonnet medium, 69 turns, then B7b sonnet medium, 87 turns, then B7c sonnet medium, 88 turns, passed, rung 1
+dispatch: B10 — haiku medium, 38 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

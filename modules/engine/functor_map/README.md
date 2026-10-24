@@ -109,12 +109,16 @@ has one, as `ScalarBound` and `WriteAddressedOp` do.
 
 ## `functor_map/index_task.hpp`
 
-`IndexTask` runs `op(i)` for each `i` below a count, in order on the host under `ForceReference`
-and as one kernel through `Launch::indexed` otherwise. The functor is the one `kernel_op` builds,
-so a bundle with reads and writes is called as `fn(i, reads..., writes...)`. A late count is a
-`CountSource`: the task wraps the functor in `CountedOp`, which reads element 0 of the count
-tensor in each index and skips the index at or above it. `IndexOps` in
-[`index`](../../operations/index/README.md) records it.
+`IndexTask` runs `op(i)` for each `i` below a fixed count, in order on the host under
+`ForceReference` and as one kernel through `Launch::indexed` otherwise. The functor is the one
+`kernel_op` builds, so a bundle with reads and writes is called as `fn(i, reads..., writes...)`.
+
+A late count does not go through `IndexTask`. `record_index_task` takes the dtype branch at record
+time and hands `TaskRecorder::record_late_pair` two things built from the same functor: the kernel
+the runtime's dynamic node runs on the device, and `LateIndexHostRun`, the `ForceReference` body.
+The host body reads the width from the count tensor when it runs, which is after the node that
+wrote it, and refuses a width below 0 or above the capacity, as the runtime fails a run for the
+same. `IndexOps` in [`index`](../../operations/index/README.md) records both.
 
 ## `functor_map/scalar.hpp`
 

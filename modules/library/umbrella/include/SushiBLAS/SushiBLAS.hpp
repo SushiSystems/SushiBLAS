@@ -110,6 +110,8 @@
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/scalar.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
+#include <SushiBLAS/functor_map/write_binding.hpp>
+#include <SushiBLAS/functor_map/index_task.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
@@ -155,3 +157,5 @@
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/signal/signal.hpp>
 #include <SushiBLAS/blend/blend.hpp>
+#include <SushiBLAS/index/index_options.hpp>
+#include <SushiBLAS/index/index_ops.hpp>

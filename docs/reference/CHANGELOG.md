@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — index: Added the `IndexOps` family, whose `for_each()` runs a functor over a fixed count or a count a previous node wrote, with the node's name and determinism class (`index_ops.hpp`, `index_task.hpp`).
+- 2026-10-24 — engine: Added `TaskRecorder::record_late_pair()`, which records a task whose launch count the runtime reads from a tensor, and carried `TaskDescription::determinism` into the runtime node (`task_recorder.hpp`).
+- 2026-10-24 — tests: Pinned that a node recorded inside a runtime placement scope carries the scope's class and key (`test_task_recorder.cpp`).
 - 2026-10-24 — benchmark_harness: Made `measure()` time a graph the benchmark owns, recorded, run and cleared each iteration, through the new `BenchmarkGraph` (`benchmark_graph.hpp`, `benchmark_harness.hpp`).
 - 2026-10-24 — io: Removed the `Engine` parameter of `IO` and the graph run it did before every call; it reads what the storage holds and the caller runs the graph (`io.hpp`, `io.cpp`).
 - 2026-10-24 — io: Removed `IOStatus::RunFailed`, which no file operation returns once `IO` runs no graph (`io_status.hpp`).

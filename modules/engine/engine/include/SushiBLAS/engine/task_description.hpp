@@ -33,12 +33,13 @@
 #include <type_traits>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/engine_log_category.hpp>
+#include <SushiRuntime/core/determinism.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Holds the name, the operation and the scalar parameters of one recorded task.
+     * @brief Holds the name, the operation, the determinism and the scalar parameters of one recorded task.
      * @see modules/engine/engine/README.md
      */
     struct TaskDescription
@@ -51,6 +52,9 @@ namespace SushiBLAS
 
         /** @brief The operation the task performs; a default id names none. */
         SushiRuntime::OperationID operation = SushiRuntime::OperationID();
+
+        /** @brief The determinism contract the task states; the runtime carries it and reports it. */
+        SushiRuntime::Determinism determinism = SushiRuntime::Determinism::Unstated;
 
         /** @brief The parameter slots; a slot never written holds 0. */
         std::uint64_t parameters[K_MAX_PARAMETERS] = {0};

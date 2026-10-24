@@ -27,12 +27,14 @@
 
 #include <array>
 #include <atomic>
+#include <memory>
 #include <thread>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <functional>
+#include <optional>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -111,6 +113,148 @@ namespace SushiBLAS
 
             EXPECT_EQ(1u, first.take_recorded_count());
             EXPECT_EQ(0u, second.take_recorded_count());
+        }
+
+        /** @brief Tests that the determinism of a description reaches the runtime's plan. */
+        TEST_F(Medium_TaskRecorderTest, ADescriptionsDeterminismReachesThePlanNode)
+        {
+            RecordingFixture fixture(*engine);
+            Tensor out = vector_of_four();
+            OperandSet operands;
+            operands.writes(out);
+            TaskDescription description;
+            description.name = "stated";
+            description.determinism = SushiRuntime::Determinism::Bitwise;
+
+            fixture.recorder().record_pair(
+                description, operands, "test",
+                [](const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)
+                {
+                    return sycl::event();
+                });
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = fixture.plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Bitwise);
+        }
+
+        /** @brief Tests that a late count the runtime cannot read is refused before any task is recorded. */
+        TEST_F(Medium_TaskRecorderTest, ALateCountOutsideHostInt32IsRefusedAndRecordsNothing)
+        {
+            for (const ExecutionMode mode :
+                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
+            {
+                RecordingFixture fixture(*engine);
+                fixture.recorder().set_mode(mode);
+                Tensor out = vector_of_four();
+                OperandSet operands;
+                operands.writes(out);
+                const TaskDescription description;
+                const Tensor shared_count = engine->create_tensor({1}, Core::DataType::Int32);
+
+                EXPECT_THROW(fixture.recorder().record_late_pair(
+                                 description, operands, "test", shared_count, 4,
+                                 [] {}, [](std::size_t) {}),
+                             std::invalid_argument);
+                EXPECT_EQ(fixture.recorded_count(), std::size_t{0});
+            }
+        }
+
+        /** @brief Tests that a late-count task of a live recorder runs the indices below its count. */
+        TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunsWhileItsRecorderLives)
+        {
+            SushiRuntime::Graph graph = engine->runtime().graph();
+            ScratchPool scratch_pool(engine->runtime());
+            TaskRecorder recorder(graph.recorder(), scratch_pool);
+            Tensor out = vector_of_four();
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = 2;
+            for (std::int64_t i = 0; i < 4; ++i)
+                out.data_as<float>()[i] = 0.0f;
+            OperandSet operands;
+            operands.writes(out);
+            float* marks = out.data_as<float>();
+
+            recorder.record_late_pair(
+                TaskDescription(), operands, "test", count, 4, [] {},
+                [marks](std::size_t i) { marks[i] = 1.0f; });
+            SushiRuntime::RunReport report;
+            const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+
+            ASSERT_TRUE(ran);
+            EXPECT_EQ(out.data_as<float>()[0], 1.0f);
+            EXPECT_EQ(out.data_as<float>()[1], 1.0f);
+            EXPECT_EQ(out.data_as<float>()[2], 0.0f);
+            EXPECT_EQ(out.data_as<float>()[3], 0.0f);
+        }
+
+        /**
+         * @brief Tests that a run after the recorder of a late-count task is gone is refused as
+         *        DanglingResource, while the tensors are still alive and untouched.
+         */
+        TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunAfterItsRecorderIsGoneIsRefused)
+        {
+            SushiRuntime::Graph graph = engine->runtime().graph();
+            ScratchPool scratch_pool(engine->runtime());
+            Tensor out = vector_of_four();
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = 2;
+            for (std::int64_t i = 0; i < 4; ++i)
+                out.data_as<float>()[i] = 0.0f;
+            OperandSet operands;
+            operands.writes(out);
+            float* marks = out.data_as<float>();
+
+            {
+                TaskRecorder recorder(graph.recorder(), scratch_pool);
+                recorder.record_late_pair(
+                    TaskDescription(), operands, "test", count, 4, [] {},
+                    [marks](std::size_t i) { marks[i] = 1.0f; });
+            }
+            SushiRuntime::RunReport report;
+            const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+
+            ASSERT_FALSE(ran);
+            EXPECT_EQ(ran.error().code, SushiRuntime::ErrorCode::DanglingResource);
+            for (std::int64_t i = 0; i < 4; ++i)
+                EXPECT_EQ(out.data_as<float>()[i], 0.0f);
+        }
+
+        /**
+         * @brief Tests that a node recorded inside a runtime placement scope takes the scope's
+         *        class and key, and a node recorded outside it takes neither.
+         */
+        TEST_F(Medium_TaskRecorderTest, ANodeInAPlacementScopeTakesItsClassAndKey)
+        {
+            using SushiRuntime::Literals::operator""_class;
+
+            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Graph graph = runtime.graph();
+            ScratchPool scratch_pool(runtime);
+            TaskRecorder recorder(graph.recorder(), scratch_pool);
+            const SushiRuntime::PlacementScope scope =
+                runtime.placement_scope("sushiai.replica", 3);
+
+            auto x = vector_of_four();
+            auto inside = vector_of_four();
+            auto outside = vector_of_four();
+
+            graph.recorder().within(scope, [&](SushiRuntime::Recorder&)
+            {
+                SushiBLAS::BLASOps(recorder).axpy(2.0, x, inside);
+            });
+            SushiBLAS::BLASOps(recorder).axpy(2.0, x, outside);
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
+            EXPECT_EQ(plan->nodes[0].placement_class, "sushiai.replica"_class);
+            EXPECT_EQ(plan->nodes[0].placement_key, std::optional<std::uint64_t>{3});
+            EXPECT_FALSE(plan->nodes[1].placement_class.is_named());
+            EXPECT_EQ(plan->nodes[1].placement_key, std::nullopt);
         }
 
         /** @brief Tests that two threads recording on one recorder each get their own tasks. */

@@ -58,6 +58,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     graph_probe         engine
     blas                operations
     elementwise         operations
+    index               operations
     nonlinear           operations
     reductions          operations
     random              operations

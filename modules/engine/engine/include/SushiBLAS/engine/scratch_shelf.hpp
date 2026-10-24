@@ -130,6 +130,9 @@ namespace SushiBLAS
                     }
                 }
 
+                /** @brief Returns the runtime that allocates every block. */
+                [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept { return *runtime_; }
+
                 /**
                  * @brief Lends a device block of at least bytes: an idle one, or a new allocation.
                  * @pre bytes is above zero.

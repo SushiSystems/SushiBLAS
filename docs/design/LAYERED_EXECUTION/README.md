@@ -125,7 +125,7 @@ index.for_each(n,
     SushiBLAS::bind_writes(
         SushiBLAS::bind_reads(projection, read_as<Constraint>(constraints), read_as_element(inverse_mass)),
         write_as_element(positions)),
-    SushiBLAS::IndexOptions{"pgs_project", SushiBLAS::Determinism::Bitwise});
+    SushiBLAS::IndexOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
 ```
 
 `IndexOps::for_each(count, functor, options)` records one task that calls `functor(i, reads...,
@@ -144,8 +144,12 @@ Two things the seam cannot check are part of its contract and written on it:
   fixed count, for the ECS chunks and matter passes of SushiEngine whose size a previous node
   writes. It records through the runtime's dynamic node.
 
-`IndexOptions` carries the node's name and a determinism class with SushiEngine's three values,
-`Bitwise`, `Tolerant` and `Cosmetic`, so a caller's contract travels with the node.
+`IndexOptions` carries the node's name and a `SushiRuntime::Determinism` (`Unstated`, the
+default, `Bitwise`, `Tolerant` or `Cosmetic`), which rides the task description into the runtime
+node's `NodeOptions::determinism`, so a caller's contract travels with the node; the owner ruled
+on 2026-10-24 that the class lives on the runtime node. A late count is an INT32 tensor in host
+memory, read by the runtime's dynamic node through a buffer borrowed over the tensor's storage;
+an INT64 count is refused rather than narrowed.
 
 `IndexOps` is a new operation family in `operations/index/`, beside the index operations RW-94
 asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
@@ -210,10 +214,10 @@ README) change in its own commit.
 | B4 | The benchmark harness times a caller's graph. Done when: the harness names no `Engine::execute()` and its benchmarks run. Waits on B1. | building |
 | B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed. Done when: `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back. Waits on B2, B3, B4, `sushiai` A0. | planned |
 | B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | building |
-| B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | planned |
+| B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | building |
 | B8 | `SignalOps::convolve_1d`, in a family of its own (`modules/operations/signal/`, `modules/kernels/signal_kernels/`): the owner ruled on 2026-10-24 that `SpatialOps` stays the operations over an NHWC grid. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
 | B9 | `BlendOps::blend_transforms`, in a family of its own (`modules/operations/blend/`, `modules/kernels/blend_kernels/`), as the owner ruled on 2026-10-24 for the same reason as B8. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
-| B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | planned |
+| B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | building |
 | B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | building |
 | B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | building |
 | B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |

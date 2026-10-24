@@ -37,7 +37,8 @@ sushiblas_add_module(
         sparse
         spatial
         signal
-        blend)
+        blend
+        index)
 
 # The tests that cross several operation families and so belong to no single family.
 sushiblas_add_test_program(
