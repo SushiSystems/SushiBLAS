@@ -50,7 +50,7 @@ K_FOUNDATION_FORBIDDEN_INCLUDE = re.compile(
 K_ENGINE_COMPOSED_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
     r'(SushiBLAS/(?:engine|operands|functor_map|io|experimental|blas|elementwise|nonlinear'
-    r'|reductions|random|logic|sparse|spatial|signal|index)/[^>"]+)[>"]'
+    r'|reductions|random|logic|sparse|spatial|signal|blend|index)/[^>"]+)[>"]'
 )
 K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/rng_stream.hpp",

@@ -47,6 +47,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     sparse_kernels      kernels
     spatial_kernels     kernels
     signal_kernels      kernels
+    blend_kernels       kernels
     packed_product_harness kernels
     engine              engine
     operands            engine
@@ -62,8 +63,9 @@ set(SUSHIBLAS_MODULE_LAYERS
     logic               operations
     sparse              operations
     spatial             operations
-    io                  operations
     signal              operations
+    blend               operations
+    io                  operations
     experimental        operations
     benchmark_harness   operations
     umbrella            library

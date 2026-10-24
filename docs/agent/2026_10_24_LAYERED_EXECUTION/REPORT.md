@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2, B6, B8 and B11 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2, B6, B8, B9 and B11 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -62,6 +62,19 @@ Seen and kept: the spatial and signal tests copy the same helper block (`tensor_
 `elements_from`, `residue_pattern`); the spatial_kernels README names dependencies its CMake
 does not list.
 
+## B9
+
+`BlendOps::blend_transforms` lives in `modules/operations/blend/` with its kernels in
+`modules/kernels/blend_kernels/`, shaped as `SignalOps` is; the owner ruled it out of
+`SpatialOps` on 2026-10-24. A `[P,3]` point is a position (w = 1), a `[P,4]` point is homogeneous
+and its output holds w; a 3×4 transform has the implicit row (0,0,0,1). Indices are INT32 or
+INT64; weights need not sum to one. One work-item per point, j ascending then component
+ascending, `Half` accumulating in `float`. An index outside `[0, T)` adds no term in either mode,
+since device-resident indices cannot be checked when the call is recorded.
+
+Seen and kept: signal and blend repeat the dense-rows helper and the kernel structure as the
+family pattern.
+
 ## Dispatches
 
 ```
@@ -69,5 +82,6 @@ dispatch: B1 — sonnet medium, 31 turns, passed, rung 1
 dispatch: B2 — sonnet medium, 112 turns, passed, rung 1
 dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
 dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
+dispatch: B9 — sonnet medium, 77 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

@@ -156,7 +156,7 @@ asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
 | Operation | Computes | Its first user |
 | --- | --- | --- |
 | `SignalOps::convolve_1d(signal, taps, out)` | For each row, `out[n] = Σ_k signal[n + K - 1 - k] · taps[k]`, valid mode, rows batched over the leading dimensions | SushiEngine's audio FIR, which feeds its history as the first `K - 1` samples |
-| `SpatialOps::blend_transforms(points, transforms, indices, weights, out)` | For each point `p`, `out[p] = Σ_j weights[p][j] · transforms[indices[p][j]] · points[p]`, with 4×4 or 3×4 transforms | SushiEngine's linear blend skinning; morph and attachment blends after it |
+| `BlendOps::blend_transforms(points, transforms, indices, weights, out)` | For each point `p`, `out[p] = Σ_j weights[p][j] · transforms[indices[p][j]] · points[p]`, with 4×4 or 3×4 transforms | SushiEngine's linear blend skinning; morph and attachment blends after it |
 
 Both have a serial reference path and a SYCL path, and take `Half`, `Float32` and `Float64`.
 Dual-quaternion skinning has no general form and goes through the per-index seam.
@@ -212,7 +212,7 @@ README) change in its own commit.
 | B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | building |
 | B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | planned |
 | B8 | `SignalOps::convolve_1d`, in a family of its own (`modules/operations/signal/`, `modules/kernels/signal_kernels/`): the owner ruled on 2026-10-24 that `SpatialOps` stays the operations over an NHWC grid. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
-| B9 | `SpatialOps::blend_transforms`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
+| B9 | `BlendOps::blend_transforms`, in a family of its own (`modules/operations/blend/`, `modules/kernels/blend_kernels/`), as the owner ruled on 2026-10-24 for the same reason as B8. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
 | B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | planned |
 | B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | building |
 | B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | planned |

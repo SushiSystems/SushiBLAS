@@ -154,3 +154,4 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/signal/signal.hpp>
+#include <SushiBLAS/blend/blend.hpp>

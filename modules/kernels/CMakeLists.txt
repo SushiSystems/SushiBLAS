@@ -11,6 +11,7 @@ add_subdirectory(random_kernels)
 add_subdirectory(sparse_kernels)
 add_subdirectory(spatial_kernels)
 add_subdirectory(signal_kernels)
+add_subdirectory(blend_kernels)
 
 # Test-only modules: a test program includes them, the library never does.
 if(SB_BUILD_TESTS)
