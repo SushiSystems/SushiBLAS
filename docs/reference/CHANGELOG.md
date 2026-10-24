@@ -9,32 +9,33 @@ the changelog document in the version history.
 - 2026-10-24 — functor_map: Added `bind_updates`, `update_as_element` and `update_as<U>` for an operand a task reads and writes, declared to SushiRuntime as both (`update_binding.hpp`).
 - 2026-10-24 — index: Made `for_each` take an update bundle and refuse an update or a write that overlaps another operand (`index_ops.hpp`).
 - 2026-10-24 — engine: Added `LateCountHold`, which the owner of a graph keeps and a `TaskRecorder` records late tasks into, so a replayed late node outlives its recorder (`late_count_hold.hpp`).
+- 2026-10-24 — engine: Breaking change: Changed `TaskRecorder` to take a `LateCountHold&` before the mode (`task_recorder.hpp`, `late_count_hold.hpp`).
 - 2026-10-24 — elementwise: Fixed `ordered_sum` holding `double` weights in device code for single-precision types, which a device without fp64 refused (`ordered_sum_element.hpp`).
 - 2026-10-24 — elementwise: Made the elementwise, logic and nonlinear seams refuse a `bind_writes` bundle, whatever the include order (`read_binding.hpp`).
-- 2026-10-24 — cluster: Made `TensorPack` take the device it lives on and refuse a tensor on another, and `PackLayout::segment()` refuse a type outside the enumeration (`tensor_pack.hpp`).
+- 2026-10-24 — cluster: Breaking change: Made `TensorPack` take the device it lives on and refuse a tensor on another, and `PackLayout::segment()` refuse a type outside the enumeration (`tensor_pack.hpp`).
 - 2026-10-24 — graph_primitives: Printed a window's computed end in its refusal (`element_window.hpp`).
 - 2026-10-24 — graph_primitives: Added a trailing window to the four primitives that places each buffer operand at an element offset, declared as that interval of the whole buffer (`element_window.hpp`).
 - 2026-10-24 — graph_primitives: Made a primitive declare only the interval of each buffer it touches, so a node over an untouched part is not ordered after it (`element_window.hpp`).
-- 2026-10-24 — engine: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check that the index, signal and blend families call (`operation_options.hpp`).
-- 2026-10-24 — signal: Made `convolve_1d` take an `OperationOptions` for its node's name and determinism (`signal.hpp`).
-- 2026-10-24 — blend: Made `blend_transforms` take an `OperationOptions` and `UInt32` indices (`blend.hpp`).
+- 2026-10-24 — engine: Breaking change: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check that the index, signal and blend families call (`operation_options.hpp`).
+- 2026-10-24 — signal: Breaking change: Made `convolve_1d` take an `OperationOptions` for its node's name and determinism (`signal.hpp`).
+- 2026-10-24 — blend: Breaking change: Made `blend_transforms` take an `OperationOptions` and `UInt32` indices (`blend.hpp`).
 - 2026-10-24 — cluster: Added `TensorPack::tensor()` and `segment_tensor()`, tensor views of one entry and of one segment over the pack's own buffer (`tensor_pack.hpp`).
-- 2026-10-24 — core: Added `DataType::UInt32`, a count type a tensor holds and moves and every computing operation refuses through `Domain::None` (`common.hpp`, `dispatch.hpp`).
+- 2026-10-24 — core: Breaking change: Added `DataType::UInt32`, a count type a tensor holds and moves and every computing operation refuses through `Domain::None` (`common.hpp`, `dispatch.hpp`).
 - 2026-10-24 — index: Let the late count of `IndexOps::for_each` be a `UInt32` tensor beside an `Int32` one, both read as one unsigned word (`task_recorder.hpp`, `index_task.hpp`).
-- 2026-10-24 — cluster: Gave a pack an eighth segment for `UInt32` and raised `K_PACK_FINGERPRINT_VERSION` to 2, so a pack of the previous build is refused (`pack_layout.hpp`).
+- 2026-10-24 — cluster: Breaking change: Gave a pack an eighth segment for `UInt32` and raised `K_PACK_FINGERPRINT_VERSION` to 2, so a pack of the previous build is refused (`pack_layout.hpp`).
 - 2026-10-24 — tensor: Let a `Storage` borrow a runtime buffer another owner keeps alive, allocating nothing, and made a task watch that owner so a run after it lets go is refused (`storage.hpp`, `operand_set.hpp`, `task_recorder.hpp`).
 - 2026-10-24 — recording_graph: Added `RecordingGraph`, the one gtest-free owner of a graph and a task recorder that the fixture and the benchmark harness share, replacing `BenchmarkGraph` (`recording_graph.hpp`, `recording_fixture.hpp`).
 - 2026-10-24 — tools: Let `check_engine_seams.py` exempt a module built under `SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS` (`check_engine_seams.py`).
-- 2026-10-24 — engine: Removed the engine's own graph with `execute()`, `discard_recorded()` and `recorder()`; every operation records into a graph its caller owns (`engine.hpp`, `engine.cpp`).
-- 2026-10-24 — engine: Removed the constructors over `Engine&` of every operation family, and made `SparseBLAS` take a `TaskRecorder&` (`blas.hpp`, `sparse.hpp`).
+- 2026-10-24 — engine: Breaking change: Removed the engine's own graph with `execute()`, `discard_recorded()` and `recorder()`; every operation records into a graph its caller owns (`engine.hpp`, `engine.cpp`).
+- 2026-10-24 — engine: Breaking change: Removed the constructors over `Engine&` of every operation family, and made `SparseBLAS` take a `TaskRecorder&` (`blas.hpp`, `sparse.hpp`).
 - 2026-10-24 — tools: Made `check_engine_seams.py` fail an engine graph member or a family constructor over `Engine&` coming back (`check_engine_seams.py`).
 - 2026-10-24 — index: Added the `IndexOps` family, whose `for_each()` runs a functor over a fixed count or a count a previous node wrote, with the node's name and determinism class (`index_ops.hpp`, `index_task.hpp`).
 - 2026-10-24 — engine: Added `TaskRecorder::record_late_pair()`, which records a task whose launch count the runtime reads from a tensor, and carried `TaskDescription::determinism` into the runtime node (`task_recorder.hpp`).
 - 2026-10-24 — tests: Pinned that a node recorded inside a runtime placement scope carries the scope's class and key (`test_task_recorder.cpp`).
 - 2026-10-24 — benchmark_harness: Made `measure()` time a graph the benchmark owns, recorded, run and cleared each iteration, through the new `BenchmarkGraph` (`benchmark_graph.hpp`, `benchmark_harness.hpp`).
-- 2026-10-24 — io: Removed the `Engine` parameter of `IO` and the graph run it did before every call; it reads what the storage holds and the caller runs the graph (`io.hpp`, `io.cpp`).
-- 2026-10-24 — io: Removed `IOStatus::RunFailed`, which no file operation returns once `IO` runs no graph (`io_status.hpp`).
-- 2026-10-24 — benchmark_harness: Dropped the unused `Engine&` of `fill_tensor()` (`benchmark_harness.hpp`).
+- 2026-10-24 — io: Breaking change: Removed the `Engine` parameter of `IO` and the graph run it did before every call; it reads what the storage holds and the caller runs the graph (`io.hpp`, `io.cpp`).
+- 2026-10-24 — io: Breaking change: Removed `IOStatus::RunFailed`, which no file operation returns once `IO` runs no graph (`io_status.hpp`).
+- 2026-10-24 — benchmark_harness: Breaking change: Dropped the unused `Engine&` of `fill_tensor()` (`benchmark_harness.hpp`).
 - 2026-10-24 — cluster: Added the cluster module, built under `SB_ENABLE_DISTRIBUTED`, which packs tensors by type and records them as a registered task for a worker (`tensor_pack.hpp`, `cluster_binding.hpp`, `remote_task.hpp`).
 - 2026-10-24 — cli: Added `sb build --distributed`, which sets `SB_ENABLE_DISTRIBUTED` and builds SushiRuntime's distributed layer under it (`project.py`, `cli.py`).
 - 2026-10-24 — blend: Added the `BlendOps` family with `blend_transforms()`, the weighted blend of indexed 4×4 or 3×4 transforms applied to points, with a reference and a SYCL kernel (`blend.hpp`, `blend_transforms.cpp`).
