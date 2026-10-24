@@ -1,6 +1,6 @@
 # Layered execution
 
-**Status:** Open — designed and ruled on 2026-10-19; nothing built
+**Status:** Open — B1 to B12 and B14 to B18 built and not yet compiled or run; B13 waits on a SushiRuntime tag
 **About:** SushiBLAS's share of the stack's layered execution: the library becomes the one door to computation for SushiAI and SushiEngine.
 **Modules:** modules/engine/engine
 
