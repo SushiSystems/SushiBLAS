@@ -30,6 +30,7 @@ sushiblas_add_module(
         min.cpp
         mul.cpp
         neg.cpp
+        ordered_sum.cpp
         pow.cpp
         reciprocal.cpp
         remainder.cpp
@@ -78,6 +79,7 @@ sushiblas_add_test_program(
         test_elementwise/test_min.cpp
         test_elementwise/test_mul.cpp
         test_elementwise/test_neg.cpp
+        test_elementwise/test_ordered_sum.cpp
         test_elementwise/test_pow.cpp
         test_elementwise/test_reciprocal.cpp
         test_elementwise/test_remainder.cpp

@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2 and B6 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2, B6 and B11 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -38,10 +38,21 @@ that B7 needs land with this change, in the same two headers.
 
 Seen and kept: `write_dtype` duplicates `read_dtype` in a few lines.
 
+## B11
+
+`ordered_sum(span<const Tensor> inputs, span<const double> weights, Tensor& out)` runs one
+functor on both paths: each element reads input 0 to n-1 in order, so the work-group size cannot
+change the result. `Half` accumulates in `float` and rounds once; a complex input takes its real
+weight per component, so no complex product enters the rounding; integers add through
+`wrapping_add` and refuse a weight other than 1. The kernel carries the input addresses and
+weights by value, which caps n at `K_MAX_ORDERED_SUM_INPUTS` (32); a scratch table would lift
+the cap.
+
 ## Dispatches
 
 ```
 dispatch: B1 — sonnet medium, 31 turns, passed, rung 1
 dispatch: B2 — sonnet medium, 112 turns, passed, rung 1
 dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
+dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
 ```

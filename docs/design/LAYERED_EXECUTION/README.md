@@ -214,7 +214,7 @@ README) change in its own commit.
 | B8 | `SpatialOps::convolve_1d`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
 | B9 | `SpatialOps::blend_transforms`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
 | B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | planned |
-| B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | planned |
+| B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | building |
 | B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | planned |
 | B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |
 

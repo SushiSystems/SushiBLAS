@@ -27,6 +27,8 @@
 
 #pragma once
 
+#include <cstddef>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
@@ -332,6 +334,20 @@ namespace SushiBLAS
              * @see modules/operations/MATH_README.md
              */
             TaskHandle convert(const Tensor& src, Tensor& dst);
+
+            /** @brief Holds the most inputs one ordered_sum call takes. */
+            static constexpr std::size_t K_MAX_ORDERED_SUM_INPUTS = 32;
+
+            /**
+             * @brief Writes out = w0 * x0 + w1 * x1 + ... in index order, in one kernel.
+             * @param inputs One to K_MAX_ORDERED_SUM_INPUTS tensors of one shape, layout and type.
+             * @param weights One real weight per input; an integer sum accepts only 1.
+             * @param out Matches the inputs in shape, layout and type and overlaps none of them.
+             * @throws std::invalid_argument on a count, operand, match, overlap or weight rule.
+             * @see modules/operations/elementwise/README.md
+             */
+            TaskHandle ordered_sum(SushiRuntime::span<const Tensor> inputs,
+                                   SushiRuntime::span<const double> weights, Tensor& out);
 
         private:
             /// @brief The recorder every operation of this view records through.

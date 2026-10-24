@@ -11,7 +11,7 @@ It depends on `core`, `support`, `tensor`, `engine` and `functor_map`. Its heade
 | `elementwise.hpp` | ElementwiseOps, the per-element math operations on tensors |
 | `wrapping_math.hpp` | The arithmetic functors that wrap modulo 2^N on integer element types |
 
-`source/` holds 32 translation units.
+`source/` holds 33 translation units.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to.
@@ -81,6 +81,38 @@ Throws `std::invalid_argument`, naming the offending operand, if it has elements
 or is non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::Real`,
 and if the operands overlap. Throws `UnsupportedExecution` as `Dispatch::require_device_dtype` and
 `TaskRecorder::record_pair` state.
+
+### `ElementwiseOps::ordered_sum`
+
+`ordered_sum(inputs, weights, out)` writes `out = w0 * x0 + w1 * x1 + ...` in one kernel. Each
+work-item reads input 0 to input n - 1 for its own element, so the order is fixed by the index and
+never by arrival. The reference path and the SYCL path run the same functor, so they match bit for
+bit, and a test compares both against a serial sum written with the same order and type.
+
+| Element type | Accumulates in | Rounds |
+| --- | --- | --- |
+| `Half` | `Float32` | Once, after the last input |
+| `Float32`, `Float64` | Its own type | Each multiply and each add |
+| `Complex32`, `Complex64` | The component type | Each component apart |
+| `Int32`, `Int64` | Its own type, wrapping | Never; adds exactly modulo 2^32 or 2^64 |
+
+- A complex element is multiplied by the real weight one component at a time
+  (`re += w * x.real()`, `im += w * x.imag()`), so no complex product and no NaN handling of one
+  comes into the rounding. The functor turns floating-point contraction off, so a multiply and an
+  add never fuse into one fma on one path and not on the other.
+- An integer sum refuses a weight other than 1 when it is recorded. It adds through
+  `wrapping_add`, which converts to the unsigned type of the same width.
+- The signature takes `SushiRuntime::span<const Tensor>` and `SushiRuntime::span<const double>`
+  (the C++17 span the library already uses for shapes), and the output last, as `add` takes it.
+  A weight is a `double` and is narrowed to the accumulation type, as `pow` narrows its exponent.
+- The kernel carries the input addresses and the weights by value, so a call takes at most
+  `ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS` (32) inputs.
+- `out` matches the inputs in shape, layout and type, and overlaps none of them.
+
+Throws `std::invalid_argument`, naming the operand, if `inputs` is empty or longer than the limit,
+if `weights` holds another count, if an operand has no storage or is not contiguous, if a shape,
+a layout or a type differs from `inputs[0]`, if `out` overlaps an input, or if an integer sum has a
+weight other than 1.
 
 ### `ElementwiseOps::clamp`
 

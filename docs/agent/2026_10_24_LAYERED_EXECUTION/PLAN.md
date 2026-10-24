@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: plan of the run
 
-**Status:** Open — B1, B2 and B6 landed
+**Status:** Open — B1, B2, B6 and B11 landed
 **Implements:** LAYERED_EXECUTION#B1, LAYERED_EXECUTION#B2, LAYERED_EXECUTION#B3, LAYERED_EXECUTION#B4, LAYERED_EXECUTION#B5, LAYERED_EXECUTION#B6, LAYERED_EXECUTION#B7, LAYERED_EXECUTION#B8, LAYERED_EXECUTION#B9, LAYERED_EXECUTION#B10, LAYERED_EXECUTION#B11, LAYERED_EXECUTION#B12, LAYERED_EXECUTION#B13
 
 ## How it runs
@@ -26,6 +26,6 @@ AdaptiveCpp is checked then too. Work lands on `feature/layered_execution`.
 | B8 | nothing | planned |
 | B9 | nothing | planned |
 | B10 | `sushiruntime` R2 | planned |
-| B11 | nothing | planned |
+| B11 | nothing | built |
 | B12 | B11 | planned |
 | B13 | `sushiruntime` R10 | planned |

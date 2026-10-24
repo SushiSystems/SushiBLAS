@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — elementwise: Added `ElementwiseOps::ordered_sum()`, one kernel that adds up to 32 weighted tensors in index order, `Half` in `Float32` and integers wrapping with weight 1 (`ordered_sum.cpp`).
 - 2026-10-24 — functor_map: Added `bind_writes`, `write_as_element` and `write_as<U>`, which declare a task's writes and compose with `bind_reads`, a tensor named in both declared once (`write_binding.hpp`).
 - 2026-10-24 — tests: Moved the tests, the examples and the package test off the engine's graph onto graphs they own, through `SushiBLASTest::recorder()` and the four lines of the design (`sushiblas_test.hpp`, `quickstart_demo.cpp`).
 - 2026-10-24 — examples: Mapped SushiRuntime's `ErrorCode::InvalidArgument` to `InvalidRequest` in the adapter (`status_mapping.hpp`).
