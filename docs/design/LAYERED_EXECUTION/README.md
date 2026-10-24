@@ -209,7 +209,7 @@ README) change in its own commit.
 | B3 | `IO` without an engine: host actions on a tensor whose writer has run. Done when: `IO`'s header names no `Engine`, its tests pass with the caller running the graph, RW-4 closes. | planned |
 | B4 | The benchmark harness times a caller's graph. Done when: the harness names no `Engine::execute()` and its benchmarks run. Waits on B1. | planned |
 | B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed. Done when: `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back. Waits on B2, B3, B4, `sushiai` A0. | planned |
-| B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | planned |
+| B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | building |
 | B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | planned |
 | B8 | `SpatialOps::convolve_1d`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
 | B9 | `SpatialOps::blend_transforms`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |

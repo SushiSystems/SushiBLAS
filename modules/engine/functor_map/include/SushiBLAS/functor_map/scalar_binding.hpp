@@ -138,19 +138,38 @@ namespace SushiBLAS
 
         namespace Detail
         {
+            /** @brief Reports false: an op without `narrow<T>()` has nothing to narrow. */
+            template<typename Op, typename T, typename = void>
+            struct IsNarrowable : std::false_type
+            {
+
+            };
+
+            /** @brief Reports true: an op with `narrow<T>()` narrows itself, as a ScalarBound does. */
+            template<typename Op, typename T>
+            struct IsNarrowable<Op, T,
+                                std::void_t<decltype(std::declval<const Op&>().template narrow<T>())>>
+                : std::true_type
+            {
+
+            };
+
             /** @brief Returns a plain functor unchanged; it has nothing to narrow. */
             template<typename T, typename Op>
-            [[nodiscard]] inline const Op& narrow_for(ElementTag<T>, const Op& op) noexcept
+            [[nodiscard]] inline std::enable_if_t<!IsNarrowable<Op, T>::value, const Op&>
+            narrow_for(ElementTag<T>, const Op& op) noexcept
             {
                 return op;
             }
 
-            /** @brief Returns a bound functor with its scalars narrowed to the tag's type. */
-            template<typename T, typename Fn, std::size_t N>
-            [[nodiscard]] inline NarrowedOp<Fn, T, N> narrow_for(ElementTag<T>,
-                                                                 const ScalarBound<Fn, N>& bound)
+            /** @brief Returns an op that narrows itself, such as a bound functor, narrowed to the tag's type. */
+            template<typename T, typename Op>
+            [[nodiscard]] inline std::enable_if_t<
+                IsNarrowable<Op, T>::value,
+                decltype(std::declval<const Op&>().template narrow<T>())>
+            narrow_for(ElementTag<T>, const Op& op)
             {
-                return bound.template narrow<T>();
+                return op.template narrow<T>();
             }
         } // namespace Detail
     } // namespace Dispatch

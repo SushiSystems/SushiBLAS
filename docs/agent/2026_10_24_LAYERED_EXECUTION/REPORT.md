@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1 and B2 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2 and B6 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -26,9 +26,22 @@ Left for later tasks: `IO` and its tests (B3), the benchmarks (B4), and the test
 is `Engine::execute()` or `discard_recorded()` (B5 deletes them). About 120 of the mechanically
 migrated test files were not syntax-checked; 38 were, one or more per changed folder.
 
+## B6
+
+`write_binding.hpp` mirrors `read_binding.hpp`. `bind_writes(bind_reads(f, reads...), writes...)`
+calls `f(i, reads..., writes..., scalars...)`; the reverse nesting does not compile.
+`WriteBound::declare_into` runs after the reads are declared: a tensor already read gains one
+write region, a repeated write is skipped, and a write that overlaps a read region without being
+it is refused. `AddressedOp::typed` calls a qualified `Detail::narrow_for`, so `scalar_binding.hpp`
+now narrows any op with a `narrow<T>()` member. The accessors `element_dtype()` and `IsWriteBound`
+that B7 needs land with this change, in the same two headers.
+
+Seen and kept: `write_dtype` duplicates `read_dtype` in a few lines.
+
 ## Dispatches
 
 ```
 dispatch: B1 — sonnet medium, 31 turns, passed, rung 1
 dispatch: B2 — sonnet medium, 112 turns, passed, rung 1
+dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
 ```

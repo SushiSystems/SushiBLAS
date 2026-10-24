@@ -31,6 +31,7 @@
 #include <tuple>
 #include <string>
 #include <complex>
+#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -129,6 +130,20 @@ namespace SushiBLAS
             {
                 return dtype_named_by<U>();
             }
+
+            /** @brief Reports false: a typed read does not name the operation's element type. */
+            template<typename Read>
+            struct IsElementRead : std::false_type
+            {
+
+            };
+
+            /** @brief Reports true: an element read names the operation's element type. */
+            template<>
+            struct IsElementRead<ElementRead> : std::true_type
+            {
+
+            };
         } // namespace Detail
 
         /**
@@ -291,13 +306,44 @@ namespace SushiBLAS
                         operands.reads(tensor);
                 }
 
+                /** @brief Returns the dtype of the first read declared as an element read, if any. */
+                [[nodiscard]] std::optional<Core::DataType> element_dtype() const noexcept
+                {
+                    constexpr std::array<bool, sizeof...(Reads)> is_element{
+                        Detail::IsElementRead<Reads>::value...};
+
+                    for (std::size_t k = 0; k < sizeof...(Reads); ++k)
+                    {
+                        if (is_element[k])
+                            return tensors_[k].dtype;
+                    }
+
+                    return std::nullopt;
+                }
+
                 /** @brief Returns the functor with the reads' base addresses, without the tensors. */
                 [[nodiscard]] AddressedOp<Fn, Reads...> addressed() const
+                {
+                    return addressed_around(fn_);
+                }
+
+                /** @brief Returns the functor as the bundle holds it, for a binding that wraps it. */
+                [[nodiscard]] const Fn& functor() const noexcept
+                {
+                    return fn_;
+                }
+
+                /**
+                 * @brief Returns wrapped with the reads' base addresses, in place of the functor.
+                 * @tparam Wrapped A functor that calls the held functor, as bind_writes builds.
+                 */
+                template<typename Wrapped>
+                [[nodiscard]] AddressedOp<Wrapped, Reads...> addressed_around(Wrapped wrapped) const
                 {
                     std::array<const void*, sizeof...(Reads)> addresses{};
                     for (std::size_t k = 0; k < sizeof...(Reads); ++k)
                         addresses[k] = tensors_[k].data_or_null();
-                    return AddressedOp<Fn, Reads...>(fn_, addresses);
+                    return AddressedOp<Wrapped, Reads...>(std::move(wrapped), addresses);
                 }
 
             private:
@@ -338,6 +384,21 @@ namespace SushiBLAS
                                                Core::DataType element, const char* name)
             {
                 bound.require(element, name);
+            }
+
+            /** @brief Returns no dtype: a bare functor declares no element read. */
+            template<typename Op>
+            [[nodiscard]] inline std::optional<Core::DataType> element_dtype_of(const Op&) noexcept
+            {
+                return std::nullopt;
+            }
+
+            /** @brief Returns the dtype of the first element read a bundle declares, if any. */
+            template<typename Fn, typename... Reads>
+            [[nodiscard]] inline std::optional<Core::DataType> element_dtype_of(
+                const ReadBound<Fn, Reads...>& bound) noexcept
+            {
+                return bound.element_dtype();
             }
 
             /** @brief Adds nothing, because a bare functor declares no reads. */
