@@ -74,7 +74,7 @@ namespace SushiBLAS
                 {
                     return TestEnvironment::runtime().interop().borrow<std::byte>(
                         address_ + offset, count, SushiRuntime::DeviceIndex{0},
-                        SushiRuntime::Residency::Shared, token_);
+                        SushiRuntime::Residency::Shared, token_).value();
                 }
 
                 /// @brief Lets go of the memory, as its owner does when it frees it.

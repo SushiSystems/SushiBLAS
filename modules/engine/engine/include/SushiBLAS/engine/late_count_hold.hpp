@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -81,6 +82,7 @@ namespace SushiBLAS
              * @brief Makes the owner token of a late task and borrows its count under it.
              * @return The token, which holds every storage of operands and of count, and the
              *         count's allocation as words the token owns.
+             * @throws std::runtime_error when the runtime refuses the count's residency.
              * @pre count has storage.
              */
             [[nodiscard]] LateCount borrow(const OperandSet& operands,
@@ -99,11 +101,15 @@ namespace SushiBLAS
                     });
 
                 const Storage& storage = *count.storage;
-                late.words = runtime_->interop().borrow<std::uint32_t>(
-                    static_cast<std::uint32_t*>(storage.allocation_base()),
-                    storage.size_bytes() / sizeof(std::uint32_t),
-                    SushiRuntime::DeviceIndex{storage.device_index()}, storage.residency(),
-                    late.owner);
+                SushiRuntime::Result<SushiRuntime::Buffer<std::uint32_t>> words =
+                    runtime_->interop().borrow<std::uint32_t>(
+                        static_cast<std::uint32_t*>(storage.allocation_base()),
+                        storage.size_bytes() / sizeof(std::uint32_t),
+                        SushiRuntime::DeviceIndex{storage.device_index()}, storage.residency(),
+                        late.owner);
+                SB_THROW_IF(!words, "The late count could not be borrowed: {}",
+                            words.error().message);
+                late.words = std::move(*words);
                 return late;
             }
 

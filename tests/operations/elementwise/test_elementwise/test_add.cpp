@@ -85,7 +85,7 @@ namespace
                     SushiBLAS::Storage::Borrowed{}, TestEnvironment::runtime(),
                     TestEnvironment::runtime().interop().borrow<std::byte>(
                         reinterpret_cast<std::byte*>(address_), count_ * sizeof(float),
-                        SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Shared, token_));
+                        SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Shared, token_).value());
                 return SushiBLAS::Tensor(std::move(storage), {static_cast<int64_t>(count_)},
                                          SushiBLAS::Core::DataType::Float32);
             }
