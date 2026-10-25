@@ -1,6 +1,6 @@
 # Device compilation only where a unit instantiates a kernel: plan
 
-**Status:** Open — written 2026-10-26; S1 to S3 run inline in one session, S4 waits on the owner's build.
+**Status:** Open — written 2026-10-26; S1 to S3 committed on 2026-10-26; S4 waits on the owner's build.
 
 ## How it runs
 
