@@ -268,7 +268,7 @@ of zero records nothing now.
 The first configure stopped on `graph_probe`'s edge to `engine_fixture`, which the same-layer edge
 list lacked. The suite then passed 3001 of 3028. In code: an emptied recording graph kept
 SushiRuntime's compiled plan, which holds a copy of every task body, so operands and scratch stayed
-held after `run()` (the graph now destroys its plan as well); a `LateCountHold` token's deleter kept
+held after `run()` (SushiRuntime's `Graph::clear()` now frees the plan, R18); a `LateCountHold` token's deleter kept
 its storages for as long as any observer of the token lived (it drops them when the token dies); and
 `record_remote` compared rule counts, which an open rule scope keeps unchanged, so a recording read
 as refused (it compares node counts). In tests: a reference test read a tensor before running its

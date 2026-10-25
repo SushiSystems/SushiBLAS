@@ -167,10 +167,6 @@ namespace SushiBLAS
                     [this]()
                     {
                         graph_.clear();
-                        // The compiled plan keeps a copy of every task until it is destroyed.
-                        {
-                            const SushiRuntime::Graph spent(std::move(graph_));
-                        }
                         late_counts_.release();
                     });
             }
