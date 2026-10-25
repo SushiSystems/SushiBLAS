@@ -67,7 +67,8 @@ endfunction()
 #
 # INTERNAL keeps the module's headers out of the install; the modules of the library can
 # include them and a consumer cannot. EXTERNAL names targets from outside this tree.
-# SOURCES names the units that instantiate no kernel and DEVICE_SOURCES the units that do.
+# SOURCES names the units that instantiate no kernel and DEVICE_SOURCES the units that do;
+# cmake/SyclTarget.cmake compiles only the second for the device.
 # DEPENDS names the modules the public headers include, and every module that names this one
 # sees them too. PRIVATE_DEPENDS names the modules only source/ includes; they reach the
 # object library and no one else, so they need SOURCES or DEVICE_SOURCES.
@@ -152,7 +153,7 @@ function(sushiblas_add_module)
             CXX_STANDARD 17
             CXX_STANDARD_REQUIRED ON)
         sushiblas_apply_build_policy(${objects})
-        sushiblas_apply_sycl(${objects} SOURCES ${host_sources} ${device_sources})
+        sushiblas_apply_sycl(${objects} DEVICE_SOURCES ${device_sources})
         set_property(GLOBAL APPEND PROPERTY SUSHIBLAS_MODULE_OBJECT_TARGETS ${objects})
     endif()
 endfunction()

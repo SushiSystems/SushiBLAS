@@ -69,11 +69,10 @@ set_target_properties(sushiblas PROPERTIES
     LINKER_LANGUAGE CXX
 )
 
-# SYCL device-compilation policy (see cmake/SyclTarget.cmake) - PUBLIC, so
-# examples/tests inherit it from linking sushiblas rather than reapplying it
-# themselves. No oneMKL coupling: gemm/syrk are SushiBLAS's own ported/composed
-# tiling kernels now (SB-2, see NOTICE.md), not an oneMKL passthrough.
-sushiblas_apply_sycl(sushiblas)
+# What the archive hands a consumer for SYCL (cmake/SyclTarget.cmake): the SYCL headers and the
+# device link options, and no device compile option. A consumer's unit that instantiates a
+# SushiBLAS kernel template takes the compile options of SushiBLAS::device_code.
+sushiblas_publish_sycl(sushiblas)
 
 # --- Install & export (SB-6) ---
 #
@@ -88,6 +87,12 @@ install(TARGETS sushiblas
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+# The two interface targets of cmake/SyclTarget.cmake: sushiblas links the first, and a consumer
+# names the second for its device units.
+install(TARGETS sushiblas_sycl_headers sushiblas_device_code
+    EXPORT SushiBLASTargets
 )
 
 foreach(include_root IN LISTS SB_INSTALLED_INCLUDE_ROOTS)

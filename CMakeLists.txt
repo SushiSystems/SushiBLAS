@@ -28,7 +28,7 @@ endif()
 include(SushiBLASSushiLog)  # SushiLog::SushiLog, before the runtime links it
 include(Runtime)     # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime,
                       # add_sycl_to_target(), SR_SYCL_TOOLCHAIN
-include(SyclTarget)  # sushiblas_apply_sycl() helper
+include(SyclTarget)  # the SYCL policy: sushiblas_apply_sycl(), sushiblas_publish_sycl()
 
 # Compile policy. BuildPolicy composes the warning, architecture, and
 # sanitizer targets and exposes sushiblas_apply_build_policy(<target>), which
@@ -148,8 +148,11 @@ write_basic_package_version_file(
     COMPATIBILITY SameMinorVersion
 )
 
+# SushiBLASSyclHeaders.cmake goes with them: the Config file calls it to find the SYCL headers
+# beside the consumer's compiler.
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/SushiBLASConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/SushiBLASConfigVersion.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SushiBLASSyclHeaders.cmake"
     DESTINATION "${SB_INSTALL_CMAKEDIR}"
 )

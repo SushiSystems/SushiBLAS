@@ -4,12 +4,24 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-# SyclTarget — the single source of truth for turning a target's sources into
-# SYCL device code against the runtime. Unlike SushiEngine (header-only, so
-# every consumer instantiates its kernels itself), SushiBLAS compiles its own
-# SYCL kernels into the `sushiblas` library, so the flags below are applied
-# PUBLIC: examples/tests just link `sushiblas` and inherit them, rather than
-# every consumer calling this function itself.
+# SyclTarget — the SYCL policy of every target this project builds and of what the library
+# publishes, in one place.
+#
+# On the intel-llvm toolchain a unit compiles for the device only when it instantiates a kernel:
+# its target names it in DEVICE_SOURCES and it takes -fsycl and the device targets. Every other
+# unit compiles for the host alone, with the toolchain's SYCL headers on its include path,
+# because SushiBLAS's and SushiRuntime's public headers include <sycl/sycl.hpp>. The library
+# publishes the headers and the device options as link options, so the link of an executable
+# pulls the device images out of the archive, and it publishes the device compile options on
+# a target of their own, SushiBLAS::device_code, for a consumer's unit that instantiates a
+# SushiBLAS kernel template. docs/agent/2026_10_26_SYCL_COMPILE_TIME/SPEC.md holds the
+# measurements behind this split.
+#
+# On the other toolchains add_sycl_to_target() is the toolchain's own function and applies to
+# whole targets, and every unit of a target given to sushiblas_apply_sycl() compiles for the
+# device.
+
+include(SushiBLASSyclHeaders)
 
 # Which devices to generate code for.
 #
@@ -64,6 +76,19 @@ else()
                    "(will not reach an NVIDIA GPU; set SB_SYCL_TARGETS)")
 endif()
 
+# SB_SYCL_INCLUDE_DIR: where <sycl/sycl.hpp> lives, for the units compiled without -fsycl.
+# Found beside the compiler; set it by hand for a toolchain laid out otherwise.
+if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+    sushiblas_find_sycl_include_dir(_sb_sycl_include_dir)
+    set(SB_SYCL_INCLUDE_DIR "${_sb_sycl_include_dir}" CACHE PATH
+        "The SYCL toolchain's include directory, for units compiled without -fsycl.")
+    if(NOT EXISTS "${SB_SYCL_INCLUDE_DIR}/sycl/sycl.hpp")
+        message(FATAL_ERROR
+            "SushiBLAS: no sycl/sycl.hpp under SB_SYCL_INCLUDE_DIR='${SB_SYCL_INCLUDE_DIR}'. "
+            "Set it to the include directory of the toolchain of ${CMAKE_CXX_COMPILER}.")
+    endif()
+endif()
+
 # sushiblas_runtime_device_targets(<out_compile> <out_link>)
 #   Returns the device target flags SushiRuntime resolved for this build
 #   (-fsycl-targets and its backend options), read from its
@@ -85,50 +110,91 @@ function(sushiblas_runtime_device_targets out_compile out_link)
     set(${out_link} "${_link}" PARENT_SCOPE)
 endfunction()
 
-# sushiblas_apply_sycl(<target> [SOURCES <src>...])
-#   Applies the SYCL device-compilation policy to <target>:
-#     * the toolchain's add_sycl_to_target() (pass SOURCES so AdaptiveCpp/oneAPI
-#       can find the device code; harmless where it is a no-op stub),
-#     * an explicit -fsycl on the intel-llvm path, where add_sycl_to_target() is a
-#       no-op stub and the flag must be added ourselves - PUBLIC, so it reaches
-#       whatever links <target> too,
-#     * the AOT target list, if one was requested.
-#
-#   The AOT flags have to be PUBLIC for the same reason -fsycl does, only more
-#   so: sushiblas is a STATIC library, so its device code is not finalised until
-#   the final executable links. A consumer that inherits -fsycl but not
-#   -fsycl-targets links a host binary carrying no CUDA image and then reports,
-#   at run time, that it cannot find a device - with nothing in the build log to
-#   suggest why.
-function(sushiblas_apply_sycl target)
-    cmake_parse_arguments(ARG "" "" "SOURCES" ${ARGN})
-
-    if(ARG_SOURCES)
-        add_sycl_to_target(TARGET ${target} SOURCES ${ARG_SOURCES})
+# sushiblas_sycl_device_options(<out_compile> <out_link>)
+#   Returns the options a device unit compiles with and a SYCL executable links with on the
+#   intel-llvm toolchain: -fsycl, the device targets of SB_SYCL_TARGETS or else of SushiRuntime,
+#   and SB_SYCL_DEVICE_FLAGS. -fsycl-targets takes one comma-separated argument, so the CMake
+#   list in SB_SYCL_TARGETS is joined with commas.
+function(sushiblas_sycl_device_options out_compile out_link)
+    set(compile -fsycl)
+    set(link -fsycl)
+    if(SB_SYCL_TARGETS)
+        string(REPLACE ";" "," target_list "${SB_SYCL_TARGETS}")
+        list(APPEND compile -fsycl-targets=${target_list})
+        list(APPEND link -fsycl-targets=${target_list})
     else()
-        add_sycl_to_target(TARGET ${target})
+        sushiblas_runtime_device_targets(runtime_compile runtime_link)
+        list(APPEND compile ${runtime_compile})
+        list(APPEND link ${runtime_link})
     endif()
+    list(APPEND compile ${SB_SYCL_DEVICE_FLAGS})
+    list(APPEND link ${SB_SYCL_DEVICE_FLAGS})
+    set(${out_compile} "${compile}" PARENT_SCOPE)
+    set(${out_link} "${link}" PARENT_SCOPE)
+endfunction()
+
+# SushiBLAS::sycl_headers: the SYCL headers for a unit compiled without -fsycl, quiet. The
+# include directory is a path of this machine, so the export carries the definition alone and
+# the installed SushiBLASConfig.cmake adds the directory it finds beside the consumer's compiler.
+# SushiBLAS::device_code: the compile options of a unit that instantiates a kernel.
+if(NOT TARGET sushiblas_sycl_headers)
+    add_library(sushiblas_sycl_headers INTERFACE)
+    add_library(SushiBLAS::sycl_headers ALIAS sushiblas_sycl_headers)
+    set_target_properties(sushiblas_sycl_headers PROPERTIES EXPORT_NAME sycl_headers)
+
+    add_library(sushiblas_device_code INTERFACE)
+    add_library(SushiBLAS::device_code ALIAS sushiblas_device_code)
+    set_target_properties(sushiblas_device_code PROPERTIES EXPORT_NAME device_code)
 
     if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
-        target_compile_options(${target} PUBLIC -fsycl)
-        target_link_options(${target} PUBLIC -fsycl)
-
-        if(SB_SYCL_TARGETS)
-            # -fsycl-targets takes one comma-separated argument; CMake lists are
-            # semicolon-separated, and passing one through unconverted hands the
-            # driver a single unparseable triple.
-            string(REPLACE ";" "," _sb_target_list "${SB_SYCL_TARGETS}")
-            target_compile_options(${target} PUBLIC -fsycl-targets=${_sb_target_list})
-            target_link_options(${target} PUBLIC -fsycl-targets=${_sb_target_list})
-        else()
-            sushiblas_runtime_device_targets(_sb_compile _sb_link)
-            target_compile_options(${target} PUBLIC ${_sb_compile})
-            target_link_options(${target} PUBLIC ${_sb_link})
-        endif()
-
-        if(SB_SYCL_DEVICE_FLAGS)
-            target_compile_options(${target} PUBLIC ${SB_SYCL_DEVICE_FLAGS})
-            target_link_options(${target} PUBLIC ${SB_SYCL_DEVICE_FLAGS})
-        endif()
+        target_include_directories(sushiblas_sycl_headers SYSTEM INTERFACE
+            "$<BUILD_INTERFACE:${SB_SYCL_INCLUDE_DIR}>")
+        target_compile_definitions(sushiblas_sycl_headers INTERFACE
+            SYCL_DISABLE_FSYCL_SYCLHPP_WARNING)
+        sushiblas_sycl_device_options(_sb_device_compile _sb_device_link)
+        target_compile_options(sushiblas_device_code INTERFACE ${_sb_device_compile})
     endif()
+endif()
+
+# sushiblas_apply_sycl(<target> [DEVICE_SOURCES <src>...])
+#   Applies the SYCL policy to a target this project compiles. On intel-llvm every unit of
+#   <target> gets the SYCL headers, and the DEVICE_SOURCES, which must be sources of <target>,
+#   compile with the options of SushiBLAS::device_code; this function owns their
+#   COMPILE_OPTIONS source property. Elsewhere add_sycl_to_target() takes every source of
+#   <target>.
+function(sushiblas_apply_sycl target)
+    cmake_parse_arguments(ARG "" "" "DEVICE_SOURCES" ${ARGN})
+    if(NOT "${ARG_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR
+            "sushiblas_apply_sycl(${target}): unexpected argument(s) '${ARG_UNPARSED_ARGUMENTS}'.")
+    endif()
+
+    if(NOT SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+        get_target_property(target_sources ${target} SOURCES)
+        add_sycl_to_target(TARGET ${target} SOURCES ${target_sources})
+        return()
+    endif()
+
+    target_link_libraries(${target} PRIVATE sushiblas_sycl_headers)
+    if(ARG_DEVICE_SOURCES)
+        get_target_property(device_compile sushiblas_device_code INTERFACE_COMPILE_OPTIONS)
+        set_property(SOURCE ${ARG_DEVICE_SOURCES} TARGET_DIRECTORY ${target}
+            PROPERTY COMPILE_OPTIONS "${device_compile}")
+    endif()
+endfunction()
+
+# sushiblas_publish_sycl(<library>)
+#   Applies the SYCL policy to what <library> hands the targets that link it. On intel-llvm
+#   they get the SYCL headers and the device link options, which pull the device images out of
+#   the archive, and no device compile option. Elsewhere add_sycl_to_target() takes the whole
+#   library.
+function(sushiblas_publish_sycl library)
+    if(NOT SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+        add_sycl_to_target(TARGET ${library})
+        return()
+    endif()
+
+    target_link_libraries(${library} PUBLIC sushiblas_sycl_headers)
+    sushiblas_sycl_device_options(device_compile device_link)
+    target_link_options(${library} INTERFACE ${device_link})
 endfunction()

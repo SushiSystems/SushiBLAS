@@ -84,8 +84,11 @@ A unit that instantiates a kernel is listed under a `DEVICE_` keyword: `DEVICE_S
 `sushiblas_add_module()` and `sushiblas_add_application_test_program()`, `DEVICE_TESTS` and
 `DEVICE_BENCHMARKS` in `sushiblas_add_test_program()`, and `DEVICE_SOURCES` of
 `sushiblas_apply_sycl()` for an example. The keywords match SushiAI's `DEVICE_SOURCES`. A unit
-left off a device list that launches a kernel fails when its test runs, with SYCL's
-"No kernel named ... was found"; a unit listed that launches none costs a device pass.
+left off a device list that launches a kernel does not compile here: without `-fsycl`,
+`handler::parallel_for` resolves to an overload marked deprecated, and `-Werror` refuses it.
+`tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp` and
+`tests/kernels/blas_kernels/test_blas.cpp`, syntax-checked without the device options, both
+stopped there. A unit listed that launches no kernel costs a device pass.
 
 ### What a consumer links
 

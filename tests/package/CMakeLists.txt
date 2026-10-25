@@ -100,6 +100,18 @@ foreach(_sb_leaked IN ITEMS sushiblas_warnings sushiblas_perf sushiblas_sanitize
     endif()
 endforeach()
 
+# The device options belong on SushiBLAS::device_code. On the sushiblas target they would put
+# every unit of this consumer through the device passes.
+if(NOT TARGET SushiBLAS::device_code OR NOT TARGET SushiBLAS::sycl_headers)
+    message(FATAL_ERROR "The package exports no SushiBLAS::device_code or SushiBLAS::sycl_headers.")
+endif()
+get_target_property(_sb_device_options SushiBLAS::device_code INTERFACE_COMPILE_OPTIONS)
+if(_sb_device_options AND "${_sb_interface_options}" MATCHES "-fsycl")
+    message(FATAL_ERROR
+        "SushiBLAS::sushiblas publishes a device compile option; it belongs on "
+        "SushiBLAS::device_code. Full interface: ${_sb_interface_options}")
+endif()
+
 message(STATUS "SushiBLAS interface compile options: ${_sb_interface_options}")
 message(STATUS "SushiBLAS interface link libraries:  ${_sb_interface_links}")
 
@@ -107,8 +119,11 @@ message(STATUS "SushiBLAS interface link libraries:  ${_sb_interface_links}")
 
 add_executable(sushiblas_package_consumer main.cpp)
 
+# main.cpp hands a functor to Dispatch::execute_binary, which instantiates a kernel, so its one
+# unit compiles for the device.
 target_link_libraries(sushiblas_package_consumer PRIVATE
     SushiBLAS::sushiblas
+    SushiBLAS::device_code
 )
 
 # C++20 on purpose, and the one place in this repo that is. SushiBLAS itself is built at

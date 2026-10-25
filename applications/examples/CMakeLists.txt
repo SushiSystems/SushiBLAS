@@ -7,10 +7,12 @@
 add_executable(quickstart_demo quickstart_demo.cpp)
 target_link_libraries(quickstart_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(quickstart_demo)
+sushiblas_apply_sycl(quickstart_demo DEVICE_SOURCES quickstart_demo.cpp)
 
 add_executable(io_demo io_demo.cpp)
 target_link_libraries(io_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(io_demo)
+sushiblas_apply_sycl(io_demo DEVICE_SOURCES io_demo.cpp)
 
 add_executable(adapter_demo
     adapter/adapter_demo.cpp
@@ -18,6 +20,7 @@ add_executable(adapter_demo
 )
 target_link_libraries(adapter_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(adapter_demo)
+sushiblas_apply_sycl(adapter_demo DEVICE_SOURCES adapter/sushiblas_adapter.cpp)
 sushiblas_add_application_test_program(
     NAME adapter
     DIRECTORY examples/adapter
@@ -30,22 +33,27 @@ sushiblas_add_application_test_program(
 add_executable(errors_demo errors_demo.cpp)
 target_link_libraries(errors_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(errors_demo)
+sushiblas_apply_sycl(errors_demo DEVICE_SOURCES errors_demo.cpp)
 
 add_executable(run_failure_demo run_failure_demo.cpp)
 target_link_libraries(run_failure_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(run_failure_demo)
+sushiblas_apply_sycl(run_failure_demo DEVICE_SOURCES run_failure_demo.cpp)
 
 add_executable(recording_demo recording_demo.cpp)
 target_link_libraries(recording_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(recording_demo)
+sushiblas_apply_sycl(recording_demo DEVICE_SOURCES recording_demo.cpp)
 
 add_executable(operation_families_demo operation_families_demo.cpp)
 target_link_libraries(operation_families_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(operation_families_demo)
+sushiblas_apply_sycl(operation_families_demo DEVICE_SOURCES operation_families_demo.cpp)
 
 add_executable(graph_primitives_demo graph_primitives_demo.cpp)
 target_link_libraries(graph_primitives_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(graph_primitives_demo)
+sushiblas_apply_sycl(graph_primitives_demo DEVICE_SOURCES graph_primitives_demo.cpp)
 
 # Ensure RPATH is set
 set_target_properties(

@@ -28,18 +28,36 @@ They are templates that inline your functor into a kernel, so a call to one does
 device code in your translation unit. The GEMM kernels are installed under
 `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` for that reason.
 
-You still need a SYCL-capable compiler, because the public headers include `<sycl/sycl.hpp>`
-and use `sycl::queue`, `sycl::event` and `sycl::device` in their own declarations:
-`Tensor::device()` and the task bodies in `engine/task_recorder.hpp` are two places. A
-translation unit that includes `<SushiBLAS/SushiBLAS.hpp>` needs a compiler that parses those
-types, even though it submits no kernel of its own. `sushiblas_apply_sycl()` in
-`cmake/SyclTarget.cmake` therefore puts `-fsycl` on `SushiBLAS::sushiblas` as a `PUBLIC` compile
-and link option.
+You still need the SYCL toolchain's compiler and headers, because the public headers include
+`<sycl/sycl.hpp>` and use `sycl::queue`, `sycl::event` and `sycl::device` in their own
+declarations: `Tensor::device()` and the task bodies in `engine/task_recorder.hpp` are two
+places. A translation unit that includes `<SushiBLAS/SushiBLAS.hpp>` parses those types. It
+compiles for the device only when it instantiates a kernel.
+
+`cmake/SyclTarget.cmake` draws that line on the intel-llvm toolchain. `SushiBLAS::sushiblas`
+gives you the SYCL headers, through `SushiBLAS::sycl_headers`, and `-fsycl` with the device
+targets as link options, so the link of your executable pulls the device images out of the
+archive. It gives you no device compile option. A translation unit that calls a dispatch seam or
+a kernel template compiles with the options of `SushiBLAS::device_code`: link that target to a
+target whose every unit instantiates a kernel, or put its options on the units that do.
+
+```cmake
+add_executable(my_app main.cpp fused_kernels.cpp)
+target_link_libraries(my_app PRIVATE SushiBLAS::sushiblas)
+set_property(SOURCE fused_kernels.cpp APPEND PROPERTY COMPILE_OPTIONS
+    "$<TARGET_PROPERTY:SushiBLAS::device_code,INTERFACE_COMPILE_OPTIONS>")
+```
+
+Source: not compiled
+
+A unit that instantiates a kernel without those options gets a warning that the
+`handler::parallel_for` it calls is deprecated, an error under `-Werror`. Do not silence it: the
+unit has no device code, so its kernel is missing from the device image.
 
 You do not need the two-lane build split that SushiRuntime's own
 [INTEGRATION.md](https://github.com/SushiSystems/SushiRuntime/blob/main/docs/guides/INTEGRATION.md)
-describes. Every translation unit that touches `SushiBLAS::sushiblas` needs the SYCL compiler,
-whether or not it writes a kernel.
+describes. Every translation unit that touches `SushiBLAS::sushiblas` is compiled by the SYCL
+toolchain's compiler, with `-fsycl` or without it.
 
 ## 2. Consuming the package
 
@@ -103,14 +121,19 @@ Linking `SushiBLAS::sushiblas` gives you:
 | --- | --- |
 | Include directories | The target exports them |
 | The library itself | It is the target |
-| `-fsycl`, on the intel-llvm toolchain | The public headers need a SYCL-aware compiler to parse `sycl::event` and `sycl::device`; see section 1 |
+| The SYCL headers as a system include, with `SYCL_DISABLE_FSYCL_SYCLHPP_WARNING`, on the intel-llvm toolchain | A unit compiled without `-fsycl` includes `<sycl/sycl.hpp>` through the public headers; see section 1 |
+| `-fsycl` and the device targets as link options, on the intel-llvm toolchain | The link of an executable pulls the device images out of the archive |
 | SushiRuntime's floating-point contract, transitively | SushiBLAS links `SushiRuntime::SushiRuntime` `PUBLIC`, so its `sushiruntime_deterministic_fp` interface (`-ffp-contract=off -fno-fast-math`, or `/fp:precise`) reaches you too |
+
+You do not inherit `-fsycl` as a compile option: a unit that instantiates a kernel takes the
+options of `SushiBLAS::device_code`, as section 1 shows.
 
 You do not inherit SushiBLAS's warnings, `-Werror`, sanitizer selection or `-march`. Those are
 this project's development choices, and a dependency that imposed them would fail your build
 for a reason your own source tree does not show. `tests/package/CMakeLists.txt` asserts this
 from the consumer side: it checks `INTERFACE_COMPILE_OPTIONS` for `-Werror`, `-Wall`, `-march=`
-and `-fsanitize`, and `INTERFACE_LINK_LIBRARIES` for the names of the in-tree policy targets.
+and `-fsanitize`, and `INTERFACE_LINK_LIBRARIES` for the names of the in-tree policy targets. It
+also checks that `-fsycl` is on `SushiBLAS::device_code` and not on `SushiBLAS::sushiblas`.
 
 You must supply:
 
@@ -326,7 +349,11 @@ An adapter for the rest of the surface follows the same rule: it names `Engine`,
 
 **A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>`.** A compiler without SYCL
 support is compiling the translation unit. Every file that includes a SushiBLAS header needs
-the SYCL-aware compiler; see section 1.
+the SYCL toolchain's compiler; see section 1.
+
+**`'parallel_for<...>' is deprecated` in a unit that calls a dispatch seam.** The unit
+instantiates a kernel and compiles without `-fsycl`. Give it the options of
+`SushiBLAS::device_code`; see section 1.
 
 **`find_package(SushiBLAS)` succeeds and the configure then fails on SushiRuntime.**
 `CMAKE_PREFIX_PATH` must name both install prefixes. `SushiBLASConfig.cmake` calls

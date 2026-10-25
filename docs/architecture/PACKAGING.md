@@ -16,13 +16,22 @@ Because `sushiblas` is a `STATIC` library, its build-policy targets (`sushiblas_
 that is not in any export set". Flag values record no target name.
 
 The CMake modules that define SushiBLAS functions or targets carry the program's full name:
-the nine `SushiBLAS*.cmake` files under `cmake/`. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` do not,
+the `SushiBLAS*.cmake` files under `cmake/`. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` do not,
 because their logic gives the same result whichever sibling repository's copy loads first.
-`SyclTarget.cmake` prefixes the two functions it defines, `sushiblas_runtime_device_targets` and
-`sushiblas_apply_sycl`.
+`SyclTarget.cmake` prefixes the functions and targets it defines: `sushiblas_runtime_device_targets`,
+`sushiblas_sycl_device_options`, `sushiblas_apply_sycl`, `sushiblas_publish_sycl`,
+`sushiblas_sycl_headers` and `sushiblas_device_code`.
 [CONTRIBUTING.md, section 4](../CONTRIBUTING.md#build-system-names) states the naming rule.
 
 ## What is installed
+
+Beside the library the export carries the two interface targets of `cmake/SyclTarget.cmake`.
+`SushiBLAS::sycl_headers`, which `SushiBLAS::sushiblas` links, names the SYCL toolchain's include
+directory for a unit compiled without `-fsycl`. `SushiBLAS::device_code` carries `-fsycl` and the
+device targets for a unit that instantiates a kernel. The include directory is a path of the
+build machine, so the export leaves it out, and `SushiBLASConfig.cmake` calls
+`sushiblas_find_sycl_include_dir()` from the installed `SushiBLASSyclHeaders.cmake` to take the
+one beside the consumer's compiler.
 
 The install copies the include root of every module that is not internal, so a consumer of the
 package can include the umbrella header, any header it names, the `dispatch.hpp` of each family

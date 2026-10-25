@@ -38,8 +38,9 @@ library a functor, and that functor has to be compiled as device code in the cal
 translation unit. A seam that hid SYCL could not take it.
 
 What it costs a consumer is in [the integration guide](../../guides/INTEGRATION.md), section 1:
-every translation unit that includes a SushiBLAS header needs the SYCL compiler, and `-fsycl` is
-a `PUBLIC` option of `SushiBLAS::sushiblas`.
+every translation unit that includes a SushiBLAS header needs the SYCL toolchain's compiler and
+headers, and a unit that hands a functor to a seam compiles with the options of
+`SushiBLAS::device_code`.
 
 ### A failure is an exception, except for a file
 

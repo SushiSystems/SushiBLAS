@@ -99,13 +99,14 @@ inherits, what it must supply and how to read common build errors.
 
 ## Does my own code need a SYCL compiler if I write no kernel?
 
-Yes. The kernels behind the view methods are compiled into the library, so a call such as
-`BLASOps::gemm` produces no device code in your translation unit. A call to a
-`SushiBLAS::Dispatch` seam does, because the seam inlines your functor into a kernel. The public
-headers include `<sycl/sycl.hpp>` and use `sycl::event` and `sycl::device` in their declarations
-in either case, so every translation unit that
-includes `<SushiBLAS/SushiBLAS.hpp>` needs a compiler that can parse those types. Linking
-`SushiBLAS::sushiblas` carries `-fsycl` as a `PUBLIC` compile and link option for that reason.
+It needs the SYCL toolchain's compiler and headers, and no device pass. The kernels behind the
+view methods are compiled into the library, so a call such as `BLASOps::gemm` produces no device
+code in your translation unit. A call to a `SushiBLAS::Dispatch` seam does, because the seam
+inlines your functor into a kernel. The public headers include `<sycl/sycl.hpp>` and use
+`sycl::event` and `sycl::device` in their declarations in either case, so every translation unit
+that includes `<SushiBLAS/SushiBLAS.hpp>` needs a compiler that can parse those types. Linking
+`SushiBLAS::sushiblas` gives the SYCL headers and the device link options; a unit that calls a
+seam also compiles with the options of `SushiBLAS::device_code`.
 
 A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>` means the file is being
 compiled by a non-SYCL compiler. See
