@@ -33,7 +33,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/host_data_type.hpp>
 #include <SushiBLAS/io/io_status.hpp>

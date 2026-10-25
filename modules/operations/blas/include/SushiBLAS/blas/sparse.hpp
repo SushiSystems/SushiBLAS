@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 

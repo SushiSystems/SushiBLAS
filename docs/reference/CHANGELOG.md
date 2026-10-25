@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-26 — operations: Dropped the SYCL include from five public headers that name nothing from SYCL (`blas/sparse.hpp`, `elementwise/dispatch.hpp`, `io/io.hpp`, `logic/dispatch.hpp`, `nonlinear/dispatch.hpp`).
 - 2026-10-26 — cmake: Breaking change: Stopped `SushiBLAS::sushiblas` publishing `-fsycl` and the device targets as compile options; a unit that instantiates a kernel links `SushiBLAS::device_code` (`SyclTarget.cmake`).
 - 2026-10-26 — cmake: Compiled for the device only the units under a `DEVICE_` list, the others for the host with `SushiBLAS::sycl_headers` (`SyclTarget.cmake`, `SushiBLASSyclHeaders.cmake`).
 - 2026-10-26 — cmake: Listed the units that instantiate a kernel under `DEVICE_SOURCES`, `DEVICE_TESTS` and `DEVICE_BENCHMARKS` of the module and test functions (`SushiBLASModule.cmake`, `SushiBLASTests.cmake`).

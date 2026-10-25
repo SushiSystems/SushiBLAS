@@ -31,7 +31,6 @@
 #include <cstddef>
 #include <type_traits>
 #include <initializer_list>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
