@@ -60,18 +60,20 @@ endfunction()
 #       NAME <module> LAYER <tier>
 #       [INTERNAL]
 #       [SOURCES <file under source/>...]
+#       [DEVICE_SOURCES <file under source/>...]
 #       [DEPENDS <module>...]
 #       [PRIVATE_DEPENDS <module>...]
 #       [EXTERNAL <target>...])
 #
 # INTERNAL keeps the module's headers out of the install; the modules of the library can
 # include them and a consumer cannot. EXTERNAL names targets from outside this tree.
+# SOURCES names the units that instantiate no kernel and DEVICE_SOURCES the units that do.
 # DEPENDS names the modules the public headers include, and every module that names this one
 # sees them too. PRIVATE_DEPENDS names the modules only source/ includes; they reach the
-# object library and no one else, so they need SOURCES.
+# object library and no one else, so they need SOURCES or DEVICE_SOURCES.
 function(sushiblas_add_module)
-    cmake_parse_arguments(ARG "INTERNAL" "NAME;LAYER" "SOURCES;DEPENDS;PRIVATE_DEPENDS;EXTERNAL"
-        ${ARGN})
+    cmake_parse_arguments(ARG "INTERNAL" "NAME;LAYER"
+        "SOURCES;DEVICE_SOURCES;DEPENDS;PRIVATE_DEPENDS;EXTERNAL" ${ARGN})
     if("${ARG_NAME}" STREQUAL "" OR "${ARG_LAYER}" STREQUAL "")
         message(FATAL_ERROR "sushiblas_add_module(): NAME and LAYER are required.")
     endif()
@@ -87,10 +89,10 @@ function(sushiblas_add_module)
             "SUSHIBLAS_MODULE_LAYERS says '${manifest_layer}' "
             "(cmake/SushiBLASLayers.cmake).")
     endif()
-    if(ARG_PRIVATE_DEPENDS AND NOT ARG_SOURCES)
+    if(ARG_PRIVATE_DEPENDS AND NOT ARG_SOURCES AND NOT ARG_DEVICE_SOURCES)
         message(FATAL_ERROR
-            "sushiblas_add_module(${ARG_NAME}): PRIVATE_DEPENDS needs SOURCES; a module "
-            "without sources has nothing to compile against them.")
+            "sushiblas_add_module(${ARG_NAME}): PRIVATE_DEPENDS needs SOURCES or DEVICE_SOURCES; "
+            "a module without sources has nothing to compile against them.")
     endif()
     foreach(dependency IN LISTS ARG_PRIVATE_DEPENDS)
         if(dependency IN_LIST ARG_DEPENDS)
@@ -127,13 +129,17 @@ function(sushiblas_add_module)
         set_property(GLOBAL APPEND PROPERTY SUSHIBLAS_INSTALLED_INCLUDE_ROOTS "${include_root}")
     endif()
 
-    if(ARG_SOURCES)
-        set(module_sources "")
+    if(ARG_SOURCES OR ARG_DEVICE_SOURCES)
+        set(host_sources "")
         foreach(source IN LISTS ARG_SOURCES)
-            list(APPEND module_sources "${CMAKE_CURRENT_SOURCE_DIR}/source/${source}")
+            list(APPEND host_sources "${CMAKE_CURRENT_SOURCE_DIR}/source/${source}")
+        endforeach()
+        set(device_sources "")
+        foreach(source IN LISTS ARG_DEVICE_SOURCES)
+            list(APPEND device_sources "${CMAKE_CURRENT_SOURCE_DIR}/source/${source}")
         endforeach()
         set(objects "${target}_objects")
-        add_library(${objects} OBJECT ${module_sources})
+        add_library(${objects} OBJECT ${host_sources} ${device_sources})
         # SushiRuntime is linked by every object library, whatever its headers include: its
         # PUBLIC options carry the deterministic floating-point contract, and every
         # translation unit of the library has to be compiled under it.
@@ -146,7 +152,7 @@ function(sushiblas_add_module)
             CXX_STANDARD 17
             CXX_STANDARD_REQUIRED ON)
         sushiblas_apply_build_policy(${objects})
-        sushiblas_apply_sycl(${objects} SOURCES ${module_sources})
+        sushiblas_apply_sycl(${objects} SOURCES ${host_sources} ${device_sources})
         set_property(GLOBAL APPEND PROPERTY SUSHIBLAS_MODULE_OBJECT_TARGETS ${objects})
     endif()
 endfunction()

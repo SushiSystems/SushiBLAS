@@ -256,11 +256,11 @@ carries depends on its family.
 | Piece | Where |
 | --- | --- |
 | View method, returning `TaskHandle`, with its `@throws` lines | The family's view header: `blas/level<N>.hpp`, `sparse/sparse.hpp`, `spatial/spatial.hpp` |
-| Operation source | `modules/operations/<family>/source/<op>.cpp`, listed in the module's `CMakeLists.txt` |
+| Operation source | `modules/operations/<family>/source/<op>.cpp`, listed under `DEVICE_SOURCES` in the module's `CMakeLists.txt` when it instantiates a kernel, under `SOURCES` otherwise |
 | Reference kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/<op>.hpp` |
 | SYCL kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/<op>.hpp` |
 | Both kernels' include line | The family's kernel header: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas.hpp`, `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse.hpp`, `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp` |
-| Test | `tests/operations/<family>/test_<family>/test_<op>.cpp`, listed in the module's `sushiblas_add_test_program()` call |
+| Test | `tests/operations/<family>/test_<family>/test_<op>.cpp`, listed in the module's `sushiblas_add_test_program()` call, under `DEVICE_TESTS` when it instantiates a kernel and under `TESTS` otherwise |
 
 The operation source has four steps. This is `modules/operations/blas/source/level1/axpy.cpp`:
 

@@ -15,5 +15,6 @@ sushiblas_add_test_program(
     MODULE reference
     TESTS
         test_reference_accumulator.cpp
-        test_serial_1d.cpp
-        test_serial_reduce.cpp)
+        test_serial_reduce.cpp
+    DEVICE_TESTS
+        test_serial_1d.cpp)

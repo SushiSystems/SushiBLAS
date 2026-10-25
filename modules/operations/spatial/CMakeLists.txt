@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME spatial
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         broadcast.cpp
         channels.cpp
         col2im.cpp
@@ -31,6 +31,8 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE spatial
     TESTS
+        test_window.cpp
+    DEVICE_TESTS
         test_spatial/test_spatial_broadcast.cpp
         test_spatial/test_spatial_channels.cpp
         test_spatial/test_spatial_col2im.cpp
@@ -41,6 +43,5 @@ sushiblas_add_test_program(
         test_spatial/test_spatial_pool_max.cpp
         test_spatial/test_spatial_upsample.cpp
         test_spatial/test_spatial_window_dot.cpp
-        test_window.cpp
-    BENCHMARKS
+    DEVICE_BENCHMARKS
         benchmark_spatial.cpp)

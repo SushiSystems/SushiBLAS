@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME elementwise
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         abs.cpp
         acos.cpp
         acosh.cpp
@@ -55,8 +55,10 @@ sushiblas_add_test_program(
     MODULE elementwise
     TESTS
         test_elementwise_log_category.cpp
-        test_dispatch.cpp
         test_ordered_sum_element.cpp
+        test_wrapping_math.cpp
+    DEVICE_TESTS
+        test_dispatch.cpp
         test_elementwise/test_abs.cpp
         test_elementwise/test_acos.cpp
         test_elementwise/test_acosh.cpp
@@ -90,5 +92,4 @@ sushiblas_add_test_program(
         test_elementwise/test_sqrt.cpp
         test_elementwise/test_square.cpp
         test_elementwise/test_sub.cpp
-        test_elementwise/test_tan.cpp
-        test_wrapping_math.cpp)
+        test_elementwise/test_tan.cpp)

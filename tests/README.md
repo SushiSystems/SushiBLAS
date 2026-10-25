@@ -30,9 +30,11 @@ sits in that module's folder, and a test includes it by its quoted relative path
 
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
 calls it in its own `CMakeLists.txt` with the files of its mirror and gets the `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is
-listed by hand in that call; nothing globs the folders. An application's tests are built the same
-way by `sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`,
-which compiles the application's sources into the program.
+listed by hand in that call; nothing globs the folders. A file that instantiates a kernel, by
+launching one or by handing a functor to a dispatch seam, is listed under `DEVICE_TESTS`, and the
+others under `TESTS`. An application's tests are built the same way by
+`sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`, which
+compiles the application's sources into the program.
 
 ## Sizes are labels
 
@@ -157,7 +159,8 @@ public API: an `Engine`, `create_tensor`, `IO::from_vector`, a `RecordingGraph` 
 GEMM kernel directly, and `benchmark_triangular` calls the TRSM kernel directly for some of its
 rows. They use no test framework, carry the target label `benchmark` and never pass or fail on a
 number. Each sits beside the tests of the module it times, and `sushiblas_add_test_program()`
-builds it when `SB_BUILD_BENCHMARKS` is on.
+builds it when `SB_BUILD_BENCHMARKS` is on, from `DEVICE_BENCHMARKS` when it instantiates a kernel
+and from `BENCHMARKS` otherwise.
 
 | File | Holds |
 | --- | --- |

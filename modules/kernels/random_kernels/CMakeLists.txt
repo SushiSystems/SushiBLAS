@@ -18,8 +18,9 @@ sushiblas_add_test_program(
     MODULE random_kernels
     TESTS
         reference/test_orthonormalize.cpp
+        test_random.cpp
+    DEVICE_TESTS
         sycl/test_orthonormalize.cpp
         sycl/test_philox.cpp
         sycl/test_poisson.cpp
-        sycl/test_truncated_normal.cpp
-        test_random.cpp)
+        sycl/test_truncated_normal.cpp)

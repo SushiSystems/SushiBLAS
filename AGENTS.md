@@ -23,6 +23,9 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
   modules only its `source/` includes in `PRIVATE_DEPENDS`;
   `cmake/SushiBLASLayers.cmake` holds the tier order and refuses a dependency that points up.
   A header is included as `<SushiBLAS/<module>/<name>.hpp>`.
+- A source, test or benchmark that instantiates a kernel is listed under `DEVICE_SOURCES`,
+  `DEVICE_TESTS` or `DEVICE_BENCHMARKS`, and every other one under `SOURCES`, `TESTS` or
+  `BENCHMARKS`.
 - Every operation has a SYCL kernel and a reference path, and an unsupported dtype throws. The
   BLAS, spatial and sparse families have a reference kernel beside the SYCL kernel; the functor
   families (elementwise, nonlinear, logic), the reductions and the random family run a host

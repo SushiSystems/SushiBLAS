@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME signal
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         convolve_1d.cpp
     DEPENDS
         tensor
@@ -17,5 +17,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE signal
-    TESTS
+    DEVICE_TESTS
         test_signal/test_signal_convolve_1d.cpp)

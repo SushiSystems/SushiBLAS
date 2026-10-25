@@ -17,5 +17,6 @@ sushiblas_add_test_program(
     MODULE signal_kernels
     TESTS
         reference/test_convolve_1d.cpp
+    DEVICE_TESTS
         sycl/test_convolve_1d.cpp
         test_signal.cpp)

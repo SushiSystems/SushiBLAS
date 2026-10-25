@@ -17,4 +17,5 @@ sushiblas_add_test_program(
     TESTS
         test_host_device_test.cpp
         test_host_queue.cpp
+    DEVICE_TESTS
         test_shared_array.cpp)

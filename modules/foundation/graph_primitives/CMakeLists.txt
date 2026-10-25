@@ -12,7 +12,6 @@ sushiblas_add_test_program(
     MODULE graph_primitives
     TESTS
         test_combiners.cpp
-        test_counting_sort.cpp
         test_element_window.cpp
         test_node_stamper.cpp
         test_primitive_options.cpp
@@ -20,8 +19,10 @@ sushiblas_add_test_program(
         test_fixed_order_reduce.cpp
         test_fixed_order_scan.cpp
         test_invalid_graph.cpp
-        test_prefix_scan.cpp
         test_radix_plan.cpp
+    DEVICE_TESTS
+        test_counting_sort.cpp
+        test_prefix_scan.cpp
         test_reduce/test_device_sized_reduce.cpp
         test_reduce/test_reduce.cpp
         test_segmented_reduce.cpp)

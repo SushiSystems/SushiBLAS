@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME logic
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         all.cpp
         any.cpp
         equal.cpp
@@ -31,6 +31,7 @@ sushiblas_add_test_program(
     MODULE logic
     TESTS
         test_logic_log_category.cpp
+    DEVICE_TESTS
         test_dispatch.cpp
         test_logic/test_all.cpp
         test_logic/test_any.cpp

@@ -8,6 +8,8 @@ sushiblas_add_module(
     NAME random
     LAYER operations
     SOURCES
+        set_seed.cpp
+    DEVICE_SOURCES
         bernoulli.cpp
         constant.cpp
         discrete_uniform.cpp
@@ -18,7 +20,6 @@ sushiblas_add_module(
         normal.cpp
         orthogonal.cpp
         poisson.cpp
-        set_seed.cpp
         shuffle.cpp
         truncated_normal.cpp
         uniform.cpp
@@ -37,6 +38,7 @@ sushiblas_add_test_program(
     MODULE random
     TESTS
         test_random_log_category.cpp
+    DEVICE_TESTS
         test_dispatch.cpp
         test_random/test_constant.cpp
         test_random/test_distributions.cpp
@@ -47,5 +49,5 @@ sushiblas_add_test_program(
         test_random/test_random_reference.cpp
         test_random/test_shuffle.cpp
         test_random/test_uniform.cpp
-    BENCHMARKS
+    DEVICE_BENCHMARKS
         benchmark_random.cpp)

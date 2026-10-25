@@ -14,5 +14,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE recording_graph
-    TESTS
+    DEVICE_TESTS
         test_recording_graph.cpp)

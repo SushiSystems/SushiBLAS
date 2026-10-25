@@ -17,5 +17,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE index
-    TESTS
+    DEVICE_TESTS
         test_index_ops.cpp)

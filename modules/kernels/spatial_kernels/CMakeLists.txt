@@ -27,6 +27,7 @@ sushiblas_add_test_program(
         reference/test_upsample.cpp
         reference/test_window_dot.cpp
         reference/test_window_dot_weights.cpp
+    DEVICE_TESTS
         sycl/test_broadcast.cpp
         sycl/test_channels.cpp
         sycl/test_col2im.cpp

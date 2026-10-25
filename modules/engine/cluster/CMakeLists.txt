@@ -35,5 +35,6 @@ sushiblas_add_test_program(
         test_bound_pack.cpp
         test_cluster_binding.cpp
         test_pack_layout.cpp
-        test_remote_task.cpp
-        test_tensor_pack.cpp)
+        test_tensor_pack.cpp
+    DEVICE_TESTS
+        test_remote_task.cpp)

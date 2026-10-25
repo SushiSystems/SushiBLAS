@@ -51,6 +51,7 @@ sushiblas_add_test_program(
     MODULE umbrella
     TESTS
         ${sushiblas_umbrella_distributed_tests}
+    DEVICE_TESTS
         test_SushiBLAS/test_dependency_stress.cpp
         test_SushiBLAS/test_dispatch_complex.cpp
         test_SushiBLAS/test_dispatch_seam.cpp
@@ -63,5 +64,5 @@ sushiblas_add_test_program(
         test_SushiBLAS/test_spatial_random_io_validation.cpp
         test_SushiBLAS/test_storage_offset.cpp
         test_SushiBLAS/test_task_dependencies.cpp
-    BENCHMARKS
+    DEVICE_BENCHMARKS
         benchmark_elementwise.cpp)

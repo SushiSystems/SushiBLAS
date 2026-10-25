@@ -46,6 +46,9 @@ sushiblas_add_test_program(
         reference/level3/test_syr2k.cpp
         reference/level3/test_syrk.cpp
         reference/level3/test_trsm.cpp
+        sycl/level3/test_triangular_plan.cpp
+        sycl/level3/test_triangular_system.cpp
+    DEVICE_TESTS
         sycl/level1/test_level1.cpp
         sycl/level1/test_rotg.cpp
         sycl/level1/test_rotm.cpp
@@ -72,7 +75,5 @@ sushiblas_add_test_program(
         sycl/level2/test_vector_snapshot.cpp
         sycl/level3/test_syr2k.cpp
         sycl/level3/test_syrk.cpp
-        sycl/level3/test_triangular_plan.cpp
-        sycl/level3/test_triangular_system.cpp
         sycl/level3/test_trsm.cpp
         test_blas.cpp)

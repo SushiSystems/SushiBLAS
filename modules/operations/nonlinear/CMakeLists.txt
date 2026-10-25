@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME nonlinear
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         elu.cpp
         gelu.cpp
         leaky_relu.cpp
@@ -25,7 +25,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE nonlinear
-    TESTS
+    DEVICE_TESTS
         test_dispatch.cpp
         test_nonlinear/test_complex_nonlinear.cpp
         test_nonlinear/test_elu.cpp

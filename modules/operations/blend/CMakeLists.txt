@@ -7,7 +7,7 @@
 sushiblas_add_module(
     NAME blend
     LAYER operations
-    SOURCES
+    DEVICE_SOURCES
         blend_transforms.cpp
     DEPENDS
         tensor
@@ -17,5 +17,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE blend
-    TESTS
+    DEVICE_TESTS
         test_blend/test_blend_transforms.cpp)

@@ -28,12 +28,13 @@ sushiblas_add_test_program(
         reference/test_spsymv.cpp
         reference/test_sptrsv.cpp
         reference/test_structure.cpp
+        test_csr_pattern.cpp
+        test_index_list.cpp
+        test_sparse.cpp
+    DEVICE_TESTS
         sycl/test_level1.cpp
         sycl/test_row_blocks.cpp
         sycl/test_spmm.cpp
         sycl/test_spmv.cpp
         sycl/test_spsymv.cpp
-        sycl/test_sptrsv.cpp
-        test_csr_pattern.cpp
-        test_index_list.cpp
-        test_sparse.cpp)
+        sycl/test_sptrsv.cpp)

@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-26 — cmake: Listed the units that instantiate a kernel under `DEVICE_SOURCES`, `DEVICE_TESTS` and `DEVICE_BENCHMARKS` of the module and test functions (`SushiBLASModule.cmake`, `SushiBLASTests.cmake`).
 - 2026-10-25 — engine: Made `LateCountHold::borrow()` throw `std::runtime_error` when the runtime refuses the count's residency, following `Interop::borrow()` now returning a `Result` (`late_count_hold.hpp`).
 - 2026-10-25 — cluster: Fixed a `TensorPack` living in managed memory, which the transport read while a kernel ran and which faults on CUDA on Windows; a pack is pinned host memory (`tensor_pack.hpp`).
 - 2026-10-25 — recording_graph: Changed emptying a graph to rely on SushiRuntime's `Graph::clear()`, which frees the compiled plan (`recording_graph.hpp`).
