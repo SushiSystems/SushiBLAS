@@ -143,7 +143,7 @@ namespace SushiBLAS
                            std::size_t device_index)
         : layout_(std::move(layout)),
           storage_(SushiRuntime::make_sushi<Storage>(runtime, layout_.size_bytes(),
-                                                     SushiRuntime::Residency::Shared,
+                                                     SushiRuntime::Residency::Host,
                                                      device_index))
     {
 

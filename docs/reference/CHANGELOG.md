@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-25 — cluster: Fixed a `TensorPack` living in managed memory, which the transport read while a kernel ran and which faults on CUDA on Windows; a pack is pinned host memory (`tensor_pack.hpp`).
 - 2026-10-25 — recording_graph: Changed emptying a graph to rely on SushiRuntime's `Graph::clear()`, which frees the compiled plan (`recording_graph.hpp`).
 - 2026-10-24 — recording_graph: Fixed an emptied graph keeping its compiled plan, so a task's operands and scratch stayed held after the run (`recording_graph.hpp`).
 - 2026-10-24 — engine: Fixed `LateCountHold` keeping its storages after release while an observer of a token lived (`late_count_hold.hpp`).

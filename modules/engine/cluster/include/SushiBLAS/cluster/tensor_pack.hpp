@@ -53,7 +53,7 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Allocates the buffer of a layout on one device of a runtime.
+             * @brief Allocates the buffer of a layout as pinned host memory of one device.
              * @param device_index The device the packed tensors live on; a device of runtime.
              * @throws std::runtime_error when runtime drives no such device.
              */

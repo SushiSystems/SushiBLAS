@@ -62,8 +62,11 @@ clang-based and defines it.
 ## tensor_pack.hpp
 
 `TensorPack(runtime, layout, device_index)` allocates a `Storage` of the layout's size as
-`Residency::Shared` on the device its caller names, so `Cluster::share()`, which refuses
-device-resident memory, accepts it, and `device_index()` reports that device. The device is an
+`Residency::Host`, pinned host memory of the device its caller names, and `device_index()` reports
+that device. `Cluster::share()`, which refuses device-resident memory, accepts it, and the transport
+may read it while a kernel runs: a GPU without concurrent managed access, CUDA on Windows, faults a
+host access to `Residency::Shared` memory while any kernel of the process runs, and a kernel reads
+pinned host memory in place. The device is an
 argument, not read from tensors, because a pack is built from a layout alone: a worker builds one
 from shapes, and no tensor exists yet when the buffer is allocated. Copies of a pack name the same
 buffer.

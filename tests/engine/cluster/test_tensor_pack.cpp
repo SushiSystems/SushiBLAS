@@ -242,6 +242,7 @@ namespace SushiBLAS
                                                    shapes.data(), shapes.size())), device);
                 EXPECT_EQ(pack.device_index(), device);
                 EXPECT_EQ(pack.tensor(0).storage->device_index(), device);
+                EXPECT_EQ(pack.tensor(0).storage->residency(), SushiRuntime::Residency::Host);
             }
 
             const std::vector<Tensor> shapes = {shared_tensor(runtime, Core::DataType::Float32, 4)};
