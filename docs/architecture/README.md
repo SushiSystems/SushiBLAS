@@ -27,6 +27,7 @@ here.
 | 10 | [Packaging](PACKAGING.md) |
 | 11 | [Exceptions and statuses](EXCEPTIONS.md) |
 | 12 | [The fixed-order fold (`reduce_1d.hpp`)](FIXED_ORDER_FOLD.md) |
+| 13 | [Profiling and the cost of a task](PROFILING.md) |
 
 ## Project layout
 
@@ -59,7 +60,7 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
     blas/, elementwise/, nonlinear/, reductions/, random/, logic/, sparse/, spatial/
                         One operation view each, with one <op>.cpp per operation
     io/                 Host transfer, save, load and print (native, .npy, raw binary)
-    experimental/       Quarantined FFT and LAPACK declarations
+    experimental/       The batched FFT, LU and GMRES; the other LAPACK declarations are undefined
   library/
     umbrella/           SushiBLAS.hpp, every public header in one line
     sushiblas/          The one library a consumer links

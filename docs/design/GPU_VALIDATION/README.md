@@ -132,7 +132,7 @@ sb build --type release -D SB_SYCL_TARGETS=nvidia_gpu_sm_86 -D SB_SYCL_DEVICE_FL
 
 Read the register and spill counts of each kernel. A spill count above zero on the GEMM kernel
 means the 8×8 block is too wide for the architecture, and the byte budget of
-`Detail::register_block_dim` should come down.
+`register_block_dim` should come down.
 
 #### The speed of the tiled GEMM on scratchpad memory is unmeasured
 
@@ -153,6 +153,9 @@ in `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`. Turning the 16-byte loads off
 order slower, and two local buffers made 2048 slower still, so neither is the cause. The two
 candidates left are the contiguous-axis staging order and the whole-tile path; a register and
 occupancy read of the compiled kernel, under RW-92, decides between them.
+
+The tiled GEMM now runs one of three shapes per device. Until RW-110 measures the card, the
+3080 Ti takes the model's choice, `Wide` at order 2048, which nobody has timed.
 
 ### Code paths the development CPU never took
 

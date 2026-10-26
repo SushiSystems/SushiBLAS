@@ -7,6 +7,7 @@ It depends on no other module: its headers include SYCL and the standard library
 | File | Declares |
 | --- | --- |
 | `complex_arithmetic.hpp` | The conjugation, product and quotient a SYCL device can run on any element type |
+| `no_contraction.hpp` | `SB_FP_CONTRACT_OFF`, which forbids the compiler to fuse a product into a sum in the block that opens with it |
 | `multiply_add.hpp` | `Detail::multiply_add`, the step every GEMM kernel accumulates with |
 | `safe_math.hpp` | `safe_exp`, `safe_tanh`, `safe_log`, `safe_sqrt`, `safe_erf` and `safe_abs`, each with a real and a complex overload |
 | `device_math.hpp` | `Math`, the scalar functions a kernel may call: `std::` on the host, `sycl::` on the device |

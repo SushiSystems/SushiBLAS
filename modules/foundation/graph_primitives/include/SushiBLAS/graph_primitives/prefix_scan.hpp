@@ -27,27 +27,15 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <utility>
-#include <vector>
 
 #include <SushiRuntime/api/data/buffer.hpp>
-#include <SushiRuntime/api/graph/access.hpp>
-#include <SushiRuntime/api/graph/device_sized.hpp>
-#include <SushiRuntime/api/graph/node_options.hpp>
 #include <SushiRuntime/api/graph/recorder.hpp>
-#include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
+#include <SushiRuntime/core/result.hpp>
 
-#include <SushiBLAS/graph_primitives/combiners.hpp>
-#include <SushiBLAS/graph_primitives/element_window.hpp>
-#include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
-#include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
-#include <SushiBLAS/graph_primitives/invalid_graph.hpp>
-#include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 
 namespace SushiBLAS
@@ -73,229 +61,13 @@ namespace SushiBLAS
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, or an error the README lists; a run fails past n.capacity().
          */
-        [[nodiscard]] inline SushiRuntime::Result<void>
+        [[nodiscard]] SushiRuntime::Result<void>
         prefix_scan(SushiRuntime::Recorder& recorder,
                     const SushiRuntime::Buffer<std::uint32_t>& counts,
                     const SushiRuntime::Buffer<std::uint32_t>& offsets,
                     const SushiRuntime::Buffer<std::uint32_t>& total,
                     SushiRuntime::LateCount n, PrefixScanWindow window = {},
-                    const std::optional<PrimitiveOptions>& options = std::nullopt)
-        {
-            using SushiRuntime::Access;
-            using SushiRuntime::DeviceSized;
-            using SushiRuntime::LateCount;
-            using SushiRuntime::Reads;
-            using SushiRuntime::Writes;
-            using SushiRuntime::BufferRegion;
-
-            SushiRuntime::Result<void> named = Detail::require_options("prefix_scan", options);
-            if (!named)
-                return named;
-            Detail::NodeStamper stamper(options);
-
-            const std::size_t capacity = n.capacity();
-            const Detail::ElementSpan<std::uint32_t> counts_span =
-                Detail::elements(counts, window.counts_offset, capacity);
-            const Detail::ElementSpan<std::uint32_t> offsets_span =
-                Detail::elements(offsets, window.offsets_offset, capacity + 1);
-            const Detail::ElementSpan<std::uint32_t> total_span =
-                Detail::elements(total, window.total_offset, std::size_t{1});
-            SushiRuntime::Result<void> fits = Detail::require_window(
-                "prefix_scan", "counts", counts.size(), counts_span.offset, counts_span.count);
-            if (fits)
-                fits = Detail::require_window("prefix_scan", "offsets", offsets.size(),
-                                              offsets_span.offset, offsets_span.count);
-            if (fits)
-                fits = Detail::require_window("prefix_scan", "total", total.size(),
-                                              total_span.offset, total_span.count);
-            if (!fits)
-                return fits;
-            if (offsets.device_index() != counts.device_index())
-                return Detail::invalid_graph(
-                    "prefix_scan: counts and offsets must live on the same device.");
-
-            const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
-            const std::uint32_t* counts_base = counts_span.data();
-            std::uint32_t* offsets_base = offsets_span.data();
-            std::uint32_t* total_base = total_span.data();
-
-            if (levels.empty())
-            {
-                // Capacity zero: the resolver checks the live count and writes an empty scan.
-                auto rule = recorder.rule();
-                recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index(),
-                    Access(Reads(), Detail::access_of<Writes>(offsets_span, total_span)),
-                    [offsets_base, total_base](const std::array<std::size_t, 1>&)
-                    {
-                        offsets_base[0] = 0;
-                        total_base[0] = 0;
-                    },
-                    stamper.stage("resolve", std::size_t{1}));
-                return Detail::recording_outcome(recorder);
-            }
-
-            const std::size_t level_count = levels.size();
-            const std::size_t sweep_scratch_count = Detail::reduce_scratch_count(levels);
-
-            // A single level reads counts and writes offsets directly and takes no scratch.
-            std::uint32_t* up_scratch = nullptr;
-            std::uint32_t* down_scratch = nullptr;
-            if (sweep_scratch_count != 0)
-            {
-                auto up_block = recorder.scratch<std::uint32_t>(
-                    sweep_scratch_count, counts.device_index(), counts.residency());
-                if (!up_block)
-                    return SushiRuntime::make_error(std::move(up_block.error()));
-                up_scratch = *up_block;
-
-                auto down_block = recorder.scratch<std::uint32_t>(
-                    sweep_scratch_count, counts.device_index(), counts.residency());
-                if (!down_block)
-                    return SushiRuntime::make_error(std::move(down_block.error()));
-                down_scratch = *down_block;
-            }
-
-            // state[i] is the live in_count of level i, state[level_count + i] its out_count.
-            const std::size_t state_words = 2 * level_count;
-            auto state_block = recorder.scratch<std::uint32_t>(
-                state_words, counts.device_index(), counts.residency());
-            if (!state_block)
-                return SushiRuntime::make_error(std::move(state_block.error()));
-            std::uint32_t* state = *state_block;
-            const BufferRegion state_region{state, 0, state_words * sizeof(std::uint32_t)};
-
-            // Every node this call records belongs to one rule.
-            auto rule = recorder.rule();
-
-            recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index(),
-                Access(Reads(), Writes(state_region)),
-                [state, level_count](const std::array<std::size_t, 1>& live)
-                {
-                    Detail::fill_live_level_words(level_count, live[0], state);
-                },
-                stamper.stage("resolve", std::size_t{1}));
-
-            const auto words = [](std::uint32_t* base, std::size_t offset, std::size_t count)
-            {
-                return BufferRegion{static_cast<void*>(base), offset * sizeof(std::uint32_t),
-                                    count * sizeof(std::uint32_t)};
-            };
-
-            // The up-sweep folds every level but the top into scratch for the down-sweep.
-            for (std::size_t i = 0; i + 1 < level_count; ++i)
-            {
-                const Detail::ReduceLevel& level = levels[i];
-                const bool first = (i == 0);
-
-                const std::uint32_t* src = first ? counts_base : (up_scratch + level.in_offset);
-                std::uint32_t* dst = up_scratch + level.out_offset;
-
-                const Reads reads = first
-                    ? Detail::access_of<Reads>(counts_span, state_region)
-                    : Reads(words(up_scratch, level.in_offset, level.in_count), state_region);
-                const Writes writes(words(up_scratch, level.out_offset, level.out_count));
-
-                recorder.kernel(
-                    DeviceSized{level.out_count, state + level_count + i, state + i},
-                    Access(reads, writes),
-                    [src, dst](std::size_t t, std::size_t in_count)
-                    {
-                        dst[t] = fold_indexed_tile(Sum<std::uint32_t>{}, src, t,
-                                                           in_count);
-                    },
-                    stamper.stage("up_sweep", level.out_count));
-            }
-
-            // The down-sweep runs from the top level, which has no level above it, to level 0.
-            for (std::size_t i = level_count; i-- > 0;)
-            {
-                const Detail::ReduceLevel& level = levels[i];
-                const bool first = (i == 0);
-                const bool top = (i + 1 == level_count);
-
-                const std::uint32_t* src = first ? counts_base : (up_scratch + level.in_offset);
-                std::uint32_t* dst = first ? offsets_base : (down_scratch + level.in_offset);
-
-                if (top)
-                {
-                    const Reads reads = first
-                        ? Detail::access_of<Reads>(counts_span, state_region)
-                        : Reads(words(up_scratch, level.in_offset, level.in_count),
-                                state_region);
-                    const Writes writes = first
-                        ? Detail::access_of<Writes>(offsets_span, total_span)
-                        : Detail::access_of<Writes>(
-                              words(down_scratch, level.in_offset, level.in_count), total_span);
-
-                    // The top pass scans from zero and always runs, so total is published.
-                    recorder.kernel(
-                        DeviceSized{std::size_t{1}, nullptr, state + i},
-                        Access(reads, writes),
-                        [src, dst, offsets_base, total_base, first](std::size_t,
-                                                                    std::size_t in_count)
-                        {
-                            std::uint32_t running = 0;
-                            for (std::size_t j = 0; j < in_count; ++j)
-                            {
-                                dst[j] = running;
-                                running += src[j];
-                            }
-                            total_base[0] = running;
-                            if (first)
-                                offsets_base[in_count] = running;
-                        },
-                        stamper.stage("down_sweep", std::size_t{1}));
-                    continue;
-                }
-
-                // The base of each tile is the exclusive prefix the level above wrote for it.
-                const std::uint32_t* tile_bases = down_scratch + level.out_offset;
-                const BufferRegion bases_region =
-                    words(down_scratch, level.out_offset, level.out_count);
-
-                const Reads reads = first
-                    ? Detail::access_of<Reads>(counts_span, bases_region, state_region)
-                    : Reads(words(up_scratch, level.in_offset, level.in_count), bases_region,
-                            state_region);
-                const Writes writes = first
-                    ? Detail::access_of<Writes>(offsets_span)
-                    : Writes(words(down_scratch, level.in_offset, level.in_count));
-
-                recorder.kernel(
-                    DeviceSized{level.out_count, state + level_count + i, state + i},
-                    Access(reads, writes),
-                    [src, dst, tile_bases](std::size_t t, std::size_t in_count)
-                    {
-                        const std::size_t begin = t * K_REDUCE_TILE;
-                        std::size_t end = begin + K_REDUCE_TILE;
-                        if (end > in_count)
-                            end = in_count;
-                        std::uint32_t running = tile_bases[t];
-                        for (std::size_t j = begin; j < end; ++j)
-                        {
-                            dst[j] = running;
-                            running += src[j];
-                        }
-                    },
-                    stamper.stage("down_sweep", level.out_count));
-            }
-
-            if (level_count == 1)
-                return Detail::recording_outcome(recorder);
-
-            // Level 0 stops at offsets[live n - 1]; this node copies total into offsets[live n].
-            recorder.kernel(
-                DeviceSized{std::size_t{1}, nullptr, state},
-                Access(Detail::access_of<Reads>(total_span, state_region),
-                       Detail::access_of<Writes>(offsets_span)),
-                [offsets_base, total_base](std::size_t, std::size_t live_n)
-                {
-                    offsets_base[live_n] = total_base[0];
-                },
-                stamper.stage("close", std::size_t{1}));
-
-            return Detail::recording_outcome(recorder);
-        }
+                    const std::optional<PrimitiveOptions>& options = std::nullopt);
 
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

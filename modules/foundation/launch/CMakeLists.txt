@@ -14,5 +14,6 @@ sushiblas_add_test_program(
     MODULE launch
     TESTS
         test_device_policy.cpp
+        test_gemm_tile_pin.cpp
     DEVICE_TESTS
         test_launch_1d.cpp)

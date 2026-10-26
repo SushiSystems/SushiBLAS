@@ -6,7 +6,10 @@
 
 sushiblas_add_module(
     NAME graph_primitives
-    LAYER foundation)
+    LAYER foundation
+    DEVICE_SOURCES
+        counting_sort.cpp
+        prefix_scan.cpp)
 
 sushiblas_add_test_program(
     MODULE graph_primitives

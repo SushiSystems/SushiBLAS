@@ -21,23 +21,36 @@
 
 /**
  * @file linalg.hpp
- * @brief Declares LinalgOps, the experimental LAPACK operations that have no implementation yet.
+ * @brief Declares LinalgOps, the dense linear algebra operations: batched LU and GMRES.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <cstddef>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS
 {
     /**
+     * @brief Holds the node options and the stopping rule of one gmres solve.
+     * @see modules/operations/experimental/README.md
+     */
+    struct GmresOptions
+    {
+            OperationOptions node{"linalg.gmres"}; /**< Name and class of the node. */
+            std::size_t restart = 30;              /**< Krylov vectors kept before a restart. */
+            std::size_t max_iterations = 300;      /**< Inner iterations across all restarts. */
+            double relative_tolerance = 1e-6;      /**< Stop once |r| / |b| falls below it. */
+            std::size_t block_size = 1;            /**< Diagonal block of block-Jacobi. */
+    };
+
+    /**
      * @class LinalgOps
-     * @brief High-level linear algebra operations (LAPACK).
-     *
-     * Provides matrix solvers, decompositions, and structural matrix analysis.
+     * @brief Records dense linear algebra operations; only the LU and GMRES ones are defined.
      * @see modules/operations/experimental/README.md
      */
     class LinalgOps final
@@ -61,14 +74,51 @@ namespace SushiBLAS
             TaskHandle inv(Tensor& A);
 
             /**
-             * @brief LU Decomposition (A = P*L*U).
-             * Factorizes matrix A into a permutation matrix P, a unit lower
-             * triangular matrix L, and an upper triangular matrix U.
-             * @param A Input matrix (overwritten by L and U).
-             * @param ipiv Output pivot indices.
-             * @return The handle of the recorded task.
+             * @brief Records P A = L U with partial pivoting for each matrix of a batch, in place.
+             * @param matrices FLOAT32 or FLOAT64, batch row-major n * n matrices, replaced by L U.
+             * @param pivots UINT32, n per matrix; element i is the row swapped with row i at step i
+             * @param singular UINT32, one per matrix; 1 when a pivot is not above n * eps * max|a|.
+             * @throws std::invalid_argument at record time on a mismatched or non-dense operand.
+             * @see modules/operations/experimental/README.md
              */
-            TaskHandle lu(Tensor& A, Tensor& ipiv);
+            TaskHandle lu_factor(Tensor& matrices, Tensor& pivots, Tensor& singular,
+                                 std::size_t n, std::size_t batch);
+
+            /**
+             * @brief Records lu_factor under the name and class options states.
+             * @throws std::invalid_argument as the form without options, and for an empty name.
+             */
+            TaskHandle lu_factor(Tensor& matrices, Tensor& pivots, Tensor& singular,
+                                 std::size_t n, std::size_t batch, const OperationOptions& options);
+
+            /**
+             * @brief Records the solve of A X = B for each matrix lu_factor factored, in place.
+             * @param rhs The dtype of factors, batch row-major n * rhs_count blocks; replaced by X.
+             * @pre No matrix of the batch was reported singular.
+             * @throws std::invalid_argument at record time on a mismatched or non-dense operand.
+             * @see modules/operations/experimental/README.md
+             */
+            TaskHandle lu_solve(const Tensor& factors, const Tensor& pivots, Tensor& rhs,
+                                std::size_t n, std::size_t rhs_count, std::size_t batch);
+
+            /**
+             * @brief Records lu_solve under the name and class options states.
+             * @throws std::invalid_argument as the form without options, and for an empty name.
+             */
+            TaskHandle lu_solve(const Tensor& factors, const Tensor& pivots, Tensor& rhs,
+                                std::size_t n, std::size_t rhs_count, std::size_t batch,
+                                const OperationOptions& options);
+
+            /**
+             * @brief Records a restarted, block-Jacobi preconditioned GMRES solve of A x = b.
+             * @param matrix FLOAT32 or FLOAT64, row-major n * n, where n is rhs's element count.
+             * @param solution The starting guess on entry, the result on exit.
+             * @param iterations UINT32, the inner iterations taken; residual gets |b - A x| / |b|.
+             * @throws std::invalid_argument on a mismatched operand or option.
+             * @see modules/operations/experimental/README.md
+             */
+            TaskHandle gmres(const Tensor& matrix, const Tensor& rhs, Tensor& solution,
+                             Tensor& iterations, Tensor& residual, const GmresOptions& options);
 
             /**
              * @brief QR Decomposition (A = Q*R).

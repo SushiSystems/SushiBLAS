@@ -15,3 +15,4 @@ count_include_pad|channels_last # PyTorch names, cited for comparison
 pad_bottom|safe_(max|floor|clamp) # named where a page says the library deliberately lacks it
 v_[im]|sum_k # index notation of a formula written in a code span
 applications/(probes|benchmarks)  # folders the shared probe checker names in tools/README.md; this repository has none
+get_kernel_info # a SYCL extension function the GEMM tile chooser does not call; the README says why

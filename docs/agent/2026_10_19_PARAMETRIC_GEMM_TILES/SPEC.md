@@ -1,6 +1,6 @@
 # Parametric GEMM tiles
 
-**Status:** Open — specified; the owner decided section 7 on 2026-10-19 and started the plan on 2026-10-26 (RW-107).
+**Status:** Open — implemented on 2026-10-26 without a build; the build, the tests and the measurement remain (RW-110, RW-111).
 
 ## 1. Problem
 
@@ -182,3 +182,15 @@ The owner delegated the engineering choices of the review of 2026-10-26.
    validates the name, because only it knows the catalog. A kernel reads no environment.
 6. The 13 `opencl:cpu` failures of RW-106 are recorded as a list before task 1; every task
    passes when it adds no failure to that list. RW-105 does not block this plan.
+7. The work-group limit of a compiled kernel is not read. `get_kernel_info` needs a named
+   kernel, and a kernel name cannot carry the caller's epilogue type, which may be a lambda.
+   `admits_gemm_tile` checks `max_work_group_size`, and every shape keeps to 128 work-items
+   (RW-115).
+8. A shape has no buffer count. The kernel stages through one buffer, and a second one was
+   measured slower on the 3080 Ti; a count no kernel reads is not added.
+9. The pin header is `launch/gemm_tile_pin.hpp`, and the Intel architecture is `IntelPVC`.
+10. `SB_GEMM_TILE` is read once per process, so no test can pin each shape in one process. The
+    chooser's pin rule is tested on plain values, and every shape's bits are held to `Balanced`
+    by calling the kernel with each shape.
+11. The owner ruled on 2026-10-26 that the work is written without a build; the build and the
+    tests run at the end.

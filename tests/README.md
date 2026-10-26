@@ -153,9 +153,9 @@ emits no edge at all. That cost SushiAI's first arena-packed training run.
 
 ## Benchmarks
 
-Ten programs that time SushiBLAS operations, one per `benchmark_*.cpp` file. Eight go through the
+Eleven programs that time SushiBLAS operations, one per `benchmark_*.cpp` file. Eight go through the
 public API: an `Engine`, `create_tensor`, `IO::from_vector`, a `RecordingGraph` of their own and the operation views (`BLASOps`,
-`SparseOps`, `ReductionOps`, `ElementwiseOps`, `NonLinearOps`, `SpatialOps`, `RandomOps`). `benchmark_gemm_blocking` calls the
+`SparseOps`, `ReductionOps`, `ElementwiseOps`, `NonLinearOps`, `SpatialOps`, `RandomOps`). `benchmark_gemm_blocking` and `benchmark_gemm_tiles` call the
 GEMM kernel directly, and `benchmark_triangular` calls the TRSM kernel directly for some of its
 rows. They use no test framework, carry the target label `benchmark` and never pass or fail on a
 number. Each sits beside the tests of the module it times, and `sushiblas_add_test_program()`
@@ -166,6 +166,7 @@ and from `BENCHMARKS` otherwise.
 | --- | --- |
 | `operations/blas/benchmark_gemm.cpp` | GEMM through `BLASOps`, in both layouts |
 | `operations/blas/benchmark_gemm_blocking.cpp` | One square GEMM kernel call under a cache blocking given on the command line |
+| `operations/blas/benchmark_gemm_tiles.cpp` | Every tile shape of the tiled GEMM per size class, and the table entries the winners give |
 | `operations/blas/benchmark_level1.cpp` | `axpy`, `copy`, `scal`, `swap`, `rot`, `dot`, `nrm2`, `asum`, `iamax` |
 | `operations/blas/benchmark_band_packed.cpp` | The band and packed Level 2 routines beside their dense siblings, in both layouts |
 | `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths, in both layouts |
@@ -235,6 +236,20 @@ device reports: `inner`, `outer` and `stream` are the three byte budgets of `Cac
 `workers` its work-items per compute unit and `units` the compute-unit count. It prints the plan
 those values give (block rows, columns and depth, block count, workers, scratch bytes) and one
 row in GFLOP/s. It exists to find a blocking by measurement on one machine.
+
+#### `benchmark_gemm_tiles`
+
+```
+sb run benchmark_gemm_tiles
+```
+
+It times `Kernels::SYCL::Detail::gemm_local_tiled` with every catalog shape the device admits,
+on square FLOAT32 products of order 128 to 4096, and FLOAT64 where the device has the aspect.
+Each line gives the shape, the order, the median time and GFLOP/s. A shape scores its time over
+the best one at each order, summed per size class; the lowest sum among the shapes that ran at
+every order of the class wins, and the program prints one `Kernels::GemmTileEntry` line per
+class to paste into `gemm_tile_table.hpp`. A device without dedicated local memory prints that
+the tiled GEMM does not run there.
 
 The byte count behind GB/s is one read of each input element and one write of each output
 element: `axpy` 3n, `copy` and `scal` 2n, `swap` and `rot` 4n, `dot` 2n, `nrm2`, `asum`,

@@ -10,7 +10,9 @@ in one line.
 | --- | --- | --- | --- |
 | foundation | `core` | Element types, type traits, the logger, the version macros | [README](foundation/core/README.md) |
 | foundation | `arithmetic` | The accumulator trait, the complex arithmetic, the real and complex safe math, the host and device scalar functions | [README](foundation/arithmetic/README.md) |
-| foundation | `launch` | The device policy and the per-element launch shapes | [README](foundation/launch/README.md) |
+| foundation | `launch` | The device policy, the per-element launch shapes and the events of a body that submits several kernels | [README](foundation/launch/README.md) |
+| foundation | `profile` | The `SB_ZONE` macros, the level a translation unit compiles in and the names the library writes into a record | [README](foundation/profile/README.md) |
+| foundation | `cost` | What a recorded task states about its work: the cost table, its shape families and `cost_of` | [README](foundation/cost/README.md) |
 | foundation | `reduction` | The fixed-order whole-tensor and segmented reductions and their accumulators | [README](foundation/reduction/README.md) |
 | foundation | `reference` | The reference accumulator, the serial host loops and folds behind `ForceReference` | [README](foundation/reference/README.md) |
 | foundation | `substitution` | `RunningSolution`, the unrounded solution of a triangular substitution | [README](foundation/substitution/README.md) |
@@ -30,6 +32,7 @@ in one line.
 | data | `tensor_expectations` | Test-only: filling, reading back and comparing a dense tensor | [README](data/tensor_expectations/README.md) |
 | kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
 | kernels | `blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` | The internal kernels of each family | [README](kernels/README.md) |
+| kernels | `linalg_kernels` | The kernels of the batched LU, its solve and GMRES | [README](kernels/linalg_kernels/README.md) |
 | kernels | `packed_product_harness` | Test-only: the problem, the data and the blockings of the packed GEMM tests | [README](kernels/packed_product_harness/README.md) |
 | engine | `engine` | `Engine`, the task recorder, the operand set and checks, the scratch pool, the dispatch seam | [README](engine/engine/README.md) |
 | engine | `operands` | The operand checks and views `blas` and `sparse` share | [README](engine/operands/README.md) |
@@ -37,6 +40,7 @@ in one line.
 | engine | `engine_fixture` | Test-only: `SushiBLASTest`, a fresh `Engine` per test | [README](engine/engine_fixture/README.md) |
 | engine | `execution_mode_sweep` | Test-only: the execution modes a routine's tests run it in | [README](engine/execution_mode_sweep/README.md) |
 | engine | `graph_probe` | Test-only: `GraphProbe`, a graph a test reads its recorded tasks from | [README](engine/graph_probe/README.md) |
+| engine | `profiling` | The environment contributor, the ceilings file and `register_profiler_parts` | [README](engine/profiling/README.md) |
 | engine | `recording_graph` | `RecordingGraph`, a runtime graph with a recorder on it, shared by the test fixture and the benchmark programs | [README](engine/recording_graph/README.md) |
 | operations | `blas` | BLAS levels 1 to 3 and the GEMM executor | [README](operations/blas/README.md) |
 | operations | `elementwise`, `nonlinear`, `random`, `reductions` | The four math families | [elementwise](operations/elementwise/README.md), [nonlinear](operations/nonlinear/README.md), [random](operations/random/README.md), [reductions](operations/reductions/README.md) |
@@ -44,7 +48,7 @@ in one line.
 | operations | `sparse` | The sparse operations, their record-time checks and operand describers | [README](operations/sparse/README.md) |
 | operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
 | operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
-| operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
+| operations | `experimental` | `TransformsOps`, the batched FFT, and `LinalgOps`, the batched LU and GMRES | [README](operations/experimental/README.md) |
 | operations | `benchmark_harness` | Benchmark-only: the size arguments, environment lines, fill, timing loop and table of the benchmark programs | [README](operations/benchmark_harness/README.md) |
 | library | `umbrella` | `SushiBLAS.hpp`, the project umbrella: every public header in one line | [README](library/umbrella/README.md) |
 | library | `sushiblas` | The one library a consumer links, composed from every module | [README](library/sushiblas/README.md) |

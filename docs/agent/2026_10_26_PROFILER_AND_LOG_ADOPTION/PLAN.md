@@ -1,12 +1,14 @@
 # SushiBLAS adopts SushiProfiler, and logs where it is silent: plan
 
-**Status:** Open — written 2026-10-26; nothing is built, and no task starts before the owner has answered the decisions marked in SPEC.md, section 5.
+**Status:** Open — written 2026-10-26; the code of every task is written and nothing is built; the first build confirms it.
+
+**Implements:** PROFILING#P1, PROFILING#P2, PROFILING#P3, PROFILING#P4, PROFILING#P5, PROFILING#P6, PROFILING#P8
 
 **Spec:** `docs/agent/2026_10_26_PROFILER_AND_LOG_ADOPTION/SPEC.md`
 
 ## How to read it
 
-- Ids: `PB-n` pass one (what SushiAI's inference profile needs), `PB-2n` pass two profiling, `LB-n` pass two logging. `BDn` is a decision of SPEC.md section 5; `D1` to `D24` and `PF-n` are SushiRuntime's; `SP-0` is the SushiProfiler v0.2.0 release; `SP-R1` is the generic `roofline` analysis in SushiProfiler with the options keys of G-B2 (BD3); `PF-A1` is the amendment BD1 asks of the runtime: `NodeCost`, carried by `NodeOptions`, `NodeTableRow` and `PlanNode`, written as the attributes `flops`, `bytes` and `work_class` by the device source (extends its PF-3, PF-4, PF-6).
+- Ids: `PB-n` pass one (what SushiAI's inference profile needs), `PB-2n` pass two profiling, `LB-n` pass two logging. `BDn` is a decision of SPEC.md section 5; `D1` to `D24` and `PF-n` are SushiRuntime's; `SP-0` is the SushiProfiler v0.2.0 release; `SP-R1` is the generic `roofline` analysis in SushiProfiler with the options keys of G-B2 (BD3); `PF-A1` is the amendment BD1 asks of the runtime: `NodeCost`, carried by `NodeOptions`, `NodeTableRow` and `PlanNode`, written as the attributes `flops`, `bytes` and `dtype` by the device source (extends its PF-3, PF-4, PF-6).
 - Order is hierarchy first: a brick comes before what uses it, and a module boundary with its build edges is committed before either side is written.
 - A step marked **orchestrator** edits a build file. The implementer does not. Build edits wait until the SYCL compile-time work (`docs/agent/2026_10_26_SYCL_COMPILE_TIME`) has closed its build; it holds uncommitted edits to the same CMake files.
 - One acceptance criterion and one build per task. The build is run by the orchestrator through `sb build`, then `sb run sushiblas_<module>_tests -- --gtest_filter='<pattern>'`. No implementer runs a build.
@@ -41,14 +43,14 @@ PB-7 can run as soon as the runtime's PF-5 lands and does not wait on PB-2 to PB
 
 ### PB-1 The `profile` front (foundation)
 
-- **Files:** `modules/foundation/profile/include/SushiBLAS/profile/profile.hpp` (macros `SB_ZONE`, `SB_VALUE`, `SB_COUNTER`, each on SushiProfiler's `_AT` form with this library's level), `profile_gate.hpp` (the level of a translation unit from `SB_PROFILE_LEVEL`), `profile_keys.hpp` (attribute names `flops`, `bytes`, `work_class` and the site names, one place), `README.md`. **Orchestrator:** the module's `CMakeLists.txt`, the tier table `cmake/SushiBLASLayers.cmake` and `tools/settings.py`.
+- **Files:** `modules/foundation/profile/include/SushiBLAS/profile/profile.hpp` (macros `SB_ZONE`, `SB_VALUE`, `SB_COUNTER`, each on SushiProfiler's `_AT` form with this library's level), `profile_gate.hpp` (the level of a translation unit from `SB_PROFILE_LEVEL`), `profile_keys.hpp` (the group name and the `sushiblas.*` fact names; the cost keys are SushiProfiler's `DeviceSpanKeys`, A15), `README.md`. **Orchestrator:** the module's `CMakeLists.txt`, the tier table `cmake/SushiBLASLayers.cmake` and `tools/settings.py`.
 - **Acceptance:** a zone compiled at level 1 writes one event into an open collector; at level 0 it writes nothing and registers no site; with `SB_ENABLE_PROFILER` off the macros expand to nothing.
 - **Build:** one `sb build`, then `sb run sushiblas_profile_tests`.
 - **Tests:** `Small_ProfileGate.AZoneAtTheCompiledLevelWritesOneEvent`, `Small_ProfileGate.AZoneAboveTheCompiledLevelWritesNothing`, `Small_ProfileKeys.EveryKeyIsListedOnce`; two translation units of different levels.
 
 ### PB-2 The `cost` module
 
-- **Files:** `modules/foundation/cost/include/SushiBLAS/cost/`: `cost.hpp` (`struct Cost { std::uint64_t flops; std::uint64_t bytes; std::uint8_t work_class; }`, `Cost::uncosted(UncostedReason)`), `cost_shape.hpp` (`struct CostShape { std::int64_t m, n, k, batch, count; Core::DataType dtype; std::uint32_t extra_flops_per_element; }`), `cost_table.hpp` (`[[nodiscard]] Cost cost_of(SushiRuntime::OperationID, const CostShape&) noexcept` and a row type `CostRow{OperationID, RuleKind, weight}`), `source/cost_table.cpp` (the sorted rows and the rules), `README.md` (the conventions of BD6). The module includes no SYCL, no engine and no SushiProfiler. **Orchestrator:** `CMakeLists.txt` (tier `foundation`, depends on `core`), tier table, tests list.
+- **Files:** `modules/foundation/cost/include/SushiBLAS/cost/`: `cost.hpp` (`struct Cost { std::uint64_t flops; std::uint64_t bytes; Core::DataType dtype; UncostedReason reason; }`, `Cost::uncosted(UncostedReason)`), `cost_shape.hpp` (`CostShape`, a `std::variant` of `GemmShape`, `ConvolutionShape`, `ElementwiseShape`, `ReductionShape`, `WindowShape` and `CopyShape`), `cost_table.hpp` (`[[nodiscard]] Cost cost_of(SushiRuntime::OperationID, const CostShape&) noexcept` and a row type `CostRow{OperationID, per_element, per_combine, per_output, reason}`), `composite_cost.hpp` (`softmax_flops`), `source/cost_table.cpp` (the sorted rows and the rules), `README.md` (the conventions of BD6). The module includes no SYCL, no engine and no SushiProfiler. **Orchestrator:** `CMakeLists.txt` (tier `foundation`, depends on `core`), tier table, tests list.
 - **Acceptance:** the GEMM row gives `2*m*n*k*batch` FLOPs for a real dtype and `8*m*n*k*batch` for a complex one, the class of the dtype, and a lookup of an id with no row returns `Cost::uncosted(NoRule)`.
 - **Build:** one `sb build`, then `sb run sushiblas_cost_tests`.
 - **Tests:** `Small_CostTable.GemmCostsTwoMNKPerBatch`, `Small_CostTable.AComplexGemmCostsEightMNK`, `Small_CostTable.AnUnknownIdIsUncostedNoRule`, `Small_CostTable.RowsAreSortedAndUnique`, `Small_CostShape.TheClassFollowsTheDtype`.
@@ -56,9 +58,9 @@ PB-7 can run as soon as the runtime's PF-5 lands and does not wait on PB-2 to PB
 ### PB-3 Stamp the cost; the join
 
 - **Files:** `modules/engine/engine/include/SushiBLAS/engine/task_description.hpp` (member `CostShape shape`, default `count = 0`), `task_recorder.hpp` (`insert` computes `cost_of(description.operation, description.shape)`, adds the footprint of `OperandSet::read_regions()` and `write_regions()` to `bytes`, and sets `SushiRuntime::NodeOptions::cost`), `modules/operations/blas/include/SushiBLAS/blas/dispatch.hpp` (`execute_gemm` fills `shape` from `m`, `n`, `k`, `batch_size`, the dtype and the epilogue's per-element count), `modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp` (`RecordedTask::cost`, read from `PlanNode`), the module READMEs. **Orchestrator:** `engine` gains `DEPENDS cost`.
-- **Acceptance:** after recording one GEMM through `BLASOps`, the plan's node holds `flops = 2*m*n*k`, a `bytes` equal to the footprint of A, B and C, and the `work_class` of the dtype; and every record call adds one rule at the position `node_count()` had before it.
+- **Acceptance:** after recording one GEMM through `BLASOps`, the plan's node holds `flops = 2*m*n*k`, a `bytes` equal to the footprint of A, B and C, and the `F32` class of the dtype; and every record call adds one rule at the position `node_count()` had before it.
 - **Build:** one `sb build`, then `sb run sushiblas_engine_tests` and `sushiblas_blas_tests`.
-- **Tests:** `Medium_TaskRecorderCost.GemmNodeStatesFlopsBytesAndClass`, `Medium_TaskRecorderCost.AnUpdatedOperandCountsTwiceInTheBytes`, `Medium_TaskRecorderCost.ABetaZeroGemmReadsNoC`, `Medium_TaskRecorderJoin.EachRecordCallAddsOneRuleAtTheNodeCountItSaw`, `Medium_TaskRecorderJoin.ALateCountPairIsOneRule`, `Medium_TaskRecorderJoin.RuleRegistrationMapsEveryRuleOfAFusedGemm`.
+- **Tests:** `Medium_TaskRecorderCost.GemmNodeStatesFlopsBytesAndDtype`, `Medium_TaskRecorderCost.AnUpdatedOperandCountsTwiceInTheBytes`, `Medium_TaskRecorderCost.ABetaZeroGemmReadsNoC`, `Medium_TaskRecorderJoin.EachRecordCallAddsOneRuleAtTheNodeCountItSaw`, `Medium_TaskRecorderJoin.ALateCountPairIsOneRule`, `Medium_TaskRecorderJoin.RuleRegistrationMapsEveryRuleOfAFusedGemm`.
 
 ### PB-4 Elementwise, nonlinear, logic and copy
 
@@ -76,10 +78,10 @@ PB-7 can run as soon as the runtime's PF-5 lands and does not wait on PB-2 to PB
 
 ### PB-6 Every other operation; the checker
 
-- **Files:** a row for each remaining `_op` literal, costed or `uncosted(reason)` with the reasons `SeveralSubmits` (BD8), `DataDependent`, `NoWork`; `tools/profiling/check_operation_costs.py` (the repository's own checker: every `"..."_op` literal under `modules/` has a row; run by `check_all.py`) and its test in `tools/tests/`; READMEs.
+- **Files:** a row for each remaining `_op` literal, costed or `uncosted(reason)` with the reasons `DataDependent` and `Unaudited`; `tools/profiling/check_operation_costs.py` (the repository's own checker: every `"..."_op` literal under `modules/` has a row; run by `check_all.py`) and its test in `tools/tests/`; READMEs.
 - **Acceptance:** the checker reports no `_op` literal without a row; each operation marked costed has had its body read and submits one kernel, which the task records in the module README as a table of operation, rule and submit count.
 - **Build:** one `sb build`, then `sushiblas_cost_tests`; the checker runs without a build.
-- **Tests:** `Small_CostTable.EveryRowNamesAKnownRule`, `Small_CostTable.AMultiStageOperationIsUncostedSeveralSubmits`, `tools/tests/test_check_operation_costs.py`.
+- **Tests:** `Small_CostTable.EveryRowNamesAKnownRule`, `Small_CostTable.ADeclaredUncostedRowKeepsItsReasonWhateverTheShape`, `tools/tests/test_check_operation_costs.py`.
 
 ### PB-7 A test observer for the four launch-width tests
 
@@ -106,7 +108,7 @@ PB-7 can run as soon as the runtime's PF-5 lands and does not wait on PB-2 to PB
 ### PB-10 End to end
 
 - **Files:** `tests/engine/profiling/test_profiling_end_to_end.cpp`.
-- **Acceptance:** a session over a graph that runs two GEMMs and an elementwise task produces a record whose device spans carry `flops`, `bytes` and `work_class`, whose environment holds the ceilings, and whose `roofline` table has a row per operation with its achieved rate and the fraction of the ceiling; the same session built with `SB_ENABLE_PROFILER` off compiles and runs the graph.
+- **Acceptance:** a session over a graph that runs two GEMMs and an elementwise task produces a record whose device spans carry `flops`, `bytes` and `dtype`, whose environment holds the ceilings, and whose `roofline` table has a row per operation with its achieved rate and the fraction of the ceiling; the same session built with `SB_ENABLE_PROFILER` off compiles and runs the graph.
 - **Build:** one `sb build`, then `sb run sushiblas_profiling_tests`.
 - **Tests:** `Medium_ProfilingEndToEnd.AGemmSpanCarriesFlopsBytesAndAClass`, `Medium_ProfilingEndToEnd.TheRooflineRowNamesTheCeiling`, `Medium_ProfilingEndToEnd.AnUncostedOperationHasNoFraction`, `Medium_ProfilingEndToEnd.TheProfilerOffBuildStillRuns`.
 
@@ -146,3 +148,60 @@ Each logging task's test captures records through SushiLog's synchronous mode (R
 ## Proposed order
 
 Three waves, a proposal. Wave 1 (no runtime dependency): PB-2, then PB-3 once PF-A1 is in the runtime's plan, PB-1 once PB-0 is built. Wave 2: PB-4, PB-5, PB-6 in one repository sequence (they edit the same table file, so they run one after another, not in parallel). Wave 3: PB-7, PB-8, PB-9, PB-10 as the runtime's PF-3 to PF-7 and SushiProfiler's SP-0 and SP-R1 release. The owner chooses inline or waves.
+
+## Amendments after review
+
+The review rulings A1 to A21 and the origin ruling B-O1, B-O2 are in SPEC.md, section 8, "Amendments after review". The tasks above read as amended by them; the table in "Task changes" says where.
+
+### Task changes
+
+| Task | Change |
+| --- | --- |
+| PB-2, PB-3 | No longer wait on BD2 and BD6. `Cost` has no `work_class`; it carries the dtype class the runtime names (`NodeDType`). `CostShape` is a `std::variant` of per-family structs (A17). `UncostedReason` is `None`, `NoRule`, `NoShape`, `DataDependent`, `Unaudited` |
+| PB-3 | Late-count tasks are uncosted `DataDependent` (A9). The origin of a node comes from `TaskRecorder::origin` (B-O1) |
+| PB-6 | Multi-submit bodies hand every event to the runtime through `Device::SubmittedEvents` and `note_dispatch_event` (A1); `SeveralSubmits` is gone. The checker is `tools/profiling/check_operation_costs.py` |
+| PB-7 | Reads `RunObservation::events` through `RunObserverCapture` on `Runtime::add_run_observer` |
+| PB-8 | Facts are built with `SushiProfiler::DeviceSpanKeys` from `device_track_name` (A2, A14); `profiling` lists SushiRuntime and SushiProfiler explicitly (A18) |
+| PB-9 | One `peak_flops` fact per dtype measured; measurement protocol of A13; CPU ceilings are marked smoke-only |
+| PB-10 | Adds `TheRooflineRowHasABound` and an f16 span judged against the f16 ceiling (A21) |
+| PB-24 | Moves into the first pass in the form of operation ids only (A12); node names of unnamed calls stay as they are |
+| B-O1 | `TaskRecorder::origin(label)` returns an `OriginScope`; nodes recorded while a scope is open carry the label as `NodeOptions::origin` |
+| B-O2 | The benchmark harness labels each graph with `Graph::set_label` |
+
+### Decisions taken while coding
+
+Each is the choice that rebuilds least and keeps one reason per module. A choice the rulings do not cover is listed here with its reason.
+
+| # | Decision | Reason |
+| --- | --- | --- |
+| C1 | `TaskRecorder::OriginScope` is a nested class of `TaskRecorder`, defined in `task_recorder.hpp`, which every user of the recorder already includes | A separate header would add an include to every file that opens a scope and a module file to test |
+| C2 | The recorder keeps the current origin as a `std::string` guarded by its recording mutex | `insert_node` takes that lock already, so the label and the node it stamps are one step |
+| C3 | `Cost::dtype` is a `Core::DataType` in its real class; the recorder maps it to `NodeDType` (`F16`, `F32`, else `Unstated`) | The `cost` module then names no runtime enumerator, and the one mapping is where the runtime's classes are known |
+| C4 | `UncostedReason` is `None`, `NoRule`, `NoShape`, `DataDependent`, `Unaudited`; `NoWork` and `SeveralSubmits` are not there | A1 removed the second; no body found had no work to state |
+| C5 | A row holds three weights (`per_element`, `per_combine`, `per_output`) and the shape struct picks the family | A new family adds a struct and a rule, and no row changes |
+| C6 | `window_dot` states the convolution family as a depthwise convolution; the pools state the window family with the nominal tap count | Depthwise has `groups` equal to both channel counts, which is exactly one tap tensor per channel |
+| C7 | The several events of a body travel as `Device::SubmittedEvents`, a `launch` type that converts to its last event, and the recorder calls `note_dispatch_event` for each | The kernels stay free of a runtime include, and every caller and test that treats the result as one event compiles unchanged |
+| C8 | The FFT keeps its row `Unaudited` and hands over one event | Its seven submit sites sit inside `run_lines` loops; converting them is its own task and is not guessed at |
+| C9 | A graph primitive stamps `OperationID::hash(label)` on each node; a call with no options keeps the runtime's own node name | Naming the nodes of unnamed calls changes names tests and reports read; the id alone gives identity |
+| C10 | `profile_keys.hpp` holds the group and the `sushiblas.*` facts; the ceiling facts come from `DeviceSpanKeys`; a device's status is `sushiblas.ceilings.<track>` | A15 and A2 |
+| C11 | `profiling` does not depend on `engine`: the default mode is the literal `auto` and no layout fact is stated | BD9 ruled it, and the layout had no reader |
+| C12 | `register_profiler_parts` has a second overload over `std::vector<DeviceFacts>`; a second registration throws `std::invalid_argument` | The Runtime overload is a thin caller of it, which makes the parts testable without a device |
+| C13 | `task_description.hpp` includes `cost_shape.hpp` and `task_recorder.hpp` and `scratch_shelf.hpp` include `profile.hpp` | The shape is a member by value and the zones are in templates; `profile.hpp` includes no SushiProfiler header when the profiler is off |
+| C14 | `device_ceilings` is four headers and a `main.cpp`, each header with a mirror test, and owns a `SpanObserver` | The test-only capture lives in an INTERNAL module an application must not link |
+| C15 | The ceilings program allocates its buffers with `sycl::malloc_device` on the runtime's queue | It measures the device and its memory, not the runtime's allocator |
+| C16 | `Bench::print_environment(engine, scenario)` starts the program's session when `SB_BENCH_PROFILE` names a folder; the session is a function-local static ended with the process | One session runs per process, so one owner is the right shape; the nine programs change one argument |
+| C17 | `sb bench <name> -- <options>` runs the one executable the name matches with the options after `--` | The same index `sb run` uses; the no-name form is unchanged |
+| C18 | The variant of a GEMM is an instant per launch; K3 and K4 are removed; the `std`, `var` and `logsumexp` rows stay `Unaudited` | C-2 of the amendments |
+| C19 | LB-7 adds no category: no task above adds a log call to `blas`, `spatial`, `nonlinear`, `sparse` or `graph_primitives` | The category is declared where a module logs |
+| C20 | `IOFiles::remove_partial_file` is a header of its own in `io` | The cleanup is then testable without a failing save |
+| C21 | The probe's fallbacks are `Detail::resolve_sub_group_size` and `resolve_cache_bytes`, which the probe calls and logs from | Pure functions are tested without a device that lacks a cache |
+| C22 | The no-local fallback warns once per (profile, tile) through a local set | SushiLog RW-3 does not exist yet; the set goes when it does |
+| C23 | `LogCapture` joins the test runner | A stand-in for the shipped capture sink of SushiLog RW-8 |
+| C24 | The end-to-end suites are in `test_profiler_parts.cpp`; the cost, join, origin, zone and coverage suites are in `test_task_recorder.cpp` | The mirror checker allows one test file per header |
+| C25 | `ReductionTask` and `SpanReductionTask` lose their name member | Only the removed `TRACE` records read it, and an unused private field is a warning |
+| C26 | No SushiProfiler header reaches `task_recorder.hpp`, `scratch_shelf.hpp`, a kernel header or the includers of `task_description.hpp`. `engine/profile_hooks.hpp` declares `in_recording`, `in_scratch_lease` and `count_scratch_lease`; `engine_profile.cpp` defines them over the profiler front. The template calls a non-template function with a function pointer and a context, so the body keeps its type and the zone stays in one `.cpp` | Z1: a profiler change must not recompile every lowering of SushiAI, and the SYCL device pass must not parse the profiler |
+| C27 | A kernel notes its variant through `Device::note_kernel_variant(KernelVariant)` in `launch/kernel_variant.hpp`, an inline atomic load of an observer; the engine installs the observer in its constructor and `engine_profile.cpp` writes the instant. Not a host dispatch `.cpp`: the variant is chosen inside `gemm_accessed`, and splitting a 1000-line kernel header that cannot be built now is the larger risk | Z1: the kernel headers keep no profiler include, the header-only kernels module stays header-only, and no kernels-tier library depends on a higher tier |
+| C28 | `SB_ENABLE_PROFILER` and `SB_PROFILE_LEVEL` come from the generated `<SushiBLAS/profile/profile_config.hpp>`, which defines both unconditionally; `profile.hpp` and `profile_gate.hpp` define neither; a test unit that needs another level undefines the setting after including the generated header | Z2: one source for the settings, and no definition on every target |
+| C29 | SushiProfiler is found with `find_package(SushiProfiler CONFIG REQUIRED)` when the option is on | Z3 |
+| C30 | The FFT hands over every event of a transform through `SubmittedEvents` and states a `TransformShape` cost: `5 * n * log2 n` per complex line, a Bluestein line as three padded transforms and the chirp products; the four backward rows of the pools, the upsample and `window_dot_weights` are costed; every other `Unaudited` row is named in one backlog entry | Z4 and Z5 |
+

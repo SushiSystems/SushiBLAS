@@ -26,10 +26,12 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/test_runner/log_capture.hpp>
 
 namespace SushiBLAS
 {
@@ -194,6 +196,146 @@ namespace SushiBLAS
 
             // Every card from sm_70 on lists 16 x 16 x 16 for HALF x HALF -> FLOAT32.
             EXPECT_TRUE(Device::profile_for(queue).supports_half_matrix);
+        }
+
+        TEST(Small_DevicePolicy, ALocalMemoryTableEntryReplacesWhatTheDeviceReports)
+        {
+            EXPECT_EQ(Device::local_mem_per_compute_unit_of(Device::Architecture::NvidiaSm86,
+                                                            48 * 1024),
+                      std::size_t{100 * 1024});
+            EXPECT_EQ(Device::local_mem_per_compute_unit_of(Device::Architecture::NvidiaSm80, 0),
+                      std::size_t{164 * 1024});
+            EXPECT_EQ(Device::local_mem_per_compute_unit_of(Device::Architecture::NvidiaSm90, 0),
+                      std::size_t{228 * 1024});
+            EXPECT_EQ(Device::local_mem_per_compute_unit_of(Device::Architecture::IntelPVC, 0),
+                      std::size_t{128 * 1024});
+        }
+
+        TEST(Small_DevicePolicy, AnUnknownArchitectureKeepsTheReportedLocalMemory)
+        {
+            EXPECT_EQ(Device::local_mem_per_compute_unit_of(Device::Architecture::Unknown, 32768),
+                      std::size_t{32768});
+        }
+
+        TEST(Small_DevicePolicy, AnArchitectureNameIsItsEnumeratorName)
+        {
+            EXPECT_STREQ(Device::to_string(Device::Architecture::NvidiaSm86), "NvidiaSm86");
+            EXPECT_STREQ(Device::to_string(Device::Architecture::IntelPVC), "IntelPVC");
+            EXPECT_STREQ(Device::to_string(Device::Architecture::Unknown), "Unknown");
+        }
+
+        TEST(Small_DevicePolicy, AProfileStartsWithoutAVendorOrAnArchitecture)
+        {
+            const Device::Profile profile;
+
+            EXPECT_EQ(profile.vendor, Device::Vendor::Unknown);
+            EXPECT_EQ(profile.architecture, Device::Architecture::Unknown);
+            EXPECT_EQ(profile.local_mem_per_compute_unit, std::size_t{0});
+        }
+
+        TEST(Medium_DevicePolicy, EveryDeviceReportsAConsistentVendorAndArchitecture)
+        {
+            for (std::size_t index = 0; index < TestEnvironment::device_count(); ++index)
+            {
+                const sycl::queue& queue = TestEnvironment::queue(index);
+                const Device::Profile& profile = Device::profile_for(queue);
+
+                EXPECT_EQ(profile.local_mem_per_compute_unit,
+                          Device::local_mem_per_compute_unit_of(profile.architecture,
+                                                                profile.local_mem_bytes));
+                if (profile.architecture >= Device::Architecture::NvidiaSm70 &&
+                    profile.architecture <= Device::Architecture::NvidiaSm90)
+                    EXPECT_EQ(profile.vendor, Device::Vendor::Nvidia);
+                if (profile.is_cpu)
+                    EXPECT_FALSE(profile.architecture >= Device::Architecture::NvidiaSm70 &&
+                                 profile.architecture <= Device::Architecture::NvidiaSm90);
+            }
+        }
+
+        TEST(Medium_DevicePolicy, ASm86CUDADeviceIsReadAsNvidiaSm86)
+        {
+            bool found = false;
+            for (std::size_t index = 0; index < TestEnvironment::device_count(); ++index)
+            {
+                const sycl::queue& queue = TestEnvironment::queue(index);
+                if (queue.get_device().get_backend() != sycl::backend::ext_oneapi_cuda)
+                    continue;
+#if defined(SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE)
+                namespace Experimental = sycl::ext::oneapi::experimental;
+                if (queue.get_device().get_info<Experimental::info::device::architecture>() !=
+                    Experimental::architecture::nvidia_gpu_sm_86)
+                    continue;
+
+                const Device::Profile& profile = Device::profile_for(queue);
+                EXPECT_EQ(profile.architecture, Device::Architecture::NvidiaSm86);
+                EXPECT_EQ(profile.vendor, Device::Vendor::Nvidia);
+                EXPECT_EQ(profile.local_mem_per_compute_unit, std::size_t{100 * 1024});
+                found = true;
+#endif
+            }
+            if (!found)
+                GTEST_SKIP() << "no CUDA device of architecture sm_86 is present";
+        }
+
+        TEST(Small_DeviceProbeFallbacks, ADeviceListingNoSubGroupGetsWidthOneAndIsMarkedAssumed)
+        {
+            const Device::Detail::Resolved none = Device::Detail::resolve_sub_group_size({});
+            const Device::Detail::Resolved zero = Device::Detail::resolve_sub_group_size({0});
+
+            EXPECT_EQ(none.value, std::size_t{1});
+            EXPECT_TRUE(none.assumed);
+            EXPECT_EQ(zero.value, std::size_t{1});
+            EXPECT_TRUE(zero.assumed);
+        }
+
+        TEST(Small_DeviceProbeFallbacks, ADeviceListingSubGroupsKeepsTheWidestAndAssumesNothing)
+        {
+            const Device::Detail::Resolved widest = Device::Detail::resolve_sub_group_size({16, 32, 8});
+
+            EXPECT_EQ(widest.value, std::size_t{32});
+            EXPECT_FALSE(widest.assumed);
+        }
+
+        TEST(Small_DeviceProbeFallbacks, ADeviceReportingNoCacheGetsTheAssumedSizeAndIsMarkedAssumed)
+        {
+            const Device::Detail::Resolved none = Device::Detail::resolve_cache_bytes(0);
+            const Device::Detail::Resolved reported = Device::Detail::resolve_cache_bytes(4096);
+
+            EXPECT_EQ(none.value, Device::K_ASSUMED_CACHE_BYTES);
+            EXPECT_TRUE(none.assumed);
+            EXPECT_EQ(reported.value, std::size_t{4096});
+            EXPECT_FALSE(reported.assumed);
+        }
+
+        TEST(Medium_DeviceProbeLog, AProbeStatesTheProfileOfTheDeviceOnce)
+        {
+            const sycl::device device = TestEnvironment::queue(0).get_device();
+            const std::string name = device.get_info<sycl::info::device::name>();
+            LogCapture capture;
+
+            static_cast<void>(Device::Detail::probe(device));
+
+            EXPECT_EQ(capture.count(SushiLog::LogLevel::Info, "device '" + name + "'"), std::size_t{1});
+        }
+
+        TEST(Medium_DeviceProbeLog, AFallbackWarnsOncePerDeviceAndNamesIt)
+        {
+            const sycl::device device = TestEnvironment::queue(0).get_device();
+            const std::string name = device.get_info<sycl::info::device::name>();
+            const bool no_sub_group = Device::Detail::resolve_sub_group_size(
+                device.get_info<sycl::info::device::sub_group_sizes>()).assumed;
+            const bool no_cache = Device::Detail::resolve_cache_bytes(static_cast<std::size_t>(
+                device.get_info<sycl::info::device::global_mem_cache_size>())).assumed;
+            LogCapture capture;
+
+            static_cast<void>(Device::Detail::probe(device));
+
+            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "lists no sub-group size"),
+                      std::size_t{no_sub_group ? 1U : 0U});
+            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "reports no cache size"),
+                      std::size_t{no_cache ? 1U : 0U});
+            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "'" + name + "'"),
+                      std::size_t{(no_sub_group ? 1U : 0U) + (no_cache ? 1U : 0U)});
         }
     } // namespace Test
 } // namespace SushiBLAS

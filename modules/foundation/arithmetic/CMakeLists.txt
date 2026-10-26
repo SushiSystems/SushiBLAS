@@ -14,5 +14,6 @@ sushiblas_add_test_program(
         test_accumulator.cpp
         test_complex_arithmetic.cpp
         test_multiply_add.cpp
+        test_no_contraction.cpp
         test_device_math.cpp
         test_safe_math.cpp)

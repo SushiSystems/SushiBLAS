@@ -11,4 +11,5 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_accumulator.cpp` | Tests that Accumulator widens HALF to FLOAT32 and keeps every other type |
 | `test_complex_arithmetic.cpp` | Tests the conjugation, product and quotient bricks on real and complex values |
 | `test_device_math.cpp` | Tests that the host side of Math names the standard functions with their results |
+| `test_no_contraction.cpp` | Tests that SB_FP_CONTRACT_OFF keeps a product rounded before it is added |
 | `test_safe_math.cpp` | Tests the real and complex safe functions of Dispatch against the standard library |

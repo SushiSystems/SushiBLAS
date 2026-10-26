@@ -46,7 +46,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Tile | The block of an operand a GEMM work-group stages in local memory |
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |
 | Adapter | The one module of a consumer that includes SushiBLAS headers and hands the rest of the program its own types; see the stability section of the root `README.md` |
-| Quarantine | The headers under `modules/operations/experimental/include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not defined |
+| Quarantine | The methods of `LinalgOps` that are declared and not defined: `inv`, `qr`, `svd`, `eigh`, `eig`, `det` and `solve` |
 | Size | The one CTest label of a test, `small`, `medium` or `large`, which sets its timeout and the CI stages that run it; `sb test` runs `small` and `medium` |
 | Package test | `sb test --package`: installs the package and builds and runs `tests/package/` against it |
 | Sibling checkout | A SushiRuntime checkout in the folder beside this repository, `../sushiruntime` |
@@ -57,6 +57,12 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | D1 | The decision that moved `LinalgOps` and `TransformsOps` out of the `Engine` facade into the quarantine. It is recorded in `sushiai/docs/design/ROADMAP.md` |
 | D3 | The three-step resolution of the SushiRuntime dependency in `cmake/Runtime.cmake`: a superproject target, then `find_package(SushiRuntime)`, then a sibling `add_subdirectory` |
 | SB-0 to SB-12 | Numbered slices of the SushiBLAS build-out, used in commit subjects and in older documents. SB-6 is the packaging slice. The numbering comes from `sushiai/docs/design/ROADMAP.md` |
+| Cost | `Cost`, what a recorded task states about its work: floating-point operations, bytes and the dtype class they are judged in, or the reason it states none (`cost/cost.hpp`) |
+| Cost table | One row for every operation id the library records, and `cost_of`, which applies the rule of a shape family to a row (`cost/cost_table.hpp`) |
+| Cost shape | The extents an operation states for its cost, as one of six structs: GEMM, convolution, elementwise, reduction, window and copy (`cost/cost_shape.hpp`) |
+| Ceilings file | `<device>.ceilings.json`, what one device reached when it was measured: compute per dtype, bandwidth and launch floor. [The format](CEILINGS_FORMAT.md) |
+| Submitted events | `Device::SubmittedEvents`, the events of every kernel a task body submitted; the recorder hands them to the runtime so the span covers the whole body (`launch/submitted_events.hpp`) |
+| Origin | A label `TaskRecorder::origin` keeps open: every node recorded while its scope lives carries it, and the spans of those nodes name it |
 
 ## Design topics
 
@@ -68,5 +74,7 @@ The list is generated in `docs/design/README.md`.
 **LAYERED_EXECUTION**: SushiBLAS's share of the stack's layered execution: the library becomes the one door to computation for SushiAI and SushiEngine, records only into the graph its caller owns, offers a.... See [the design](../design/LAYERED_EXECUTION/README.md).
 
 **MODULE_SPLIT**: SushiBLAS was laid out as one module: include/SushiBLAS/ and source/ under the root, one CMake target, one test program. See [the design](../design/MODULE_SPLIT/README.md).
+
+**PROFILING**: What SushiBLAS tells SushiProfiler about its work, and where it logs a decision it took. See [the design](../design/PROFILING/README.md).
 
 **PUBLIC_SEAM**: Three properties of the public interface depart from the house C++ style: SYCL types in the interface, exceptions where the style asks for statuses, and kernel headers that are installed. See [the design](../design/PUBLIC_SEAM/README.md).

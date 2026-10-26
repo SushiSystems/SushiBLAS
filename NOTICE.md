@@ -188,9 +188,8 @@ these kernels is SushiBLAS's own responsibility from here on.
 
 ## Not ported
 
-FFT/DFT and LAPACK (`SVD`, `QR`, eigendecomposition, etc.) remain quarantined
-per decision D1 - see `modules/operations/experimental/include/SushiBLAS/experimental/`. The backend
-strategy for those is a named follow-up, not solved here.
+LAPACK beyond LU (`SVD`, `QR`, eigendecomposition, etc.) is declared and not
+defined, see `modules/operations/experimental/include/SushiBLAS/experimental/`.
 
 ## Earlier versions
 

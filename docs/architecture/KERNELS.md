@@ -133,7 +133,9 @@ that does not match). `operands/blas_metadata.hpp` writes the scalars and flags 
   it reaches. `plan_vector_solve` keeps a band too narrow to repay the launches in one block.
 - *GEMM.* `Kernels::SYCL::gemm` chooses among three shapes from the `Device::Profile` and logs
   the choice at `SB_LOG_INFO`. `gemm_local_tiled` stages tiles of A and B in work-group local
-  memory, for a device with dedicated local memory. `gemm_no_local` uses no local accessor and no
+  memory, for a device with dedicated local memory, in one of three compiled tile shapes that
+  `choose_gemm_tile` picks per device and product: the pin `SB_GEMM_TILE`, else a measured
+  entry for the architecture, else a model of the device's limits. `gemm_no_local` uses no local accessor and no
   barrier. The packed product (`packed_product.hpp`, `packed_panel.hpp`,
   `packed_micro_kernel.hpp`) packs panels of both operands into leased scratch and runs a
   register-block micro-kernel over them, one work-item per worker; `selects_packed_product`

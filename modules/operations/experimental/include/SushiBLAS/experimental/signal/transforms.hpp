@@ -21,24 +21,43 @@
 
 /**
  * @file transforms.hpp
- * @brief Declares TransformsOps, the experimental signal transforms that have no implementation yet.
+ * @brief Declares TransformsOps, the batched forward and inverse fast Fourier transforms.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS
 {
+    /** @brief Names the element pairing of a transform's operands. */
+    enum class FftKind : std::uint8_t
+    {
+        ComplexToComplex, /**< Both sides complex. */
+        RealToComplex,    /**< Real samples and the columns / 2 + 1 half spectrum per row. */
+    };
+
+    /**
+     * @brief Holds the extent of one batched transform.
+     * @see modules/operations/experimental/README.md
+     */
+    struct FftShape
+    {
+            std::size_t rows = 1;    /**< Rows of each transform; 1 for a 1-D transform. */
+            std::size_t columns = 0; /**< Samples per row, the innermost and contiguous axis. */
+            std::size_t batch = 1;   /**< Transforms laid out one after another. */
+            FftKind kind = FftKind::ComplexToComplex; /**< Element pairing of the operands. */
+    };
+
     /**
      * @class TransformsOps
-     * @brief Signal transformation operations (FFT, etc.).
-     *
-     * Provides interfaces for Fast Fourier Transforms (FFT) in multiple dimensions.
-     * Uses oneMKL's high-performance FFT domain underneath.
+     * @brief Records batched one- and two-dimensional discrete Fourier transforms.
      * @see modules/operations/experimental/README.md
      */
     class TransformsOps final
@@ -54,40 +73,40 @@ namespace SushiBLAS
             ~TransformsOps() = default;
 
             /**
-             * @brief 1D Forward Fast Fourier Transform.
-             * @param in Input tensor (time domain).
-             * @param out Output tensor (frequency domain, complex).
-             * @return The handle of the recorded task.
+             * @brief Records the unscaled forward transform of each batch entry.
+             * @param input COMPLEX32 or COMPLEX64, rows * columns per entry; FLOAT32 or FLOAT64
+             *        for RealToComplex.
+             * @param output The complex dtype of input's scalar, rows * columns elements per entry,
+             *        rows * (columns / 2 + 1) for RealToComplex; no byte shared with input.
+             * @throws std::invalid_argument at record time on a mismatched or non-dense operand.
              */
-            TaskHandle fft1d(const Tensor& in, Tensor& out);
+            TaskHandle fft(const Tensor& input, Tensor& output, const FftShape& shape);
 
             /**
-             * @brief 1D Inverse Fast Fourier Transform.
-             * @param in Input tensor (frequency domain).
-             * @param out Output tensor (time domain).
-             * @return The handle of the recorded task.
+             * @brief Records fft(input, output, shape) under the name and class options states.
+             * @throws std::invalid_argument as the form without options, and for an empty name.
              */
-            TaskHandle ifft1d(const Tensor& in, Tensor& out);
+            TaskHandle fft(const Tensor& input, Tensor& output, const FftShape& shape,
+                           const OperationOptions& options);
 
             /**
-             * @brief 2D Forward Fast Fourier Transform (Gratings/Images).
-             * @param in Input tensor.
-             * @param out Output complex tensor.
-             * @return The handle of the recorded task.
+             * @brief Records the inverse of fft, scaled by 1 / (rows * columns).
+             * @param input The spectrum laid out as fft writes it for shape.
+             * @param output The samples laid out as fft reads them; no byte shared with input.
+             * @throws std::invalid_argument at record time on a mismatched or non-dense operand.
              */
-            TaskHandle fft2d(const Tensor& in, Tensor& out);
+            TaskHandle inverse_fft(const Tensor& input, Tensor& output, const FftShape& shape);
 
             /**
-             * @brief 2D Inverse Fast Fourier Transform.
-             * @param in Input complex tensor.
-             * @param out Output tensor.
-             * @return The handle of the recorded task.
+             * @brief Records inverse_fft(input, output, shape) under the name and class options
+             *        states.
+             * @throws std::invalid_argument as the form without options, and for an empty name.
              */
-            TaskHandle ifft2d(const Tensor& in, Tensor& out);
+            TaskHandle inverse_fft(const Tensor& input, Tensor& output, const FftShape& shape,
+                                   const OperationOptions& options);
 
         private:
             /// @brief The recorder every operation of this view records through.
             TaskRecorder& recorder_;
     };
-
 } // namespace SushiBLAS

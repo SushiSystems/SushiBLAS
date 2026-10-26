@@ -1,9 +1,8 @@
 # SushiBLAS adopts SushiProfiler, and logs where it is silent: analysis
 
-**Status:** Open — written 2026-10-26; analysis done, section 8 holds the rulings; implementation runs with every build at the end.
+**Status:** Open — written 2026-10-26; section 8 holds the rulings and their amendments; the code is written and nothing is built.
 
-No `**Implements:**` line yet: the repository has no profiling design topic. Decision BD13 opens
-`docs/design/PROFILING/README.md`, as SushiRuntime's D22 does; the line follows it.
+**Implements:** PROFILING#P1, PROFILING#P2, PROFILING#P3, PROFILING#P4, PROFILING#P5, PROFILING#P6, PROFILING#P8
 
 Read on 2026-10-26: this repository on `feature/layered_execution` (the uncommitted files of
 `docs/agent/2026_10_26_SYCL_COMPILE_TIME` were not read and are not touched), SushiProfiler at
@@ -99,7 +98,7 @@ length has no size and is skipped.
 | --- | --- | --- |
 | `flops` | A per-operation rule over the extents and the dtype | BD2, BD6 |
 | `bytes` | Declared footprint of the operand set | automatic in `insert` |
-| `work_class` | The dtype's ceiling class: half, float, double, complex counted in its real class, integer | one per dtype |
+| `dtype` | The dtype's ceiling class: half, float, double, complex counted in its real class, integer | one per dtype (A3, A4) |
 
 ### 1.5 The device facts for ceilings
 
@@ -148,7 +147,7 @@ observer must deliver them; the runtime's `RunObserver` record keeps `launched_w
 ### 1.8 What pass one gives SushiAI
 
 A SushiAI inference run with a session attached produces, for every dispatch of a BLAS node: the span from the runtime
-(time, device track, node, invocation), plus `flops`, `bytes` and `work_class` attributes, plus environment facts with
+(time, device track, node, invocation), plus `flops`, `bytes` and `dtype` attributes, plus environment facts with
 the device's ceilings, plus the `roofline` table. The IR node comes from SushiAI's own range. Not in pass one: which
 kernel variant ran (section 2, row K1), record-time cost of recording, the benchmark harness on a timeline.
 
@@ -232,14 +231,14 @@ to the owner. The recommendation is mine and is the one that holds as the stack 
 
 | # | Question, options | Recommendation and why | Owner |
 | --- | --- | --- | --- |
-| BD1 | How cost reaches a span. (a) SushiRuntime carries an opaque `NodeCost{flops, bytes, work_class}` on `NodeOptions`, the node table and the plan view; its device source writes the three attributes. (b) A SushiBLAS source annotates the runtime's spans. (c) The cost goes in the 8 parameter slots | (a). The cost then travels with the node through plan rebuilds, `clear()` and replays, and there is no second table to keep in step with registration indices. The runtime stays ignorant of BLAS: three numbers it copies. (b) needs G-B4 and a map from rule to cost; (c) has no free slots in GEMM (6 of 8 used, `blas_metadata.hpp`) and is not general | yes: `NodeOptions`, `NodeTableRow`, `PlanNode` of SushiRuntime change; additive |
+| BD1 | How cost reaches a span. (a) SushiRuntime carries an opaque `NodeCost{flops, bytes}` on `NodeOptions`, the node table and the plan view; its device source writes the two attributes (A3, A4 add the dtype class). (b) A SushiBLAS source annotates the runtime's spans. (c) The cost goes in the 8 parameter slots | (a). The cost then travels with the node through plan rebuilds, `clear()` and replays, and there is no second table to keep in step with registration indices. The runtime stays ignorant of BLAS: the numbers it copies. (b) needs G-B4 and a map from rule to cost; (c) has no free slots in GEMM (6 of 8 used, `blas_metadata.hpp`) and is not general | yes: `NodeOptions`, `NodeTableRow`, `PlanNode` of SushiRuntime change; additive |
 | BD2 | Where cost rules live. (a) Each seam computes `Cost` and sets it. (b) Each seam states shape facts in a `CostShape` on `TaskDescription`; a new foundation module `cost` holds one rule per operation id; `TaskRecorder::insert` computes the cost and the footprint bytes once. (c) A virtual rule object per operation | (b). `insert` is the one recording point (1.2), so the rule is applied once, a seam states facts it already holds, and the knowledge "what an `exp` costs" sits in one module that has no SYCL include and builds without device passes (SYCL compile-time work). (a) spreads rules over 25 sites; (c) is an interface per kind for a closed table | yes: new module `cost`, new member `TaskDescription::shape` |
 | BD3 | Where `roofline` lives. (a) In SushiBLAS, registered by a library analysis factory. (b) Generic in SushiProfiler: attribute names and the ceiling facts are data. (c) A SushiBLAS tool that reads records | (b). An analysis in SushiBLAS cannot reach `sp record show` (G-B1) without `sp` linking every client, which inverts the dependency. A generic analysis also serves SushiDSP's budget work and SushiAI. It knows no kernel: it is told which attributes mean work and bytes. CLIENTS.md says "in SushiBLAS" and must change | yes: it changes the approved design and SushiProfiler's analysis module |
 | BD4 | How `device_ceilings` times. (a) SYCL events on a queue it builds. (b) A graph run with a `RunObserver`, reading device spans | (b). It measures through the path the spans come from, uses only the runtime's public API and needs no queue of its own. It waits on the runtime's PF-5 | no |
 | BD5 | How the ceilings reach the record. (a) The environment contributor writes them as facts from the file. (b) The analysis reads the file path from options. (c) The cost attribute carries the ceiling | (a). Analyses read records only; (b) breaks that and makes an old record unreadable once the file moves. Fact names embed the exact track name the runtime source uses, `ceiling.<track>.<class>` | no, once the track name is fixed by the runtime's PF-6 |
 | BD6 | FLOP and byte conventions (mine). FLOPs: GEMM 2mnk per batch, complex 8mnk; an elementwise function counts the operations of its formula, a transcendental as 1; an epilogue adds its per-element count; a reduction n-1 per output. Bytes: declared footprint. A task that returns an empty event states 0 | Fixed in the `cost` README and pinned by test values, so a change is a visible diff | no |
 | BD7 | The IR join. (a) SushiAI takes `[first,count)` from `graph.node_count()` and maps through `rule_registration`. (b) `TaskHandle` carries the rule position | (a). It needs no change and `TaskHandle` is a per-recorder counter (1.2). (b) would add a public member for a join SushiAI can make itself | no |
-| BD8 | Multi-stage bodies (1.2). (a) Cost them with the last stage's span. (b) Declare them `uncosted(several_submits)` until a timing path covers the whole body. (c) Make the kernels return a joined event | (b). (a) prints a wrong fraction with a straight face; (c) has no SYCL way to give a joined event with trustworthy profiling times. The inference path (GEMM, im2col, pool, upsample, channel affine, elementwise) is single-submit; PB-6 audits each costed operation | no |
+| BD8 | Multi-stage bodies (1.2). (a) Cost them with the last stage's span. (b) Declare them uncosted until a timing path covers the whole body (A1 replaced this by handing every event to the runtime). (c) Make the kernels return a joined event | (b). (a) prints a wrong fraction with a straight face; (c) has no SYCL way to give a joined event with trustworthy profiling times. The inference path (GEMM, im2col, pool, upsample, channel affine, elementwise) is single-submit; PB-6 audits each costed operation | no |
 | BD9 | Tier and shape of the module that registers the parts. (a) A new tier `surface`. (b) A module `profiling` in tier `engine`, depending on `launch`, `core`, `profile`, not on `engine`. (c) In `library` | (b). The tier list has no surface tier and `library` holds only composition (`README` of the module, `modules/README.md`). `engine` is the first tier that uses `SushiRuntime::Runtime`, which the contributor needs for the device list | yes: new module and its tier edge |
 | BD10 | The registration signature. `register_profiler_parts(SushiProfiler::Registry&, SushiRuntime::Runtime&, std::string_view ceilings_folder)` returns `[[nodiscard]] SushiBLASProfilerParts`, an owning handle; the contributor states `sushiblas.version`, build facts, default execution mode, tile pin, layout and the ceilings. SushiAI calls it beside the runtime's | The same shape as the runtime's D12; a folder, not a file, so several devices find their own file | yes: a public function |
 | BD11 | `SB_ENABLE_PROFILER` default ON, `SB_PROFILE_LEVEL` default 2, as the runtime's | Same options in `cmake/`; off, the front's macros expand to nothing and `profiling` is not built | no |
@@ -296,3 +295,35 @@ library's own timing leaving it for SushiProfiler and all code written before an
 | BD12 | Later; the ceilings program runs through `sb run` |
 | Multi-kernel bodies | A body that submits several kernels returns an event that completes with all of them, so the span covers the whole body; PB-6 fixes each one it finds |
 | Scope | Every PB task of `PLAN.md`, then the second pass PB-20 to PB-26 and LB-1 to LB-7, written before any build |
+
+### Amendments after review
+
+An independent review of this analysis and of `PLAN.md` came back on 2026-10-26. The coordinator ruled on each point; where a ruling replaces a decision above, the ruling holds.
+
+| # | Ruling |
+| --- | --- |
+| A1 | A body that submits several kernels hands every event to the runtime, which times the dispatch from the first start to the last end. It replaces the ruling "returns an event that completes with all of them" and drops `uncosted(SeveralSubmits)`. The runtime form is `SushiRuntime::note_dispatch_event(const sycl::event&)`, called once per submitted event; the body's signature is unchanged and the event it returns completes after all of them. SushiBLAS's form is `Device::SubmittedEvents`, which the recorder unpacks. PB-6 audits every body |
+| A2 | The ceiling facts are built only with `SushiProfiler::DeviceSpanKeys::peak_flops_fact(track, dtype)` and `peak_bytes_per_s_fact(track)`; no `ceiling.*` key exists |
+| A3 | `work_class` is gone: from `Cost`, the profile keys, the tests and this document. A cost has `flops`, `bytes` and a `dtype` class |
+| A4 | The ceilings are per dtype: one `peak_flops` fact for each dtype measured, and spans carry a `dtype` name attribute, which SushiBLAS states with the cost. SushiRuntime names the classes `F32`, `F16`, `BF16` and `I8`; a dtype with no class is stated `Unstated` |
+| A5 | `roofline` groups by name, track and node, so each IR node gets its own row. Nothing changes here |
+| A6 | `NodeOptions::cost` is a `std::optional<NodeCost>`. `Cost::uncosted(reason)` maps to no `NodeCost`; a zero never stands for "unknown" |
+| A7 | A zero-FLOP operation gets a bytes-based share from `roofline`. Nothing changes here |
+| A8 | The byte convention: the bytes of a task are the lengths of its declared regions, an updated operand counted twice. For a dense operand this is a lower bound of the traffic; for a strided view it is the span of the view, with no guaranteed direction. BD6 and the cost README say so |
+| A9 | A task with a late count is uncosted `DataDependent` in pass one |
+| A10 | Convolution FLOPs are `2 * N * Ho * Wo * Cout * (Cin / groups) * Kh * Kw` plus the epilogue per output element; a bias counts 1 and an activation counts by the transcendental rule. The cost README states the GEMM epilogue rule |
+| A11 | One per transcendental, not instruction-accurate. The composite count of softmax (maximum, shift, exponential, sum, division) is a README row and a test |
+| A12 | A Medium test records an inference-like graph and asserts every node has a cost or a row in the table. The nodes of `graph_primitives` get operation ids |
+| A13 | `device_ceilings` times each span for at least 10 ms, discards warm-up runs, takes the median of five with a spread limit, counts a copy as read plus write, and marks CPU ceilings smoke-only |
+| A14 | The facts are keyed by the runtime's track name, built per device by `device_track_name`. The ceilings file is keyed by the device's name and mapped through that call |
+| A15 | `profile_keys.hpp` holds no cost keys. SushiProfiler's `DeviceSpanKeys` is their one home |
+| A16 | `cost` declares its dependency on SushiRuntime for `OperationID` explicitly |
+| A17 | `CostShape` is a `std::variant` of per-family structs, visited in one place. One test per family |
+| A18 | `profiling` lists SushiRuntime explicitly among its dependencies |
+| A19 | The changelog carries "Changed" entries with migration text. No `TaskDescription` is aggregate-initialised in the tree, so the new member breaks no site |
+| A20 | PB-2 and PB-3 no longer wait on BD2 and BD6 |
+| A21 | Added tests: `TheRooflineRowHasABound`, `AnEmptyEventTaskIsUncosted`, a cost that survives a plan rebuild, and an f16 span judged against the f16 ceiling |
+| B-O1 | `TaskRecorder::origin(label)` returns a move-only `OriginScope`; the recorder owns a copy of the label, nested scopes restore the one before, and every node recorded while a scope is open gets `NodeOptions::origin` |
+| B-O2 | The benchmark programs label each graph with `Graph::set_label`, the scenario name, so `roofline` separates graphs |
+| C-1 | Where the runtime's surface was fixed, SushiBLAS follows it: `NodeDType` for the class, `Runtime::add_run_observer` for a test observer, `RuntimeProfilerParts` for the runtime's own parts. The runtime has no `F64` class, so an `f64` span is stated `Unstated` and judged against the ceiling without a dtype |
+| C-2 | The variant a GEMM ran as (K2) is a profiler instant per launch (`blas.gemm.<variant>`), and the per-launch `DEBUG` records (K3) and the task-body `TRACE` records (K4) are removed. A fact written from inside a body, joined to its node, waits on a design on both sides |

@@ -151,9 +151,8 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 - The tree has run on one Windows machine with one NVIDIA card, an RTX 3080 Ti. It has not run on
   Linux, on an AMD or Intel GPU, or on the OpenCL CPU device.
 - `trmm` is not implemented. Sparse matrices are CSR only.
-- `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
-  `modules/operations/experimental/include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
-  include them.
+- `LinalgOps` declares SVD, QR, eigendecomposition, inverse, determinant and a general solve
+  with no implementation. Its batched LU and GMRES, and the batched FFT of `TransformsOps`, run.
 
 Defects that are recorded and not yet fixed are in [known issues](../reference/KNOWN_ISSUES.md).
 The [changelog](../reference/CHANGELOG.md) lists what has changed.

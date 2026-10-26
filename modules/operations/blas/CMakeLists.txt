@@ -113,5 +113,6 @@ sushiblas_add_test_program(
         benchmark_band_packed.cpp
         benchmark_gemm.cpp
         benchmark_gemm_blocking.cpp
+        benchmark_gemm_tiles.cpp
         benchmark_level1.cpp
         benchmark_triangular.cpp)

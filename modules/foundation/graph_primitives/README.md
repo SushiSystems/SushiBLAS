@@ -6,8 +6,11 @@ free function whose first parameter is a `SushiRuntime::Recorder&`, so it record
 that has a `recorder()`: a `Graph`, a `Region` of a `DynamicGraph`. They work on
 `SushiRuntime::Buffer<T>`, not on tensors.
 
-The module is header-only. Its headers are included as `<SushiBLAS/graph_primitives/<name>.hpp>`,
-and everything is in namespace `SushiBLAS::GraphPrimitives`; what a caller of a primitive does not
+`reduce` and `segmented_reduce` are templates defined in their headers. `prefix_scan` and
+`counting_sort` are declared in their headers and defined in `source/prefix_scan.cpp` and
+`source/counting_sort.cpp`, which the library compiles once for the device, so a unit that only
+includes them, compiled without `-fsycl`, instantiates no kernel. The headers are included as
+`<SushiBLAS/graph_primitives/<name>.hpp>`, and everything is in namespace `SushiBLAS::GraphPrimitives`; what a caller of a primitive does not
 name is in `SushiBLAS::GraphPrimitives::Detail`.
 
 ```cpp
@@ -31,7 +34,8 @@ if (!report)
 | `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
 | `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
 | `element_window.hpp` | `invalid_graph.hpp` and SushiRuntime's `Buffer`, `Reads`, `Writes`, `BufferRegion` and `Result` |
-| `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
+| `reduce.hpp`, `segmented_reduce.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
+| `prefix_scan.hpp`, `counting_sort.hpp` | `primitive_options.hpp` and SushiRuntime's `Recorder`, `Buffer`, `LateCount` and `Result`; their sources include the rest |
 
 No header includes another SushiBLAS module, and none names `SushiRuntime::Detail`.
 
@@ -105,8 +109,8 @@ windows.
 
 ## Names and determinism
 
-Every primitive takes a trailing `std::optional<PrimitiveOptions>` after its window. A call
-without it records what it recorded before: nodes the runtime reports as unnamed, with
+Every primitive takes a trailing `std::optional<PrimitiveOptions>` after its window. Every node a primitive records carries an operation id, the hash of its label: the name the call stated, or `graph.reduce`, `graph.segmented_reduce`, `graph.counting_sort` or `graph.prefix_scan`, each with its stage. A call
+without options records nodes the runtime reports as unnamed, with
 `Determinism::Unstated`. With it, every node the call records carries `PrimitiveOptions::determinism`
 and a name built from `PrimitiveOptions::name`: `<name>` for a primitive that records one node,
 `<name>.<stage>` for one that records several. A stage name is fixed per primitive, and every node

@@ -5,10 +5,9 @@ row is the last dimension of a tensor and the leading dimensions batch rows. It 
 `tensor` and `engine`, and its source on `signal_kernels`. Its header is included as
 `<SushiBLAS/signal/signal.hpp>`.
 
-`SignalOps` is built from a `TaskRecorder` and reaches the task graph only through it. It is not
-the `TransformsOps` of [the experimental module](../experimental/README.md): that class sits in
-`SushiBLAS/experimental/signal/transforms.hpp`, has no `.cpp`, and nothing includes it. The two
-share no name and no header.
+`SignalOps` is built from a `TaskRecorder` and reaches the task graph only through it. The FFT
+is `TransformsOps` of [the experimental module](../experimental/README.md); the two share no
+name and no header.
 
 ## `signal.hpp`
 

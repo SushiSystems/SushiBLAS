@@ -19,6 +19,10 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
 | `level3/gemm_epilogue.hpp` | `GemmIdentityEpilogue`, the default GEMM epilogue |
 | `level3/channel_bias_epilogue.hpp` | `ChannelBiasEpilogue`, the per-channel bias add |
+| `level3/gemm_tile_shape.hpp` | `GemmTileShape`, the compile-time geometry of one tiled GEMM kernel, and `register_block_dim` |
+| `level3/gemm_tile_catalog.hpp` | `GemmTileRole`, the shapes the tiled GEMM is compiled for, and their sizes as plain values |
+| `level3/gemm_tile_table.hpp` | `GemmSizeClass`, `GemmTileEntry` and `K_GEMM_TILE_TABLE`, the measured choices |
+| `level3/gemm_tile_choice.hpp` | `choose_gemm_tile`, the host rule that picks the shape of one product |
 | `level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
 | `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
 | `sycl/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
@@ -207,6 +211,94 @@ the generated kernel is byte for byte the unfused one.
 See Kernels::SYCL::gemm and SushiBLAS::Dispatch::execute_gemm for the fusion contract, and for the
 training-correctness trap that comes with any *activation* epilogue.
 
+## `level3/gemm_tile_shape.hpp`
+
+### `GemmTileShape`
+
+One shape is a type, because a shape sizes the private accumulator array and the two local
+tiles, and neither can be sized at run time. C++17 has no class-type template parameters, so the
+four numbers are plain template parameters: the work-group rows and columns, the accumulator
+bytes one work-item may hold, and the K depth staged per step. Everything else is derived: the
+register block from the accumulator bytes and the element size, the block from the work-group
+and the register block, and the padded leading dimensions. `K_TILE_A_LD` is one past the depth
+and `K_TILE_B_LD` two past the block width; the bank arithmetic under `Detail::gemm_local_tiled`
+holds for every depth the catalog uses.
+
+### `register_block_dim`
+
+Returns the largest power-of-two square block of an accumulator type that fits a byte budget,
+capped. The register block of every GEMM shape and of the SYR2K tile is derived through it, so a
+wider type gets a smaller block instead of a per-type list of specialisations.
+
+## `level3/gemm_tile_catalog.hpp`
+
+### `GemmTileRole` and `GemmTile`
+
+The catalog compiles three shapes per element type and names each by its role, never by its
+sizes, because the register block of one role differs per dtype:
+
+| Role | Work-group | Accumulator bytes | K depth | FLOAT32 block | FLOAT64 block |
+| --- | --- | --- | --- | --- | --- |
+| `Balanced` | 8 x 8 | 256 | 16 | 64 x 64 | 32 x 32 |
+| `Wide` | 16 x 8 | 256 | 32 | 128 x 64 | 64 x 32 |
+| `Compact` | 8 x 8 | 64 | 16 | 32 x 32 | 16 x 16 |
+
+`GemmTile<T, Role>` names the `GemmTileShape` a role compiles to. Adding a shape adds an
+enumerator, a `GemmTileOf` specialisation and one case to each of the two switches over the
+roles (`Detail::gemm_local_tiled_as` and the tuner); the set is closed by its meaning and small.
+The catalog holds at most three shapes per dtype until the cost of each in binary size is
+measured (`docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`, section 7).
+
+### `to_string` and `gemm_tile_role_from`
+
+The stable name of a role, the one `SB_GEMM_TILE` and the table use, and its inverse. A name
+outside the catalog gives no role; names are case-sensitive.
+
+### `GemmTileTraits` and `gemm_tile_traits`
+
+The sizes of each shape for one dtype as plain values: block rows and columns, work-items and
+local bytes. The host chooser reads these, so it never instantiates a kernel.
+
+## `level3/gemm_tile_table.hpp`
+
+### `GemmSizeClass`
+
+`Small` when the product has fewer `Balanced` output tiles than the device has compute units,
+`Large` otherwise. A skinny product, M or N under one block with a long K, reaches
+`Detail::gemm_depth_split` first and has no class here.
+
+### `GemmTileEntry` and `K_GEMM_TILE_TABLE`
+
+One measured choice: on this architecture, for this dtype and size class, this role ran fastest.
+`benchmark_gemm_tiles` prints the lines. The table is empty: no device has been measured yet.
+
+## `level3/gemm_tile_choice.hpp`
+
+### `choose_gemm_tile`
+
+A pure function of the profile, the catalog's sizes, the product and the pin, so it is tested on
+fake profiles without a device. It answers in this order:
+
+1. The pin, when it names a role the device admits. A pin outside the catalog or past a hard
+   limit is reported in `GemmTileChoice::pin` and ignored; `gemm` logs one WARN for it per
+   process.
+2. A table entry for the device's architecture, dtype and size class, when the device admits
+   its role. An `Unknown` architecture matches no entry.
+3. The model: among the admitted shapes, one that gives every compute unit a work-group beats one
+   that does not; then the one with the most arithmetic per staged element, `bm * bn / (bm + bn)`;
+   then the one with fewer local bytes. When no shape fills the device, the one with the most
+   work-groups wins.
+
+The answer is empty when the device admits no shape, and `gemm` then takes the no-local variant.
+
+### `admits_gemm_tile`
+
+The hard limits: the device has dedicated local memory, the shape's local bytes fit both
+`local_mem_bytes` and `local_mem_per_compute_unit`, its work-items fit `max_work_group_size`,
+and they are a whole number of sub-groups. The limit a compiled kernel's registers set is not
+read: `get_kernel_info` needs a named kernel, and a kernel name cannot carry the caller's
+epilogue type, which may be a lambda. Every catalog shape keeps to 128 work-items for that reason.
+
 ## `reference/level3/gemm.hpp`
 
 ### `gemm`
@@ -267,10 +359,8 @@ does hoist the origin has not been read from the generated code. Any other brick
 
 ### `Detail::K_LOCAL_ACC_BYTES`
 
-256 B is what portBLAS's default `Tile<8,8,8,8>` spends on a float accumulator, and it is the number
-the register block is derived from rather than a per-type list of specialisations. Deriving it from
-`sizeof(T)` is the point: the previous fixed 4x4 block penalised `float`, the training path, to
-accommodate `complex<double>`, a type almost nobody calls.
+256 B is what portBLAS's default `Tile<8,8,8,8>` spends on a float accumulator. The `Balanced`
+and `Wide` shapes of the catalog spend the same budget, and the SYR2K tile spends half of it.
 
 ### `Detail::K_NO_LOCAL_ACC_BYTES`
 
@@ -280,20 +370,6 @@ so every scalar in a work-item's accumulator array is really a whole vector regi
 block is already 16 of them, the entire AVX2 register file, before the operand registers are
 counted. Wider spills to stack, and a spilled accumulator is slower than a smaller one that stays
 resident.
-
-### `Detail::GemmLocalTile`
-
-Everything here is `constexpr` because the accumulator is a fixed-size private array and the local
-tiles are fixed-size local allocations; that is exactly why the two variants are two instantiations
-selected by a plain runtime `if`, rather than one function threaded with `if constexpr`.
-
-The register block comes out as 8x8 for `half` and `float` and 4x4 for `double`, `complex<float>`
-and `complex<double>`: see `K_LOCAL_ACC_BYTES`.
-
-### `Detail::GemmLocalTile::local_mem_bytes`
-
-A `local_accessor` larger than the device's `local_mem_size` is a runtime launch failure, not a
-compile error, so `gemm` checks this against the profile and falls back rather than crashing.
 
 ### `Detail::GemmNoLocalTile`
 
@@ -320,9 +396,13 @@ The clamp matters for the legal degenerate cases: BLAS permits m or n of zero, a
 
 ### `Detail::gemm_local_tiled`
 
-Callers normally reach this through `gemm`, which picks between this and `gemm_no_local` from the
-device profile and guarantees the local allocation fits. Called directly, those are the caller's
-obligations.
+Callers normally reach this through `gemm`, which picks the shape through `choose_gemm_tile`
+and guarantees the local allocation fits. Called directly, with any `GemmTileShape` as `Shape`,
+those are the caller's obligations; `Shape` defaults to `Balanced`.
+
+Every shape accumulates each element of C in the same order: one fused multiply-add per k, k
+rising, starting from zero. The depth only splits that loop, and the zeros staged past K add
+exact zeros, so every shape gives the bits of `Balanced` on one device.
 
 At `const int64_t batch_id = static_cast<int64_t>(item.get_group(0));`: 64-bit only where a value
 can exceed 2^31: the global coordinates, the strides, and the batch offsets. Everything scoped to a
@@ -342,8 +422,9 @@ one, median of five runs. A second buffer doubles the 8.6 KB tile of a work-grou
 work-groups fit in one SM's local memory, and the orders that fill the device lose more to the
 lower occupancy than the barrier saves.
 
-Bank-conflict arithmetic for the A read, worked out for float (32 banks of 4 bytes) at this file's
-widest configuration: K_ITEM_ROWS = K_ITEM_COLS = 8, K_WG_ROWS = K_WG_COLS = 8, K_TILE_K = 16, K_TILE_A_LD = 17.
+Bank-conflict arithmetic for the A read, worked out for float (32 banks of 4 bytes) at the
+`Balanced` shape: K_ITEM_ROWS = K_ITEM_COLS = 8, K_WG_ROWS = K_WG_COLS = 8, K_TILE_K = 16,
+K_TILE_A_LD = 17. `Wide` keeps K_WG_COLS = 8 and pads to 33, and gcd(33, 32) == 1 as well.
 
 A work-group's linear local id is local_row * K_WG_COLS + local_col, so a 32-lane sub-group spans 32 /
 K_WG_COLS = 4 distinct local_row values. The 8 lanes sharing a local_row read the identical address
@@ -495,15 +576,15 @@ instantiation, then picks one of four kernel shapes from the device profile:
 multiple of 16, and operands a fragment load can read. See `sycl/level3/gemm_joint_matrix.hpp`.
 - **DEPTH_SPLIT** when `Detail::plan_depth_split` returns a width: a GPU, a small C and a
 long K.
-- **LOCAL_TILED** when the device has genuine scratchpad memory and the
-tile fits it. Cooperative A/B staging, bank-padded, barrier-synchronised.
+- **LOCAL_TILED** when the device has genuine scratchpad memory and `choose_gemm_tile` returns
+a role. Cooperative A/B staging, bank-padded, barrier-synchronised, in the chosen shape.
 - **NO_LOCAL** otherwise, and always on a CPU backend. No `local_accessor`,
 no barrier, a smaller register block and the work-group size the profile
 asks for.
 
 The choice is logged at `SB_LOG_DEBUG` so it is observable rather than inferred, and a device that
-declares scratchpad memory but cannot fit the tile or host the work-group falls back with a warning
-instead of failing the launch.
+declares scratchpad memory but admits no catalog shape falls back with a warning instead of
+failing the launch.
 
 - `Epilogue`: A functor applied to each element of C immediately before it is stored: `T
   operator()(T value, int64_t row, int64_t col) const`. `value` is the fully formed `alpha * op(A) *
@@ -532,8 +613,9 @@ epilogue, which is invertible.
 
 Returns: The submitted work's event.
 
-At `if (profile.has_dedicated_local_memory && tile_hosted)`: the three variants every type takes
-are named from this one function, so each is instantiated and each reaches the device image whichever branch a
+At `if (profile.has_dedicated_local_memory)`: the three variants every type takes, and every
+catalog shape through `Detail::gemm_local_tiled_as`, are named from this one function, so each
+is instantiated and each reaches the device image whichever branch a
 given machine takes at runtime, and JOINT_MATRIX is instantiated for every HALF product of two
 `OperandAccess` operands: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.
@@ -619,3 +701,9 @@ Adds `depth` outer products of one slice of the A panel and one slice of the B p
 loaded from memory aligned to `K_PACKED_ALIGNMENT`. The complex form keeps real and imaginary
 parts in separate rows and adds each term by the four-product formula of
 `arithmetic/complex_arithmetic.hpp`.
+
+## What `sycl/level3/gemm.hpp` states
+
+Each launch notes the variant that ran through `Device::note_kernel_variant` (see [the launch module](../../foundation/launch/README.md)); the engine turns the note into a profiler instant, `blas.gemm.local_tiled`, `depth_split`, `joint_matrix`, `no_local` or `packed`, and no kernel header includes a profiler header. The instant has no node attached; a fact written from inside a task body and joined to its node needs a design on both sides.
+
+Three records are logged, each once. A pin that was rejected warns once per process, as before. A pin that was applied is an `INFO` once per process and names the pin and the tile it chose. A local tile that does not fit the device warns once for each device and tile, because a training or inference loop reaches it on every GEMM of every step.

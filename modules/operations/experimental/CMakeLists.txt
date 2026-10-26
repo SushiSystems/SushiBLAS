@@ -7,12 +7,24 @@
 sushiblas_add_module(
     NAME experimental
     LAYER operations
+    DEVICE_SOURCES
+        fft.cpp
+        gmres.cpp
+        lu_factor.cpp
+        lu_solve.cpp
     DEPENDS
         tensor
-        engine)
+        engine
+    PRIVATE_DEPENDS
+        core
+        operands
+        signal_kernels
+        linalg_kernels)
 
 sushiblas_add_test_program(
     MODULE experimental
     TESTS
+        test_dense_operand.cpp
+    DEVICE_TESTS
         lapack/test_linalg.cpp
         signal/test_transforms.cpp)

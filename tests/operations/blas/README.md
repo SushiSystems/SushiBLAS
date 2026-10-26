@@ -14,6 +14,7 @@ the benchmark section of `tests/README.md` describes them.
 | `benchmark_band_packed.cpp` | Times the band and packed Level 2 routines beside their dense siblings, in both layouts |
 | `benchmark_gemm.cpp` | Times GEMM in both layouts, FLOAT32 and FLOAT64, and prints GFLOP/s per size |
 | `benchmark_gemm_blocking.cpp` | Times one square GEMM kernel call under a cache blocking given on the command line |
+| `benchmark_gemm_tiles.cpp` | Times every tile shape of the tiled GEMM on the device and prints the table entries |
 | `benchmark_level1.cpp` | Times nine level 1 routines, axpy to iamax, and prints GB/s per vector length |
 | `benchmark_triangular.cpp` | Times the triangular and symmetric BLAS routines in both layouts, in GFLOP/s per size |
 | `test_band_operand.cpp` | Tests the record-time checks on a band operand and on a triangle band operand |
@@ -101,6 +102,11 @@ rows first (ColumnMajor NoTrans, RowMajor Trans) and columns first, and B walked
 starts at a batch offset; the second case has lda = 130, which no 128-bit load divides, so its
 whole tiles take the element path. FLOAT64 and HALF run the same cases where the device holds
 their aspect, for their two and eight lanes per load.
+
+`EveryTileShapeGivesTheBitsOfBalanced` runs `Wide` and `Compact` on the operands of `Balanced`
+and compares the bytes of C. It covers both layouts and every transpose, at one product of whole
+blocks and one of edges with a batch of two, in FLOAT32, FLOAT64 and complex FLOAT32. A shape the
+device cannot host is left out.
 
 `ColumnMajorMatchesHandComputedResult` stores the row-major problem column-major: A (2x3) is
 `[1,4,2,5,3,6]` with lda = 2, and B (3x2) is `[1,0,1,0,1,1]` with ldb = 3. This is the case

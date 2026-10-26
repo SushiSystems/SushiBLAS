@@ -47,6 +47,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     sparse_kernels      kernels
     spatial_kernels     kernels
     signal_kernels      kernels
+    linalg_kernels      kernels
     blend_kernels       kernels
     packed_product_harness kernels
     engine              engine

@@ -29,12 +29,15 @@
 
 #include <deque>
 #include <mutex>
+#include <cstdint>
 #include <vector>
 #include <cstddef>
 #include <utility>
 #include <algorithm>
 #include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/launch/launch_log_category.hpp>
 
 namespace SushiBLAS
 {
@@ -110,6 +113,100 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Names the maker of a device, from the PCI vendor id the runtime reports.
+         * @see modules/foundation/launch/README.md
+         */
+        enum class Vendor : std::uint8_t
+        {
+            Unknown, /**< The vendor id is none of the three below. */
+            Nvidia,  /**< PCI vendor id 0x10DE. */
+            Amd,     /**< PCI vendor id 0x1002. */
+            Intel    /**< PCI vendor id 0x8086. */
+        };
+
+        /**
+         * @brief Names a GPU architecture a tuning table has entries for.
+         * @see modules/foundation/launch/README.md
+         */
+        enum class Architecture : std::uint8_t
+        {
+            Unknown,    /**< The runtime reports none, or one this list does not name. */
+            NvidiaSm70, /**< NVIDIA Volta. */
+            NvidiaSm75, /**< NVIDIA Turing. */
+            NvidiaSm80, /**< NVIDIA Ampere, GA100. */
+            NvidiaSm86, /**< NVIDIA Ampere, GA10x. */
+            NvidiaSm89, /**< NVIDIA Ada Lovelace. */
+            NvidiaSm90, /**< NVIDIA Hopper. */
+            AmdGfx90a,  /**< AMD CDNA 2. */
+            AmdGfx942,  /**< AMD CDNA 3. */
+            IntelPVC    /**< Intel Ponte Vecchio. */
+        };
+
+        /** @brief Returns the enumerator name of an architecture, as the GEMM tile table spells it. */
+        [[nodiscard]] inline constexpr const char* to_string(Architecture architecture) noexcept
+        {
+            switch (architecture)
+            {
+                case Architecture::Unknown:
+                    return "Unknown";
+                case Architecture::NvidiaSm70:
+                    return "NvidiaSm70";
+                case Architecture::NvidiaSm75:
+                    return "NvidiaSm75";
+                case Architecture::NvidiaSm80:
+                    return "NvidiaSm80";
+                case Architecture::NvidiaSm86:
+                    return "NvidiaSm86";
+                case Architecture::NvidiaSm89:
+                    return "NvidiaSm89";
+                case Architecture::NvidiaSm90:
+                    return "NvidiaSm90";
+                case Architecture::AmdGfx90a:
+                    return "AmdGfx90a";
+                case Architecture::AmdGfx942:
+                    return "AmdGfx942";
+                case Architecture::IntelPVC:
+                    return "IntelPVC";
+            }
+            return "Unknown";
+        }
+
+        /**
+         * @brief Returns the local memory one compute unit holds, given its architecture.
+         * @param local_mem_bytes What the device reports for one work-group; returned for an
+         *        architecture the table does not list.
+         * @see modules/foundation/launch/README.md
+         */
+        [[nodiscard]] constexpr std::size_t
+        local_mem_per_compute_unit_of(Architecture architecture,
+                                      std::size_t local_mem_bytes) noexcept
+        {
+            constexpr std::size_t kib = 1024;
+            switch (architecture)
+            {
+                case Architecture::NvidiaSm70:
+                    return 96 * kib;
+                case Architecture::NvidiaSm75:
+                    return 64 * kib;
+                case Architecture::NvidiaSm80:
+                    return 164 * kib;
+                case Architecture::NvidiaSm86:
+                case Architecture::NvidiaSm89:
+                    return 100 * kib;
+                case Architecture::NvidiaSm90:
+                    return 228 * kib;
+                case Architecture::AmdGfx90a:
+                case Architecture::AmdGfx942:
+                    return 64 * kib;
+                case Architecture::IntelPVC:
+                    return 128 * kib;
+                case Architecture::Unknown:
+                    break;
+            }
+            return local_mem_bytes;
+        }
+
+        /**
          * @brief Holds the device properties a kernel is allowed to dispatch on.
          * @see modules/foundation/launch/README.md
          */
@@ -139,6 +236,18 @@ namespace SushiBLAS
 
             /** @brief Bytes of work-group local memory available to one group. */
             std::size_t local_mem_bytes = 0;
+
+            /** @brief The maker of the device, or Vendor::Unknown. */
+            Vendor vendor = Vendor::Unknown;
+
+            /** @brief The architecture the runtime reports, or Architecture::Unknown. */
+            Architecture architecture = Architecture::Unknown;
+
+            /**
+             * @brief Bytes of local memory one compute unit holds, shared by its resident groups.
+             * @see modules/foundation/launch/README.md
+             */
+            std::size_t local_mem_per_compute_unit = 0;
 
             /** @brief Largest work-group the device will accept. */
             std::size_t max_work_group_size = 1;
@@ -194,7 +303,103 @@ namespace SushiBLAS
                 return false;
             }
 
-            /** @brief Queries every Profile field from a device. Not cached; call profile_for. */
+            /** @brief Returns the vendor behind the PCI vendor id the device reports. */
+            [[nodiscard]] inline Vendor vendor_of(const sycl::device& d)
+            {
+                switch (d.get_info<sycl::info::device::vendor_id>())
+                {
+                    case 0x10DE:
+                        return Vendor::Nvidia;
+                    case 0x1002:
+                        return Vendor::Amd;
+                    case 0x8086:
+                        return Vendor::Intel;
+                    default:
+                        return Vendor::Unknown;
+                }
+            }
+
+            /**
+             * @brief Returns the architecture the runtime reports for a device.
+             * @return Architecture::Unknown without the oneAPI architecture extension, for a
+             *         device it does not list, and for one that throws on the query.
+             * @see modules/foundation/launch/README.md
+             */
+            [[nodiscard]] inline Architecture architecture_of(const sycl::device& d)
+            {
+#if defined(SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE)
+                namespace Experimental = sycl::ext::oneapi::experimental;
+                try
+                {
+                    switch (d.get_info<Experimental::info::device::architecture>())
+                    {
+                        case Experimental::architecture::nvidia_gpu_sm_70:
+                            return Architecture::NvidiaSm70;
+                        case Experimental::architecture::nvidia_gpu_sm_75:
+                            return Architecture::NvidiaSm75;
+                        case Experimental::architecture::nvidia_gpu_sm_80:
+                            return Architecture::NvidiaSm80;
+                        case Experimental::architecture::nvidia_gpu_sm_86:
+                            return Architecture::NvidiaSm86;
+                        case Experimental::architecture::nvidia_gpu_sm_89:
+                            return Architecture::NvidiaSm89;
+                        case Experimental::architecture::nvidia_gpu_sm_90:
+                            return Architecture::NvidiaSm90;
+                        case Experimental::architecture::amd_gpu_gfx90a:
+                            return Architecture::AmdGfx90a;
+                        case Experimental::architecture::amd_gpu_gfx942:
+                            return Architecture::AmdGfx942;
+                        case Experimental::architecture::intel_gpu_pvc:
+                            return Architecture::IntelPVC;
+                        default:
+                            return Architecture::Unknown;
+                    }
+                }
+                catch (const sycl::exception& error)
+                {
+                    SB_LOG_WARN(K_LAUNCH_LOG_CATEGORY,
+                                "device '{}': the architecture query threw '{}'; its architecture "
+                                "is Unknown and its tile limits take the generic path",
+                                d.get_info<sycl::info::device::name>(), error.what());
+                    return Architecture::Unknown;
+                }
+#else
+                static_cast<void>(d);
+                return Architecture::Unknown;
+#endif
+            }
+
+            /** @brief Holds a value a probe took from the device, or assumed because the device gave none. */
+            struct Resolved
+            {
+                std::size_t value = 0; /**< The value the profile holds. */
+                bool assumed = false;  /**< True when the device gave none and the value is a default. */
+            };
+
+            /**
+             * @brief Returns the widest sub-group the device lists, or 1 when it lists none or only 0.
+             * @see modules/foundation/launch/README.md
+             */
+            [[nodiscard]] inline Resolved resolve_sub_group_size(const std::vector<std::size_t>& widths)
+            {
+                const std::size_t widest = widths.empty() ? std::size_t{0}
+                                                          : *std::max_element(widths.begin(), widths.end());
+                return widest == 0 ? Resolved{1, true} : Resolved{widest, false};
+            }
+
+            /** @brief Returns the cache size the device reports, or K_ASSUMED_CACHE_BYTES when it reports none. */
+            [[nodiscard]] inline Resolved resolve_cache_bytes(std::size_t reported) noexcept
+            {
+                return reported != 0 ? Resolved{reported, false} : Resolved{K_ASSUMED_CACHE_BYTES, true};
+            }
+
+            /**
+             * @brief Queries every Profile field from a device. Not cached; call profile_for.
+             *
+             * Runs once per device, on its first sight, so the records it writes are once per
+             * device: a WARN for each field the device gave none for, then an INFO that states the
+             * profile.
+             */
             inline Profile probe(const sycl::device& d)
             {
                 Profile p;
@@ -204,6 +409,10 @@ namespace SushiBLAS
                 p.supports_half_matrix = offers_half_matrix(d);
                 p.local_mem_bytes = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::local_mem_size>());
+                p.vendor = vendor_of(d);
+                p.architecture = architecture_of(d);
+                p.local_mem_per_compute_unit =
+                    local_mem_per_compute_unit_of(p.architecture, p.local_mem_bytes);
                 p.max_work_group_size = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::max_work_group_size>());
                 p.compute_units = static_cast<std::size_t>(
@@ -216,23 +425,34 @@ namespace SushiBLAS
                                                p.local_mem_bytes > 0;
 
                 // The widest sub-group is kept; a zero width is guarded; see modules/foundation/launch/README.md.
-                const std::vector<std::size_t> widths =
-                    d.get_info<sycl::info::device::sub_group_sizes>();
-                p.sub_group_size = widths.empty()
-                    ? std::size_t{1}
-                    : *std::max_element(widths.begin(), widths.end());
-                if (p.sub_group_size == 0)
-                    p.sub_group_size = 1;
+                const Resolved sub_group = resolve_sub_group_size(
+                    d.get_info<sycl::info::device::sub_group_sizes>());
+                p.sub_group_size = sub_group.value;
+                if (sub_group.assumed)
+                    SB_LOG_WARN(K_LAUNCH_LOG_CATEGORY,
+                                "device '{}' lists no sub-group size; assuming {}",
+                                d.get_info<sycl::info::device::name>(), sub_group.value);
 
                 if (p.max_work_group_size == 0)
                     p.max_work_group_size = 1;
                 if (p.compute_units == 0)
                     p.compute_units = 1;
 
-                const std::size_t reported_cache = static_cast<std::size_t>(
-                    d.get_info<sycl::info::device::global_mem_cache_size>());
-                p.cache_bytes = reported_cache ? reported_cache : K_ASSUMED_CACHE_BYTES;
+                const Resolved cache = resolve_cache_bytes(static_cast<std::size_t>(
+                    d.get_info<sycl::info::device::global_mem_cache_size>()));
+                p.cache_bytes = cache.value;
+                if (cache.assumed)
+                    SB_LOG_WARN(K_LAUNCH_LOG_CATEGORY,
+                                "device '{}' reports no cache size; assuming {} B",
+                                d.get_info<sycl::info::device::name>(), cache.value);
                 p.blocking = cache_blocking_for(p.cache_bytes);
+
+                SB_LOG_INFO(K_LAUNCH_LOG_CATEGORY,
+                            "device '{}': {} compute units, sub-group {}{}, cache {} B{}, "
+                            "architecture {}",
+                            d.get_info<sycl::info::device::name>(), p.compute_units,
+                            p.sub_group_size, sub_group.assumed ? " (assumed)" : "", p.cache_bytes,
+                            cache.assumed ? " (assumed)" : "", to_string(p.architecture));
 
                 return p;
             }

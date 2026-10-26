@@ -26,6 +26,7 @@
  */
 
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
@@ -874,7 +875,7 @@ namespace SushiBLAS
 
                 auto& q = TestEnvironment::queue();
                 const Device::Profile& profile = Device::profile_for(q);
-                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
+                using Configuration = Kernels::GemmTile<float, Kernels::GemmTileRole::Balanced>;
 
                 if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
                     profile.max_work_group_size <
@@ -912,7 +913,7 @@ namespace SushiBLAS
 
                 auto& q = TestEnvironment::queue();
                 const Device::Profile& profile = Device::profile_for(q);
-                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
+                using Configuration = Kernels::GemmTile<float, Kernels::GemmTileRole::Balanced>;
 
                 if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
                     profile.max_work_group_size <
@@ -991,7 +992,7 @@ namespace SushiBLAS
             template<typename T>
             [[nodiscard]] bool hosts_local_tiled(const Device::Profile& profile)
             {
-                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<T>;
+                using Configuration = Kernels::GemmTile<T, Kernels::GemmTileRole::Balanced>;
                 return Device::hosts_local_tile(
                     profile, {Configuration::local_mem_bytes(),
                               static_cast<std::size_t>(Configuration::K_WG_ITEMS)});
@@ -1084,6 +1085,93 @@ namespace SushiBLAS
                         expect_local_tiled_matches_reference<double>(*engine, cases[i], 1e-12);
                     if (profile.supports_fp16 && hosts_local_tiled<sycl::half>(profile))
                         expect_local_tiled_matches_reference<sycl::half>(*engine, cases[i], 2e-2);
+                }
+            }
+
+            /** @brief Returns whether a device hosts the work-group of one tile shape. */
+            template<typename Shape>
+            [[nodiscard]] bool hosts_shape(const Device::Profile& profile)
+            {
+                return Device::hosts_local_tile(
+                    profile, {Shape::local_mem_bytes(), static_cast<std::size_t>(Shape::K_WG_ITEMS)});
+            }
+
+            /** @brief Runs gemm_local_tiled with one shape on a case's operands and returns C. */
+            template<typename T, typename Shape>
+            [[nodiscard]] std::vector<T> local_tiled_with(Engine& engine, const LocalTiledCase& c,
+                                                          const Tensor& A, const Tensor& B)
+            {
+                const LocalTiledStorage s = storage_of(c);
+                Tensor C = engine.create_tensor({c.batch * s.str_c}, sushiblas_dtype<T>());
+
+                Kernels::SYCL::Detail::gemm_local_tiled<T, Shape>(
+                    TestEnvironment::queue(), c.m, c.n, c.k,
+                    T(1), static_cast<const T*>(A.data()),
+                    Kernels::operand_access(c.layout, c.trans_a, s.lda), s.str_a,
+                    static_cast<const T*>(B.data()),
+                    Kernels::operand_access(c.layout, c.trans_b, s.ldb), s.str_b,
+                    T(0), static_cast<T*>(C.data()),
+                    Kernels::operand_access(c.layout, Core::Transpose::NoTrans, s.ldc), s.str_c,
+                    c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+                return download_as<T>(C);
+            }
+
+            /** @brief Expects every catalog shape to give the bits of Balanced on one case. */
+            template<typename T>
+            void expect_every_shape_gives_balanced_bits(Engine& engine, const Device::Profile& profile,
+                                                        const LocalTiledCase& c)
+            {
+                using Balanced = Kernels::GemmTile<T, Kernels::GemmTileRole::Balanced>;
+                using Wide = Kernels::GemmTile<T, Kernels::GemmTileRole::Wide>;
+                using Compact = Kernels::GemmTile<T, Kernels::GemmTileRole::Compact>;
+
+                const LocalTiledStorage s = storage_of(c);
+                Tensor A = engine.create_tensor({c.batch * s.str_a}, sushiblas_dtype<T>());
+                Tensor B = engine.create_tensor({c.batch * s.str_b}, sushiblas_dtype<T>());
+                fill_random<T>(A);
+                fill_random<T>(B);
+
+                const std::vector<T> want = local_tiled_with<T, Balanced>(engine, c, A, B);
+                const std::size_t bytes = want.size() * sizeof(T);
+                if (hosts_shape<Wide>(profile))
+                {
+                    const std::vector<T> wide = local_tiled_with<T, Wide>(engine, c, A, B);
+                    EXPECT_EQ(std::memcmp(wide.data(), want.data(), bytes), 0) << "Wide";
+                }
+                if (hosts_shape<Compact>(profile))
+                {
+                    const std::vector<T> compact = local_tiled_with<T, Compact>(engine, c, A, B);
+                    EXPECT_EQ(std::memcmp(compact.data(), want.data(), bytes), 0) << "Compact";
+                }
+            }
+
+            TEST_F(Medium_GEMMKernelTest, EveryTileShapeGivesTheBitsOfBalanced)
+            {
+                // One fused multiply-add per k, k rising, in every shape; see the parametric tile spec 5.4.
+                const Device::Profile& profile = Device::profile_for(TestEnvironment::queue());
+                if (!hosts_local_tiled<float>(profile))
+                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
+
+                using Core::Layout;
+                using Core::Transpose;
+                std::vector<LocalTiledCase> cases;
+                for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
+                    for (const Transpose trans_a : {Transpose::NoTrans, Transpose::Trans})
+                        for (const Transpose trans_b : {Transpose::NoTrans, Transpose::Trans})
+                        {
+                            cases.push_back({layout, trans_a, trans_b, 256, 128, 64, 1});
+                            cases.push_back({layout, trans_a, trans_b, 131, 70, 45, 2});
+                        }
+
+                for (std::size_t i = 0; i < cases.size(); ++i)
+                {
+                    SCOPED_TRACE("case " + std::to_string(i));
+                    expect_every_shape_gives_balanced_bits<float>(*engine, profile, cases[i]);
+                    if (profile.supports_fp64 && hosts_local_tiled<double>(profile))
+                        expect_every_shape_gives_balanced_bits<double>(*engine, profile, cases[i]);
+                    if (hosts_local_tiled<std::complex<float>>(profile))
+                        expect_every_shape_gives_balanced_bits<std::complex<float>>(*engine, profile,
+                                                                                    cases[i]);
                 }
             }
 

@@ -30,3 +30,6 @@
 
 #include <SushiBLAS/signal_kernels/reference/convolve_1d.hpp>
 #include <SushiBLAS/signal_kernels/sycl/convolve_1d.hpp>
+#include <SushiBLAS/signal_kernels/fft_plan.hpp>
+#include <SushiBLAS/signal_kernels/reference/fft.hpp>
+#include <SushiBLAS/signal_kernels/sycl/fft.hpp>

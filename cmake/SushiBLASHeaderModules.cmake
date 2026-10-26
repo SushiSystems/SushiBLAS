@@ -11,7 +11,8 @@
 #
 #   SushiBLAS::Geometry         vector, quaternion and matrix types, and Math
 #   SushiBLAS::FixedOrderFold   the fixed fold order and the combiners, standard library only
-#   SushiBLAS::GraphPrimitives  reduce, scan and sort recorded on a SushiRuntime task graph
+#   SushiBLAS::GraphPrimitives  reduce, scan and sort recorded on a SushiRuntime task graph;
+#                               prefix_scan and counting_sort are defined in the library
 
 set(_SUSHIBLAS_HEADER_MODULES_ROOT "${CMAKE_CURRENT_LIST_DIR}/../modules/foundation")
 

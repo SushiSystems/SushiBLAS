@@ -20,13 +20,17 @@ The paths in the table are relative to `<module>/include/SushiBLAS/<module>/`.
 | `spatial_kernels` | `reference/`, `sycl/` | im2col, col2im, pooling, the window product, upsampling, channel and broadcast copies |
 | `random_kernels` | `reference/` | The reference orthonormalisation sweep |
 | `random_kernels` | `sycl/` | Philox4x32-10, the Poisson and truncated normal draws, and the Gram-Schmidt sweep |
+| `signal_kernels` | `fft_plan.hpp`, `reference/`, `sycl/` | The valid-mode convolution and the batched FFT |
+| `linalg_kernels` | `chunked_dot.hpp`, `reference/`, `sycl/` | The batched LU factorisation and solve, and GMRES |
+| `blend_kernels` | `reference/`, `sycl/` | The weighted blend of transforms applied to points |
 
 ## Files
 
 Each module's own README lists its headers and what each declares:
 [blas_kernels](blas_kernels/README.md), [blas_seam_kernels](blas_seam_kernels/README.md),
-[sparse_kernels](sparse_kernels/README.md), [spatial_kernels](spatial_kernels/README.md) and
-[random_kernels](random_kernels/README.md). A kernel header is named after its routine. A
+[sparse_kernels](sparse_kernels/README.md), [spatial_kernels](spatial_kernels/README.md),
+[signal_kernels](signal_kernels/README.md), [linalg_kernels](linalg_kernels/README.md),
+[blend_kernels](blend_kernels/README.md) and [random_kernels](random_kernels/README.md). A kernel header is named after its routine. A
 routine and its Hermitian sibling share a header, and so do `ger`, `geru` and `gerc`.
 
 ## Notes by file
@@ -515,7 +519,7 @@ and it writes `alpha * sum + beta * C` only where the triangle holds the element
 same kernel under `Conjugated`.
 
 `Detail::SyrkTileConfig` holds the fixed shape SYRK has always used: a 4x4 register block in an
-8x8 work-group. It is written out and not borrowed from `GemmLocalTile`, so GEMM's per-type
+8x8 work-group. It is written out and not borrowed from the GEMM tile catalog, so GEMM's per-type
 derivation of its register block stays inside GEMM. A shared config would make a change to one
 kernel's tuning an unseen change to the other's.
 
@@ -782,6 +786,12 @@ section.
 `upsample_nearest_backward` runs one work-item per input element, each gathering its own fixed
 `scale_h * scale_w` block in ascending order. The file contains no `sycl::atomic_ref` and none may
 be added.
+
+## Kernels that submit more than once
+
+A kernel function that submits several kernels in one body returns `Device::SubmittedEvents`, which converts to its last event, so a caller that orders against one event is unchanged. The recorder hands every event to the runtime, which times the whole body. The functions that do: `Reduce::reduce_indexed` and `reduce`, and so `Kernels::SYCL::asum`, `nrm2`, `dot` and `iamax` and the sparse `doti`; `triangular_product` and `triangular_solve`, and so `trmv`, `tbmv`, `tpmv`, `tbsv`, `tpsv` and `trsm`; the transposed `spmv` and `spsymv`; `Random::orthonormalize`; and the FFT, whose `upload_fft_tables`, `fft_forward` and `fft_inverse` return the events of the table copies and of every pass.
+
+The kernels do not log per launch. What a launch ran as is the profiler's data: the GEMM states its variant with an instant.
 
 ## Designs
 

@@ -30,22 +30,31 @@
 
 #pragma once
 
+#include <mutex>
+#include <complex>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <set>
+#include <tuple>
+#include <mutex>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/kernel_variant.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_seam_kernels/blas_seam_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/launch/gemm_tile_pin.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/arithmetic/multiply_add.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp>
 
 namespace SushiBLAS
@@ -305,79 +314,6 @@ namespace SushiBLAS
                 inline constexpr std::size_t K_NO_LOCAL_ACC_BYTES = 64;
 
                 /**
-                * @brief The largest square register block of @p T that fits a byte budget.
-                *
-                * @tparam T The accumulator element type.
-                * @param budget_bytes Bytes of private memory the block may occupy.
-                * @param cap Hard upper bound on the block edge, whatever the budget allows.
-                * @return A power-of-two edge length in [1, @p cap].
-                */
-                template<typename T>
-                [[nodiscard]] inline constexpr int register_block_dim(std::size_t budget_bytes,
-                                                                      int cap) noexcept
-                {
-                    int dim = 1;
-                    while (dim * 2 <= cap &&
-                           static_cast<std::size_t>(dim * 2) *
-                           static_cast<std::size_t>(dim * 2) * sizeof(T) <= budget_bytes)
-                        dim *= 2;
-                    return dim;
-                }
-
-                /**
-                 * @brief Holds the compile-time geometry of the LOCAL_TILED variant for element type T.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                template<typename T>
-                struct GemmLocalTile
-                {
-                    /** @brief Work-items down the row axis of a work-group. */
-                    static constexpr int K_WG_ROWS = 8;
-
-                    /** @brief Work-items across the column axis of a work-group. */
-                    static constexpr int K_WG_COLS = 8;
-
-                    /** @brief Work-items per work-group; 64 is accepted by every device. */
-                    static constexpr int K_WG_ITEMS = K_WG_ROWS * K_WG_COLS;
-
-                    /** @brief Rows of C accumulated privately by one work-item. */
-                    static constexpr int K_ITEM_ROWS = register_block_dim<Accumulator<T>>(K_LOCAL_ACC_BYTES, 8);
-
-                    /** @brief Columns of C accumulated privately by one work-item. */
-                    static constexpr int K_ITEM_COLS = K_ITEM_ROWS;
-
-                    /** @brief Rows of C covered by one work-group. */
-                    static constexpr int K_BLOCK_M = K_WG_ROWS * K_ITEM_ROWS;
-
-                    /** @brief Columns of C covered by one work-group. */
-                    static constexpr int K_BLOCK_N = K_WG_COLS * K_ITEM_COLS;
-
-                    /** @brief K-extent staged into local memory per iteration. */
-                    static constexpr int K_TILE_K = 16;
-
-                    /**
-                    * @brief Leading dimension of the A tile, padded off a bank multiple.
-                    *
-                    * The +1 is not cargo cult; the arithmetic is worked out on the read
-                    * site in @ref gemm_local_tiled.
-                    */
-                    static constexpr int K_TILE_A_LD = K_TILE_K + 1;
-
-                    /** @brief Leading dimension of the B tile, padded off a bank multiple. */
-                    static constexpr int K_TILE_B_LD = K_BLOCK_N + 2;
-
-                    /**
-                     * @brief Returns the local memory one work-group needs, in bytes.
-                     * @see modules/kernels/blas_seam_kernels/README.md
-                     */
-                    [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
-                    {
-                        return (static_cast<std::size_t>(K_BLOCK_M) * K_TILE_A_LD +
-                                static_cast<std::size_t>(K_TILE_K) * K_TILE_B_LD) * sizeof(T);
-                    }
-                };
-
-                /**
                  * @brief Holds the compile-time geometry of the NO_LOCAL variant for element type T.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
@@ -468,12 +404,14 @@ namespace SushiBLAS
 
                 /**
                  * @brief Computes GEMM by tiling A and B through local memory, for devices with real scratchpad memory.
+                 * @tparam Shape A GemmTileShape of T; every geometry constant comes from it.
                  * @pre The local allocation fits the device; gemm checks this before it calls.
                  * @param beta Exactly zero skips reading C.
                  * @param c Must not overlap A or B.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
-                template<typename T, typename AccessA, typename AccessB, typename Epilogue>
+                template<typename T, typename Shape = GemmTile<T, GemmTileRole::Balanced>,
+                         typename AccessA, typename AccessB, typename Epilogue>
                 [[nodiscard]] sycl::event gemm_local_tiled(
                     sycl::queue& queue,
                     int64_t m, int64_t n, int64_t k,
@@ -484,7 +422,7 @@ namespace SushiBLAS
                     Epilogue epilogue)
                 {
                     using W = Accumulator<T>;
-                    using Configuration = GemmLocalTile<T>;
+                    using Configuration = Shape;
 
                     SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, Device::hosts_local_tile(
                                   Device::profile_for(queue),
@@ -566,7 +504,7 @@ namespace SushiBLAS
                                 // Staged out-of-range elements are zero, so the full tile_k width sums exactly; see modules/kernels/blas_seam_kernels/README.md.
                                 for (int kk = 0; kk < Configuration::K_TILE_K; ++kk)
                                 {
-                                    // tile_a_ld is padded to 17; see modules/kernels/blas_seam_kernels/README.md.
+                                    // tile_a_ld is one past the depth; see modules/kernels/blas_seam_kernels/README.md.
                                     T reg_a[Configuration::K_ITEM_ROWS];
                                     T reg_b[Configuration::K_ITEM_COLS];
 
@@ -757,7 +695,7 @@ namespace SushiBLAS
                                                                      int64_t batch_size,
                                                                      bool b_rows_contiguous) noexcept
                 {
-                    using Tiled = GemmLocalTile<T>;
+                    using Tiled = GemmTile<T, GemmTileRole::Balanced>;
                     using Split = GemmDepthSplitTile<T>;
 
                     if (!profile.has_dedicated_local_memory)
@@ -934,6 +872,147 @@ namespace SushiBLAS
                         });
                     });
                 }
+
+                /**
+                 * @brief Logs the tiled launch of one shape and runs it.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T, typename Shape, typename AccessA, typename AccessB,
+                         typename Epilogue>
+                [[nodiscard]] sycl::event launch_local_tiled(
+                    GemmTileRole role, sycl::queue& queue,
+                    int64_t m, int64_t n, int64_t k,
+                    T alpha, const T* a, AccessA a_access, int64_t str_a,
+                    const T* b, AccessB b_access, int64_t str_b,
+                    T beta, T* c, OperandAccess c_access, int64_t str_c,
+                    int64_t batch_size, const std::vector<sycl::event>& deps,
+                    Epilogue epilogue)
+                {
+                    Device::note_kernel_variant(Device::KernelVariant::GemmLocalTiled);
+
+                    return gemm_local_tiled<T, Shape>(
+                        queue, m, n, k,
+                        alpha, a, a_access, str_a,
+                        b, b_access, str_b,
+                        beta, c, c_access, str_c,
+                        batch_size, deps, epilogue);
+                }
+
+                /**
+                 * @brief Launches the tiled GEMM with the shape one role compiles to for T.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T, typename AccessA, typename AccessB, typename Epilogue>
+                [[nodiscard]] sycl::event gemm_local_tiled_as(
+                    GemmTileRole role, sycl::queue& queue,
+                    int64_t m, int64_t n, int64_t k,
+                    T alpha, const T* a, AccessA a_access, int64_t str_a,
+                    const T* b, AccessB b_access, int64_t str_b,
+                    T beta, T* c, OperandAccess c_access, int64_t str_c,
+                    int64_t batch_size, const std::vector<sycl::event>& deps,
+                    Epilogue epilogue)
+                {
+                    switch (role)
+                    {
+                        case GemmTileRole::Wide:
+                            return launch_local_tiled<T, GemmTile<T, GemmTileRole::Wide>>(
+                                role, queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
+                                str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
+                        case GemmTileRole::Compact:
+                            return launch_local_tiled<T, GemmTile<T, GemmTileRole::Compact>>(
+                                role, queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
+                                str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
+                        case GemmTileRole::Balanced:
+                            break;
+                    }
+                    return launch_local_tiled<T, GemmTile<T, GemmTileRole::Balanced>>(
+                        GemmTileRole::Balanced, queue, m, n, k, alpha, a, a_access, str_a, b,
+                        b_access, str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
+                }
+
+                /**
+                 * @brief Returns the DataType of an element type the tiled GEMM is compiled for.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T>
+                [[nodiscard]] inline constexpr Core::DataType gemm_tile_dtype() noexcept
+                {
+                    if constexpr (std::is_same<T, sycl::half>::value)
+                        return Core::DataType::Half;
+                    else if constexpr (std::is_same<T, double>::value)
+                        return Core::DataType::Float64;
+                    else if constexpr (std::is_same<T, std::complex<float>>::value)
+                        return Core::DataType::Complex32;
+                    else if constexpr (std::is_same<T, std::complex<double>>::value)
+                        return Core::DataType::Complex64;
+                    else
+                        return Core::DataType::Float32;
+                }
+
+                /**
+                 * @brief Logs one WARN per process for a pin the chooser could not apply.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                inline void warn_rejected_gemm_tile_pin(GemmTilePinStatus status)
+                {
+                    if (status != GemmTilePinStatus::Unknown && status != GemmTilePinStatus::Refused)
+                        return;
+
+                    static std::once_flag warned;
+                    std::call_once(warned, [status]()
+                    {
+                        SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
+                                    "SYCL GEMM: {}={} {}; the tile is chosen as if unpinned.",
+                                    Device::K_GEMM_TILE_PIN_VARIABLE, Device::gemm_tile_pin(),
+                                    status == GemmTilePinStatus::Unknown
+                                        ? "names no catalog shape"
+                                        : "is past a hard limit of the device");
+                    });
+                }
+
+                /**
+                 * @brief Logs one WARN for each device and local tile that does not fit it, and no more.
+                 *
+                 * A training or inference loop reaches this on every GEMM of every step, so the
+                 * record is kept to the first time a device meets a tile.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                inline void warn_no_local_fallback(const Device::Profile& profile,
+                                                   std::size_t tile_bytes, std::size_t tile_items)
+                {
+                    static std::mutex guard;
+                    static std::set<std::tuple<const Device::Profile*, std::size_t, std::size_t>> warned;
+
+                    const std::lock_guard<std::mutex> lock(guard);
+                    if (!warned.emplace(&profile, tile_bytes, tile_items).second)
+                        return;
+
+                    SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
+                                "SYCL GEMM: local tile wants {} B and {} work-items, device offers "
+                                "{} B and {}; falling back to the no-local variant.",
+                                tile_bytes, tile_items, profile.local_mem_bytes,
+                                profile.max_work_group_size);
+                }
+
+                /**
+                 * @brief Logs one INFO per process when the pin was applied: the pin read and the tile it chose.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                inline void state_applied_gemm_tile_pin(const GemmTileChoice& choice, int64_t m,
+                                                        int64_t n, int64_t k)
+                {
+                    if (choice.pin != GemmTilePinStatus::Applied || !choice.role)
+                        return;
+
+                    static std::once_flag stated;
+                    std::call_once(stated, [&]()
+                    {
+                        SB_LOG_INFO(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
+                                    "SYCL GEMM: {}={} selects the {} tile; first seen for {}x{}x{}",
+                                    Device::K_GEMM_TILE_PIN_VARIABLE, Device::gemm_tile_pin(),
+                                    to_string(*choice.role), m, n, k);
+                    });
+                }
             } // namespace Detail
 
             /**
@@ -954,14 +1033,9 @@ namespace SushiBLAS
                             int64_t batch_size, const std::vector<sycl::event>& deps,
                             Epilogue epilogue = Epilogue{})
             {
-                using LocalConfiguration = Detail::GemmLocalTile<T>;
-                constexpr std::size_t local_bytes = LocalConfiguration::local_mem_bytes();
-                constexpr std::size_t local_items =
-                    static_cast<std::size_t>(LocalConfiguration::K_WG_ITEMS);
+                using Balanced = GemmTile<T, GemmTileRole::Balanced>;
 
                 const Device::Profile& profile = Device::profile_for(queue);
-                const Device::LocalTileDemand local_demand{local_bytes, local_items};
-                const bool tile_hosted = Device::hosts_local_tile(profile, local_demand);
 
                 // HALF on two strided operands goes to the matrix units where they fit.
                 if constexpr (std::is_same<T, sycl::half>::value &&
@@ -971,9 +1045,7 @@ namespace SushiBLAS
                     if (Detail::joint_matrix_fits(profile, m, n, k, a, a_access, str_a, b,
                                                   b_access, str_b))
                     {
-                        SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
-                                     "SYCL GEMM [joint_matrix]: batch={} {}x{}x{}", batch_size, m,
-                                     n, k);
+                        Device::note_kernel_variant(Device::KernelVariant::GemmJointMatrix);
                         return gemm_joint_matrix(queue, m, n, k, alpha, a, a_access, str_a, b,
                                                  b_access, str_b, beta, c, c_access, str_c,
                                                  batch_size, deps, epilogue);
@@ -984,12 +1056,7 @@ namespace SushiBLAS
                     profile, m, n, k, batch_size, Detail::has_contiguous_rows(b_access));
                 if (split.width != 0)
                 {
-                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [depth_split]: batch={} {}x{}x{} item_block={}x{} "
-                                "width={} column_lanes={}",
-                                batch_size, m, n, k,
-                                Detail::GemmDepthSplitTile<T>::K_ITEM_ROWS,
-                                Detail::GemmDepthSplitTile<T>::K_ITEM_COLS, split.width,
-                                split.column_lanes);
+                    Device::note_kernel_variant(Device::KernelVariant::GemmDepthSplit);
 
                     return Detail::gemm_depth_split<T>(
                         queue, split, m, n, k,
@@ -1000,31 +1067,28 @@ namespace SushiBLAS
                 }
 
                 // Every variant is instantiated here, whichever branch runs; see modules/kernels/blas_seam_kernels/README.md.
-                if (profile.has_dedicated_local_memory && tile_hosted)
+                if (profile.has_dedicated_local_memory)
                 {
-                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",
-                                batch_size, m, n, k,
-                                LocalConfiguration::K_BLOCK_M, LocalConfiguration::K_BLOCK_N,
-                                LocalConfiguration::K_TILE_K, local_bytes);
+                    const GemmTileChoice choice = choose_gemm_tile(
+                        profile, gemm_tile_traits<T>(),
+                        GemmTileProduct{m, n, k, batch_size, Detail::gemm_tile_dtype<T>()},
+                        Device::gemm_tile_pin());
+                    Detail::warn_rejected_gemm_tile_pin(choice.pin);
+                    Detail::state_applied_gemm_tile_pin(choice, m, n, k);
 
-                    return Detail::gemm_local_tiled<T>(
-                        queue, m, n, k,
-                        alpha, a, a_access, str_a,
-                        b, b_access, str_b,
-                        beta, c, c_access, str_c,
-                        batch_size, deps, epilogue);
+                    if (choice.role)
+                        return Detail::gemm_local_tiled_as<T>(
+                            *choice.role, queue, m, n, k,
+                            alpha, a, a_access, str_a,
+                            b, b_access, str_b,
+                            beta, c, c_access, str_c,
+                            batch_size, deps, epilogue);
+
+                    Detail::warn_no_local_fallback(profile, Balanced::local_mem_bytes(),
+                                                   Balanced::K_WG_ITEMS);
                 }
 
-                if (profile.has_dedicated_local_memory)
-                    SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM: local tile wants {} B and {} work-items, device offers "
-                                "{} B and {}; falling back to the no-local variant.",
-                                local_bytes, local_items,
-                                profile.local_mem_bytes, profile.max_work_group_size);
-
-                SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [no_local]: batch={} {}x{}x{} item_block={}x{}",
-                            batch_size, m, n, k,
-                            Detail::GemmNoLocalTile<T>::K_ITEM_ROWS,
-                            Detail::GemmNoLocalTile<T>::K_ITEM_COLS);
+                Device::note_kernel_variant(Device::KernelVariant::GemmNoLocal);
 
                 return Detail::gemm_no_local<T>(
                     queue, profile, m, n, k,

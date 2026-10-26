@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-110
+Next id: RW-123
 
 ## Decisions waiting for the owner
 
@@ -35,11 +35,6 @@ Cause: it includes `<numbers>`.
 ### RW-5 Decide whether ELU accepts complex input
 - State: decision
 - Done when: ELU takes complex input, or the owner has ruled it real-only
-
-### RW-6 Decide the backend of the quarantined FFT and LAPACK declarations
-- State: decision
-- Done when: the declarations under `modules/operations/experimental/include/SushiBLAS/experimental/`
-  have a chosen backend and an implementation
 
 ### RW-7 Decide whether a green CI on the tagged commit is a release condition
 - State: decision
@@ -144,6 +139,47 @@ Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B8.
 A lease above 4 KiB allocates device memory at every record. A recorded `trmv`, a packed GEMM and a
 transposed or one-triangle sparse product allocate and free at each record. Cause: the scratch pool
 has no size class above 4 KiB.
+
+### RW-110 Measure the GEMM tile shapes on the RTX 3080 Ti and fill its table entries
+- State: unmeasured
+- Done when: `K_GEMM_TILE_TABLE` holds the sm_86 entries `benchmark_gemm_tiles` printed, and
+  `benchmark_gemm` on `cuda:0` with the chosen shapes is no slower than with `Balanced` pinned at
+  any order, five runs each
+- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/PLAN.md`, task 7
+
+The gap at order 2048 to the f3e6382 baseline is reported with the run, closed or not.
+
+### RW-111 Measure the binary size each GEMM tile shape adds
+- State: unmeasured
+- Done when: the size of the library and of the test binary with one, two and three shapes per
+  dtype is recorded, and the catalog limit of three shapes is kept or moved by it
+- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`, section 6
+
+### RW-112 Choose the SYRK and SYR2K tiles per device
+- State: open
+- Done when: the `syrk` and `syr2k` kernels take their tile from a catalog and a chooser, as the
+  tiled GEMM does
+
+### RW-113 Choose the no-local GEMM register block per device
+- State: open
+- Done when: `GemmNoLocalTile` comes from a measured choice per device instead of one budget
+
+### RW-114 Read the HALF `joint_matrix` shapes from `matrix_combinations`
+- State: open
+- Done when: the HALF matrix kernel runs a shape the device lists, not only 16 x 16 x 16
+
+### RW-115 Read the work-group limit of each compiled GEMM tile kernel
+- State: open
+- Done when: `admits_gemm_tile` refuses a shape whose compiled kernel accepts fewer work-items
+  than it launches, through `get_kernel_info` on a named kernel
+
+A kernel name cannot carry a caller's lambda epilogue type, so the GEMM kernels stay unnamed and
+every catalog shape keeps to 128 work-items.
+
+### RW-116 Let the GEMM tile tuner write a user cache file
+- State: open
+- Done when: entries `benchmark_gemm_tiles` measured on a user's device are read at start
+  without a rebuild, through a format `file-formats` defines
 
 ### RW-22 Run the benchmarks on a device other than the CPU
 - State: unmeasured
@@ -547,6 +583,37 @@ Cause: the remote was written by hand.
 The dependency rule reads text. No test shows a kernel that drops its dependency events. Cause:
 `rule_task_dependencies` passes a kernel that accepts `deps` and never uses it, and
 `ARecordedTaskComputesItsResult` runs one operation of each seam alone.
+
+## Profiling and logging
+
+### RW-117 Build and run the profiling and logging work
+- State: unmeasured
+- Done when: `sb build --benchmarks` configures and builds with the profiler on and off, and every suite of `profile`, `cost`, `profiling`, `launch`, `engine`, `test_runner`, `graph_primitives`, `blas_seam_kernels`, `io`, `benchmark_harness` and `device_ceilings` passes
+- Source: `docs/design/PROFILING/README.md`
+
+### RW-118 Run `device_ceilings` on the RTX 3080 Ti and keep its file
+- State: unmeasured
+- Done when: `sb bench device_ceilings` has written the ceilings of the GPU, each span at least 10 ms and each spread within the limit, and a SushiAI record's `roofline` table judges a GEMM against them
+- Source: `docs/design/PROFILING/README.md`
+
+### RW-119 Measure what the profiling zones, counters and instants cost
+- State: unmeasured
+- Done when: the per-record and per-launch cost of `blas.record`, the lock wait, the scratch counters and the GEMM instants is recorded with the profiler off, on with no session, and on with one, five runs each
+- Source: `docs/design/PROFILING/README.md`
+
+### RW-121 Write a cost rule for every `Unaudited` row of the cost table
+- State: open
+- Done when: no row of `cost_table.cpp` is `Unaudited`: each is costed from its body, or declared `DataDependent` with its reason in the cost README
+- Open rows (79): blas.lvl1.rot, rotg, rotm, rotmg; blas.lvl2.gbmv, gemv, ger, gerc, geru, hbmv, hemv, her, her2, hpmv, hpr, hpr2, sbmv, spmv, spr, spr2, symv, syr, syr2, tbmv, tbsv, tpmv, tpsv, trmv, trsv; blas.lvl3.hemm, her2k, herk, symm, syr2k, syrk, trsm; blend.blend_transforms; linalg.gmres, lu_factor, lu_solve; logic.all, any; math.ew.ordered_sum, math.logsumexp, max_along, mean_spatial, min_along, std, sum_along, var; random.bernoulli, constant, discrete_uniform, exponential, he_normal, he_uniform, log_normal, normal, orthogonal, poisson, shuffle, truncated_normal, uniform, xavier_normal, xavier_uniform; signal.convolve_1d; sparse.axpyi, dotci, doti, dotui, gthr, gthrz, roti, sctr, sphemv, spmm, spmv, spsymv, sptrsv
+- Where: `modules/foundation/cost/source/cost_table.cpp`
+- Source: `docs/design/PROFILING/README.md`
+
+### RW-122 State the variant a kernel ran as, and its shape, on the span of its node
+- State: blocked
+- Blocked by: external: SushiProfiler has no way to write a fact from a task body and join it to its node
+- Done when: a GEMM span names its variant and a kernel span its launch shape as attributes, and the per-launch instants of `gemm.hpp` are gone
+- Where: `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp`
+- Source: `docs/design/PROFILING/README.md`
 
 ## Command line
 

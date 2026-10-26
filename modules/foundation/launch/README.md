@@ -6,8 +6,12 @@ It depends on [`core`](../core/README.md), SYCL and the standard library.
 
 | File | Declares |
 | --- | --- |
-| `device_policy.hpp` | `Profile`, `CacheBlocking` and the launch geometry a kernel dispatches on |
+| `device_policy.hpp` | `Profile`, `Vendor`, `Architecture`, `CacheBlocking` and the launch geometry a kernel dispatches on |
+| `gemm_tile_pin.hpp` | `gemm_tile_pin`, the read of `SB_GEMM_TILE` |
 | `launch_1d.hpp` | The launch primitives every per-element kernel shares: `map`, `zip_inplace`, `indexed` |
+| `submitted_events.hpp` | `SubmittedEvents`, the events of every kernel one task body submitted |
+| `kernel_variant.hpp` | `KernelVariant`, `note_kernel_variant` and the observer a host sets to read the notes |
+| `launch_log_category.hpp` | `K_LAUNCH_LOG_CATEGORY`, the category of the probe's records |
 
 Each section below holds the reasoning behind a header, under the name of the file and of the symbol it belongs to. The header states the rule in one line and cites this page.
 
@@ -78,6 +82,32 @@ CUDA device only and answers false for every other backend: the kernel that uses
 compiled for NVPTX alone, so a true answer from an Intel or OpenCL device would route to a kernel
 with no body there. Asking only CUDA also keeps the query off devices that do not implement it.
 The field is a bool, so no public header names an extension type.
+
+### `Vendor`, `Architecture` and `Profile::local_mem_per_compute_unit`
+
+`Detail::vendor_of` maps the PCI vendor id the runtime reports (0x10DE, 0x1002, 0x8086) to
+`Vendor`. `Detail::architecture_of` reads `sycl::ext::oneapi::experimental::info::device::architecture`
+behind `SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE` and maps nine values (`nvidia_gpu_sm_70` to
+`nvidia_gpu_sm_90`, `amd_gpu_gfx90a`, `amd_gpu_gfx942`, `intel_gpu_pvc`) to `Architecture`. Any
+other value, a runtime without the extension, and a device whose query throws a `sycl::exception`
+give `Architecture::Unknown`. A tuning table keyed on `Architecture` therefore has no entry for a
+device it was not measured on, and the caller falls back to a model.
+
+`local_mem_per_compute_unit_of(architecture, local_mem_bytes)` is a closed table of what one
+compute unit holds, because `local_mem_size` reports what one work-group may take, which is less
+on NVIDIA: 96 KiB for sm_70, 64 KiB for sm_75, 164 KiB for sm_80, 100 KiB for sm_86 and sm_89,
+228 KiB for sm_90, 64 KiB for gfx90a and gfx942, 128 KiB for PVC. `Unknown` returns the reported
+`local_mem_bytes`. The switch is closed by its meaning and small, so it stays a switch.
+
+## `gemm_tile_pin.hpp`
+
+`gemm_tile_pin()` returns the value of `SB_GEMM_TILE` read once per process, empty when the
+variable is unset. It holds a name and knows no shape: the module that owns the shape catalog
+validates it. `gemm_tile_pin_from(const char*)` is the pure part, so a test covers it without
+touching the environment. The Windows runtime marks `getenv` deprecated in favour of
+an allocating variant; the one call is wrapped in a local diagnostic push and pop rather than
+a project-wide `_CRT_SECURE_NO_WARNINGS`, because the pointer is copied into a `std::string` at
+once and read before any thread can write the environment.
 
 ### Sub-group width in the device probe
 
@@ -369,6 +399,29 @@ body that accumulates across work-items would not be, and is not what this is fo
 
 Warning: `op` is inlined into a SYCL device kernel: it must be device-copyable, capture by value
 only, hold no host pointers, allocate nothing and throw nothing.
+
+## `submitted_events.hpp`
+
+A task body that submits one kernel returns that kernel's `sycl::event`, and the runtime times the dispatch from it. A body that submits several returns a `SubmittedEvents`, and the recorder hands every event to the runtime (`SushiRuntime::note_dispatch_event`), so the dispatch runs from the first kernel's start to the last kernel's end. Without it the span would be the last kernel's alone, and the FLOPs of the whole body over that span would state a rate that never happened.
+
+The type converts to the last event, and has `wait()` and `wait_and_throw()` that wait on every event, so a caller that orders against one event, and a test that waits on a result, take it unchanged. The kernels that return it are the ones that submit more than once in a body, and each lists its events in submission order; [the cost README](../cost/README.md) lists them.
+
+## `kernel_variant.hpp`
+
+A kernel that chooses among several variants (the GEMM) calls `note_kernel_variant(variant)` before it launches. With no observer set the call is an atomic load and a branch. The engine sets one on construction that writes the profiler instant of the variant, so no kernel header includes a profiler header and a change of SushiProfiler recompiles no kernel.
+
+## The probe's records
+
+`Detail::probe` runs once per device, on its first sight under the cache's lock, so what it logs is once per device. It logs under `K_LAUNCH_LOG_CATEGORY`:
+
+| Level | When | Says |
+| --- | --- | --- |
+| `WARN` | The architecture query threw | The device, the exception, and that the tile limits take the generic path |
+| `WARN` | The device lists no sub-group size, or only 0 | The device and the width assumed, 1 |
+| `WARN` | The device reports no cache size | The device and the size assumed, `K_ASSUMED_CACHE_BYTES` |
+| `INFO` | Every probe | The device, its compute units, sub-group width, cache size and architecture, each assumed value marked |
+
+`resolve_sub_group_size` and `resolve_cache_bytes` make the two decisions as pure functions, so they are tested without a device that lacks either.
 
 ## Designs
 
