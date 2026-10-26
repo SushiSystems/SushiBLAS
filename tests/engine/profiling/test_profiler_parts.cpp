@@ -84,7 +84,8 @@ namespace SushiBLAS
             const Profiling::SushiBLASProfilerParts first =
                 Profiling::register_profiler_parts(registry, no_devices(), "");
 
-            EXPECT_THROW(Profiling::register_profiler_parts(registry, no_devices(), ""),
+            EXPECT_THROW(static_cast<void>(
+                             Profiling::register_profiler_parts(registry, no_devices(), "")),
                          std::invalid_argument);
             EXPECT_EQ(registry.contributors().size(), std::size_t{1});
         }

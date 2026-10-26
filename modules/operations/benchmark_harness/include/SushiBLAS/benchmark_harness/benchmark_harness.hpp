@@ -157,7 +157,8 @@ namespace SushiBLAS::Bench
         print_environment(engine);
 #if SB_ENABLE_PROFILER
         if (ProfileSession::start_from_environment(engine.runtime(), scenario) != nullptr)
-            std::printf("profile:       recording to %s\n\n", std::getenv(K_PROFILE_FOLDER_VARIABLE));
+            std::printf("profile:       recording to %s\n\n",
+                        environment_value(K_PROFILE_FOLDER_VARIABLE).c_str());
 #else
         static_cast<void>(scenario);
 #endif

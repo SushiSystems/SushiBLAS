@@ -40,7 +40,7 @@ namespace SushiBLAS
     {
         TEST(Medium_ProfileSession, WithoutTheFolderVariableNoSessionStarts)
         {
-            if (std::getenv(Bench::K_PROFILE_FOLDER_VARIABLE) != nullptr)
+            if (!Bench::environment_value(Bench::K_PROFILE_FOLDER_VARIABLE).empty())
                 GTEST_SKIP() << "SB_BENCH_PROFILE is set in this environment";
 
             Bench::ProfileSession* session =

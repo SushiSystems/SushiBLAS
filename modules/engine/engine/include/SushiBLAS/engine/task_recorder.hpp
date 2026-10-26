@@ -428,7 +428,7 @@ namespace SushiBLAS
                     SushiRuntime::NodeCost node_cost;
                     node_cost.flops = cost.flops;
                     node_cost.bytes = cost.bytes;
-                    node_cost.dtype = node_dtype_of(cost.dtype);
+                    node_cost.dtype = Internal::Detail::node_dtype_of(cost.dtype);
                     options.cost = node_cost;
                 }
 

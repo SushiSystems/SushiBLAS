@@ -314,7 +314,7 @@ namespace SushiBLAS
         {
             Cost cost;
             cost.flops = flops;
-            cost.dtype = ceiling_class_name(dtype);
+            cost.dtype = real_class_of(dtype);
             return cost;
         }
 

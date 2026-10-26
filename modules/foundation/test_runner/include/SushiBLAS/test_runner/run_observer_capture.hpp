@@ -87,12 +87,6 @@ namespace SushiBLAS
                 class Observer final : public SushiRuntime::RunObserver
                 {
                     public:
-                        /** @brief Asks for device timing, which is what fills the widths. */
-                        [[nodiscard]] bool wants_device_timing() const noexcept override
-                        {
-                            return true;
-                        }
-
                         /** @brief Appends the records of one run. */
                         void on_run(const SushiRuntime::RunObservation& observation) noexcept override
                         {

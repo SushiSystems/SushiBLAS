@@ -49,12 +49,6 @@ namespace SushiBLAS
         class SpanObserver final : public SushiRuntime::RunObserver
         {
             public:
-                /** @brief Asks for device timing, which is what fills the records. */
-                [[nodiscard]] bool wants_device_timing() const noexcept override
-                {
-                    return true;
-                }
-
                 /** @brief Keeps the span of the finished run; a run with no dispatch keeps 0. */
                 void on_run(const SushiRuntime::RunObservation& observation) noexcept override
                 {

@@ -30,9 +30,9 @@
 
 #include <memory>
 #include <string>
-#include <cstdlib>
 #include <cstdio>
 #include <string_view>
+#include <SushiBLAS/benchmark_harness/environment_value.hpp>
 #include <SushiBLAS/profiling/profiler_parts.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/profiling/register_profiler_parts.hpp>
@@ -72,8 +72,8 @@ namespace SushiBLAS
                     if (instance != nullptr)
                         return instance.get();
 
-                    const char* folder = std::getenv(K_PROFILE_FOLDER_VARIABLE);
-                    if (folder == nullptr || folder[0] == '\0')
+                    const std::string folder = environment_value(K_PROFILE_FOLDER_VARIABLE);
+                    if (folder.empty())
                         return nullptr;
 
                     std::unique_ptr<ProfileSession> started(

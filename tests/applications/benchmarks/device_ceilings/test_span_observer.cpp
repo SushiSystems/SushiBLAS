@@ -45,13 +45,6 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Small_SpanObserver, AskForDeviceTiming)
-        {
-            const Ceilings::SpanObserver observer;
-
-            EXPECT_TRUE(observer.wants_device_timing());
-        }
-
         TEST(Small_SpanObserver, TheSpanRunsFromTheFirstStartToTheLastEnd)
         {
             Ceilings::SpanObserver observer;

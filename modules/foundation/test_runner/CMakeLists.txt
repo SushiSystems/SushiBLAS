@@ -21,6 +21,7 @@ sushiblas_add_test_program(
     MODULE test_runner
     TESTS
         test_log_capture.cpp
-        test_run_observer_capture.cpp
         test_test_environment.cpp
-        test_test_runner_log_category.cpp)
+        test_test_runner_log_category.cpp
+    DEVICE_TESTS
+        test_run_observer_capture.cpp)

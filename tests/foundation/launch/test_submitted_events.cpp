@@ -63,9 +63,9 @@ namespace SushiBLAS
         TEST(Small_SubmittedEvents, AValueConvertsToTheLastEventOrToAnEmptyOne)
         {
             const Device::SubmittedEvents none;
-            const sycl::event from_none = none;
+            sycl::event from_none = none;
             const Device::SubmittedEvents some(std::vector<sycl::event>(3));
-            const sycl::event from_some = some;
+            sycl::event from_some = some;
 
             from_none.wait();
             from_some.wait();
