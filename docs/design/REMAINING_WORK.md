@@ -57,16 +57,6 @@ Cause: it includes `<numbers>`.
 
 `tools/naming/sushiblas_0_1_0.tsv` lists what the rename of 0.1.0 changed.
 
-### RW-107 Decide whether GEMM tiles are chosen per device
-- State: decision
-- Done when: the owner has ruled whether the plan of the parametric GEMM tiles starts
-- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`
-
-The tiled GEMM runs one tile shape on every device, measured only on the RTX 3080 Ti. The spec
-chooses a shape per device from a few compiled ones, by a measured table, an analytic model and
-hard limits; `PLAN.md` beside it holds eight tasks. The owner decided its section 7 and holds
-the start.
-
 ## Verification
 
 ### RW-10 Run the benchmark programs other than `benchmark_band_packed`

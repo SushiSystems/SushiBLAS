@@ -1,6 +1,6 @@
 # Parametric GEMM tiles
 
-**Status:** Open — specified; the owner decided section 7 on 2026-10-19 and holds the start (RW-107).
+**Status:** Open — specified; the owner decided section 7 on 2026-10-19 and started the plan on 2026-10-26 (RW-107).
 
 ## 1. Problem
 
@@ -78,28 +78,39 @@ The survey of 2026-10-19 found:
 | Brick | Module | Holds |
 | --- | --- | --- |
 | `Device::Architecture` and the vendor | `launch` | The architecture the device reports, or `Unknown`, and the vendor; added to `Device::Profile` |
+| Local memory per compute unit | `launch` | `Device::Profile::local_mem_per_compute_unit`, filled in `Detail::probe` from a table of known architectures, `local_mem_bytes` for any other |
+| The tile pin | `launch` | `SB_GEMM_TILE` read once per process into a name, empty when unset. The only environment read; it knows no shape |
 | `GemmTileShape` | `blas_seam_kernels` | One shape as a type: work-group rows and columns, register block rows and columns, depth, A and B padding, buffer count. Its derived sizes: block M and N, local bytes, work-items |
-| The shape catalog | `blas_seam_kernels` | The shapes compiled for each dtype, each with a stable name; one type list, one place to add a shape |
+| The shape catalog | `blas_seam_kernels` | The shapes compiled for each dtype, each with a stable role name; one type list, one place to add a shape |
 | `gemm_local_tiled<Shape>` | `blas_seam_kernels` | Today's kernel with the shape as a template parameter; every constant it reads comes from `Shape` |
-| `GemmTileTable` | `blas_seam_kernels` | Measured entries: architecture, dtype, size class to a shape name. Plain data in one header |
-| `choose_gemm_tile` | `blas_seam_kernels` | The host rule of section 2: table, else model, always the hard limits. A pure function of the profile, the dtype and the shape of the product, tested without a device |
-| Pinning | `blas_seam_kernels` | `SB_GEMM_TILE=<name>` read once; a name outside the catalog or past a hard limit logs a WARN and is ignored |
+| `GemmTileTable` | `blas_seam_kernels` | Measured entries: architecture, dtype, size class to a role name. Plain data in one header |
+| `choose_gemm_tile` | `blas_seam_kernels` | The host rule of section 2: pin, else table, else model, always the hard limits. A pure function of plain values, tested without a device |
 | `benchmark_gemm_tiles` | `tests/operations/blas` | Times every catalog shape on the device for each size class and prints the table entries, one line each |
 
-`choose_gemm_tile` returns a shape name, and `gemm_accessed` dispatches on it with one switch
+`choose_gemm_tile` takes the profile, the dtype, M, N and K, the pin, and one limit per catalog
+shape: the largest work-group its compiled kernel accepts. `gemm_accessed` queries those limits
+with `get_kernel_info` once per device and dtype, caches them, and passes them in, so the
+chooser never sees a queue. A pin outside the catalog or past a hard limit makes the chooser
+log one WARN through the `blas_seam_kernels` category and choose as if unpinned.
+
+`choose_gemm_tile` returns a role name, and `gemm_accessed` dispatches on it with one switch
 over the catalog. The catalog is closed by its meaning and small, so a switch is the right shape
 here (`sushiskills`, default 1, "not when").
 
+A shape's role name says what it is for, never its sizes, because the register block and so
+the block sizes differ per dtype: `Balanced` is today's shape, `Wide` the large-product shape
+with a deeper K tile, `Compact` the shape for products that do not fill the device. The type of
+one role for one dtype carries its sizes, and the tuner prints them beside the name.
+
 ### 5.2 Size classes
 
-Three classes, each defined by how full the device is and how deep the product runs:
+Two classes, defined by how full the device is:
 
-- **small**: fewer output tiles than compute units at the default shape;
-- **skinny**: M or N under one block while K is long, the case split-K serves;
+- **small**: fewer output tiles than compute units at the `Balanced` shape;
 - **large**: everything else.
 
-A class only selects among shapes. Split-K stays in `gemm_depth_split`, which the chooser
-already reaches first.
+A class only selects among shapes. A skinny product, M or N under one block with a long K,
+goes to `gemm_depth_split` before `gemm_local_tiled` is considered, so it has no class here.
 
 ### 5.3 The analytic model
 
@@ -108,9 +119,9 @@ For a shape S on a device D:
 - S is admissible when its local bytes fit `local_mem_size`, its work-items fit
   `max_work_group_size` and the compiled kernel's `work_group_size`, and its work-group is a
   whole number of sub-groups.
-- Resident work-groups per compute unit are limited by local memory per compute unit, which
-  the architecture names (a table of known values, falling back to `local_mem_size`), and by
-  the work-group count the kernel query allows.
+- Resident work-groups per compute unit are limited by
+  `Device::Profile::local_mem_per_compute_unit` divided by the shape's local bytes, and by the
+  work-group size the kernel query allows.
 - Among admissible shapes, the model takes the one with the most arithmetic per staged byte
   that still fills every compute unit at least once for the product's tile count; ties go to
   fewer local bytes.
@@ -155,3 +166,19 @@ cache file written by the tuner; a first-call tuner; Stream-K; `joint_matrix` sh
 3. The catalog holds at most three shapes per dtype until the size measurement allows more.
 4. The measured table holds the RTX 3080 Ti's entries only; every other device takes the model
    until someone runs the tuner on its hardware.
+
+## 8. Decisions of the agent, 2026-10-26, on the owner's delegation
+
+The owner delegated the engineering choices of the review of 2026-10-26.
+
+1. The chooser takes each shape's compiled work-group limit as an argument; the
+   `get_kernel_info` query lives in `gemm_accessed`, so the chooser stays a pure function.
+2. Local memory per compute unit is a `Device::Profile` field filled in `launch`, the module
+   that already owns what a device reports.
+3. The skinny class is dropped; `gemm_depth_split` serves that case before this chooser runs.
+4. Shapes carry role names (`Balanced`, `Wide`, `Compact`), because the block sizes of one role
+   differ per dtype.
+5. The environment is read in `launch`, which holds the run's facts; `blas_seam_kernels`
+   validates the name, because only it knows the catalog. A kernel reads no environment.
+6. The 13 `opencl:cpu` failures of RW-106 are recorded as a list before task 1; every task
+   passes when it adds no failure to that list. RW-105 does not block this plan.
