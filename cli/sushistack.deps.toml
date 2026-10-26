@@ -36,8 +36,8 @@ commit  = "5f714a7bca6cad1a49e9a6133e75f0f791dba551"
 
 # SushiProfiler, which the profile and profiling modules write zones, values and device spans to
 # when SB_ENABLE_PROFILER is on. The CLI builds or reuses its package at this commit and hands
-# its config folder to CMake. The v0.2.0 tag is cut after the SushiProfiler build, so the pin
+# its config folder to CMake. The v0.3.0 tag is cut after the SushiProfiler build, so the pin
 # names the commit of main that build runs on.
 [sushisystems.sushiprofiler]
-version = "v0.2.0"
-commit  = "f303075857f444a4edd89cfaae598d0847b8899b"
+version = "v0.3.0"
+commit  = "c099165b5106f3004972c98e7adbc8f2f66329f3"
