@@ -42,8 +42,14 @@ from there. `config.toml` does not repeat it.
 ### Config.sushiruntime_dir
 
 The field names the SushiRuntime sibling checkout. Empty means `../sushiruntime` relative to the
-project root, which matches the default of `SUSHIRUNTIME_DIR` in `cmake/Runtime.cmake` when
-`SUSHISTACK_HOME` is not set.
+project root. SushiCore hands a configured value to the package resolver as the checkout to
+build the SushiRuntime package from.
+
+### Config.stack_cxx
+
+The compiler `SUSHISTACK_CXX` names, set by `load_config`. When it is set, `resolved_compiler`
+returns it before anything else, because a consumer's package build runs `sb` with the
+consumer's compiler.
 
 ## console.py
 
@@ -108,6 +114,14 @@ sizes pre-merge CI runs. `quarantined` alone selects the quarantined tests of ev
 `-DSB_SANITIZE=` flag `cmake/SushiBLASSanitizers.cmake` reads. Left out, no flag is passed and the
 cached value stays, as with `--benchmarks`.
 
+## services/library_packages.py
+
+Takes SushiRuntime and SushiLog as built packages through `cfg.sushi_packages`, and returns the
+`-D<Package>_DIR` arguments of the configure. `--distributed` becomes `--distributed` of the
+SushiRuntime package. `build` writes the run-time folders of the packages to
+`.sushiblas_package_dirs.json` in its tree, and `test`, `bench` and `run` prepend them to the
+search path without resolving again.
+
 ## services/project.py
 
 ### validate_defines
@@ -141,7 +155,8 @@ better than accepting a flag and doing nothing with it.
 
 Runs every program whose name starts with `benchmark_` under `build/tests/`, in name order, and
 raises `ExecutableNotFoundError` when none is built, so a nightly run without `--benchmarks` fails
-instead of passing over nothing.
+instead of passing over nothing. With a name it runs the one executable the index matches, with the
+arguments after `--`, and raises `ExecutableNotFoundError` when none matches.
 
 ### _test_package
 

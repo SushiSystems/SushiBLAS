@@ -11,6 +11,7 @@ variables. See cli/sushiblas/README.md.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,6 +32,9 @@ PROFILE = ModuleProfile(
     # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.
     env_of_interest=("SYCL", "SUSHI", "INCLUDE", "LIB"),
 )
+
+#: The compiler a consumer's package build hands the CLI; it outranks the configured one.
+K_STACK_CXX_ENV = "SUSHISTACK_CXX"
 
 _MODULE = ModuleConfig(PROFILE)
 
@@ -54,21 +58,23 @@ class Config(StackConfig):
     under the shared toolchain if present, else a clang++ on PATH.
     """
 
-    # Empty means "../sushiruntime" relative to the project root, as in cmake/Runtime.cmake.
+    # Empty means the sibling or fetched SushiRuntime; a value names the checkout the package is built from.
     sushiruntime_dir: str = ""
 
     target_bin: str = PROFILE.default_target
 
-    def runtime_dir(self, root: Path) -> Path:
-        """Resolve the SushiRuntime checkout this build links against.
+    # The compiler SUSHISTACK_CXX names; empty outside a package build. It outranks `cxx`.
+    stack_cxx: str = ""
 
-        @param root The SushiBLAS project root (the directory holding CMakeLists.txt).
-        @return The runtime directory, defaulting to ``<root>/../sushiruntime``
-                (which, inside a SushiStack workspace, is the sibling module).
-        """
-        return self.sibling_dir(root, "sushiruntime", self.sushiruntime_dir)
+    def resolved_compiler(self, root: Path) -> str:
+        """Return the C++ compiler: SUSHISTACK_CXX, else the one the shared resolution finds."""
+        if self.stack_cxx:
+            return self.expand(self.stack_cxx)
+        return super().resolved_compiler(root)
 
 
 def load_config() -> Config:
     """Load and resolve the layered configuration for the current platform."""
-    return _MODULE.load(Config)
+    cfg = _MODULE.load(Config)
+    cfg.stack_cxx = os.environ.get(K_STACK_CXX_ENV, "")
+    return cfg

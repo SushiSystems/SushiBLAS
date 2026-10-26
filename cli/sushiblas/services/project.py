@@ -19,6 +19,7 @@ from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
+from sushicore.provision.sushi_packages import PackageSet
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
 
@@ -28,16 +29,20 @@ from .errors import (
     BuildTreeMissingError,
     ExecutableNotFoundError,
     InvalidDefineError,
-    RuntimeMissingError,
+    LeanBenchmarksError,
     StepFailedError,
     TreeNotRemovedError,
 )
+from . import library_packages
 from .sanitizer import Sanitizer, sanitize_flags
 from .test_label import TestLabel, select_labels
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
 K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
 K_DISTRIBUTED_VARIABLE = "SB_ENABLE_DISTRIBUTED"
+#: What the tree builds beyond the library; `--lean` turns the tests and the examples off.
+K_TESTS_VARIABLE = "SB_BUILD_TESTS"
+K_EXAMPLES_VARIABLE = "SB_BUILD_EXAMPLES"
 K_DOXYFILE = Path(".config") / "doxygen" / "Doxyfile"
 K_CLI_DIR = "cli"
 #: Where cmake/SushiBLASTests.cmake places every test and benchmark program, under the build tree.
@@ -95,6 +100,20 @@ def distributed_flags(distributed: bool | None) -> list[str]:
     return [f"-D{K_DISTRIBUTED_VARIABLE}={'ON' if distributed else 'OFF'}"]
 
 
+def lean_flags(lean: bool) -> list[str]:
+    """Returns the -D flags of what the tree builds: the tests and the examples, off when lean.
+
+    A lean build also leaves out the benchmarks; :meth:`ProjectService.build` refuses
+    ``--benchmarks`` with it, so a plain build keeps the benchmark switch as it is.
+
+    Args:
+        lean: True builds no tests, examples or benchmarks.
+    """
+    state = "OFF" if lean else "ON"
+    flags = [f"-D{K_TESTS_VARIABLE}={state}", f"-D{K_EXAMPLES_VARIABLE}={state}"]
+    return [*flags, f"-D{K_BENCHMARKS_VARIABLE}=OFF"] if lean else flags
+
+
 @typing.final
 class ProjectService:
     """Builds, tests, runs, cleans and documents one SushiBLAS checkout.
@@ -130,33 +149,43 @@ class ProjectService:
         sanitizer: Sanitizer | None = None,
         jobs: int | None = None,
         distributed: bool | None = None,
+        lean: bool = False,
+        tree_path: str | None = None,
     ) -> int:
         """Configures and builds the project, replacing a tree it cannot reuse.
 
         *benchmarks* switches the benchmark programs on or off, *distributed* the cluster
         module, and *sanitizer* sets the sanitizers of host code; None keeps the cached value
         of each. *jobs* caps the
-        compile jobs run at once; None leaves the count to the generator.
+        compile jobs run at once; None leaves the count to the generator. *lean* builds no
+        tests, examples or benchmarks, which is what a library package is built as, and
+        *tree_path* names the tree below the root in place of build/.
+
+        SushiRuntime and SushiLog are linked as built packages: a missing one is built first, and
+        the folders their libraries load from go first on the search path of the build and of
+        every later run of the tree.
 
         Raises:
             InvalidDefineError: An entry of *defines* is not VAR=VALUE; nothing was touched.
-            RuntimeMissingError: The SushiRuntime sibling is absent.
+            LeanBenchmarksError: *lean* and ``benchmarks=True`` ask for opposite things.
+            PackageError: A package of the closure cannot be chosen or built.
             TreeNotRemovedError: A tree that had to go is still there.
             StepFailedError: Configure or compile failed.
         """
+        if lean and benchmarks:
+            raise LeanBenchmarksError()
         define_flags = (benchmarks_flags(benchmarks) + distributed_flags(distributed)
                         + sanitize_flags(sanitizer) + validate_defines(defines))
         root = self._find_root()
         cfg = self._load_config()
         cmake_build_type = K_CMAKE_BUILD_TYPE[build_type]
-        build_dir = _build_dir(root)
-        _check_runtime(cfg, root)
+        build_dir = _build_dir(root, tree_path)
 
         if clean:
             self._remove_tree(build_dir)
 
-        self._console.info(f"Runtime: {cfg.runtime_dir(root)}")
-        self._console.info(f"Compiler: {cfg.resolved_compiler(root)}")
+        compiler = cfg.resolved_compiler(root)
+        self._console.info(f"Compiler: {compiler}")
         env = self._build_env.load(cfg, build_dir)
 
         fresh = self._driver.needs_configure(
@@ -176,11 +205,18 @@ class ProjectService:
         else:
             self._console.info("Reconfiguring in place...")
 
-        configure_args = self._configure_args(cfg, root, build_dir, cmake_build_type)
+        packages = library_packages.resolve(
+            cfg, root, build_type.value, compiler, _distributed(build_dir, distributed),
+            self._console.info, self._console.warn)
+        run_dirs = packages.run_dirs(cfg.platform)
+        library_packages.prepend_run_dirs(cfg, env, run_dirs)
+
+        configure_args = self._configure_args(cfg, root, build_dir, cmake_build_type, packages)
+        configure_args += lean_flags(lean)
         rc = self._driver.configure(configure_args + define_flags, cwd=root, env=env)
         if rc != 0:
             raise StepFailedError("CMake configure failed.", rc)
-        build_dir.mkdir(parents=True, exist_ok=True)
+        library_packages.record_run_dirs(build_dir, run_dirs)
 
         self._console.info("Building...")
         rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
@@ -202,7 +238,7 @@ class ProjectService:
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-        env = self._build_env.load(cfg, build_dir)
+        env = self._run_env(cfg, build_dir)
         selection = select_labels(labels)
 
         return self._driver.ctest_run(
@@ -234,20 +270,28 @@ class ProjectService:
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-        env = self._build_env.load(cfg, build_dir)
+        env = self._run_env(cfg, build_dir)
         return self._test_package(cfg, root, build_dir, env)
 
-    def bench(self) -> int:
-        """Runs every built benchmark program in name order and returns the first non-zero code.
+    def bench(self, name: str | None = None, app_args: Sequence[str] = ()) -> int:
+        """Runs one scenario benchmark with *app_args*, or every micro benchmark program in name order.
+
+        Returns the exit code of the program, or the first non-zero code of the programs.
 
         Raises:
             BuildTreeMissingError: There is no build tree.
-            ExecutableNotFoundError: No benchmark program is built.
+            ExecutableNotFoundError: *name* matches no executable, or no benchmark program is built.
         """
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-        env = self._build_env.load(cfg, build_dir)
+        env = self._run_env(cfg, build_dir)
+        if name is not None:
+            exe = self._index.match(build_dir, name)
+            if exe is None:
+                raise ExecutableNotFoundError(f"Benchmark matching '{name}' (build with --benchmarks)")
+            self._console.info(f"Executing: {exe.name}")
+            return self._runner.run([str(exe), *app_args], root, env)
         programs = _benchmark_programs(build_dir / K_PROGRAM_DIR)
         if not programs:
             raise ExecutableNotFoundError("A benchmark program (build with --benchmarks)")
@@ -269,7 +313,7 @@ class ProjectService:
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-        env = self._build_env.load(cfg, build_dir)
+        env = self._run_env(cfg, build_dir)
 
         exe = self._pick_executable(build_dir, target, sort, cfg.target_bin)
         if exe is None:
@@ -295,6 +339,16 @@ class ProjectService:
         env = self._build_env.load(cfg, _build_dir(root))
         (_build_dir(root) / "docs" / "api-site").mkdir(parents=True, exist_ok=True)
         return self._driver.doxygen(cfg, root / K_DOXYFILE, root, env)
+
+    def _run_env(self, cfg: Config, build_dir: Path) -> dict[str, str]:
+        """Returns the environment a binary of *build_dir* runs under.
+
+        It is the build environment with the run-time folders of the packages the tree linked
+        first on the search path.
+        """
+        env = self._build_env.load(cfg, build_dir)
+        library_packages.prepend_run_dirs(cfg, env, library_packages.read_run_dirs(build_dir))
+        return env
 
     def _remove_tree(self, tree: Path) -> bool:
         """Removes *tree* and returns whether it existed.
@@ -329,16 +383,15 @@ class ProjectService:
             raise ExecutableNotFoundError(f"Default target '{default}'")
         return exe
 
-    def _configure_args(self, cfg: Config, root: Path, build_dir: Path,
-                        build_type: str) -> list[str]:
+    def _configure_args(self, cfg: Config, root: Path, build_dir: Path, build_type: str,
+                        packages: PackageSet) -> list[str]:
         """Returns the cmake configure command line for this tree, without caller -D flags."""
         args = [
             self._driver.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
             f"-DCMAKE_BUILD_TYPE={build_type}",
-            f"-DSUSHIRUNTIME_DIR={cfg.runtime_dir(root)}",
         ]
-        # Each pinned Sushi library reaches CMake as <NAME>_DIR; CMake never downloads.
-        args += cfg.sushi_definitions(root)
+        # Each library package reaches CMake as <Package>_DIR; CMake never downloads.
+        args += library_packages.configure_arguments(cfg, root, packages)
         args += _toolchain_args(cfg, root)
         if cfg.is_windows and (prefix := vcpkg_prefix(cfg, root)):
             args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
@@ -419,9 +472,16 @@ class ProjectService:
         return rc
 
 
-def _build_dir(root: Path) -> Path:
-    """Returns the build tree of the checkout at *root*."""
-    return root / "build"
+def _build_dir(root: Path, requested: str | None = None) -> Path:
+    """Returns the build tree of the checkout at *root*: *requested* below it, else build/."""
+    return root / (requested or "build")
+
+
+def _distributed(build_dir: Path, requested: bool | None) -> bool:
+    """Returns whether the cluster module is built: *requested*, else what the tree has cached."""
+    if requested is not None:
+        return requested
+    return cached_value(build_dir, K_DISTRIBUTED_VARIABLE) == "ON"
 
 
 def _existing_build_dir(root: Path) -> Path:
@@ -445,17 +505,6 @@ def _benchmark_programs(program_dir: Path) -> list[Path]:
         if path.is_file() and path.name.startswith(K_BENCHMARK_PREFIX)
         and path.suffix in ("", ".exe")
     )
-
-
-def _check_runtime(cfg: Config, root: Path) -> None:
-    """Checks that the SushiRuntime sibling holds a CMakeLists.txt.
-
-    Raises:
-        RuntimeMissingError: It does not.
-    """
-    runtime = cfg.runtime_dir(root)
-    if not (runtime / "CMakeLists.txt").is_file():
-        raise RuntimeMissingError(runtime)
 
 
 def _toolchain_args(cfg: Config, root: Path) -> list[str]:

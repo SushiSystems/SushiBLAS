@@ -36,15 +36,12 @@ class InvalidDefineError(ProjectError):
         )
 
 
-class RuntimeMissingError(ProjectError):
-    """Reports a SushiRuntime sibling checkout that holds no CMakeLists.txt."""
+class LeanBenchmarksError(ProjectError):
+    """Reports --benchmarks given with --lean, which builds no benchmark programs."""
 
-    def __init__(self, runtime: Path) -> None:
-        super().__init__(
-            f"SushiRuntime sibling not found at: {runtime}\n"
-            "  - clone it next to this repo, or\n"
-            "  - set sushiruntime_dir in cli/config.local.toml, or SUSHIRUNTIME_DIR in the env.",
-        )
+    def __init__(self) -> None:
+        super().__init__("--lean builds no benchmark programs, so --benchmarks cannot join it.",
+                         K_EXIT_USAGE)
 
 
 class BuildTreeMissingError(ProjectError):

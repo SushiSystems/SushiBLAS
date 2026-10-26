@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import NoReturn, Optional
 
@@ -16,6 +17,7 @@ from sushicore import entry
 from sushicore.diag_commands import register_diagnostic_commands
 from sushicore.docs_bundle import ApiSource, register_docs_commands
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
+from sushicore.provision.package_command import register_package_command
 from sushicore.root_options import register_root_options
 from sushicore.typer_help import help_group
 
@@ -79,7 +81,8 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
            "sb build --distributed  # Also build the cluster module\n"
            "sb build --jobs 4  # Run at most 4 compile jobs at once\n"
            "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
-           "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through",
+           "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through\n"
+           "sb build --build-dir build/pkg-x --lean  # What a consumer's package build runs",
 )
 def build(
     type: BuildType = typer.Option(
@@ -109,6 +112,13 @@ def build(
         None, "--jobs", "-j", min=1,
         help="Compile jobs run at once. When omitted the generator decides, and "
              "CMAKE_BUILD_PARALLEL_LEVEL is honoured."),
+    build_dir: Optional[str] = typer.Option(
+        None, "--build-dir", metavar="PATH",
+        help="Build in this tree, below the checkout, instead of build/."),
+    lean: bool = typer.Option(
+        False, "--lean",
+        help="Build no tests, examples or benchmarks; what a consumer's package build of "
+             "SushiBLAS uses."),
 ) -> None:
     """Configure and build the project.
 
@@ -121,7 +131,8 @@ def build(
 
     def step() -> int:
         """Builds and announces success."""
-        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs, distributed)
+        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs, distributed,
+                              lean, build_dir)
         console.success("Build completed successfully!")
         return rc
 
@@ -196,16 +207,32 @@ def test(
     "bench",
     rich_help_panel=K_PROJECT,
     epilog="sb build --benchmarks\n"
-           "sb bench  # Every benchmark program, in name order",
+           "sb bench  # Every benchmark program, in name order\n"
+           "sb bench device_ceilings -- --out build/ceilings  # One scenario benchmark; its options go after --",
+    context_settings={"allow_extra_args": True},
 )
-def bench() -> None:
-    """Run every built benchmark program.
+def bench(
+    ctx: typer.Context,
+    name: Optional[str] = typer.Argument(
+        None, help="Scenario benchmark to run (exact, then substring match). "
+                   "Every micro benchmark program runs when omitted."),
+) -> None:
+    """Run the built benchmark programs, or one scenario benchmark with its options.
 
     A benchmark measures and does not pass or fail, so it is not a test. Build
-    the programs with sb build --benchmarks first.
+    the programs with sb build --benchmarks first. Args after `--` are forwarded
+    to the scenario benchmark named.
     """
+    if name is None and ctx.args:
+        raise typer.BadParameter(
+            "options for a benchmark go after its name and `--`.", param_hint="NAME")
+    if name is not None and name.startswith("-"):
+        raise typer.BadParameter(
+            f"{name!r} is not a benchmark; options for the program go after `--`.",
+            param_hint="NAME",
+        )
     console.header("Project Bench")
-    _exit_with(lambda: _service().bench())
+    _exit_with(lambda: _service().bench(name, list(ctx.args)))
 
 
 @app.command(
@@ -285,7 +312,7 @@ K_ALIASES.command(app, "doxygen", _docs_alias, "sb doxygen")
 register_diagnostic_commands(
     app, K_DIAGNOSTICS_SERVICE, program=PROFILE.program, panel=K_DIAGNOSTICS)
 
-register_provision_commands(app, ModuleProvision(
+_PROVISION = ModuleProvision(
     profile=PROFILE,
     project_root=find_project_root,
     load_config=load_config,
@@ -293,7 +320,10 @@ register_provision_commands(app, ModuleProvision(
     locate=lambda name: load_config().locate_sibling(find_project_root(), name),
     panel=K_DIAGNOSTICS,
     uses_base=True,
-))
+)
+
+register_provision_commands(app, _PROVISION)
+register_package_command(app, replace(_PROVISION, panel=K_PROJECT))
 
 
 def _report_error(message: str) -> None:

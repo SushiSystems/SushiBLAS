@@ -89,6 +89,7 @@ sb build --clean          # delete the build tree first, then build from scratch
 sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
 sb build --distributed    # also build the cluster module (--no-distributed stops)
 sb build --jobs 4         # run at most 4 compile jobs at once
+sb build --build-dir build/pkg-x --lean   # what a consumer's package build runs
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
@@ -142,11 +143,23 @@ clears it. Left out, the last setting stays. The SYCL device compile is not
 instrumented. SushiRuntime turns ThreadSanitizer on for its own debug and
 RelWithDebInfo builds, so build `address-undefined` as a release build.
 
-If the SushiRuntime sibling can't be found, `sb build` fails fast with a
-clear message rather than letting CMake's own `add_subdirectory` error
-surface. See `sb config` for what the CLI resolved as the runtime location,
-and set `sushiruntime_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR`
-in the environment) to point it elsewhere.
+SushiRuntime and SushiLog are linked as built packages, never compiled in this
+tree. Before the configure, `sb build` asks for the packages of its closure with
+the compiler the build uses, builds a missing one through that library's own CLI,
+prints one `reused` or `built` line per library, and passes `-D<Package>_DIR` for
+each to CMake. With `--distributed` the SushiRuntime package is built distributed
+too. If no checkout or package of a library is found, the command stops with one
+line; set `sushiruntime_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` in
+the environment) to point at a checkout elsewhere. The folders the package
+libraries load from go first on `PATH` (Windows) or `LD_LIBRARY_PATH` (Linux) for
+the build and for `sb test`, `sb bench` and `sb run`.
+
+`--build-dir` names the tree below the checkout in place of `build/`. `--lean`
+builds no tests, examples or benchmarks and refuses `--benchmarks`; a plain build
+turns the tests and the examples on again. SushiCore runs these two flags when it
+builds a SushiBLAS package for a consumer, then runs `sb package --build-dir <tree>
+--prefix <p> --no-archive --force`. `SUSHISTACK_CXX` names a compiler that
+outranks the configured one.
 
 ## `sb test`
 
@@ -214,6 +227,8 @@ Run it before publishing anything that adds a public header or touches
 Runs every benchmark program under `build/tests/`, in name order, after
 `sb build --benchmarks`. A benchmark measures and does not pass or fail; the
 command exits with the first non-zero code a program returned.
+
+`sb bench <name> -- <options>` runs the one scenario benchmark the name matches (exact, then substring) and forwards what follows `--` to it, as `sb run` does; `sb bench device_ceilings -- --out build/ceilings` writes the ceilings of device 0. Options without a name are refused.
 
 ## `sb run`
 

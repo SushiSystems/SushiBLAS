@@ -25,8 +25,8 @@ from sushiblas import cli
 pytestmark = pytest.mark.medium
 
 K_VISIBLE_COMMANDS = [
-    "bench", "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "run", "setup",
-    "test", "unlink",
+    "bench", "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "package", "run",
+    "setup", "test", "unlink",
 ]
 K_ENVIRONMENT = ("SUSHI_CLI_THEME", "SUSHI_CLI_ICONS", "SUSHI_CLI_COLOR", "SUSHISTACK_HOME")
 K_DOCS_EXIT_CODE = 6

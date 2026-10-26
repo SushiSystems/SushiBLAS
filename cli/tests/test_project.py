@@ -103,20 +103,38 @@ class _BuildEnv:
         return {}
 
 
+class _Packages:
+    """Stands in for a package set that holds no library."""
+
+    def names(self) -> list[str]:
+        """Returns no name."""
+        return []
+
+    def definitions(self) -> list[str]:
+        """Returns no definition."""
+        return []
+
+    def run_dirs(self, platform: str) -> list[str]:
+        """Returns no folder."""
+        return []
+
+
 class _Config:
     """Holds the few settings the service reads."""
 
     generator = "Ninja"
     is_windows = False
+    platform = "linux"
     target_bin = K_EXECUTABLE
 
-    def runtime_dir(self, root: Path) -> Path:
-        """Returns the sibling checkout the test wrote."""
-        return root.parent / "sushiruntime"
+    def sushi_definitions(self, root: Path, packaged=None) -> list[str]:
+        """Returns no definition: every pinned library is a package."""
+        return []
 
-    def sushi_definitions(self, root: Path) -> list[str]:
-        """Returns the one pinned Sushi library, as the sibling checkout beside the runtime."""
-        return [f"-DSUSHILOG_DIR={root.parent / 'sushilog'}"]
+    def sushi_packages(self, root: Path, build_type: str, options=None, report=print,
+                       warn=print, compiler: str = ""):
+        """Returns a package set with no library."""
+        return _Packages()
 
     def resolved_compiler(self, root: Path) -> str:
         """Returns a compiler name; nothing runs it."""
@@ -209,14 +227,6 @@ def test_build_appends_defines_after_every_default(parts, checkout):
     with pytest.raises(StepFailedError):
         service.build(BuildType.RELEASE, defines=["SB_ENABLE_LOGGING=OFF", "SB_NATIVE_ARCH="])
     assert driver.configured[0][-2:] == ["-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH="]
-
-
-def test_build_hands_each_pinned_sushi_library_to_cmake(parts, checkout):
-    """A pinned Sushi library reaches the configure as <NAME>_DIR, so CMake never downloads it."""
-    console, driver, service = parts
-    with pytest.raises(StepFailedError):
-        service.build(BuildType.RELEASE)
-    assert f"-DSUSHILOG_DIR={checkout.parent / 'sushilog'}" in driver.configured[0]
 
 
 @pytest.mark.parametrize(
@@ -346,7 +356,8 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
+                  tree_path):
             received.append(benchmarks)
             return 0
 
@@ -363,7 +374,8 @@ def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
+                  tree_path):
             received.append(jobs)
             return 0
 
@@ -387,7 +399,8 @@ def test_build_command_forwards_the_distributed_option(monkeypatch, args, expect
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
+                  tree_path):
             received.append(distributed)
             return 0
 
@@ -541,3 +554,67 @@ def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monke
     commands = _child_exits_with(monkeypatch, 0)
     assert service.bench() == 0
     assert [Path(command[0]).name for command in commands] == ["benchmark_gemm", "benchmark_sparse"]
+
+
+def test_bench_runs_the_named_scenario_benchmark_with_the_forwarded_options(
+    parts, checkout, monkeypatch
+):
+    """bench with a name runs that one executable and passes the options after it."""
+    console, driver, service = parts
+    exe = checkout / "build" / K_EXECUTABLE
+    exe.write_text("")
+    commands = _child_exits_with(monkeypatch, K_CHILD_EXIT)
+    assert service.bench(K_EXECUTABLE, ["--out", "folder"]) == K_CHILD_EXIT
+    assert commands == [[str(exe), "--out", "folder"]]
+
+
+def test_bench_raises_for_a_scenario_benchmark_that_matches_nothing(parts, checkout):
+    """bench with a name that matches no executable raises instead of running every program."""
+    console, driver, service = parts
+    with pytest.raises(ExecutableNotFoundError):
+        service.bench("no_such_benchmark")
+
+
+def test_bench_command_forwards_the_name_and_the_options_after_the_separator(monkeypatch):
+    """The bench command hands the name and what follows `--` to the service."""
+    received = []
+
+    class _Service:
+        def bench(self, name, app_args):
+            received.append((name, app_args))
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    result = CliRunner().invoke(cli.app, ["bench", "device_ceilings", "--", "--runs", "3"])
+    assert result.exit_code == 0
+    assert received == [("device_ceilings", ["--runs", "3"])]
+
+
+def test_bench_command_without_a_name_runs_every_program(monkeypatch):
+    """The bench command with no name hands the service no name and no options."""
+    received = []
+
+    class _Service:
+        def bench(self, name, app_args):
+            received.append((name, app_args))
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    result = CliRunner().invoke(cli.app, ["bench"])
+    assert result.exit_code == 0
+    assert received == [(None, [])]
+
+
+@pytest.mark.parametrize("args", [["bench", "--", "--runs", "3"], ["bench", "--sortt"]])
+def test_bench_command_rejects_options_that_belong_to_no_benchmark(monkeypatch, args):
+    """Options need a benchmark name before the separator; an unknown flag is a usage error."""
+
+    def no_service():
+        """Fails the test if the command reaches the service."""
+        raise AssertionError("the service was reached")
+
+    monkeypatch.setattr(cli, "_service", no_service)
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == K_EXIT_USAGE
