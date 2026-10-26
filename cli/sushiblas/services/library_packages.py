@@ -37,7 +37,10 @@ def package_options(distributed: bool) -> Mapping[str, tuple[str, ...]]:
 
 def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
             report: Callable[[str], None], warn: Callable[[str], None]) -> PackageSet:
-    """Return a built package of SushiRuntime and SushiLog, building a missing one.
+    """Return the built packages of the closure of ``depends_on``, building a missing one.
+
+    The closure is SushiLog, SushiProfiler and SushiRuntime, the three libraries
+    ``cli/sushistack.deps.toml`` names.
 
     Args:
         cfg: The resolved configuration.

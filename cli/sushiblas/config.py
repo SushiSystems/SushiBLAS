@@ -27,8 +27,6 @@ PROFILE = ModuleProfile(
     root_marker="CMakeLists.txt",
     siblings=("sushiruntime",),
     default_target="quickstart_demo",
-    # SUSHIRUNTIME_DIR is unprefixed because every CLI that builds against the checkout reads it.
-    extra_env_overrides={"sushiruntime_dir": "SUSHIRUNTIME_DIR"},
     # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.
     env_of_interest=("SYCL", "SUSHI", "INCLUDE", "LIB"),
 )
@@ -57,9 +55,6 @@ class Config(StackConfig):
     :class:`StackConfig`. ``cxx`` empty means "discover it": the bundled clang++
     under the shared toolchain if present, else a clang++ on PATH.
     """
-
-    # Empty means the sibling or fetched SushiRuntime; a value names the checkout the package is built from.
-    sushiruntime_dir: str = ""
 
     target_bin: str = PROFILE.default_target
 

@@ -145,7 +145,7 @@ has no size class above 4 KiB.
 - Done when: `K_GEMM_TILE_TABLE` holds the sm_86 entries `benchmark_gemm_tiles` printed, and
   `benchmark_gemm` on `cuda:0` with the chosen shapes is no slower than with `Balanced` pinned at
   any order, five runs each
-- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/PLAN.md`, task 7
+- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/PLAN.md`
 
 The gap at order 2048 to the f3e6382 baseline is reported with the run, closed or not.
 
@@ -153,7 +153,7 @@ The gap at order 2048 to the f3e6382 baseline is reported with the run, closed o
 - State: unmeasured
 - Done when: the size of the library and of the test binary with one, two and three shapes per
   dtype is recorded, and the catalog limit of three shapes is kept or moved by it
-- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`, section 6
+- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`
 
 ### RW-112 Choose the SYRK and SYR2K tiles per device
 - State: open

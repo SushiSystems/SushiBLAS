@@ -38,13 +38,12 @@ pipx uninstall sushiblas-cli
 ### How the CLI finds your compiler and runtime
 
 SushiBLAS builds against the shared SushiStack SYCL toolchain (it selects no
-toolchain of its own) and against a **SushiRuntime sibling checkout**. The
-CLI reads both from:
+toolchain of its own) and against the **SushiRuntime, SushiLog and SushiProfiler
+packages** it builds or reuses. The CLI reads its settings from:
 
 - **`cli/config.toml`**: committed, shared defaults (the same for everyone).
 - **`cli/config.local.toml`**: your machine's absolute paths (compiler,
-  vcpkg, the SushiRuntime checkout, if it isn't the default sibling
-  location). This file is gitignored, so your personal paths never get
+  vcpkg). This file is gitignored, so your personal paths never get
   committed.
 
 `sb setup` provisions the toolchain and libraries for this checkout and writes
@@ -149,8 +148,7 @@ the compiler the build uses, builds a missing one through that library's own CLI
 prints one `reused` or `built` line per library, and passes `-D<Package>_DIR` for
 each to CMake. With `--distributed` the SushiRuntime package is built distributed
 too. If no checkout or package of a library is found, the command stops with one
-line; set `sushiruntime_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` in
-the environment) to point at a checkout elsewhere. The folders the package
+line. The folders the package
 libraries load from go first on `PATH` (Windows) or `LD_LIBRARY_PATH` (Linux) for
 the build and for `sb test`, `sb bench` and `sb run`.
 
@@ -317,8 +315,7 @@ sb env --all      # show every variable, not just the build-relevant ones (-a)
 
 Both commands come from `sushicore` and behave the same in every module CLI.
 
-`sb config` prints the resolved SushiRuntime sibling directory, compiler, and
-vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
+`sb config` prints the resolved compiler and vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
 / an `SB_*` environment variable) supplied each field. It is the first thing to
 check when a build picks an unexpected compiler or can't find its runtime
 dependency.
@@ -346,8 +343,7 @@ sb unlink --workspace <path>  # remove it again
 ships with `sushicore`, SushiRuntime's `cli/sushistack.deps.toml`, then this
 repository's. It installs what they declare under `~/.sushisystems`, or under
 `SUSHISYSTEMS_HOME` when that is set. It exits 2 without installing anything
-when it finds no SushiRuntime checkout; clone one beside this repository or
-set `SUSHIRUNTIME_DIR`.
+when it finds no SushiRuntime checkout; clone one beside this repository.
 
 `sb doctor` exits non-zero when a required check fails and prints the command
 that fixes it. `sb link` and `sb unlink` take the workspace from `--workspace`,

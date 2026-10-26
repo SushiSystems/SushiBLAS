@@ -10,6 +10,8 @@ the changelog document in the version history.
 - 2026-10-26 — build: Added the options `SB_ENABLE_PROFILER` (on) and `SB_PROFILE_LEVEL` (2) and the generated `profile_config.hpp` (`CMakeLists.txt`).
 - 2026-10-26 — build: Built the `cost`, `profile` and `profiling` modules and the `device_ceilings` program (`SushiBLASLayers.cmake`).
 - 2026-10-26 — build: Installed `SushiBLASHeaderModules.cmake`; the package config defines `SushiBLAS::Geometry` and its two siblings from it (`SushiBLASConfig.cmake.in`).
+- 2026-10-26 — build: Stopped forcing `SR_ENABLE_DISTRIBUTED`; `SB_ENABLE_DISTRIBUTED` now checks that the SushiRuntime package has its distributed module (`CMakeLists.txt`).
+- 2026-10-26 — cli: Removed the `sushiruntime_dir` setting and `SUSHIRUNTIME_DIR`, which nothing reads since the packages (`config.py`, `config.toml`).
 - 2026-10-26 — build: Read `SushiRuntime_SYCL_TOOLCHAIN` in place of `SR_SYCL_TOOLCHAIN` (`SyclTarget.cmake`).
 - 2026-10-26 — deps: Pinned SushiProfiler v0.2.0 at its main until the tag is cut, SushiLog v0.2.3 and sushicore 0.9.6 (`sushistack.deps.toml`).
 - 2026-10-26 — cli: Made `sb build` take SushiRuntime and SushiLog as built packages and pass their config folders to CMake (`library_packages.py`).

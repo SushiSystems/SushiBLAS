@@ -17,8 +17,6 @@
 [tool]
 # target_bin, the executable `sb run` starts with no target, defaults to
 # PROFILE.default_target in sushiblas/config.py. Set it here only to change it.
-# The SushiRuntime sibling. Empty resolves to ../sushiruntime next to this repo.
-sushiruntime_dir = ""
 
 [tool.linux]
 generator = "Ninja"

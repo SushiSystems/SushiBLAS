@@ -12,20 +12,17 @@ built-in defaults -> config.toml -> config.local.toml -> SB_* environment variab
 ```
 
 SushiBLAS is a head of the stack. It consumes the shared SushiStack SYCL toolchain and vcpkg tree
-and provisions neither, and it builds against a live SushiRuntime sibling checkout (D3, layered
-CMake resolution), not a vendored copy. So this module selects no toolchain. Resolving the
+and provisions neither, and it builds against the SushiRuntime, SushiLog and SushiProfiler
+packages the CLI builds or reuses (D3), not a vendored copy. So this module selects no toolchain. Resolving the
 compiler and vcpkg out of the shared tree is the job of `sushicore.stack_config.StackConfig`.
 Locating the project and layering the files is the job of `sushicore.module_config.ModuleConfig`.
-What is left here belongs to SushiBLAS: its identity, and the one sibling it builds against.
+What is left here belongs to SushiBLAS: its identity and the sibling it names for the cache key.
 
 ### PROFILE
 
 `PROFILE` is how SushiBLAS describes itself to the shared machinery. It is stated once and read
 by config loading, the console, executable discovery and diagnostics, so they cannot disagree
 about what this module is.
-
-`SUSHIRUNTIME_DIR` carries no `SB_` prefix. It names the same checkout for every CLI that builds
-against it, so this CLI must read the same variable the others do.
 
 ### ENV_OVERRIDES
 
@@ -38,12 +35,6 @@ keeps that name as an alias of `ENV_OVERRIDES` until sushicore reads the public 
 
 The default run target is `PROFILE.default_target`, and `Config.target_bin` takes its default
 from there. `config.toml` does not repeat it.
-
-### Config.sushiruntime_dir
-
-The field names the SushiRuntime sibling checkout. Empty means `../sushiruntime` relative to the
-project root. SushiCore hands a configured value to the package resolver as the checkout to
-build the SushiRuntime package from.
 
 ### Config.stack_cxx
 

@@ -23,12 +23,14 @@ project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
 # --- Post-project: the dependency packages, the profiler settings, SYCL policy
 option(SB_ENABLE_DISTRIBUTED "Build the cluster module over SushiRuntime's distributed layer" OFF)
-if(SB_ENABLE_DISTRIBUTED)
-    set(SR_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiRuntime's distributed layer" FORCE)
-endif()
 include(SushiBLASSushiLog)  # SushiLog::SushiLog, from the package
 include(Runtime)     # SushiRuntime::SushiRuntime, add_sycl_to_target() and
                       # SushiRuntime_SYCL_TOOLCHAIN, from the package
+if(SB_ENABLE_DISTRIBUTED AND NOT SushiRuntime_DISTRIBUTED)
+    message(FATAL_ERROR
+        "SB_ENABLE_DISTRIBUTED needs a SushiRuntime package built with its distributed module, "
+        "and ${SushiRuntime_DIR} was not. Run `sb build --distributed`, which builds that package.")
+endif()
 
 # SushiProfiler: zones, values and device spans written into a record. Off, every macro of the
 # profile module expands to nothing and the profiling module is not built. The settings reach a

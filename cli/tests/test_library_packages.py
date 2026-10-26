@@ -11,6 +11,11 @@ import os
 import re
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python below 3.11
+    import tomli as tomllib
+
 import pytest
 from sushicore import deps_fragment
 from sushicore.proc import Runner
@@ -27,7 +32,9 @@ pytestmark = pytest.mark.medium
 
 K_RUNTIME_CONFIG = "/store/sushiruntime/abc/prefix/lib/cmake/SushiRuntime"
 K_LOG_CONFIG = "/store/sushilog/def/prefix/lib/cmake/SushiLog"
-K_RUN_DIRS = ["/store/sushiruntime/abc/prefix/lib", "/store/sushilog/def/prefix/lib"]
+K_PROFILER_CONFIG = "/store/sushiprofiler/ghi/prefix/lib/cmake/SushiProfiler"
+K_RUN_DIRS = ["/store/sushiruntime/abc/prefix/lib", "/store/sushilog/def/prefix/lib",
+              "/store/sushiprofiler/ghi/prefix/lib"]
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
@@ -42,15 +49,16 @@ class _Console:
 
 
 class _Packages:
-    """Stands in for the resolved packages of SushiRuntime and SushiLog."""
+    """Stands in for the resolved packages of SushiRuntime, SushiLog and SushiProfiler."""
 
     def names(self) -> list[str]:
         """Returns the library names."""
-        return ["sushilog", "sushiruntime"]
+        return ["sushilog", "sushiprofiler", "sushiruntime"]
 
     def definitions(self) -> list[str]:
         """Returns the config folder definitions."""
-        return [f"-DSushiLog_DIR={K_LOG_CONFIG}", f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}"]
+        return [f"-DSushiLog_DIR={K_LOG_CONFIG}", f"-DSushiProfiler_DIR={K_PROFILER_CONFIG}",
+                f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}"]
 
     def run_dirs(self, platform: str) -> list[str]:
         """Returns the run-time folders."""
@@ -174,8 +182,10 @@ def test_the_configure_passes_each_package_and_no_checkout_directory(parts):
     arguments = driver.configured[0]
     assert f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}" in arguments
     assert f"-DSushiLog_DIR={K_LOG_CONFIG}" in arguments
+    assert f"-DSushiProfiler_DIR={K_PROFILER_CONFIG}" in arguments
     assert not [item for item in arguments
-                if item.startswith(("-DSUSHIRUNTIME_DIR", "-DSUSHILOG_DIR"))]
+                if item.startswith(("-DSUSHIRUNTIME_DIR", "-DSUSHILOG_DIR",
+                                          "-DSUSHIPROFILER_DIR"))]
 
 
 def test_the_run_dirs_lead_the_search_path_of_the_build_and_of_a_later_run(parts):
@@ -270,3 +280,11 @@ def test_the_fragment_names_the_cli():
     fragment = deps_fragment.read(Path(__file__).resolve().parents[1] / "sushistack.deps.toml")
 
     assert fragment.cli == "sb"
+
+
+def test_the_dependency_fragment_names_the_three_libraries_of_the_closure():
+    fragment = tomllib.loads(
+        (Path(__file__).resolve().parents[1] / "sushistack.deps.toml").read_text(encoding="utf-8"))
+
+    assert set(fragment["module"]["depends_on"]) == {"sushiruntime", "sushilog", "sushiprofiler"}
+    assert fragment["sushisystems"]["sushiprofiler"]["version"] == "v0.2.0"
