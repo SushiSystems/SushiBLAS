@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-26 — build: Set `SushiBLAS_DISTRIBUTED` in the package config to whether the cluster module was built, for a consumer to check (`SushiBLASConfig.cmake.in`).
 - 2026-10-26 — build: Found SushiRuntime, SushiLog and SushiProfiler as packages with `find_package`; the add_subdirectory fallbacks, `SUSHIRUNTIME_DIR` and `SUSHILOG_DIR` are gone (`Runtime.cmake`).
 - 2026-10-26 — build: Added the options `SB_ENABLE_PROFILER` (on) and `SB_PROFILE_LEVEL` (2) and the generated `profile_config.hpp` (`CMakeLists.txt`).
 - 2026-10-26 — build: Built the `cost`, `profile` and `profiling` modules and the `device_ceilings` program (`SushiBLASLayers.cmake`).

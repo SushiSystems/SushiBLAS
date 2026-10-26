@@ -40,6 +40,9 @@ if("@SB_ENABLE_PROFILER@")
     endif()
 endif()
 
+# Whether this package was built with the cluster module; a consumer that needs it checks it.
+set(SushiBLAS_DISTRIBUTED "@SB_ENABLE_DISTRIBUTED@")
+
 include("${CMAKE_CURRENT_LIST_DIR}/SushiBLASTargets.cmake")
 
 # A unit that links SushiBLAS::sushiblas and compiles without -fsycl still includes
