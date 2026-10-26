@@ -7,7 +7,7 @@ What the build needs, how to install the toolchain and the CLI, and how to build
 - A SYCL 2020 compiler: the intel-llvm `clang++ -fsycl` that `sb setup` or SushiStack provisions. SushiBLAS selects no toolchain of its own; it builds with the one in the workspace `dependencies/` tree or under `~/.sushisystems`.
 - CMake 3.20 or newer, and 3.22 for the test suite's `gtest_discover_tests`.
 - GoogleTest for the test suite.
-- A SushiRuntime checkout, found by [the layered resolution of section 8](../architecture/RUNTIME_DEPENDENCY.md): a superproject target, an installed `find_package(SushiRuntime)`, or a sibling `../sushiruntime` checkout.
+- The SushiRuntime, SushiLog and SushiProfiler packages, which `sb build` builds or reuses at the versions `cli/sushistack.deps.toml` pins ([section 8 of the architecture](../architecture/RUNTIME_DEPENDENCY.md)).
 - C++17 or later. The library is built at C++17; a C++20 consumer is supported.
 
 ## Installing
@@ -78,11 +78,13 @@ cmake -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_COMPILER=/path/to/clang++ \
   -DCMAKE_C_COMPILER=/path/to/clang \
-  -DSUSHIRUNTIME_DIR=/path/to/sushiruntime
+  -DSushiRuntime_DIR=/path/to/sushiruntime/lib/cmake/SushiRuntime \
+  -DSushiLog_DIR=/path/to/sushilog/lib/cmake/SushiLog \
+  -DSushiProfiler_DIR=/path/to/sushiprofiler/lib/cmake/SushiProfiler
 cmake --build build --config Release
 ```
 
-`CMAKE_C_COMPILER` must point at the toolchain's plain `clang` binary. A `clang++` binary compiles every file as C++ and breaks CMake's C probe; the project declares `LANGUAGES CXX C`. `SUSHIRUNTIME_DIR` is optional; without it the resolution falls back to a sibling `../sushiruntime` checkout or an installed package.
+`CMAKE_C_COMPILER` must point at the toolchain's plain `clang` binary. A `clang++` binary compiles every file as C++ and breaks CMake's C probe; the project declares `LANGUAGES CXX C`. The three `_DIR` variables name the config folders of the installed packages; `sb build` passes them for you. `SushiProfiler_DIR` is needed only with `SB_ENABLE_PROFILER` on, which is the default.
 
 ### Other CLI commands
 

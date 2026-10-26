@@ -15,5 +15,8 @@ sushiblas_add_test_program(
     TESTS
         test_device_policy.cpp
         test_gemm_tile_pin.cpp
+        test_kernel_variant.cpp
+        test_launch_log_category.cpp
+        test_submitted_events.cpp
     DEVICE_TESTS
         test_launch_1d.cpp)

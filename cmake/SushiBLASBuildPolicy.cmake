@@ -11,21 +11,8 @@
 # tests — goes through sushiblas_apply_build_policy() and therefore compiles
 # under identical settings.
 #
-# Named with the full SushiBLAS prefix (not just "BuildPolicy.cmake" like its
-# sushiruntime counterpart) because CMAKE_MODULE_PATH is a flat, shared
-# namespace once D3's sibling add_subdirectory brings sushiruntime's own
-# cmake/ onto the same path list: a same-named file here would shadow (or be
-# shadowed by) sushiruntime's own BuildPolicy.cmake, and whichever
-# `include(BuildPolicy)` call runs second would silently load the wrong
-# file's functions/targets. Discovered the hard way while adding this file:
-# sushiruntime's own build broke with "unknown function
-# sushiruntime_apply_build_policy" the moment a same-named BuildPolicy.cmake
-# existed in sushiblas/cmake/ too. The other three policy files below (and
-# their include() calls) are prefixed for the same reason. Pre-existing,
-# unaffected by this fix: sushiblas/cmake/Vcpkg.cmake shares its name with
-# sushiruntime/cmake/Vcpkg.cmake too, and is exposed to the same shadowing
-# risk — not fixed here since both files' vcpkg-detection logic happens to be
-# idempotent either way, but worth a cross-repo naming pass someday.
+# Named with the full SushiBLAS prefix, as the other policy files are, so the name is one a
+# CMAKE_MODULE_PATH shared with another repository's cmake/ folder cannot shadow.
 #
 # All three targets composed here (sushiblas_warnings, sushiblas_perf,
 # sushiblas_sanitizers) are PRIVATE, in-tree-only policy. Unlike SushiRuntime,

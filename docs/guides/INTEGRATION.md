@@ -69,9 +69,9 @@ sb build
 cmake --install build --prefix /opt/sushiblas
 
 # In your project (CMAKE_PREFIX_PATH names the prefix of SushiBLAS and the
-# prefix of SushiRuntime)
+# prefixes of SushiRuntime, SushiLog and SushiProfiler)
 cmake -S . -B build \
-    -DCMAKE_PREFIX_PATH="/opt/sushiblas;/opt/sushiruntime" \
+    -DCMAKE_PREFIX_PATH="/opt/sushiblas;/opt/sushiruntime;/opt/sushilog;/opt/sushiprofiler" \
     -DCMAKE_CXX_COMPILER=<the same SYCL compiler SushiBLAS was built with>
 ```
 
@@ -86,15 +86,10 @@ target_link_libraries(my_app PRIVATE SushiBLAS::sushiblas)
 SushiBLAS's source tree. It also runs the flag assertion of
 [section 3](#3-what-you-inherit-and-what-you-must-supply).
 
-When SushiBLAS built SushiRuntime as a subdirectory, `cmake --install` on SushiBLAS's build tree
-installs SushiRuntime into the same prefix, and one prefix is enough. `sb test --package`
-installs that way.
-
-### From a sibling checkout
-
-`add_subdirectory(path/to/sushiblas)` gives you the same `SushiBLAS::sushiblas` target. The
-[D3 layered resolution](../architecture/RUNTIME_DEPENDENCY.md) that
-SushiBLAS uses for its SushiRuntime dependency applies one level up in the same way.
+SushiRuntime, SushiLog and SushiProfiler are packages of their own, so the SushiBLAS prefix holds
+SushiBLAS alone and your `CMAKE_PREFIX_PATH` names each package's prefix. The installed
+`SushiBLASConfig.cmake` finds them with `find_dependency` and also defines the header-only targets
+`SushiBLAS::Geometry`, `SushiBLAS::FixedOrderFold` and `SushiBLAS::GraphPrimitives`.
 
 ### Version compatibility
 

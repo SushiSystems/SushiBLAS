@@ -22,7 +22,7 @@
 #   check_cmd      Optional command; exit 0 means "already installed".
 
 [module]
-depends_on = ["sushiruntime", "sushilog"]
+depends_on = ["sushiruntime", "sushilog", "sushiprofiler"]
 # The CLI sushicore runs to build and package this library for a consumer: `sb build --lean`,
 # then `sb package --no-archive`.
 cli = "sb"
@@ -31,5 +31,13 @@ cli = "sb"
 # it directly; the CLI builds or reuses its package at this tag and hands its config folder to
 # CMake.
 [sushisystems.sushilog]
-version = "v0.2.2"
-commit  = "d97bd28f34914f7f47e1b42db6f28bb34d3411df"
+version = "v0.2.3"
+commit  = "5f714a7bca6cad1a49e9a6133e75f0f791dba551"
+
+# SushiProfiler, which the profile and profiling modules write zones, values and device spans to
+# when SB_ENABLE_PROFILER is on. The CLI builds or reuses its package at this commit and hands
+# its config folder to CMake. The v0.2.0 tag is cut after the SushiProfiler build, so the pin
+# names the commit of main that build runs on.
+[sushisystems.sushiprofiler]
+version = "v0.2.0"
+commit  = "f303075857f444a4edd89cfaae598d0847b8899b"

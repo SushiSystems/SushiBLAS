@@ -30,9 +30,8 @@ cmake_minimum_required(VERSION 3.20)
 # because they explain what `sb test --suite package` is doing on your behalf,
 # and what to look at if it ever regresses:
 #
-#   * `cmake --install` from sushiblas's build tree installs SushiRuntime too
-#     (it is an add_subdirectory of this build), so one prefix is enough - there
-#     is no separate sushiruntime install to point at.
+#   * SushiRuntime and SushiLog are packages the CLI built or reused, not part of
+#     this build, so the install prefix holds SushiBLAS alone.
 #   * On Windows the configure must run under the same MSVC environment `sb`
 #     loads for its own builds (vcvars64: INCLUDE, LIB, and a resource compiler
 #     clang-cl's CMake platform module insists on), and the built binary needs

@@ -28,10 +28,16 @@ endif()
 
 # SushiBLAS is a thin head over the runtime: its own kernels depend on
 # SushiRuntime::SushiRuntime being resolvable the same way SushiRuntime's own
-# package config resolves its SYCL dependency. If a superproject already
-# defined the target (D3's TARGET-guard case), this is a no-op.
+# package config resolves its SYCL dependency. If the target already exists, this is a no-op.
 if(NOT TARGET SushiRuntime::SushiRuntime)
-    find_dependency(SushiRuntime)
+    find_dependency(SushiRuntime CONFIG)
+endif()
+
+# The profile and profiling headers include SushiProfiler when the package was built with it.
+if("@SB_ENABLE_PROFILER@")
+    if(NOT TARGET SushiProfiler::SushiProfiler)
+        find_dependency(SushiProfiler CONFIG)
+    endif()
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/SushiBLASTargets.cmake")
@@ -46,5 +52,10 @@ if(_sb_sycl_include_dir)
     target_include_directories(SushiBLAS::sycl_headers SYSTEM INTERFACE "${_sb_sycl_include_dir}")
 endif()
 unset(_sb_sycl_include_dir)
+
+# The header-only modules as targets (SushiBLAS::Geometry, FixedOrderFold, GraphPrimitives), over
+# the installed include folder.
+include("${CMAKE_CURRENT_LIST_DIR}/SushiBLASHeaderModules.cmake")
+sushiblas_declare_header_modules()
 
 check_required_components(SushiBLAS)

@@ -22,9 +22,9 @@ foreach(include_root IN LISTS SB_INSTALLED_INCLUDE_ROOTS)
     target_include_directories(sushiblas PUBLIC "$<BUILD_INTERFACE:${include_root}>")
 endforeach()
 
-# A namespaced alias so an in-tree consumer (add_subdirectory, D3's
-# TARGET-guard/sibling modes) and an out-of-tree one (find_package) spell the
-# dependency identically - mirrors SushiRuntime::SushiRuntime exactly (SB-6).
+# A namespaced alias so an in-tree consumer (add_subdirectory) and an out-of-tree one
+# (find_package) spell the dependency identically - mirrors SushiRuntime::SushiRuntime
+# exactly (SB-6).
 add_library(SushiBLAS::sushiblas ALIAS sushiblas)
 
 # --- Include Directories ---
@@ -46,9 +46,8 @@ sushiblas_apply_logging(sushiblas)
 
 # --- Link Libraries ---
 # Link against dependencies. PUBLIC so consumers (like the app) inherit them.
-# SushiRuntime is always linked via its namespaced alias (D3): whichever of the
-# three resolution modes in cmake/Runtime.cmake fired, the link line here is
-# identical, and it never varies with how the dependency was actually found.
+# SushiRuntime is always linked via its namespaced target, which cmake/Runtime.cmake finds as
+# a package.
 # This is also how SushiBLAS inherits SushiRuntime's `sushiruntime_deterministic_fp`
 # contract transitively - SushiBLAS does not need (or own) a copy of that
 # guarantee, since it links SushiRuntime::SushiRuntime PUBLIC.
@@ -59,6 +58,11 @@ sushiblas_apply_logging(sushiblas)
 target_link_libraries(sushiblas PUBLIC
     SushiRuntime::SushiRuntime
 )
+# The public headers of the profile and profiling modules include SushiProfiler, and the
+# archive holds the profiling module's objects.
+if(SB_ENABLE_PROFILER)
+    target_link_libraries(sushiblas PUBLIC SushiProfiler::SushiProfiler)
+endif()
 
 # --- Properties ---
 # C++17, matching SushiRuntime and the root CMakeLists.txt; see the note there for why

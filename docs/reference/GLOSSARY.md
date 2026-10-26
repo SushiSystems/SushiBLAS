@@ -55,7 +55,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | `sb` | This repository's CLI, also installed as `sushiblas`; see `cli/README.md` |
 | Dependency fragment | `cli/sushistack.deps.toml`, where this module declares what `sb setup` and `hub install` provision for it |
 | D1 | The decision that moved `LinalgOps` and `TransformsOps` out of the `Engine` facade into the quarantine. It is recorded in `sushiai/docs/design/ROADMAP.md` |
-| D3 | The three-step resolution of the SushiRuntime dependency in `cmake/Runtime.cmake`: a superproject target, then `find_package(SushiRuntime)`, then a sibling `add_subdirectory` |
+| D3 | The resolution of the SushiRuntime dependency in `cmake/Runtime.cmake`: `find_package(SushiRuntime CONFIG REQUIRED)` on the package the CLI built or reused |
 | SB-0 to SB-12 | Numbered slices of the SushiBLAS build-out, used in commit subjects and in older documents. SB-6 is the packaging slice. The numbering comes from `sushiai/docs/design/ROADMAP.md` |
 | Cost | `Cost`, what a recorded task states about its work: floating-point operations, bytes and the dtype class they are judged in, or the reason it states none (`cost/cost.hpp`) |
 | Cost table | One row for every operation id the library records, and `cost_of`, which applies the rule of a shape family to a row (`cost/cost_table.hpp`) |

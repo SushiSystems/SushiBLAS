@@ -87,10 +87,9 @@ add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE SushiBLAS::sushiblas)
 ```
 
-`CMAKE_PREFIX_PATH` must name both install prefixes, SushiBLAS's and SushiRuntime's, unless both
-were installed to the same prefix. You must also supply the same SYCL compiler SushiBLAS was
+`CMAKE_PREFIX_PATH` must name the install prefix of SushiBLAS and those of SushiRuntime, SushiLog
+and SushiProfiler, unless they were installed to one prefix. You must also supply the same SYCL compiler SushiBLAS was
 built with, C++17 or later, and SushiRuntime's shared library on the loader path at run time.
-`add_subdirectory(path/to/sushiblas)` gives the same `SushiBLAS::sushiblas` target.
 
 While the project is below 1.0 the package uses `SameMinorVersion` compatibility:
 `find_package(SushiBLAS 0.1 REQUIRED)` accepts 0.1.x and rejects 0.2.0. `tests/package/` in the
@@ -136,9 +135,8 @@ pinned intel-llvm toolchain, 2 207 tests ran and none failed. See
 SushiBLAS owns no execution engine, no scheduler and no memory pool; all three are
 SushiRuntime's. SushiBLAS adds a domain layer on top: the `Tensor` abstraction, the `Engine`
 that owns one graph, the operation views that record tasks on it, and the kernels. It does not vendor
-SushiRuntime. The build looks for it in three places, in order: a target a superproject already
-brought in, an installed package through `find_package(SushiRuntime)`, then a sibling
-`../sushiruntime` checkout. [Section 8 of the architecture](../architecture/RUNTIME_DEPENDENCY.md)
+or build SushiRuntime: the build finds it with `find_package(SushiRuntime CONFIG REQUIRED)` as a
+package the CLI built or reused. [Section 8 of the architecture](../architecture/RUNTIME_DEPENDENCY.md)
 describes the resolution.
 
 SushiStack is the workspace: a folder that holds several module checkouts and one `dependencies/`

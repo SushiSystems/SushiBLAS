@@ -6,6 +6,8 @@
 
 # The foundation tier: what every other module is written in.
 add_subdirectory(core)
+add_subdirectory(cost)
+add_subdirectory(profile)
 add_subdirectory(arithmetic)
 add_subdirectory(launch)
 add_subdirectory(reduction)

@@ -6,11 +6,12 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# SushiBLAS — a head; SushiRuntime is the plugged-in component (the battery).
+# SushiBLAS — a head; SushiRuntime is the plugged-in component (the battery), found as a
+# package the CLI built or reused.
 # Mirrors SushiEngine's own root CMakeLists.txt ordering exactly (both are
 # head modules over the same backbone): Vcpkg + Toolchain run BEFORE
 # project() to shape the toolchain file and pick the default SYCL compiler
-# ahead of project()'s probe; everything else (the runtime dependency, the
+# ahead of project()'s probe; everything else (the dependency packages, the
 # SYCL target policy) runs AFTER. See cmake/ for each stage.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -20,14 +21,30 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 
 project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
-# --- Post-project: runtime dependency (D3 layered resolution, SB-0), SYCL policy
+# --- Post-project: the dependency packages, the profiler settings, SYCL policy
 option(SB_ENABLE_DISTRIBUTED "Build the cluster module over SushiRuntime's distributed layer" OFF)
 if(SB_ENABLE_DISTRIBUTED)
     set(SR_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiRuntime's distributed layer" FORCE)
 endif()
-include(SushiBLASSushiLog)  # SushiLog::SushiLog, before the runtime links it
-include(Runtime)     # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime,
-                      # add_sycl_to_target(), SR_SYCL_TOOLCHAIN
+include(SushiBLASSushiLog)  # SushiLog::SushiLog, from the package
+include(Runtime)     # SushiRuntime::SushiRuntime, add_sycl_to_target() and
+                      # SushiRuntime_SYCL_TOOLCHAIN, from the package
+
+# SushiProfiler: zones, values and device spans written into a record. Off, every macro of the
+# profile module expands to nothing and the profiling module is not built. The settings reach a
+# translation unit through the generated profile_config.hpp, never through a definition.
+option(SB_ENABLE_PROFILER "Report zones, values and device spans to SushiProfiler" ON)
+set(SB_PROFILE_LEVEL 2 CACHE STRING
+    "Deepest zone level compiled in: 0 none, 1 stages, 2 fine zones, 3 per-element zones")
+set_property(CACHE SB_PROFILE_LEVEL PROPERTY STRINGS 0 1 2 3)
+if(NOT SB_PROFILE_LEVEL MATCHES "^[0-3]$")
+    message(FATAL_ERROR "SB_PROFILE_LEVEL must be 0, 1, 2 or 3, not '${SB_PROFILE_LEVEL}'.")
+endif()
+if(SB_ENABLE_PROFILER)
+    # SushiProfiler as a package. The CLI builds or reuses it and passes SushiProfiler_DIR.
+    find_package(SushiProfiler CONFIG REQUIRED)
+    message(STATUS "Found SushiProfiler ${SushiProfiler_VERSION}: ${SushiProfiler_DIR}")
+endif()
 include(SyclTarget)  # the SYCL policy: sushiblas_apply_sycl(), sushiblas_publish_sycl()
 
 # Compile policy. BuildPolicy composes the warning, architecture, and
@@ -122,6 +139,12 @@ include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_applicati
 # libraries and the include roots the others record.
 add_subdirectory(modules)
 
+# The scenario benchmarks measure under SushiProfiler, so they need the option on. Their tests
+# need the profiling headers and build with the tests.
+if(SB_ENABLE_PROFILER AND (SB_BUILD_BENCHMARKS OR SB_BUILD_TESTS))
+    add_subdirectory(applications/benchmarks)
+endif()
+
 option(SB_BUILD_EXAMPLES "Build the example programs under applications/examples/" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_EXAMPLES)
     add_subdirectory(applications/examples)
@@ -129,8 +152,7 @@ endif()
 
 
 # --- Package files (SB-6) ---
-# Written after add_subdirectory(modules) so the sushiblas/SushiRuntime::SushiRuntime
-# targets it references already exist.
+# Written after add_subdirectory(modules) so the sushiblas target it references already exists.
 include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
@@ -149,10 +171,12 @@ write_basic_package_version_file(
 )
 
 # SushiBLASSyclHeaders.cmake goes with them: the Config file calls it to find the SYCL headers
-# beside the consumer's compiler.
+# beside the consumer's compiler. SushiBLASHeaderModules.cmake goes too: the Config file includes
+# it so SushiBLAS::Geometry and the other header-only targets exist for a package consumer.
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/SushiBLASConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/SushiBLASConfigVersion.cmake"
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SushiBLASSyclHeaders.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SushiBLASHeaderModules.cmake"
     DESTINATION "${SB_INSTALL_CMAKEDIR}"
 )

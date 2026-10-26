@@ -6,6 +6,9 @@
 
 # The engine tier: the recorder, the execution mode and what every operation family shares.
 add_subdirectory(engine)
+if(SB_ENABLE_PROFILER)
+    add_subdirectory(profiling)
+endif()
 add_subdirectory(operands)
 add_subdirectory(functor_map)
 if(SB_ENABLE_DISTRIBUTED)

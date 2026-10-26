@@ -1,23 +1,19 @@
 # 8. The SushiRuntime dependency
 
-SushiBLAS does not vendor SushiRuntime. `cmake/Runtime.cmake` resolves it in three steps, the
-pattern the whole stack uses:
+SushiBLAS does not vendor SushiRuntime and does not build it. `cmake/Runtime.cmake` calls
+`find_package(SushiRuntime CONFIG REQUIRED)`: SushiRuntime is a prebuilt package, which `sb build`
+builds or reuses at the version `cli/sushistack.deps.toml` pins and hands to CMake as
+`SushiRuntime_DIR`. SushiLog (`cmake/SushiBLASSushiLog.cmake`) and, with `SB_ENABLE_PROFILER` on,
+SushiProfiler (`CMakeLists.txt`) are found the same way. No dependency is added as a
+subdirectory and no source of one is compiled in this tree.
 
-1. **A target guard.** If a superproject already defines `SushiRuntime::SushiRuntime`, that
-   target is used.
-2. **`find_package(SushiRuntime QUIET)`.** An installed package.
-3. **A sibling `add_subdirectory`.** `../sushiruntime` beside this checkout, or
-   `$SUSHISTACK_HOME/sushiruntime` inside a workspace.
+Every consumer links the same namespaced target, `SushiRuntime::SushiRuntime`. SushiBLAS
+inherits SushiRuntime's `sushiruntime_deterministic_fp` contract through that link. The glossary
+calls the step D3.
 
-Whichever step succeeds, every consumer links the same namespaced target,
-`SushiRuntime::SushiRuntime`. SushiBLAS inherits SushiRuntime's
-`sushiruntime_deterministic_fp` contract through that link. The glossary calls this resolution
-D3.
-
-No step names a version: `find_package(SushiRuntime QUIET)` takes any installed version and the
-sibling step takes the checkout as it is. SushiRuntime is below 1.0.0 and a MINOR release of it
-may break its interface, so the SushiRuntime a build finds has to be the one this tree was
-written against.
+SushiRuntime is below 1.0.0 and a MINOR release of it may break its interface, so the package
+a build finds has to be the one this tree was written against; the pin in
+`cli/sushistack.deps.toml` is what keeps them together.
 
 ## What SushiBLAS uses of it
 

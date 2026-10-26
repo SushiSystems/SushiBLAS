@@ -9,6 +9,7 @@ sushiblas_add_module(
     LAYER engine
     DEPENDS
         core
+        cost
         launch
         reduction
         substitution

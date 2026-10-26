@@ -78,7 +78,7 @@ endif()
 
 # SB_SYCL_INCLUDE_DIR: where <sycl/sycl.hpp> lives, for the units compiled without -fsycl.
 # Found beside the compiler; set it by hand for a toolchain laid out otherwise.
-if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+if(SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
     sushiblas_find_sycl_include_dir(_sb_sycl_include_dir)
     set(SB_SYCL_INCLUDE_DIR "${_sb_sycl_include_dir}" CACHE PATH
         "The SYCL toolchain's include directory, for units compiled without -fsycl.")
@@ -146,7 +146,7 @@ if(NOT TARGET sushiblas_sycl_headers)
     add_library(SushiBLAS::device_code ALIAS sushiblas_device_code)
     set_target_properties(sushiblas_device_code PROPERTIES EXPORT_NAME device_code)
 
-    if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+    if(SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
         target_include_directories(sushiblas_sycl_headers SYSTEM INTERFACE
             "$<BUILD_INTERFACE:${SB_SYCL_INCLUDE_DIR}>")
         target_compile_definitions(sushiblas_sycl_headers INTERFACE
@@ -169,7 +169,7 @@ function(sushiblas_apply_sycl target)
             "sushiblas_apply_sycl(${target}): unexpected argument(s) '${ARG_UNPARSED_ARGUMENTS}'.")
     endif()
 
-    if(NOT SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+    if(NOT SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
         get_target_property(target_sources ${target} SOURCES)
         add_sycl_to_target(TARGET ${target} SOURCES ${target_sources})
         return()
@@ -189,7 +189,7 @@ endfunction()
 #   the archive, and no device compile option. Elsewhere add_sycl_to_target() takes the whole
 #   library.
 function(sushiblas_publish_sycl library)
-    if(NOT SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+    if(NOT SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
         add_sycl_to_target(TARGET ${library})
         return()
     endif()

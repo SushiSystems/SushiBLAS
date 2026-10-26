@@ -22,6 +22,8 @@ set(SUSHIBLAS_LAYER_ORDER
 # Module name, then its tier. A module is added here before its folder is.
 set(SUSHIBLAS_MODULE_LAYERS
     core                foundation
+    cost                foundation
+    profile             foundation
     arithmetic          foundation
     launch              foundation
     reduction           foundation
@@ -51,6 +53,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     blend_kernels       kernels
     packed_product_harness kernels
     engine              engine
+    profiling           engine
     operands            engine
     functor_map         engine
     cluster             engine
@@ -79,6 +82,7 @@ set(SUSHIBLAS_MODULE_LAYERS
 # inside a tier that is not listed here is refused.
 set(SUSHIBLAS_SAME_LAYER_EDGES
     launch              core
+    cost                core
     reduction           arithmetic
     reduction           launch
     reference           core

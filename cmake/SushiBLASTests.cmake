@@ -49,6 +49,13 @@ function(sushiblas_configure_test_target target)
                 "$<TARGET_FILE:SushiLog::SushiLog>"
                 $<TARGET_FILE_DIR:${target}>
             COMMENT "Copying sushiruntime.dll and sushilog.dll to the test directory")
+        if(SB_ENABLE_PROFILER)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:SushiProfiler::SushiProfiler>"
+                    $<TARGET_FILE_DIR:${target}>
+                COMMENT "Copying sushiprofiler.dll to the test directory")
+        endif()
     endif()
 endfunction()
 

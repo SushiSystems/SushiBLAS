@@ -43,6 +43,7 @@ sushiblas_add_module(
         level3/trsm.cpp
     DEPENDS
         core
+        cost
         launch
         tensor
         blas_seam_kernels

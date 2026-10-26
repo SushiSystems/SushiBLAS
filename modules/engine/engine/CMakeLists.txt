@@ -9,11 +9,15 @@ sushiblas_add_module(
     LAYER engine
     SOURCES
         engine.cpp
+        engine_profile.cpp
         operation_options.cpp
     DEPENDS
         core
+        cost
         launch
-        tensor)
+        tensor
+    PRIVATE_DEPENDS
+        profile)
 
 sushiblas_add_test_program(
     MODULE engine
@@ -23,6 +27,7 @@ sushiblas_add_test_program(
         test_late_count_hold.cpp
         test_operand_set.cpp
         test_operation_options.cpp
+        test_profile_hooks.cpp
         test_scratch.cpp
         test_scratch_pool.cpp
         test_scratch_shelf.cpp

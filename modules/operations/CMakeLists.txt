@@ -19,6 +19,12 @@ add_subdirectory(blend)
 add_subdirectory(io)
 add_subdirectory(experimental)
 
+if(SB_BUILD_BENCHMARKS AND NOT SB_ENABLE_PROFILER)
+    message(FATAL_ERROR
+        "SB_BUILD_BENCHMARKS needs SB_ENABLE_PROFILER: the benchmark programs record "
+        "through the profiling module.")
+endif()
+
 if(SB_BUILD_BENCHMARKS)
     add_subdirectory(benchmark_harness)
 endif()

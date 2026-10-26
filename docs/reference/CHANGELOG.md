@@ -6,6 +6,12 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-26 — build: Found SushiRuntime, SushiLog and SushiProfiler as packages with `find_package`; the add_subdirectory fallbacks, `SUSHIRUNTIME_DIR` and `SUSHILOG_DIR` are gone (`Runtime.cmake`).
+- 2026-10-26 — build: Added the options `SB_ENABLE_PROFILER` (on) and `SB_PROFILE_LEVEL` (2) and the generated `profile_config.hpp` (`CMakeLists.txt`).
+- 2026-10-26 — build: Built the `cost`, `profile` and `profiling` modules and the `device_ceilings` program (`SushiBLASLayers.cmake`).
+- 2026-10-26 — build: Installed `SushiBLASHeaderModules.cmake`; the package config defines `SushiBLAS::Geometry` and its two siblings from it (`SushiBLASConfig.cmake.in`).
+- 2026-10-26 — build: Read `SushiRuntime_SYCL_TOOLCHAIN` in place of `SR_SYCL_TOOLCHAIN` (`SyclTarget.cmake`).
+- 2026-10-26 — deps: Pinned SushiProfiler v0.2.0 at its main until the tag is cut, SushiLog v0.2.3 and sushicore 0.9.6 (`sushistack.deps.toml`).
 - 2026-10-26 — cli: Made `sb build` take SushiRuntime and SushiLog as built packages and pass their config folders to CMake (`library_packages.py`).
 - 2026-10-26 — cli: Put the run-time folders of the packages first on the search path of `build`, `test`, `bench` and `run` (`project.py`).
 - 2026-10-26 — cli: Added `sb build --build-dir` and `--lean`, the contract of a consumer's package build (`cli.py`).

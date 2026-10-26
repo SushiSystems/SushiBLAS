@@ -12,6 +12,7 @@ sushiblas_add_module(
     DEPENDS
         arithmetic
         core
+        cost
         geometry
         graph_primitives
         launch
