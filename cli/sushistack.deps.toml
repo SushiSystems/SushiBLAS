@@ -26,6 +26,6 @@ depends_on = ["sushiruntime", "sushilog"]
 
 # SushiLog, the one logger of the process. SushiBLAS's log front includes its headers and links
 # it directly; the CLI resolves this pin and hands it to CMake as SUSHILOG_DIR.
-[sushi.sushilog]
+[sushisystems.sushilog]
 version = "v0.2.2"
 commit  = "d97bd28f34914f7f47e1b42db6f28bb34d3411df"
