@@ -71,6 +71,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.pool_max_backward"_op;
+        description.shape = WindowShape{span.output_elements(), g.kernel_h * g.kernel_w, dy.dtype};
 
         const auto* index_in = static_cast<const int64_t*>(read_indices);
 

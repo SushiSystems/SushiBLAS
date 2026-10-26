@@ -64,6 +64,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = K_IM2COL_NAME;
         description.operation = "spatial.im2col"_op;
+        description.shape = CopyShape{in.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",

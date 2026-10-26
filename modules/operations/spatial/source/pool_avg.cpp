@@ -58,6 +58,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.pool_avg"_op;
+        description.shape = WindowShape{span.output_elements(), g.kernel_h * g.kernel_w, in.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
@@ -100,6 +101,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.pool_avg_backward"_op;
+        description.shape = WindowShape{span.output_elements(), g.kernel_h * g.kernel_w, dy.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, dy.dtype, "Spatial operation",

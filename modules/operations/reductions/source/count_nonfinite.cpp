@@ -54,12 +54,12 @@ namespace SushiBLAS
         class CountNonFiniteDispatch final
         {
             public:
-                /** @brief Submits the fixed-order SYCL count and returns its last event. */
+                /** @brief Submits the fixed-order SYCL count and returns the events of its kernels. */
                 template<typename T>
-                [[nodiscard]] sycl::event operator()(sycl::queue& q, const T* in, int64_t* out,
-                                                     int64_t size,
-                                                     Dispatch::ReductionScratch<int64_t> scratch,
-                                                     const std::vector<sycl::event>& deps) const
+                [[nodiscard]] Device::SubmittedEvents operator()(
+                    sycl::queue& q, const T* in, int64_t* out, int64_t size,
+                    Dispatch::ReductionScratch<int64_t> scratch,
+                    const std::vector<sycl::event>& deps) const
                 {
                     return Reduce::reduce<Reduce::ExactSum>(
                         q, in, out, static_cast<std::size_t>(size), scratch.data,

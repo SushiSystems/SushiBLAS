@@ -30,15 +30,21 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <string_view>
 #include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/cost/cost.hpp>
+#include <SushiBLAS/cost/cost_table.hpp>
+#include <SushiBLAS/engine/profile_hooks.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
@@ -47,6 +53,7 @@
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/api/graph/dispatch_events.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -55,6 +62,43 @@ namespace SushiBLAS
     {
         namespace Detail
         {
+            /**
+             * @brief Returns the runtime's name for the ceiling class of a real dtype.
+             * @return F16 or F32; Unstated for a type the runtime names no class for.
+             */
+            [[nodiscard]] constexpr SushiRuntime::NodeDType node_dtype_of(Core::DataType dtype) noexcept
+            {
+                switch (dtype)
+                {
+                    case Core::DataType::Half:
+                        return SushiRuntime::NodeDType::F16;
+                    case Core::DataType::Float32:
+                        return SushiRuntime::NodeDType::F32;
+                    default:
+                        return SushiRuntime::NodeDType::Unstated;
+                }
+            }
+
+            /** @brief Returns the event of a one-kernel body as it is. */
+            [[nodiscard]] inline sycl::event runtime_events(sycl::event event) noexcept
+            {
+                return event;
+            }
+
+            /**
+             * @brief Tells the runtime about every kernel a body submitted, and returns the last.
+             *
+             * The runtime then times the dispatch from the first kernel's start to the last
+             * kernel's end. Every kernel is ordered behind the one before it, so the last event
+             * completes after all of them.
+             */
+            [[nodiscard]] inline sycl::event runtime_events(const Device::SubmittedEvents& events)
+            {
+                for (const sycl::event& event : events.events())
+                    SushiRuntime::note_dispatch_event(event);
+                return events;
+            }
+
             /** @brief Returns an identity no other TaskRecorder of this process holds; never 0. */
             [[nodiscard]] inline std::uint64_t next_recorder_identity() noexcept
             {
@@ -65,7 +109,8 @@ namespace SushiBLAS
             /**
              * @brief Runs a kernel-pair body with its dispatcher and keeps its operands' storage.
              * @tparam Body Callable `(const KernelPairDispatcher&, sycl::queue&,
-             *         const std::vector<sycl::event>&) -> sycl::event`.
+             *         const std::vector<sycl::event>&)` returning a `sycl::event`, or a
+             *         Device::SubmittedEvents when it submits several kernels.
              */
             template<typename Body>
             class RecordedPairTask
@@ -80,10 +125,13 @@ namespace SushiBLAS
 
                     }
 
-                    /** @brief Runs the body with the dispatcher fixed at record time. */
+                    /**
+                     * @brief Runs the body with the dispatcher fixed at record time.
+                     * @return The event that completes after every kernel the body submitted.
+                     */
                     sycl::event operator()(sycl::queue& q, const std::vector<sycl::event>& deps) const
                     {
-                        return body_(dispatcher_, q, deps);
+                        return runtime_events(body_(dispatcher_, q, deps));
                     }
 
                 private:
@@ -136,6 +184,53 @@ namespace SushiBLAS
     {
         public:
             /**
+             * @brief Keeps a label open on a recorder: every node recorded while it lives carries it
+             *        as its origin.
+             *
+             * A scope opened inside another restores the outer label when it ends. A recorder
+             * that never opens a scope records every node with an empty origin.
+             * @see modules/engine/engine/README.md
+             */
+            class OriginScope final
+            {
+                public:
+                    OriginScope(const OriginScope&) = delete;
+                    OriginScope& operator=(const OriginScope&) = delete;
+                    OriginScope& operator=(OriginScope&&) = delete;
+
+                    /** @brief Takes over the scope of @p other, which then restores nothing. */
+                    OriginScope(OriginScope&& other) noexcept
+                        : recorder_(std::exchange(other.recorder_, nullptr)),
+                          previous_(std::move(other.previous_))
+                    {
+
+                    }
+
+                    /** @brief Restores the label that was current when the scope opened. */
+                    ~OriginScope()
+                    {
+                        if (recorder_ != nullptr)
+                            recorder_->set_origin(std::move(previous_));
+                    }
+
+                private:
+                    friend class TaskRecorder;
+
+                    /** @brief Holds the recorder to restore and the label it had. */
+                    OriginScope(TaskRecorder& recorder, std::string previous) noexcept
+                        : recorder_(&recorder), previous_(std::move(previous))
+                    {
+
+                    }
+
+                    /// @brief The recorder whose label the scope restores; null after a move.
+                    TaskRecorder* recorder_;
+
+                    /// @brief The label the recorder had before the scope opened.
+                    std::string previous_;
+            };
+
+            /**
              * @brief Binds the recorder to the graph recorder it records on, the pool its tasks
              *        lease from and the hold its late-count tasks are kept in.
              * @param recorder Receives every task; it must outlive this recorder.
@@ -166,6 +261,19 @@ namespace SushiBLAS
              */
             void set_mode(ExecutionMode mode) noexcept { mode_ = mode; }
 
+            /**
+             * @brief Opens a scope in which every recorded node carries @p label as its origin.
+             * @pre No thread is inside run_exclusive() of this recorder.
+             * @return A scope to keep for as long as the label applies.
+             */
+            [[nodiscard]] OriginScope origin(std::string_view label)
+            {
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
+                std::string previous = std::move(origin_);
+                origin_.assign(label);
+                return OriginScope(*this, std::move(previous));
+            }
+
             /** @brief Returns the pool recorded tasks lease their device scratch from. */
             [[nodiscard]] ScratchPool& scratch_pool() const noexcept
             {
@@ -192,9 +300,8 @@ namespace SushiBLAS
 
             /**
              * @brief Records a task whose body runs a reference and SYCL kernel pair.
-             * @param body Callable `(const KernelPairDispatcher&, sycl::queue&,
-             *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
-             *        than once, and ordering its work behind the events it is given.
+             * @param body Callable `(const KernelPairDispatcher&, sycl::queue&, const
+             *        std::vector<sycl::event>&)` returning a `sycl::event`, or SubmittedEvents.
              * @throws UnsupportedExecution for a device-only tensor under ForceReference, and
              *         std::runtime_error when the runtime refuses; no task is recorded.
              */
@@ -234,8 +341,8 @@ namespace SushiBLAS
 
                 require_host_reachable(operands, family, description.name);
                 LateCount late = late_counts_->borrow(operands, count);
-                const TaskHandle handle = insert(
-                    description,
+                const TaskHandle handle = insert_node(
+                    description, Cost::uncosted(UncostedReason::DataDependent),
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
                         recorder.dynamic_kernel(
@@ -274,19 +381,20 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Records one task under the name, the operation and the parameters of
-             *        description.
-             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` that returns
-             *        the event ending its work.
-             * @throws std::runtime_error with the runtime's message when the graph recorder
-             *         refuses the recording; the next run returns the same refusal.
+             * @brief Records one task under the name, operation and parameters of description.
+             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` returning the
+             *        event that ends its work.
+             * @note The cost is the table's cost for the operation and shape plus the bytes.
+             * @throws std::runtime_error with the runtime's message when the recorder refuses.
              */
             template<typename Work>
             TaskHandle insert(const TaskDescription& description,
                               const OperandSet& operands, Work&& work)
             {
-                return insert(
+                return insert_node(
                     description,
+                    cost_of(description.operation, description.shape)
+                        .with_bytes(operands.declared_bytes()),
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
                         recorder.task(access_of(operands), std::forward<Work>(work), options);
@@ -294,14 +402,16 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Records one node under the name, the operation, the determinism and the
-             *        parameters of description.
+             * @brief Records one node under the name, the operation, the determinism, the
+             *        parameters and the cost.
+             * @param cost What the node states about its work; an uncosted cost states none.
              * @param record Callable `(SushiRuntime::Recorder&, const SushiRuntime::NodeOptions&)`
              *        that adds exactly one node.
              * @throws std::runtime_error as the overload above.
              */
             template<typename Record>
-            TaskHandle insert(const TaskDescription& description, Record&& record)
+            TaskHandle insert_node(const TaskDescription& description, const Cost& cost,
+                                   Record&& record)
             {
                 static_assert(TaskDescription::K_MAX_PARAMETERS <=
                                   SushiRuntime::NodeOptions::K_MAX_PARAMETERS,
@@ -313,20 +423,41 @@ namespace SushiBLAS
                 options.determinism = description.determinism;
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
                     description.parameters, TaskDescription::K_MAX_PARAMETERS);
-
-                // The count before, the recording and the sequence number are one step.
-                const std::lock_guard<std::mutex> lock(recording_mutex_);
-                const std::size_t recorded_before = recorder_->node_count();
-                std::forward<Record>(record)(*recorder_, options);
-                if (recorder_->node_count() == recorded_before)
+                if (cost.is_costed())
                 {
-                    const SushiRuntime::Error* refusal = recorder_->refusal();
-                    SB_THROW_IF(true, "{}: the runtime refused the recording: {}",
-                                description.name,
-                                refusal != nullptr ? refusal->message.c_str() : "no reason kept");
+                    SushiRuntime::NodeCost node_cost;
+                    node_cost.flops = cost.flops;
+                    node_cost.bytes = cost.bytes;
+                    node_cost.dtype = node_dtype_of(cost.dtype);
+                    options.cost = node_cost;
                 }
 
-                return TaskHandle(identity_, next_sequence_++);
+                std::uint64_t sequence = 0;
+                Internal::in_recording(recording_mutex_, [&]
+                {
+                    // The count before, the recording and the sequence number are one step.
+                    options.origin = origin_;
+                    const std::size_t recorded_before = recorder_->node_count();
+                    std::forward<Record>(record)(*recorder_, options);
+                    if (recorder_->node_count() == recorded_before)
+                    {
+                        const SushiRuntime::Error* refusal = recorder_->refusal();
+                        SB_THROW_IF(true, "{}: the runtime refused the recording: {}",
+                                    description.name,
+                                    refusal != nullptr ? refusal->message.c_str()
+                                                       : "no reason kept");
+                    }
+                    sequence = next_sequence_++;
+                });
+
+                return TaskHandle(identity_, sequence);
+            }
+
+            /** @brief Sets the label recorded nodes carry; the end of an OriginScope calls it. */
+            void set_origin(std::string label)
+            {
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
+                origin_ = std::move(label);
             }
 
             /**
@@ -367,7 +498,10 @@ namespace SushiBLAS
             /// @brief The sequence number the next recorded task takes; guarded by recording_mutex_.
             std::uint64_t next_sequence_ = 0;
 
-            /// @brief Serialises every use of recorder_ and next_sequence_.
+            /// @brief The origin every node recorded now carries; empty when no scope is open; guarded by recording_mutex_.
+            std::string origin_;
+
+            /// @brief Serialises every use of recorder_, next_sequence_ and origin_.
             std::mutex recording_mutex_;
     };
 } // namespace SushiBLAS

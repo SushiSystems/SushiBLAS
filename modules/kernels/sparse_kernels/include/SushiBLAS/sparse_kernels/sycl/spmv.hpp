@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -56,16 +57,13 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T, typename Index>
-            [[nodiscard]] sycl::event spmv(sycl::queue& queue, Core::Transpose trans,
+            [[nodiscard]] Device::SubmittedEvents spmv(sycl::queue& queue, Core::Transpose trans,
                                            CsrPattern<Index> pattern, const T* values, T alpha,
                                            const T* x, int64_t incx, T beta, T* y, int64_t incy,
                                            Accumulator<T>* partials, std::size_t blocks,
                                            const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-
-                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPARSE SPMV: {}x{}, {} entries", pattern.rows, pattern.cols,
-                            pattern.nnz);
 
                 if (!Core::is_transposed(trans))
                 {
@@ -123,8 +121,10 @@ namespace SushiBLAS
                     });
                 });
 
-                return Detail::fold_blocks<T>(queue, scattered, outputs, used_blocks, partials,
-                                              alpha, beta, y, incy);
+                Device::SubmittedEvents submitted{std::vector<sycl::event>{scattered}};
+                submitted.append(Detail::fold_blocks<T>(queue, scattered, outputs, used_blocks,
+                                                        partials, alpha, beta, y, incy));
+                return submitted;
             }
         } // namespace SYCL
     } // namespace Kernels

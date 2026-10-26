@@ -72,9 +72,9 @@ namespace SushiBLAS
         class ArgReductionDispatch final
         {
             public:
-                /** @brief Submits the reduction and returns its event. */
+                /** @brief Submits the reduction and returns the events of its kernels. */
                 template<typename T>
-                [[nodiscard]] sycl::event operator()(
+                [[nodiscard]] Device::SubmittedEvents operator()(
                     sycl::queue& q, const T* in, int64_t* out, int64_t size,
                     ReductionScratch<Reduce::IndexedValue<T>> scratch,
                     const std::vector<sycl::event>& deps) const

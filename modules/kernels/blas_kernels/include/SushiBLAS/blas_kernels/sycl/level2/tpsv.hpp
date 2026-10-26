@@ -30,6 +30,7 @@
 #include <vector>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
@@ -52,15 +53,13 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event tpsv(sycl::queue& queue, const TriangularSolvePlan& plan,
+            [[nodiscard]] Device::SubmittedEvents tpsv(sycl::queue& queue, const TriangularSolvePlan& plan,
                                            Core::Layout layout, Core::Uplo uplo,
                                            Core::Transpose trans, Core::Diag diag,
                                            int64_t n, const T* ap, T* x, int64_t incx,
                                            Accumulator<T>* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TPSV: {}x{} block={}", n, n, plan.block_width(n));
-
                 const PackedAccess access = packed_access(layout, uplo, trans, n);
                 const bool unit_diag = (diag == Core::Diag::Unit);
                 return Detail::triangular_solve(queue, plan, access, access.is_upper(), unit_diag,
@@ -73,7 +72,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event tpsv(sycl::queue& queue, Core::Layout layout,
+            [[nodiscard]] Device::SubmittedEvents tpsv(sycl::queue& queue, Core::Layout layout,
                                            Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
                                            int64_t n, const T* ap, T* x, int64_t incx,
                                            Accumulator<T>* work,

@@ -160,8 +160,6 @@ namespace SushiBLAS
                 const int64_t row_groups = Detail::group_count(n, block_m);
                 const int64_t col_groups = Detail::group_count(n, block_n);
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR2K [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
-
                 const sycl::range<3> global(static_cast<std::size_t>(batch_size),
                                             static_cast<std::size_t>(row_groups * wg_rows),
                                             static_cast<std::size_t>(col_groups * wg_cols));

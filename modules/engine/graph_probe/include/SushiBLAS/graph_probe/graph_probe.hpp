@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -62,6 +63,12 @@ namespace SushiBLAS
 
             /** @brief The regions the task declared as written, in the order given. */
             std::vector<SushiRuntime::BufferRegion> writes;
+
+            /** @brief What the task stated about its work; empty when it stated none. */
+            std::optional<SushiRuntime::NodeCost> cost;
+
+            /** @brief The origin the task was recorded under; empty when no scope was open. */
+            std::string origin;
         };
 
         /**
@@ -126,7 +133,8 @@ namespace SushiBLAS
                         tasks.push_back(RecordedTask{std::move(node.name), node.operation,
                                                      node.predecessor_count,
                                                      std::move(node.reads),
-                                                     std::move(node.writes)});
+                                                     std::move(node.writes), node.cost,
+                                                     std::string(node.origin)});
                     }
                     return tasks;
                 }

@@ -69,6 +69,7 @@ namespace
                           DataType dtype, int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "random");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
@@ -111,6 +112,7 @@ namespace
                               DataType dtype, int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "random");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
@@ -128,7 +130,7 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "random");
 
         const Bench::ResultTable table("Melem/s");
         for (const DataType dtype : K_DTYPES)

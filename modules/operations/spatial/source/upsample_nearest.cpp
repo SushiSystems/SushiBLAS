@@ -107,6 +107,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.upsample_nearest"_op;
+        description.shape = CopyShape{in.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
@@ -154,6 +155,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.upsample_nearest_backward"_op;
+        description.shape = ElementwiseShape{dy.num_elements, dy.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, dy.dtype, "Spatial operation",

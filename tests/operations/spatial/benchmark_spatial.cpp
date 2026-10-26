@@ -114,6 +114,7 @@ namespace
                            DataType dtype, int64_t side)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "spatial");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;
@@ -185,6 +186,7 @@ namespace
                           DataType dtype, int64_t side)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "spatial");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;
@@ -252,7 +254,7 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "spatial");
         std::printf("batch:         %lld images of %lld channels\n\n",
                     static_cast<long long>(K_BATCH), static_cast<long long>(K_CHANNELS));
 

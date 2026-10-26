@@ -61,8 +61,6 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SPR2: {}x{}", n, n);
-
                 const PackedAccess access =
                     packed_access(layout, uplo, Core::Transpose::NoTrans, n);
 

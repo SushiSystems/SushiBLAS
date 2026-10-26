@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
 
 namespace SushiBLAS
@@ -169,25 +170,28 @@ namespace SushiBLAS
                 /**
                  * @brief Orthonormalises a strided set of vectors in place and scales them by @p gain.
                  * @tparam T The real element type, float or double.
-                 * @return The event of the last submitted kernel.
+                 * @return The events of every submitted kernel, in order.
                  * @see kernels/README.md
                  */
                 template<typename T>
-                [[nodiscard]] inline sycl::event orthonormalize(sycl::queue& q, const std::vector<sycl::event>& deps,
-                                                                T* p, const VectorSet& set, T gain)
+                [[nodiscard]] inline Device::SubmittedEvents orthonormalize(sycl::queue& q, const std::vector<sycl::event>& deps,
+                                                                            T* p, const VectorSet& set, T gain)
                 {
                     const std::size_t group = Detail::ortho_group_size(q);
                     std::vector<sycl::event> chain = deps;
+                    Device::SubmittedEvents submitted;
 
                     for (int sweep = 0; sweep < K_ORTHONORMAL_SWEEPS; ++sweep)
                     {
                         for (int64_t i = 0; i + 1 < set.count; ++i)
                         {
                             chain = {Detail::project_step(q, chain, p, set, i, group)};
+                            submitted.append(chain.front());
                         }
                     }
 
-                    return Detail::normalize_step(q, chain, p, set, gain, group);
+                    submitted.append(Detail::normalize_step(q, chain, p, set, gain, group));
+                    return submitted;
                 }
 
             } // namespace Random

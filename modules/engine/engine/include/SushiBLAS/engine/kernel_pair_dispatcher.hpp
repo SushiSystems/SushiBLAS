@@ -29,6 +29,7 @@
 
 #include <vector>
 #include <utility>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 
@@ -50,18 +51,23 @@ namespace SushiBLAS
             /**
              * @brief Runs reference_fn on the host under ForceReference, else sycl_fn.
              * @param reference_fn Callable `() -> void` running the reference kernel.
-             * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
-             * @return The submitted event, or an empty one under ForceReference.
+             * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&)` returning
+             *        the `sycl::event` of its one kernel, or Device::SubmittedEvents when it
+             *        submits several.
+             * @return What sycl_fn returns, or an empty value of its type under ForceReference.
              */
             template<typename ReferenceFn, typename SYCLFn>
-            sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,
-                            ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
+            auto run(sycl::queue& q, const std::vector<sycl::event>& deps,
+                     ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
             {
+                using Result = std::decay_t<
+                    std::invoke_result_t<SYCLFn&&, sycl::queue&, const std::vector<sycl::event>&>>;
+
                 if (mode_ == ExecutionMode::ForceReference)
                 {
                     sycl::event::wait(deps);
                     std::forward<ReferenceFn>(reference_fn)();
-                    return sycl::event();
+                    return Result();
                 }
 
                 return std::forward<SYCLFn>(sycl_fn)(q, deps);

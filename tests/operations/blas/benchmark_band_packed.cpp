@@ -74,6 +74,7 @@ namespace
                          DataType dtype, int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "band_packed");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::BLASOps blas(recorder);
 
@@ -183,7 +184,7 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "band_packed");
 
         const Bench::ResultTable table("Melem/s");
         for (const DataType dtype : K_DTYPES)

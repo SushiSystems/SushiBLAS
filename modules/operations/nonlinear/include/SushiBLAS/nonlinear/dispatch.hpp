@@ -83,6 +83,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{t.num_elements, t.dtype};
             set_task_params(description, params, name);
 
             void* ptr = t.data();
@@ -141,6 +142,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{dx.num_elements, x.dtype};
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Nonlinear operation",

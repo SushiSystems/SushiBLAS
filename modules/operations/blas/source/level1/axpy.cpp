@@ -56,7 +56,8 @@ namespace SushiBLAS
         operands.reads(x).updates(y);
 
         const Internal::BLASMetadata metadata =
-            Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
+            Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha)
+                .shape(ElementwiseShape{vx.length, x.dtype});
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

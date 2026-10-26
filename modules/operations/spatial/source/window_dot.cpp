@@ -72,6 +72,8 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.window_dot"_op;
+        description.shape = ConvolutionShape{span.batch, span.out_h, span.out_w, span.channels, span.channels,
+                                          span.channels, g.kernel_h, g.kernel_w, in.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
@@ -133,6 +135,8 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.window_dot_backward"_op;
+        description.shape = ConvolutionShape{span.batch, span.out_h, span.out_w, span.channels, span.channels,
+                                          span.channels, g.kernel_h, g.kernel_w, dy.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, dy.dtype, "Spatial operation",

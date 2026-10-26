@@ -44,6 +44,7 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
@@ -462,18 +463,19 @@ namespace SushiBLAS
                 values[i] = 1.0f;
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             reduce(graph.recorder(), values, total, K_COUNT, Sum<float>{}).value();
             EXPECT_EQ(graph.recorder().rule_count(), 1u) << "the levels of one call are one rule";
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), expected_widths.size());
+            ASSERT_EQ(events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
             {
-                EXPECT_EQ(report.node_events[i].launched_width, expected_widths[i])
+                EXPECT_EQ(events[i].launched_width, expected_widths[i])
                     << "level " << i;
-                EXPECT_EQ(report.node_events[i].live_width, expected_widths[i]) << "level " << i;
+                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "level " << i;
             }
             EXPECT_EQ(total[0], static_cast<float>(K_COUNT));
         }
@@ -487,14 +489,15 @@ namespace SushiBLAS
             total[0] = -1.0f;
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             reduce(graph.recorder(), values, total, std::size_t{0}, Sum<float>{}).value();
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), 1u);
-            EXPECT_EQ(report.node_events[0].launched_width, 1u);
-            EXPECT_EQ(report.node_events[0].live_width, 1u);
+            ASSERT_EQ(events.size(), 1u);
+            EXPECT_EQ(events[0].launched_width, 1u);
+            EXPECT_EQ(events[0].live_width, 1u);
             EXPECT_EQ(total[0], 0.0f);
         }
 

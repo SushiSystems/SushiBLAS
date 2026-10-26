@@ -71,7 +71,9 @@ namespace SushiBLAS
                 recorder, x, static_cast<std::size_t>(n),
                 Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-            const Internal::BLASMetadata metadata(op, op_id);
+            const Internal::BLASMetadata metadata =
+                Internal::BLASMetadata(op, op_id).shape(
+                    ReductionShape{n, 1, x.dtype});
 
             const int64_t incx = vx.increment;
             const int64_t incy = vy.increment;
@@ -81,7 +83,7 @@ namespace SushiBLAS
 
             return Internal::execute_blas_task(recorder, metadata.get(), operands, x.dtype,
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -94,7 +96,7 @@ namespace SushiBLAS
                         {
                             Kernels::Reference::dot<T, Policy>(n, pX, incx, pY, incy, pR);
                         },
-                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> Device::SubmittedEvents
                         {
                             return Kernels::SYCL::dot<T, Policy>(q2, n, pX, incx, pY, incy, pR,
                                                                  scratch.data(), scratch.bytes(),

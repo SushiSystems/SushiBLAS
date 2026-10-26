@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <vector>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
@@ -123,7 +124,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event trmv(sycl::queue& queue, std::size_t group_width,
+            [[nodiscard]] Device::SubmittedEvents trmv(sycl::queue& queue, std::size_t group_width,
                                            Core::Layout layout, Core::Uplo uplo,
                                            Core::Transpose trans, Core::Diag diag,
                                            int64_t n, const T* a, int64_t lda, T* x, int64_t incx,
@@ -139,15 +140,14 @@ namespace SushiBLAS
                 const Detail::TrmvStore<T> store{x, incx};
                 const std::size_t rows = static_cast<std::size_t>(n);
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TRMV: {}x{} group_width={}", n, n, group_width);
-
                 const sycl::event copied = queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
                     Launch::indexed(h, queue, rows, snapshot);
                 });
 
-                return queue.submit([&](sycl::handler& h)
+                Device::SubmittedEvents submitted{std::vector<sycl::event>{copied}};
+                submitted.append(queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(copied);
                     if (group_width != 0)
@@ -155,7 +155,8 @@ namespace SushiBLAS
                                                                store);
                     else
                         Launch::indexed(h, queue, rows, Detail::TrmvRow<T>{term, columns, store});
-                });
+                }));
+                return submitted;
             }
 
             /**
@@ -165,7 +166,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event trmv(sycl::queue& queue, Core::Layout layout, Core::Uplo uplo,
+            [[nodiscard]] Device::SubmittedEvents trmv(sycl::queue& queue, Core::Layout layout, Core::Uplo uplo,
                                            Core::Transpose trans, Core::Diag diag,
                                            int64_t n, const T* a, int64_t lda, T* x, int64_t incx,
                                            T* work, const std::vector<sycl::event>& deps)

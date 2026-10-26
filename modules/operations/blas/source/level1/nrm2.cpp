@@ -61,7 +61,9 @@ namespace SushiBLAS
             recorder_, x, static_cast<std::size_t>(n) * (Core::is_complex_dtype(x.dtype) ? 2 : 1),
             Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-        const Internal::BLASMetadata metadata(op, "blas.lvl1.nrm2"_op);
+        const Internal::BLASMetadata metadata =
+            Internal::BLASMetadata(op, "blas.lvl1.nrm2"_op).shape(
+                ReductionShape{n, 1, x.dtype});
 
         const int64_t incx = vx.increment;
         const void* read_x = x.data_or_null();
@@ -69,7 +71,7 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
                 using T = decltype(scalar_type);
                 using Real = Kernels::RealType<T>;
@@ -81,7 +83,7 @@ namespace SushiBLAS
                     {
                         Kernels::Reference::nrm2<T>(n, pX, incx, pR);
                     },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> Device::SubmittedEvents
                     {
                         return Kernels::SYCL::nrm2<T>(q2, n, pX, incx, pR, scratch.data(),
                                                       scratch.bytes(), deps2);

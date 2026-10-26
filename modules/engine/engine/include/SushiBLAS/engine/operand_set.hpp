@@ -30,6 +30,7 @@
 #include <array>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
 #include <algorithm>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
@@ -181,6 +182,23 @@ namespace SushiBLAS
             write_regions() const noexcept
             {
                 return writes_;
+            }
+
+            /**
+             * @brief Returns the bytes the declared regions span, an updated region counted twice.
+             *
+             * A K_WHOLE region adds nothing. A lower bound of the traffic for dense operands; for
+             * a strided view the span of the view, with no guaranteed direction.
+             * @see modules/foundation/cost/README.md
+             */
+            [[nodiscard]] std::uint64_t declared_bytes() const noexcept
+            {
+                std::uint64_t total = 0;
+                for (const SushiRuntime::BufferRegion& region : reads_)
+                    total += region.length == SushiRuntime::BufferRegion::K_WHOLE ? 0U : region.length;
+                for (const SushiRuntime::BufferRegion& region : writes_)
+                    total += region.length == SushiRuntime::BufferRegion::K_WHOLE ? 0U : region.length;
+                return total;
             }
 
             /** @brief Returns the storages the recorded task holds a reference to. */

@@ -124,8 +124,6 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY, "{} '{}': {} indices", family_,
-                                     name_, n_);
 
                         return pair.run(q, deps,
                             [this]
@@ -194,9 +192,6 @@ namespace SushiBLAS
                         SB_THROW_IF(static_cast<std::size_t>(live) > capacity_,
                                     "Index operation '{}': the late count {} is outside [0, {}]",
                                     name_, live, capacity_);
-                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY,
-                                     "Index operation '{}': {} of {} indices", name_, live,
-                                     capacity_);
                         Serial::indexed(static_cast<std::size_t>(live), fn_);
                     }
 

@@ -12,7 +12,7 @@ included as `<SushiBLAS/operands/<name>.hpp>`.
 | `argument_check.hpp` | The record-time checks on the flags, scalars and routine domain of a BLAS call |
 | `matrix_operand.hpp` | MatrixOperand, the batch and matrix geometry of one dense matrix operand of a BLAS call |
 | `scalar.hpp` | BLASScalar, the real or complex scalar argument of a BLAS call |
-| `blas_metadata.hpp` | BLASMetadata, which fills a BLAS task's metadata slots in one fixed order |
+| `blas_metadata.hpp` | BLASMetadata, which fills a BLAS task's metadata slots in one fixed order and states its cost shape |
 | `scalar_result.hpp` | The dtype and the shape check of a scalar result |
 | `scratch_lease.hpp` | The helpers that size and lease the device scratch of a task |
 | `vector_operand.hpp` | VectorOperand, the length and increment of one vector operand of a BLAS call |

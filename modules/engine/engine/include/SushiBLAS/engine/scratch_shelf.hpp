@@ -34,6 +34,7 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <SushiBLAS/engine/profile_hooks.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -141,30 +142,9 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] ScratchBlock* take(std::size_t bytes, std::size_t device_index)
                 {
-                    const std::size_t size_class = scratch_class_of(bytes);
-
-                    if (size_class != K_SCRATCH_UNPOOLED && device_index < idle_.size())
-                    {
-                        const std::lock_guard<std::mutex> lock(guard_);
-                        auto& idle = idle_[device_index][size_class];
-                        if (!idle.empty())
-                        {
-                            ScratchBlock* block = idle.back().release();
-                            idle.pop_back();
-                            return block;
-                        }
-                    }
-
-                    const std::size_t capacity = size_class == K_SCRATCH_UNPOOLED
-                                                     ? bytes
-                                                     : scratch_class_bytes(size_class);
-
-                    auto block = std::make_unique<ScratchBlock>();
-                    block->storage = SushiRuntime::make_sushi<Storage>(
-                        *runtime_, capacity, SushiRuntime::Residency::Device, device_index);
-                    block->device_index = device_index;
-                    block->size_class = size_class;
-                    return block.release();
+                    ScratchBlock* taken = nullptr;
+                    Internal::in_scratch_lease([&] { taken = lease_block(bytes, device_index); });
+                    return taken;
                 }
 
                 /**
@@ -184,6 +164,24 @@ namespace SushiBLAS
                     // The list was reserved to its ceiling, so this push_back cannot allocate.
                     if (idle.size() < K_SCRATCH_IDLE_BLOCKS_PER_CLASS)
                         idle.push_back(std::move(owned));
+                }
+
+                /** @brief Returns how many leases an idle block answered since the shelf was made. */
+                [[nodiscard]] std::uint64_t pool_hits() const noexcept
+                {
+                    return pool_hits_.load(std::memory_order_relaxed);
+                }
+
+                /** @brief Returns how many pooled leases found their class empty and allocated. */
+                [[nodiscard]] std::uint64_t pool_misses() const noexcept
+                {
+                    return pool_misses_.load(std::memory_order_relaxed);
+                }
+
+                /** @brief Returns how many leases were above the pooled size and allocated and freed each time. */
+                [[nodiscard]] std::uint64_t unpooled_leases() const noexcept
+                {
+                    return unpooled_leases_.load(std::memory_order_relaxed);
                 }
 
                 /** @brief Returns how many blocks sit idle across every device and class. */
@@ -228,6 +226,57 @@ namespace SushiBLAS
 
                 /// @brief The idle blocks, indexed by device queue and then by size class.
                 std::vector<ClassLists> idle_;
+
+                /// @brief Hands out an idle block of the size class, or allocates one; take times it.
+                [[nodiscard]] ScratchBlock* lease_block(std::size_t bytes, std::size_t device_index)
+                {
+                    const std::size_t size_class = scratch_class_of(bytes);
+
+                    if (size_class != K_SCRATCH_UNPOOLED && device_index < idle_.size())
+                    {
+                        const std::lock_guard<std::mutex> lock(guard_);
+                        auto& idle = idle_[device_index][size_class];
+                        if (!idle.empty())
+                        {
+                            ScratchBlock* block = idle.back().release();
+                            idle.pop_back();
+                            pool_hits_.fetch_add(1, std::memory_order_relaxed);
+                            Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolHit);
+                            return block;
+                        }
+                    }
+
+                    if (size_class == K_SCRATCH_UNPOOLED)
+                    {
+                        unpooled_leases_.fetch_add(1, std::memory_order_relaxed);
+                        Internal::count_scratch_lease(Internal::ScratchLeaseKind::Unpooled);
+                    }
+                    else
+                    {
+                        pool_misses_.fetch_add(1, std::memory_order_relaxed);
+                        Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolMiss);
+                    }
+
+                    const std::size_t capacity = size_class == K_SCRATCH_UNPOOLED
+                                                     ? bytes
+                                                     : scratch_class_bytes(size_class);
+
+                    auto block = std::make_unique<ScratchBlock>();
+                    block->storage = SushiRuntime::make_sushi<Storage>(
+                        *runtime_, capacity, SushiRuntime::Residency::Device, device_index);
+                    block->device_index = device_index;
+                    block->size_class = size_class;
+                    return block.release();
+                }
+
+                /// @brief How many leases an idle block answered.
+                std::atomic<std::uint64_t> pool_hits_{0};
+
+                /// @brief How many pooled leases found their class empty.
+                std::atomic<std::uint64_t> pool_misses_{0};
+
+                /// @brief How many leases were above the pooled size.
+                std::atomic<std::uint64_t> unpooled_leases_{0};
         };
     } // namespace Detail
 } // namespace SushiBLAS

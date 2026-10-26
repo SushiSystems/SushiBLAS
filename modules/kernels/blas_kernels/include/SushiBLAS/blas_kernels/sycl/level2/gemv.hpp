@@ -64,8 +64,6 @@ namespace SushiBLAS
                 const int64_t out_len = transposed ? n : m;
                 const int64_t in_len = transposed ? m : n;
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GEMV: {}x{}", m, n);
-
                 const Device::Profile& profile = Device::profile_for(queue);
                 const bool row_contiguous = (layout == Core::Layout::RowMajor) != transposed;
 

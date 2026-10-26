@@ -143,7 +143,7 @@ namespace SushiBLAS
             SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
             if (!named)
                 return named;
-            Detail::NodeStamper stamper(options);
+            Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
             Detail::ElementSpan<T> value_span;
             Detail::ElementSpan<std::uint32_t> offset_span;
@@ -198,7 +198,7 @@ namespace SushiBLAS
             SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
             if (!named)
                 return named;
-            Detail::NodeStamper stamper(options);
+            Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
             const std::size_t capacity = segment_count.capacity();
             Detail::ElementSpan<T> value_span;

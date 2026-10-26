@@ -43,6 +43,7 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include "device_sized_harness.hpp"
@@ -303,16 +304,17 @@ namespace SushiBLAS
             auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8).value();
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             segmented_reduce(graph.recorder(), values, offsets, out, K_SEGMENTS,
                              Sum<std::uint32_t>{}).value();
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), 1u);
-            EXPECT_EQ(report.node_events[0].launched_width,
+            ASSERT_EQ(events.size(), 1u);
+            EXPECT_EQ(events[0].launched_width,
                       static_cast<std::uint32_t>(K_SEGMENTS));
-            EXPECT_EQ(report.node_events[0].live_width, static_cast<std::uint32_t>(K_SEGMENTS));
+            EXPECT_EQ(events[0].live_width, static_cast<std::uint32_t>(K_SEGMENTS));
             for (std::size_t s = 0; s < K_SEGMENTS; ++s)
                 EXPECT_EQ(out[s], 1u) << "segment " << s;
         }
@@ -335,19 +337,20 @@ namespace SushiBLAS
             auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8).value();
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             segmented_reduce(graph.recorder(), values, offsets, out, LateCount::fixed(K_SEGMENTS),
                              Sum<std::uint32_t>{}).value();
             EXPECT_EQ(graph.recorder().rule_count(), 1u) << "both nodes of one call are one rule";
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), expected_widths.size());
+            ASSERT_EQ(events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
             {
-                EXPECT_EQ(report.node_events[i].launched_width, expected_widths[i])
+                EXPECT_EQ(events[i].launched_width, expected_widths[i])
                     << "node " << i;
-                EXPECT_EQ(report.node_events[i].live_width, expected_widths[i]) << "node " << i;
+                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "node " << i;
             }
             for (std::size_t s = 0; s < K_SEGMENTS; ++s)
                 EXPECT_EQ(out[s], 1u) << "segment " << s;

@@ -52,13 +52,20 @@ namespace SushiBLAS
             /**
              * @brief Calls a task body with a value of the element type its dtype names.
              * @tparam Func Callable `(T, const KernelPairDispatcher&, sycl::queue&,
-             *         const std::vector<sycl::event>&) -> sycl::event` for each T in Dom.
+             *         const std::vector<sycl::event>&)` for each T in Dom, returning one result
+             *         type for all of them: a `sycl::event`, or Device::SubmittedEvents when the
+             *         body submits several kernels.
              * @see modules/engine/engine/README.md
              */
             template<Dispatch::Domain Dom, typename Func>
             class TypedTaskBody
             {
                 public:
+                    /// @brief What the body returns: the event of its kernel, or the events of all of them.
+                    using Result = std::decay_t<std::invoke_result_t<
+                        const Func&, float, const KernelPairDispatcher&, sycl::queue&,
+                        const std::vector<sycl::event>&>>;
+
                     /**
                      * @brief Holds everything the body needs at execute time.
                      * @param family Stored, not copied; must outlive the task.
@@ -75,8 +82,8 @@ namespace SushiBLAS
                      * @brief Runs the body for the recorded dtype.
                      * @throws std::runtime_error if dtype falls outside Dom.
                      */
-                    sycl::event operator()(const KernelPairDispatcher& dispatcher, sycl::queue& q,
-                                           const std::vector<sycl::event>& deps) const
+                    Result operator()(const KernelPairDispatcher& dispatcher, sycl::queue& q,
+                                      const std::vector<sycl::event>& deps) const
                     {
                         // The arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
                         switch (dtype_)
@@ -110,7 +117,7 @@ namespace SushiBLAS
                         // The switch ends in a throw, so a dtype that slips past require_domain cannot no-op; see modules/engine/engine/README.md.
                         SB_THROW_IF(true, "{} '{}' does not support dtype {}.",
                                     family_, name_, Core::to_string(dtype_));
-                        return sycl::event();
+                        return Result();
                     }
 
                 private:

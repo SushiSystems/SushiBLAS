@@ -83,11 +83,9 @@ namespace SushiBLAS
         return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, ptr, set, gain, name]
             (const KernelPairDispatcher& pair, sycl::queue& q,
-             const std::vector<sycl::event>& deps) -> sycl::event
+             const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
-                SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: {} ({} vectors of length {}, gain: {})", name, set.count, set.length, gain);
-
-                sycl::event done;
+                Device::SubmittedEvents done;
                 Dispatch::with_element_type<Dispatch::Domain::Real>(dtype, "RNG operation", name, [&](auto tag)
                 {
                     using T = typename decltype(tag)::type;
@@ -106,7 +104,8 @@ namespace SushiBLAS
                                 Kernels::Reference::Random::orthonormalize(vectors, set, scale);
                             },
                             [vectors, set, scale](sycl::queue& q2,
-                                                  const std::vector<sycl::event>& deps2) -> sycl::event
+                                                  const std::vector<sycl::event>& deps2)
+                                -> Device::SubmittedEvents
                             {
                                 return Kernels::SYCL::Random::orthonormalize(q2, deps2, vectors,
                                                                              set, scale);

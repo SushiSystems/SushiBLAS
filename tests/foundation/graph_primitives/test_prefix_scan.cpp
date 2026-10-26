@@ -42,6 +42,7 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
+#include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include "device_sized_harness.hpp"
@@ -243,19 +244,20 @@ namespace SushiBLAS
                 counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             prefix_scan(graph.recorder(), counts, offsets, total,
                         LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
             EXPECT_EQ(graph.recorder().node_count(), K_EXPECTED_PASSES);
             EXPECT_EQ(graph.recorder().rule_count(), 1u);
 
-            const auto report = graph.run(K_STEPS).value();
+            graph.run(K_STEPS).value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), K_EXPECTED_PASSES * K_STEPS);
+            ASSERT_EQ(events.size(), K_EXPECTED_PASSES * K_STEPS);
 
-            const std::uint32_t node_index = report.node_events.front().node_index;
+            const std::uint32_t node_index = events.front().node_index;
             std::vector<std::size_t> per_invocation(K_STEPS, 0);
-            for (const auto& record : report.node_events)
+            for (const auto& record : events)
             {
                 EXPECT_EQ(record.node_index, node_index)
                     << "every pass of one prefix_scan() call must share one node_index";
@@ -280,18 +282,19 @@ namespace SushiBLAS
                 counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             prefix_scan(graph.recorder(), counts, offsets, total,
                         LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), expected_widths.size());
+            ASSERT_EQ(events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
             {
-                EXPECT_EQ(report.node_events[i].launched_width, expected_widths[i])
+                EXPECT_EQ(events[i].launched_width, expected_widths[i])
                     << "pass " << i;
-                EXPECT_EQ(report.node_events[i].live_width, expected_widths[i]) << "pass " << i;
+                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "pass " << i;
             }
         }
 

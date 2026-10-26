@@ -58,6 +58,7 @@ namespace
                     int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n, n}, dtype);
@@ -90,6 +91,7 @@ namespace
                              const DeepShape& shape)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.k, shape.m}, dtype);
@@ -119,6 +121,7 @@ namespace
                                 const DeepShape& shape)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.m, shape.k}, dtype);
@@ -144,7 +147,7 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "gemm");
 
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)

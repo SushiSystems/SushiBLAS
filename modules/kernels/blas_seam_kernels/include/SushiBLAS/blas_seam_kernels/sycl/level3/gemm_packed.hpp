@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/kernel_variant.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_seam_kernels/blas_seam_kernels_log_category.hpp>
@@ -127,10 +128,7 @@ namespace SushiBLAS
                     int64_t batch_size, void* scratch,
                     const std::vector<sycl::event>& deps, Epilogue epilogue)
                 {
-                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [packed]: batch={} {}x{}x{} block={}x{}x{} blocks={} "
-                                "workers={} scratch={}B",
-                                batch_size, m, n, k, plan.block_rows, plan.block_cols,
-                                plan.block_depth, plan.blocks, plan.workers, plan.scratch_bytes);
+                    Device::note_kernel_variant(Device::KernelVariant::GemmPacked);
 
                     const GemmStore<T, Epilogue> store(alpha, beta, c_access, epilogue);
 

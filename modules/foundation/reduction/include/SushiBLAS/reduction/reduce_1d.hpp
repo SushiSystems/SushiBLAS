@@ -36,6 +36,7 @@
 #include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 
 namespace SushiBLAS
@@ -752,10 +753,9 @@ namespace SushiBLAS
          */
         template<template<typename> class Accum, typename W, typename Out,
                  typename Read, typename Finalize>
-        [[nodiscard]] sycl::event reduce_indexed(sycl::queue& queue, const Plan& geometry,
-                                                 std::size_t n, Read read, Out* out, W* partials,
-                                                 Finalize finalize,
-                                                 const std::vector<sycl::event>& deps)
+        [[nodiscard]] Device::SubmittedEvents reduce_indexed(
+            sycl::queue& queue, const Plan& geometry, std::size_t n, Read read, Out* out,
+            W* partials, Finalize finalize, const std::vector<sycl::event>& deps)
         {
             if (geometry.sequential())
             {
@@ -812,7 +812,8 @@ namespace SushiBLAS
                 });
             });
 
-            return queue.submit([&](sycl::handler& h)
+            Device::SubmittedEvents submitted{std::vector<sycl::event>{staged}};
+            submitted.append(queue.submit([&](sycl::handler& h)
             {
                 h.depends_on(staged);
                 h.single_task([=]()
@@ -823,22 +824,22 @@ namespace SushiBLAS
                         acc.accumulate(partials[g]);
                     *out = static_cast<Out>(finalize(acc.value(), n));
                 });
-            });
+            }));
+            return submitted;
         }
 
         /**
          * @brief Reduces indices `[0..n)` to `*out` in the geometry the queue's device plans.
          * @param partials Scratch for one W per work-group; may be null when partial_capacity is zero.
-         * @return The event for the last submitted kernel.
+         * @return The events of every kernel submitted: one for the sequential shape, two for the staged one.
          * @see modules/foundation/reduction/README.md
          */
         template<template<typename> class Accum, typename W, typename Out,
                  typename Read, typename Finalize>
-        [[nodiscard]] sycl::event reduce_indexed(sycl::queue& queue, std::size_t n, Read read,
-                                                 Out* out, W* partials,
-                                                 std::size_t partial_capacity,
-                                                 Finalize finalize,
-                                                 const std::vector<sycl::event>& deps)
+        [[nodiscard]] Device::SubmittedEvents reduce_indexed(
+            sycl::queue& queue, std::size_t n, Read read, Out* out, W* partials,
+            std::size_t partial_capacity, Finalize finalize,
+            const std::vector<sycl::event>& deps)
         {
             return reduce_indexed<Accum>(queue,
                                          plan(Device::profile_for(queue), n, partial_capacity),
@@ -854,10 +855,10 @@ namespace SushiBLAS
          */
         template<template<typename> class Accum, typename T, typename A,
                  typename Transform, typename Finalize>
-        [[nodiscard]] sycl::event reduce(sycl::queue& queue, const Plan& geometry, const T* in,
-                                         A* out, std::size_t n, AccumulationOf<A>* partials,
-                                         Transform transform, Finalize finalize,
-                                         const std::vector<sycl::event>& deps)
+        [[nodiscard]] Device::SubmittedEvents reduce(
+            sycl::queue& queue, const Plan& geometry, const T* in, A* out, std::size_t n,
+            AccumulationOf<A>* partials, Transform transform, Finalize finalize,
+            const std::vector<sycl::event>& deps)
         {
             using W = AccumulationOf<A>;
 
@@ -870,16 +871,15 @@ namespace SushiBLAS
          * @brief Reduces `in[0..n)` to `*out` in the geometry the queue's device plans.
          * @param partials Scratch for one AccumulationOf<A> per work-group; may be null when
          *        partial_capacity is zero.
-         * @return The event for the last submitted kernel.
+         * @return The events of every kernel submitted: one for the sequential shape, two for the staged one.
          * @see modules/foundation/reduction/README.md
          */
         template<template<typename> class Accum, typename T, typename A,
                  typename Transform, typename Finalize>
-        [[nodiscard]] sycl::event reduce(sycl::queue& queue, const T* in, A* out,
-                                         std::size_t n, AccumulationOf<A>* partials,
-                                         std::size_t partial_capacity,
-                                         Transform transform, Finalize finalize,
-                                         const std::vector<sycl::event>& deps)
+        [[nodiscard]] Device::SubmittedEvents reduce(
+            sycl::queue& queue, const T* in, A* out, std::size_t n, AccumulationOf<A>* partials,
+            std::size_t partial_capacity, Transform transform, Finalize finalize,
+            const std::vector<sycl::event>& deps)
         {
             return reduce<Accum>(queue, plan(Device::profile_for(queue), n, partial_capacity),
                                  in, out, n, partials, transform, finalize, deps);

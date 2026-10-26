@@ -58,8 +58,6 @@ namespace SushiBLAS
                 [out, value, size](const KernelPairDispatcher& pair, sycl::queue& q,
                                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: constant ({} elements)", size);
-
                     const std::size_t count = static_cast<std::size_t>(size);
                     return pair.run(q, deps,
                         [out, value, count] { std::fill_n(out, count, value); },

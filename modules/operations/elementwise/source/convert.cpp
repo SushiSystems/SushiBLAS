@@ -92,8 +92,6 @@ namespace SushiBLAS
                 [count, convert](const KernelPairDispatcher& pair, sycl::queue& q,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_TRACE(K_ELEMENTWISE_LOG_CATEGORY, "Elementwise convert: {} elements", count);
-
                     return pair.run(q, deps,
                         [count, convert] { Serial::indexed(count, convert); },
                         [count, convert](sycl::queue& q2,
@@ -183,6 +181,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = K_NAME;
         description.operation = "math.ew.convert"_op;
+        description.shape = CopyShape{src.dtype};
 
         // The outer switch picks the source type; see modules/operations/README.md.
         switch (src.dtype)

@@ -57,7 +57,6 @@ namespace SushiBLAS
                             T* a, int64_t lda, const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GER: {}x{}", m, n);
 
                 return queue.submit([&](sycl::handler& h)
                 {

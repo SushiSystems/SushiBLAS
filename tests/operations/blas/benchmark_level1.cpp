@@ -66,6 +66,7 @@ namespace
                           DataType dtype, int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "level1");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
@@ -128,7 +129,7 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "level1");
 
         const Bench::ResultTable table("GB/s");
         for (const DataType dtype : K_DTYPES)

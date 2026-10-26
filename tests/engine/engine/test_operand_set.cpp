@@ -111,5 +111,24 @@ namespace SushiBLAS
             EXPECT_EQ(first.write_regions().size(), std::size_t{1});
             EXPECT_EQ(first.retained().size(), std::size_t{2});
         }
+
+        TEST_F(Medium_OperandSet, DeclaredBytesCountAnUpdatedRegionTwice)
+        {
+            const Tensor a = engine->create_tensor({4});
+            const Tensor b = engine->create_tensor({4});
+            const Tensor c = engine->create_tensor({4});
+            OperandSet operands;
+
+            operands.reads(a).writes(b).updates(c);
+
+            EXPECT_EQ(operands.declared_bytes(), std::uint64_t{4 * sizeof(float) * 4});
+        }
+
+        TEST_F(Medium_OperandSet, DeclaredBytesOfAnEmptySetIsZero)
+        {
+            const OperandSet operands;
+
+            EXPECT_EQ(operands.declared_bytes(), std::uint64_t{0});
+        }
     } // namespace Test
 } // namespace SushiBLAS

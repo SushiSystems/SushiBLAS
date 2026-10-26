@@ -8,6 +8,8 @@ It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `
 | File | Declares |
 | --- | --- |
 | `test_environment.hpp` | `TestEnvironment`, the runtime the tests share |
+| `run_observer_capture.hpp` | `RunObserverCapture`, which keeps the dispatch records of the runs of a runtime |
+| `log_capture.hpp` | `LogCapture`, which keeps the records SushiBLAS writes while a test runs |
 
 `source/test_main.cpp` holds the `main` of a program with a `Medium_` or `Large_` suite:
 synchronous logging, the environment, then `RUN_ALL_TESTS`. `source/small_test_main.cpp` holds
@@ -24,3 +26,5 @@ runtime's `advanced()` view.
 
 `live_allocation_count()` returns how many USM allocations of the runtime are live; the lifetime
 tests count with it. It forwards to `AdvancedControls::live_allocation_count()`.
+
+`RunObserverCapture` adds a `RunObserver` to a runtime and turns device timing on. A test that asserts the widths a dispatch launched over reads `records()` after the run; `clear()` forgets the runs so far. `LogCapture` switches SushiLog to synchronous delivery, keeps every record at every level and restores stderr and the default level when it ends. It stands in for the shipped capture sink SushiLog's backlog describes.

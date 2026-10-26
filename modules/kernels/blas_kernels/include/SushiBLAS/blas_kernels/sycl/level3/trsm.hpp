@@ -32,6 +32,7 @@
 #include <vector>
 #include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
@@ -252,11 +253,11 @@ namespace SushiBLAS
              *        the blocks a plan gives.
              * @param work `batch_size * m * n` elements under K_NEEDS_WORKSPACE, else never read.
              * @pre When work is read, B has no padding: its last element is element m * n - 1.
-             * @return The event of the last launch; every launch is ordered behind deps.
+             * @return The events of every launch, in order; every launch is ordered behind deps.
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event trsm(sycl::queue& queue, const TriangularSolvePlan& plan,
+            [[nodiscard]] Device::SubmittedEvents trsm(sycl::queue& queue, const TriangularSolvePlan& plan,
                                            Core::Layout layout, Core::Side side, Core::Uplo uplo,
                                            Core::Transpose trans, Core::Diag diag,
                                            int64_t m, int64_t n, T alpha,
@@ -276,12 +277,10 @@ namespace SushiBLAS
                               system.unknown.index(system.order - 1, system.vectors - 1) < m * n,
                           "SYCL TRSM workspace cannot follow a padded B");
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TRSM: batch={} m={} n={} block={} blocks={}", batch_size, m, n,
-                            width, blocks);
-
                 Detail::TriangularBlock<T> block{system, a, str_a, b, str_b, work, alpha,
                                                  0, 0, false};
                 sycl::event previous;
+                Device::SubmittedEvents submitted;
 
                 for (int64_t pass = 0; pass < blocks; ++pass)
                 {
@@ -300,6 +299,7 @@ namespace SushiBLAS
                         Launch::indexed(h, queue, streams, solve);
                     });
                     previous = solved;
+                    submitted.append(solved);
 
                     const int64_t trailing_first = system.forward ? block.last : 0;
                     const int64_t trailing_count = system.forward ? system.order - block.last
@@ -316,9 +316,10 @@ namespace SushiBLAS
                         h.depends_on(solved);
                         Launch::indexed(h, queue, elements, update);
                     });
+                    submitted.append(previous);
                 }
 
-                return previous;
+                return submitted;
             }
 
             /**
@@ -330,7 +331,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event trsm(sycl::queue& queue, Core::Layout layout,
+            [[nodiscard]] Device::SubmittedEvents trsm(sycl::queue& queue, Core::Layout layout,
                                            Core::Side side, Core::Uplo uplo, Core::Transpose trans,
                                            Core::Diag diag, int64_t m, int64_t n, T alpha,
                                            const T* a, int64_t lda, int64_t str_a,

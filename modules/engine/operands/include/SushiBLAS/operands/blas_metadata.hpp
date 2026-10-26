@@ -31,6 +31,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/operands/operands_log_category.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
+#include <SushiBLAS/cost/cost_shape.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -78,6 +79,13 @@ namespace SushiBLAS
                 BLASMetadata& extent(int64_t value) noexcept
                 {
                     push(value);
+                    return *this;
+                }
+
+                /** @brief Sets the shape facts the cost rule of the operation reads. */
+                BLASMetadata& shape(const CostShape& facts) noexcept
+                {
+                    description_.shape = facts;
                     return *this;
                 }
 

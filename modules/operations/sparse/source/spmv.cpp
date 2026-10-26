@@ -100,7 +100,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
                     const Kernels::CsrPattern<Index> pattern{
@@ -119,7 +119,7 @@ namespace SushiBLAS
                             Kernels::Reference::spmv<T, Index>(trans, pattern, pv, alpha_t, px,
                                                                incx, beta_t, py, incy);
                         },
-                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> Device::SubmittedEvents
                         {
                             return Kernels::SYCL::spmv<T, Index>(q2, trans, pattern, pv, alpha_t,
                                                                  px, incx, beta_t, py, incy,

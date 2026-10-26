@@ -87,6 +87,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{result.num_elements, x.dtype};
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Logic operation",
@@ -142,6 +143,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{result.num_elements, A.dtype};
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Logic operation",
@@ -203,6 +205,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{result.num_elements, cond.dtype};
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Logic operation",

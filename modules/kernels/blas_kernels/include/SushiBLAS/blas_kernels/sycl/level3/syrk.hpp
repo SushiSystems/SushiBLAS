@@ -220,10 +220,6 @@ namespace SushiBLAS
                     OperandAccess second = a_access.transposed();
                     second.conjugated = (a_access.conjugated != std::is_same_v<Conj, Conjugated>);
 
-                    SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYRK [packed]: batch={} {}x{} k={} block={}x{}x{} workers={}",
-                                batch_size, n, n, k, packed.block_rows, packed.block_cols,
-                                packed.block_depth, packed.workers);
-
                     return Detail::packed_product<T>(
                         queue, packed, n, n, k, a, a_access, str_a, a, second, str_a,
                         c, str_c, scratch, deps,
@@ -239,8 +235,6 @@ namespace SushiBLAS
 
                 const int64_t n_tiles_m = (n + block_m - 1) / block_m;
                 const int64_t n_tiles_n = (n + block_n - 1) / block_n;
-
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYRK [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
 
                 sycl::range<3> global(static_cast<size_t>(batch_size),
                                        static_cast<size_t>(n_tiles_m * wg_rows),

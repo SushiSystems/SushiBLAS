@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/substitution/running_solution.hpp>
@@ -214,11 +215,11 @@ namespace SushiBLAS
                  * @tparam Access BandAccess or PackedAccess of op(A).
                  * @param reach Later rows one solved row is subtracted from, at most.
                  * @param work (n - 1) * incx + 1 elements if RunningSolution<T> needs them.
-                 * @return The event of the last launch; every launch is ordered behind deps.
+                 * @return The events of every launch, in order; every launch is ordered behind deps.
                  * @see kernels/README.md
                  */
                 template<typename T, typename Access>
-                [[nodiscard]] sycl::event triangular_solve(sycl::queue& queue,
+                [[nodiscard]] Device::SubmittedEvents triangular_solve(sycl::queue& queue,
                                                            const TriangularSolvePlan& plan,
                                                            const Access& access, bool op_upper,
                                                            bool unit_diag, int64_t n, int64_t reach,
@@ -233,6 +234,7 @@ namespace SushiBLAS
                     VectorSolveBlock<T, Access> block{access, a, x, incx, work, n, 0, 0, forward,
                                                       unit_diag};
                     std::vector<sycl::event> previous = deps;
+                    Device::SubmittedEvents submitted;
 
                     if (RunningSolution<T>::K_NEEDS_WORKSPACE)
                     {
@@ -244,6 +246,7 @@ namespace SushiBLAS
                             Launch::indexed(h, queue, rows, open);
                         });
                         previous.assign(1, opened);
+                        submitted.append(opened);
                     }
 
                     sycl::event last;
@@ -260,6 +263,7 @@ namespace SushiBLAS
                             h.single_task(steps);
                         });
                         previous.assign(1, last);
+                        submitted.append(last);
 
                         const int64_t remaining = forward ? n - block.last : block.first;
                         const int64_t trailing = std::min(remaining, reach);
@@ -275,9 +279,10 @@ namespace SushiBLAS
                             Launch::indexed(h, queue, rows, update);
                         });
                         previous.assign(1, last);
+                        submitted.append(last);
                     }
 
-                    return last;
+                    return submitted;
                 }
             } // namespace Detail
         } // namespace SYCL

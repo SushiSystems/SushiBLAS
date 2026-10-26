@@ -10,6 +10,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | File | Declares |
 | --- | --- |
 | `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in SushiBLAS |
+| `profile_hooks.hpp` | `in_recording`, `in_scratch_lease`, `count_scratch_lease` and `install_profile_hooks`, the zones and counters of the recorder and the scratch shelf, declared with no profiler header |
 | `late_count_hold.hpp` | `LateCountHold`, which keeps the storages of late-count tasks for as long as the owner of their recording keeps it |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
@@ -343,6 +344,16 @@ The callable stored in the graph. It holds the body, the dispatcher and one refe
 distinct storage the task declared, so an operand's allocation stays alive until the graph drops
 the task even if the caller's `Tensor` is destroyed first.
 
+### Cost, origin and the events of a body
+
+`insert_node` states the node's cost: `cost_of(operation, shape)` from [`cost`](../../foundation/cost/README.md), plus `OperandSet::declared_bytes()`, as `NodeOptions::cost`; a task with no stated cost carries none. `record_late_pair` always states none, because its width is read on the device at run time (`DataDependent`).
+
+`origin(label)` returns an `OriginScope`. Every node recorded on this recorder while the scope lives gets `NodeOptions::origin` equal to the label, and the spans of those nodes name it. Scopes nest, and a scope that ends restores the label that was open when it began. The recorder holds the label as a string under its recording mutex, so it must not be called from inside `run_exclusive`.
+
+`record_pair` takes a body that returns a `sycl::event`, or a `Device::SubmittedEvents` when it submits several kernels. In the second case the recorder calls `SushiRuntime::note_dispatch_event` for each event and returns the last, so the runtime times the whole body.
+
+`insert_node` runs its recording through `Internal::in_recording`, which is the zone `blas.record` and takes the recording mutex with a recorded wait when it was contended. The function is defined in `engine_profile.cpp`, so `task_recorder.hpp` includes no profiler header; with the profiler off the zone and the wait compile out of that one file.
+
 ## `task_handle.hpp`
 
 `TaskHandle` names one task a recorder recorded, or none. It holds the recorder's identity, a
@@ -370,6 +381,8 @@ the operation, the determinism, and all eight slots as the node's parameters. Th
 slots, so `name` has to outlive the record call only as far as the runtime is concerned; a seam
 that keeps the pointer for its own diagnostics, as `execute_typed_task` does, needs it for the
 life of the task, and every operation passes a string literal.
+
+`shape` holds the facts the cost rule of the operation reads, as one of the structs of [`cost_shape.hpp`](../../foundation/cost/README.md). A description that states none has an empty shape, and its task states no cost.
 
 ## `operation_options.hpp`
 
@@ -402,6 +415,8 @@ Holds one reference per distinct `Storage`. The first six sit in an inline array
 spills to a `std::vector`, so the common task allocates nothing for it. Retaining a storage twice
 holds it once.
 
+`declared_bytes()` is the sum of the lengths of the read and the write regions, so an updated operand counts twice and a region with no length of its own counts nothing. It is the byte count of a task's cost: a lower bound of the traffic for a dense operand, and the span of the view for a strided one.
+
 ## `kernel_pair_dispatcher.hpp`
 
 `KernelPairDispatcher` holds the execution mode the recorder had when the task was
@@ -409,6 +424,8 @@ recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Un
 `ForceReference` it waits on the dependencies, calls `reference_fn` on the calling thread and
 returns an empty event; under `Auto` and `ForceSYCL` it returns what `sycl_fn(q, deps)` returns.
 It is the one place the two branches are written.
+
+`run` returns what its SYCL function returns: a `sycl::event`, or a `Device::SubmittedEvents` for a function that submits several kernels. Under `ForceReference` it returns an empty value of that type.
 
 ## `rng_stream.hpp`
 
@@ -463,6 +480,8 @@ rest. The idle lists are reserved to that ceiling when the shelf is built, so re
 never allocates. One `std::mutex` guards the lists; it is taken at record time and when a task
 is destroyed, never inside a kernel.
 
+`take` counts each lease as a pool hit, a pool miss or an unpooled lease (`pool_hits()`, `pool_misses()`, `unpooled_leases()`), and adds the same counts to SushiProfiler as the counters `blas.scratch.pool_hit`, `blas.scratch.pool_miss` and `blas.scratch.unpooled`. A lease is the zone `blas.scratch.lease`; the zone and the counters go through `profile_hooks.hpp`, so `scratch_shelf.hpp` includes no profiler header.
+
 ## `task.hpp`
 
 This is `blas/blas_task.hpp`'s `execute_blas_task` with the one thing that was BLAS-specific
@@ -516,6 +535,8 @@ The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practi
 a silent no-op gets in, so it ends in a throw rather than in a default return.
 
 `Detail::TypedTaskBody::operator()` throws `std::runtime_error` from that last statement.
+
+`TypedTaskBody` returns the type its function returns for every dtype: a `sycl::event`, or a `Device::SubmittedEvents`. The recorded function must return one type for all of them.
 
 ## Designs
 

@@ -139,27 +139,29 @@ namespace SushiBLAS
         {
             public:
                 /**
-                 * @brief Submits both stages and returns the event of the second.
+                 * @brief Submits both stages and returns the events of every kernel of both.
                  * @pre scratch.capacity is at least 1: one centre, then the partials of both stages.
                  */
                 template<typename T, typename W>
-                [[nodiscard]] sycl::event operator()(sycl::queue& q, const T* in, T* out,
-                                                     int64_t size, ReductionScratch<W> scratch,
-                                                     const std::vector<sycl::event>& deps) const
+                [[nodiscard]] Device::SubmittedEvents operator()(
+                    sycl::queue& q, const T* in, T* out, int64_t size,
+                    ReductionScratch<W> scratch, const std::vector<sycl::event>& deps) const
                 {
                     const std::size_t n = static_cast<std::size_t>(size);
                     W* centre = scratch.data;
                     W* partials = scratch.data + 1;
                     const std::size_t capacity = scratch.capacity - 1;
 
-                    const sycl::event centred = Reduce::reduce<CentreAccum>(
+                    Device::SubmittedEvents submitted = Reduce::reduce<CentreAccum>(
                         q, in, centre, n, partials, capacity,
                         ReduceIdentityTransform{}, CentreFinalize{}, deps);
+                    const sycl::event centred = submitted;
 
-                    return Reduce::reduce<Reduce::CompensatedSum>(
+                    submitted.append(Reduce::reduce<Reduce::CompensatedSum>(
                         q, in, out, n, partials, capacity,
                         Term<W>{centre}, Finalize<W>{centre},
-                        std::vector<sycl::event>{centred});
+                        std::vector<sycl::event>{centred}));
+                    return submitted;
                 }
 
                 /** @brief Runs both stages as serial host folds, the centre held in the type stage two sums in. */

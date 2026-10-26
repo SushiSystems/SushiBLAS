@@ -37,6 +37,7 @@
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/blas_kernels/reference/level1/level1.hpp>
 
@@ -225,7 +226,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event asum(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
+            [[nodiscard]] Device::SubmittedEvents asum(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
                 using R = typename Reference::RealOf<T>::type;
                 using W = Reduce::AccumulationOf<R>;
@@ -243,7 +244,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
+            [[nodiscard]] Device::SubmittedEvents nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
                 using R = typename Reference::RealOf<T>::type;
                 using W = Reduce::AccumulationOf<R>;
@@ -272,10 +273,11 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T, typename Conj = Unconjugated>
-            [[nodiscard]] sycl::event dot(sycl::queue& queue, int64_t n, const T* x, int64_t incx,
-                                          const T* y, int64_t incy, T* result, void* scratch,
-                                          std::size_t scratch_bytes,
-                                          const std::vector<sycl::event>& deps)
+            [[nodiscard]] Device::SubmittedEvents dot(sycl::queue& queue, int64_t n, const T* x,
+                                                      int64_t incx, const T* y, int64_t incy,
+                                                      T* result, void* scratch,
+                                                      std::size_t scratch_bytes,
+                                                      const std::vector<sycl::event>& deps)
             {
                 using W = Reduce::AccumulationOf<T>;
 
@@ -304,7 +306,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event iamax(sycl::queue& queue, int64_t n, const T* x, int64_t incx, int64_t* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
+            [[nodiscard]] Device::SubmittedEvents iamax(sycl::queue& queue, int64_t n, const T* x, int64_t incx, int64_t* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
                 using R = typename Reference::RealOf<T>::type;
                 using P = Reduce::IndexedValue<R>;

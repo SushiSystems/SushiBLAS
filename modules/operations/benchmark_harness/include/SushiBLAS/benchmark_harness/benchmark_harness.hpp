@@ -42,6 +42,10 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/io/io.hpp>
+#include <SushiBLAS/profile/profile.hpp>
+#if SB_ENABLE_PROFILER
+#include <SushiBLAS/benchmark_harness/profile_session.hpp>
+#endif
 #include <SushiBLAS/recording_graph/recording_graph.hpp>
 
 /// @brief Holds the helpers shared by the benchmark programs.
@@ -143,6 +147,22 @@ namespace SushiBLAS::Bench
                     K_TIMED_ITERATIONS);
     }
 
+    /**
+     * @brief Prints the environment as above, then starts the program's SushiProfiler record when
+     *        the SB_BENCH_PROFILE variable names a folder.
+     * @param scenario The program's name; the record is `<scenario>.sprec.json` in that folder.
+     */
+    inline void print_environment(Engine& engine, const char* scenario)
+    {
+        print_environment(engine);
+#if SB_ENABLE_PROFILER
+        if (ProfileSession::start_from_environment(engine.runtime(), scenario) != nullptr)
+            std::printf("profile:       recording to %s\n\n", std::getenv(K_PROFILE_FOLDER_VARIABLE));
+#else
+        static_cast<void>(scenario);
+#endif
+    }
+
     /// @brief Returns the name of a benchmarked data type.
     [[nodiscard]] inline const char* dtype_name(Core::DataType dtype)
     {
@@ -212,6 +232,17 @@ namespace SushiBLAS::Bench
         }
     }
 
+    namespace Detail
+    {
+        /** @brief Opens the next period of the program's profile session; does nothing without one. */
+        inline void mark_iteration()
+        {
+#if SB_ENABLE_PROFILER
+            ProfileSession::mark_current_iteration();
+#endif
+        }
+    } // namespace Detail
+
     /// @brief Holds the median and the minimum of a set of timed iterations, in seconds.
     struct Timing
     {
@@ -229,12 +260,18 @@ namespace SushiBLAS::Bench
         using Clock = std::chrono::steady_clock;
 
         for (int i = 0; i < K_WARMUP_ITERATIONS; ++i)
+        {
+            Detail::mark_iteration();
+            SB_ZONE("bench.iteration");
             body();
+        }
 
         std::vector<double> seconds;
         seconds.reserve(static_cast<std::size_t>(K_TIMED_ITERATIONS));
         for (int i = 0; i < K_TIMED_ITERATIONS; ++i)
         {
+            Detail::mark_iteration();
+            SB_ZONE("bench.iteration");
             const Clock::time_point start = Clock::now();
             body();
             const Clock::time_point stop = Clock::now();
@@ -247,6 +284,18 @@ namespace SushiBLAS::Bench
                                   ? 0.5 * (seconds[middle - 1] + seconds[middle])
                                   : seconds[middle];
         return Timing{median, seconds.front()};
+    }
+
+    /**
+     * @brief Names the graph a benchmark program owns after the scenario it measures.
+     *
+     * The runtime writes the name into the spans of the graph's runs, so a profile of several
+     * scenarios separates them.
+     * @param scenario The name of the scenario, such as "gemm".
+     */
+    inline void label_graph(RecordingGraph& graph, const char* scenario)
+    {
+        graph.set_label(scenario);
     }
 
     /**

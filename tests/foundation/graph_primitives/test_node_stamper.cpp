@@ -46,11 +46,11 @@ namespace SushiBLAS
             using GraphPrimitives::Detail::NodeStamper;
         } // namespace
 
-        /** @brief Tests that an unnamed call gets the width and nothing else. */
-        TEST(Small_GraphPrimitivesNodeStamper, AnUnnamedCallStatesOnlyTheWidth)
+        /** @brief Tests that an unnamed call gets the width and an operation id, and no name or class. */
+        TEST(Small_GraphPrimitivesNodeStamper, AnUnnamedCallStatesTheWidthAndTheOperationOnly)
         {
             const std::optional<PrimitiveOptions> none;
-            NodeStamper stamper(none);
+            NodeStamper stamper(none, "graph.test");
 
             const SushiRuntime::NodeOptions staged = stamper.stage("level", std::size_t{7});
             EXPECT_TRUE(staged.name.empty());
@@ -62,12 +62,28 @@ namespace SushiBLAS
             EXPECT_EQ(single.width, SushiRuntime::NodeOptions{}.width);
         }
 
+        /** @brief Tests that every node carries the hash of its label as its operation. */
+        TEST(Small_GraphPrimitivesNodeStamper, EveryNodeCarriesTheHashOfItsLabelAsItsOperation)
+        {
+            const std::optional<PrimitiveOptions> none;
+            NodeStamper unnamed(none, "graph.test");
+            EXPECT_EQ(unnamed.stage("level").operation, SushiRuntime::OperationID(
+                SushiRuntime::OperationID::hash("graph.test.level", 16)));
+            EXPECT_EQ(unnamed.node().operation, SushiRuntime::OperationID(
+                SushiRuntime::OperationID::hash("graph.test", 10)));
+
+            const std::optional<PrimitiveOptions> named = PrimitiveOptions{"gather"};
+            NodeStamper stamper(named, "graph.test");
+            EXPECT_EQ(stamper.node().operation, SushiRuntime::OperationID(
+                SushiRuntime::OperationID::hash("gather", 6)));
+        }
+
         /** @brief Tests that a single-node primitive reports under the bare name. */
         TEST(Small_GraphPrimitivesNodeStamper, ANodeCarriesTheBareNameAndTheClass)
         {
             const std::optional<PrimitiveOptions> options =
                 PrimitiveOptions{"gather", SushiRuntime::Determinism::Tolerant};
-            NodeStamper stamper(options);
+            NodeStamper stamper(options, "graph.test");
 
             const SushiRuntime::NodeOptions node = stamper.node(std::size_t{3});
             EXPECT_EQ(std::string(node.name), "gather");
@@ -80,7 +96,7 @@ namespace SushiBLAS
         {
             const std::optional<PrimitiveOptions> options =
                 PrimitiveOptions{"sort", SushiRuntime::Determinism::Bitwise};
-            NodeStamper stamper(options);
+            NodeStamper stamper(options, "graph.test");
 
             EXPECT_EQ(std::string(stamper.stage("resolve").name), "sort.resolve");
             EXPECT_EQ(std::string(stamper.stage("placement").name), "sort.placement");

@@ -70,8 +70,6 @@ namespace SushiBLAS
                 const int64_t in_len = transposed ? m : n;
                 const int64_t longest_row = std::min(in_len, access.lower + access.upper + 1);
 
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GBMV: {}x{}, kl={}, ku={}", m, n, kl, ku);
-
                 // As in GEMV, the work-group shape serves only rows the storage keeps contiguous.
                 const std::size_t width = (access.col == 1 && out_len > 0)
                     ? Detail::row_reduction_width(Device::profile_for(queue), longest_row)

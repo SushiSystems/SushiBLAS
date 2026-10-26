@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
@@ -79,10 +80,10 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T, typename Index, typename Conj = Unconjugated>
-            [[nodiscard]] sycl::event doti(sycl::queue& queue, const T* x,
-                                           IndexList<Index> positions, const T* y, int64_t incy,
-                                           T* result, void* scratch, std::size_t scratch_bytes,
-                                           const std::vector<sycl::event>& deps)
+            [[nodiscard]] Device::SubmittedEvents doti(
+                sycl::queue& queue, const T* x, IndexList<Index> positions, const T* y,
+                int64_t incy, T* result, void* scratch, std::size_t scratch_bytes,
+                const std::vector<sycl::event>& deps)
             {
                 using W = Reduce::AccumulationOf<T>;
 

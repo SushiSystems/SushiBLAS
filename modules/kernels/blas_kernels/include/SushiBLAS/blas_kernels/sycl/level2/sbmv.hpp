@@ -59,8 +59,6 @@ namespace SushiBLAS
                                            T beta, T* y, int64_t incy,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SBMV: {}x{}, k={}", n, n, k);
-
                 const BandAccess access =
                     triangle_band_access(layout, uplo, Core::Transpose::NoTrans, k, lda);
                 const int64_t longest_row = std::min(n, 2 * k + 1);

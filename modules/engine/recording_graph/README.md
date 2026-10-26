@@ -14,6 +14,8 @@ It depends on `engine`. Its header is included as
 
 ## recording_graph.hpp
 
+`set_label` names the graph in the spans of its runs, as `Graph::set_label` does.
+
 `Engine` keeps no graph to run. `RecordingGraph` holds a `SushiRuntime::Graph`, a `TaskRecorder`
 over that graph's recorder and the `RunReport` every run writes into. The constructor that takes
 an `Engine&` borrows the engine's scratch pool and execution mode; the one that takes a runtime

@@ -28,6 +28,7 @@
 
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/io/io_log_category.hpp>
+#include <SushiBLAS/io/partial_file.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <cmath>
 #include <limits>
@@ -501,7 +502,7 @@ namespace SushiBLAS
             {
                 if (ofs.is_open())
                     ofs.close();
-                std::remove(path.c_str());
+                static_cast<void>(IOFiles::remove_partial_file(path));
                 throw;
             }
         }

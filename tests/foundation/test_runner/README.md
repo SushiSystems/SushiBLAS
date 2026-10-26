@@ -9,3 +9,5 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_test_environment.cpp` | Tests that TestEnvironment hands out one runtime, its queues and its allocation count |
+| `test_log_capture.cpp` | Tests that `LogCapture` keeps the records written while it lives, counts them by level and text, and restores the logger |
+| `test_run_observer_capture.cpp` | Tests that `RunObserverCapture` keeps one record per dispatch of each run it observed |

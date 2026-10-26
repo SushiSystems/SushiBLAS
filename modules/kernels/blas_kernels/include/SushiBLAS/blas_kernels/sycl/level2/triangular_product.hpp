@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
@@ -92,7 +93,7 @@ namespace SushiBLAS
                  * @see kernels/README.md
                  */
                 template<typename T, typename Access>
-                [[nodiscard]] sycl::event triangular_product(sycl::queue& queue,
+                [[nodiscard]] Device::SubmittedEvents triangular_product(sycl::queue& queue,
                                                              const Access& access, bool unit_diag,
                                                              int64_t n, const T* a, T* x,
                                                              int64_t incx, T* work,
@@ -109,11 +110,13 @@ namespace SushiBLAS
                         Launch::indexed(h, queue, rows, snapshot);
                     });
 
-                    return queue.submit([&](sycl::handler& h)
+                    Device::SubmittedEvents submitted{std::vector<sycl::event>{copied}};
+                    submitted.append(queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(copied);
                         Launch::indexed(h, queue, rows, row);
-                    });
+                    }));
+                    return submitted;
                 }
             } // namespace Detail
         } // namespace SYCL

@@ -60,7 +60,9 @@ namespace SushiBLAS
             recorder_, x, static_cast<std::size_t>(n),
             Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-        const Internal::BLASMetadata metadata(op, "blas.lvl1.iamax"_op);
+        const Internal::BLASMetadata metadata =
+            Internal::BLASMetadata(op, "blas.lvl1.iamax"_op).shape(
+                ReductionShape{n, 1, x.dtype});
 
         const int64_t incx = vx.increment;
         const void* read_x = x.data_or_null();
@@ -68,7 +70,7 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<const T*>(read_x);
@@ -79,7 +81,7 @@ namespace SushiBLAS
                     {
                         Kernels::Reference::iamax<T>(n, pX, incx, pR);
                     },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> Device::SubmittedEvents
                     {
                         return Kernels::SYCL::iamax<T>(q2, n, pX, incx, pR, scratch.data(),
                                                        scratch.bytes(), deps2);

@@ -30,10 +30,12 @@
 #include <vector>
 #include <cstdint>
 #include <utility>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/cost/cost_shape.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
@@ -154,6 +156,35 @@ namespace SushiBLAS
 
         namespace Detail
         {
+            /**
+             * @brief Holds the floating-point operations a GEMM epilogue does on each element of C.
+             *
+             * An epilogue states it as `static constexpr std::uint32_t K_FLOPS_PER_ELEMENT`; one
+             * that states none counts 0, which is the identity epilogue's cost and a lower bound
+             * for any other.
+             * @see modules/foundation/cost/README.md
+             */
+            template<typename Epilogue, typename = void>
+            struct EpilogueFlops
+            {
+                /// @brief The count an epilogue with no stated cost takes.
+                static constexpr std::uint32_t value = 0;
+            };
+
+            /** @brief Reads the count an epilogue states. */
+            template<typename Epilogue>
+            struct EpilogueFlops<Epilogue, std::void_t<decltype(Epilogue::K_FLOPS_PER_ELEMENT)>>
+            {
+                /// @brief The count the epilogue states.
+                static constexpr std::uint32_t value = Epilogue::K_FLOPS_PER_ELEMENT;
+            };
+
+            /** @brief Reads the count of the functor a bundle carries. */
+            template<typename Epilogue>
+            struct EpilogueFlops<GemmEpilogue<Epilogue>> : EpilogueFlops<Epilogue>
+            {
+            };
+
             /** @brief Returns the functor of a bare epilogue: itself. */
             template<typename Epilogue>
             [[nodiscard]] inline const Epilogue& epilogue_functor(const Epilogue& epilogue) noexcept
@@ -255,9 +286,12 @@ namespace SushiBLAS
             // Only the functor enters the kernel closure, never the bundle and its operand set.
             const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
 
-            const Internal::BLASMetadata metadata = Internal::BLASMetadata(name, op_id)
-                                                    .scalar(alpha).scalar(beta)
-                                                    .flag(transA).flag(transB);
+            const Internal::BLASMetadata metadata =
+                Internal::BLASMetadata(name, op_id)
+                    .scalar(alpha).scalar(beta)
+                    .flag(transA).flag(transB)
+                    .shape(GemmShape{m, n, k, batch_size, A.dtype,
+                                     Detail::EpilogueFlops<Epilogue>::value});
 
             const int64_t lda = a.leading_dimension;
             const int64_t ldb = b.leading_dimension;

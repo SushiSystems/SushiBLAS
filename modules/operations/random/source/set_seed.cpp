@@ -33,7 +33,6 @@ namespace SushiBLAS
 {
     void RandomOps::set_seed(uint64_t seed) 
     {
-        SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: set_seed ({})", seed);
         rng_.reseed(seed);
     }
 } // namespace SushiBLAS

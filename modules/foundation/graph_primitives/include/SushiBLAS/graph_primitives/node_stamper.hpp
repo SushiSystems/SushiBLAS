@@ -34,6 +34,7 @@
 
 #include <SushiRuntime/api/graph/node_options.hpp>
 #include <SushiRuntime/core/determinism.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 #include <SushiRuntime/report/dispatch_width.hpp>
 
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
@@ -47,16 +48,22 @@ namespace SushiBLAS
             /**
              * @brief Builds the NodeOptions of the nodes of one call from its PrimitiveOptions.
              *
-             * A call that stated no options gets a plain NodeOptions with the width and nothing
-             * else, so an unnamed call records what it recorded before the options existed.
+             * Every node carries an operation id, the hash of its label: the name the call
+             * stated, or the fallback name of its primitive. A call that stated no options keeps
+             * the runtime's own name for its nodes and states no determinism.
              * @see modules/foundation/graph_primitives/README.md
              */
             class NodeStamper
             {
                 public:
-                    /** @brief Takes the options of a call; they must outlive this stamper. */
-                    explicit NodeStamper(const std::optional<PrimitiveOptions>& options) noexcept
-                        : options_(options)
+                    /**
+                     * @brief Takes the options of a call and the name an unnamed call reports under.
+                     * @param options The trailing argument of the call; it must outlive this stamper.
+                     * @param fallback_name A string literal naming the primitive.
+                     */
+                    NodeStamper(const std::optional<PrimitiveOptions>& options,
+                                std::string_view fallback_name) noexcept
+                        : options_(options), fallback_name_(fallback_name)
                     {
                     }
 
@@ -75,7 +82,7 @@ namespace SushiBLAS
                      * @brief Returns the options of one of several nodes a primitive records.
                      * @param stage_name Stage name the label ends with.
                      * @param width      Launch width stamped into the node's event records.
-                     * @return Options named name.stage; the name is valid until the next call.
+                     * @return Options named name.stage when the call stated options; the name is valid until the next call.
                      */
                     [[nodiscard]] SushiRuntime::NodeOptions
                     stage(std::string_view stage_name,
@@ -90,15 +97,18 @@ namespace SushiBLAS
                     {
                         SushiRuntime::NodeOptions node_options;
                         node_options.width = width;
-                        if (!options_)
-                            return node_options;
 
-                        label_.assign(options_->name);
+                        label_.assign(options_ ? options_->name : fallback_name_);
                         if (!stage.empty())
                         {
                             label_ += '.';
                             label_ += stage;
                         }
+                        node_options.operation = SushiRuntime::OperationID(
+                            SushiRuntime::OperationID::hash(label_.data(), label_.size()));
+                        if (!options_)
+                            return node_options;
+
                         node_options.name = label_;
                         node_options.determinism = options_->determinism;
                         return node_options;
@@ -106,6 +116,9 @@ namespace SushiBLAS
 
                     /// @brief The options of the call.
                     const std::optional<PrimitiveOptions>& options_;
+
+                    /// @brief The name an unnamed call reports under.
+                    std::string_view fallback_name_;
 
                     /// @brief The label the last returned options views.
                     std::string label_;

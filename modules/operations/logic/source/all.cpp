@@ -48,7 +48,6 @@ namespace SushiBLAS
         template<typename T>
         sycl::event all_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
-            SB_LOG_TRACE(K_LOGIC_LOG_CATEGORY, "Logic ALL: {} elements", size);
             if (size == 0)
             {
                 return queue.submit([&](sycl::handler& h)

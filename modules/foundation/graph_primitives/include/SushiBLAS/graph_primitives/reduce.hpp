@@ -87,7 +87,7 @@ namespace SushiBLAS
             SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
             if (!named)
                 return named;
-            Detail::NodeStamper stamper(options);
+            Detail::NodeStamper stamper(options, "graph.reduce");
 
             const Detail::ElementSpan<T> in_span = Detail::elements(input, window.input_offset, n);
             const Detail::ElementSpan<T> out_span =
@@ -190,7 +190,7 @@ namespace SushiBLAS
             SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
             if (!named)
                 return named;
-            Detail::NodeStamper stamper(options);
+            Detail::NodeStamper stamper(options, "graph.reduce");
 
             const std::size_t capacity = n.capacity();
             const Detail::ElementSpan<T> in_span =

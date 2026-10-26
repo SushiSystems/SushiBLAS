@@ -49,6 +49,7 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
+#include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
@@ -367,12 +368,13 @@ namespace SushiBLAS
                     keys[i] = 0;
 
                 auto graph = runtime.graph();
-                graph.set_profiling(true);
+                const RunObserverCapture capture(runtime);
                 counting_sort(graph.recorder(), keys, indices, offsets, total,
                               LateCount::fixed(K_COUNT), LateCount::fixed(key_capacity)).value();
-                const auto report = graph.run().value();
-                EXPECT_EQ(report.node_events.size(), graph.recorder().node_count());
-                return report.node_events.size();
+                graph.run().value();
+                const auto events = capture.records();
+                EXPECT_EQ(events.size(), graph.recorder().node_count());
+                return events.size();
             };
 
             const std::size_t two_digits = nodes_for(std::size_t{1} << 16);
@@ -620,19 +622,20 @@ namespace SushiBLAS
                 keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
                           &counts).value();
             EXPECT_EQ(graph.recorder().rule_count(), 1u);
 
-            const auto report = graph.run(K_STEPS).value();
+            graph.run(K_STEPS).value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), K_EXPECTED_PASSES * K_STEPS);
+            ASSERT_EQ(events.size(), K_EXPECTED_PASSES * K_STEPS);
 
-            const std::uint32_t node_index = report.node_events.front().node_index;
+            const std::uint32_t node_index = events.front().node_index;
             std::vector<std::size_t> per_invocation(K_STEPS, 0);
-            for (const auto& record : report.node_events)
+            for (const auto& record : events)
             {
                 EXPECT_EQ(record.node_index, node_index)
                     << "every pass of one counting_sort() call must share one node_index";
@@ -663,19 +666,20 @@ namespace SushiBLAS
                 keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
 
             auto graph = runtime.graph();
-            graph.set_profiling(true);
+            const RunObserverCapture capture(runtime);
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
                           &counts).value();
 
-            const auto report = graph.run().value();
+            graph.run().value();
+            const auto events = capture.records();
 
-            ASSERT_EQ(report.node_events.size(), expected_widths.size());
+            ASSERT_EQ(events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
             {
-                EXPECT_EQ(report.node_events[i].launched_width, expected_widths[i])
+                EXPECT_EQ(events[i].launched_width, expected_widths[i])
                     << "pass " << i;
-                EXPECT_EQ(report.node_events[i].live_width, expected_widths[i]) << "pass " << i;
+                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "pass " << i;
             }
         }
 

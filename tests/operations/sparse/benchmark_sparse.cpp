@@ -124,6 +124,7 @@ namespace
                      int64_t n)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "sparse");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::SparseBuilder builder(engine.tensor_factory());
 
@@ -218,7 +219,7 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "sparse");
 
         const Bench::ResultTable table("GB/s");
         for (const int64_t n : sizes)

@@ -39,6 +39,10 @@
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/version.hpp>
+#include <SushiBLAS/cost/composite_cost.hpp>
+#include <SushiBLAS/cost/cost.hpp>
+#include <SushiBLAS/cost/cost_shape.hpp>
+#include <SushiBLAS/cost/cost_table.hpp>
 #include <SushiBLAS/geometry/interpolation.hpp>
 #include <SushiBLAS/geometry/matrix4.hpp>
 #include <SushiBLAS/geometry/quaternion.hpp>
@@ -57,6 +61,7 @@
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>

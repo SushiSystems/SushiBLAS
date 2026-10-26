@@ -22,6 +22,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
 | `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive and its merge |
 | `test_operation_options.cpp` | Tests that OperationOptions names a node and states no determinism class unless told to, and the record-time check every family shares |
+| `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, thread safety and seed determinism |
 | `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
 | `test_scratch_pool.cpp` | Tests that a ScratchPool keeps returned blocks idle, reuses them and trims them |

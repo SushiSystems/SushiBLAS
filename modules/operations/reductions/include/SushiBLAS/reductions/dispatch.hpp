@@ -187,11 +187,17 @@ namespace SushiBLAS
             template<typename T, typename P, typename Out, typename Dispatcher>
             class ReductionTask final
             {
+                /// @brief What the dispatcher's SYCL path returns: the event of its kernel, or the events of all of them.
+                using Result = std::decay_t<std::invoke_result_t<
+                    const Dispatcher&, sycl::queue&, const T*, Out*, int64_t,
+                    ReductionScratch<P>, const std::vector<sycl::event>&>>;
+
                 // The static_assert states the dispatcher contract in a sentence; see modules/operations/MATH_README.md.
                 static_assert(has_reference_path<Dispatcher, T, Out>::value,
                               "A reduction dispatcher needs both paths: "
-                              "'sycl::event operator()(sycl::queue&, const T*, Out*, int64_t, "
-                              "ReductionScratch<P>, const std::vector<sycl::event>&) const' for "
+                              "'operator()(sycl::queue&, const T*, Out*, int64_t, "
+                              "ReductionScratch<P>, const std::vector<sycl::event>&) const', "
+                              "returning a sycl::event or Device::SubmittedEvents, for "
                               "the SYCL fold and 'void reference(const T*, Out*, int64_t) const' "
                               "for the serial host fold. This one has no reference(); a lambda "
                               "cannot be a dispatcher, write a class.");
@@ -200,27 +206,25 @@ namespace SushiBLAS
                     /**
                      * @brief Holds everything the body needs at execute time.
                      * @param scratch The lease on the partials; held so the block stays lent to this task.
-                     * @param name Stored, not copied; must outlive the task.
                      */
                     ReductionTask(const T* in, Out* out, int64_t size, ScratchBuffer scratch,
-                                  std::size_t partials, Dispatcher dispatch, const char* name)
+                                  std::size_t partials, Dispatcher dispatch)
                         : in_(in), out_(out), size_(size), scratch_(std::move(scratch)),
-                          partials_(partials), dispatch_(std::move(dispatch)), name_(name)
+                          partials_(partials), dispatch_(std::move(dispatch))
                     {
 
                     }
 
                     /** @brief Runs the serial host fold under ForceReference, else submits the kernels. */
-                    sycl::event operator()(const KernelPairDispatcher& pair,
-                                           sycl::queue& q,
-                                           const std::vector<sycl::event>& deps) const
+                    Result operator()(const KernelPairDispatcher& pair,
+                                      sycl::queue& q,
+                                      const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_TRACE(K_REDUCTIONS_LOG_CATEGORY, "Reduction {}: {} elements", name_, size_);
 
                         return pair.run(q, deps,
                             [this] { dispatch_.reference(in_, out_, size_); },
                             [this](sycl::queue& q2,
-                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                                   const std::vector<sycl::event>& deps2) -> Result
                             {
                                 return dispatch_(q2, in_, out_, size_,
                                                  ReductionScratch<P>{
@@ -247,9 +251,6 @@ namespace SushiBLAS
 
                     /// @brief The reduction's two paths.
                     Dispatcher dispatch_;
-
-                    /// @brief The operation name, for the log line.
-                    const char* name_;
             };
         } // namespace Detail
 
@@ -294,6 +295,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ReductionShape{size, 1, t.dtype};
 
             using D = std::decay_t<Dispatcher>;
 
@@ -303,18 +305,17 @@ namespace SushiBLAS
                     return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<sycl::half, float, sycl::half, D>(
                             static_cast<const sycl::half*>(read_T),
-                            static_cast<sycl::half*>(write_R), size, scratch, partials, dispatch,
-                            name));
+                            static_cast<sycl::half*>(write_R), size, scratch, partials, dispatch));
                 case Core::DataType::Float32:
                     return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<float, float, float, D>(
                             static_cast<const float*>(read_T), static_cast<float*>(write_R), size,
-                            scratch, partials, dispatch, name));
+                            scratch, partials, dispatch));
                 case Core::DataType::Float64:
                     return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<double, double, double, D>(
                             static_cast<const double*>(read_T), static_cast<double*>(write_R),
-                            size, scratch, partials, dispatch, name));
+                            size, scratch, partials, dispatch));
                 default:
                     break;
             }
@@ -351,8 +352,6 @@ namespace SushiBLAS
                 const ScratchBuffer& scratch;
                 /** @brief Holds how many partials the lease has room for. */
                 std::size_t partials;
-                /** @brief Holds the operation name for messages. */
-                const char* name;
                 /** @brief Receives the handle of the recorded task. */
                 TaskHandle& handle;
 
@@ -369,7 +368,7 @@ namespace SushiBLAS
                     handle = recorder.record_pair(description, operands, "Reduction",
                         ReductionTask<T, P, int64_t, Dispatcher>(
                             static_cast<const T*>(read_T), write_R, size, scratch, partials,
-                            dispatch, name));
+                            dispatch));
                 }
             };
 
@@ -399,8 +398,6 @@ namespace SushiBLAS
                 const ScratchBuffer& scratch;
                 /** @brief Holds how many partials the lease has room for. */
                 std::size_t partials;
-                /** @brief Holds the operation name for messages. */
-                const char* name;
                 /** @brief Receives the handle of the recorded task. */
                 TaskHandle& handle;
 
@@ -413,7 +410,7 @@ namespace SushiBLAS
                     handle = recorder.record_pair(description, operands, "Reduction",
                         ReductionTask<T, int64_t, int64_t, Dispatcher>(
                             static_cast<const T*>(read_T), write_R, size, scratch, partials,
-                            dispatch, name));
+                            dispatch));
                 }
             };
 
@@ -430,12 +427,11 @@ namespace SushiBLAS
                 public:
                     /**
                      * @brief Holds everything the body needs at execute time.
-                     * @param name Stored, not copied; must outlive the task.
                      */
                     SpanReductionTask(const Reduce::AxisSpan& span, const T* in, T* out,
-                                      Transform transform, Finalize finalize, const char* name)
+                                      Transform transform, Finalize finalize)
                         : span_(span), in_(in), out_(out), transform_(std::move(transform)),
-                          finalize_(std::move(finalize)), name_(name)
+                          finalize_(std::move(finalize))
                     {
 
                     }
@@ -445,8 +441,6 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_TRACE(K_REDUCTIONS_LOG_CATEGORY, "Axis reduction {}: {} segments of {} elements",
-                                    name_, span_.total_segments(), span_.extent);
 
                         return pair.run(q, deps,
                             [this]
@@ -484,9 +478,6 @@ namespace SushiBLAS
 
                     /// @brief The callable applied once to each segment's fold.
                     Finalize finalize_;
-
-                    /// @brief The operation name, for the log line.
-                    const char* name_;
             };
 
             /**
@@ -513,8 +504,6 @@ namespace SushiBLAS
                 const Transform& transform;
                 /** @brief Holds the callable applied once to each segment's fold. */
                 const Finalize& finalize;
-                /** @brief Holds the operation name for messages. */
-                const char* name;
                 /** @brief Receives the handle of the recorded task. */
                 TaskHandle& handle;
 
@@ -527,7 +516,7 @@ namespace SushiBLAS
                     handle = recorder.record_pair(description, operands, "Axis reduction",
                         SpanReductionTask<Accum, T, Transform, Finalize>(
                             span, static_cast<const T*>(read_T), static_cast<T*>(write_R),
-                            transform, finalize, name));
+                            transform, finalize));
                 }
             };
         } // namespace Detail
@@ -574,13 +563,14 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ReductionShape{size, 1, t.dtype};
 
             TaskHandle handle;
 
             // REAL_AND_INTEGRAL: finding the largest element needs an ordering, which complex types lack; see modules/operations/MATH_README.md.
             const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
                 recorder, description, operands, dispatch, size, read_T, write_R, scratch, partials,
-                name, handle};
+                handle};
             with_element_type<Domain::RealAndIntegral>(t.dtype, "Reduction", name, arm);
 
             return handle;
@@ -629,13 +619,14 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ReductionShape{size, 1, t.dtype};
 
             TaskHandle handle;
 
             // REAL only: an integer or complex tensor is rejected by name; see modules/operations/MATH_README.md.
             const Detail::CountingReductionArm<std::remove_reference_t<Dispatcher>> arm{
                 recorder, description, operands, dispatch, size, read_T, write_R, scratch, partials,
-                name, handle};
+                handle};
             with_element_type<Domain::Real>(t.dtype, "Reduction", name, arm);
 
             return handle;
@@ -658,11 +649,11 @@ namespace SushiBLAS
 
                 }
 
-                /** @brief Submits the fixed-order SYCL fold and returns its last event. */
+                /** @brief Submits the fixed-order SYCL fold and returns the events of its kernels. */
                 template<typename T, typename W>
-                [[nodiscard]] sycl::event operator()(sycl::queue& q, const T* in, T* out,
-                                                     int64_t size, ReductionScratch<W> scratch,
-                                                     const std::vector<sycl::event>& deps) const
+                [[nodiscard]] Device::SubmittedEvents operator()(
+                    sycl::queue& q, const T* in, T* out, int64_t size, ReductionScratch<W> scratch,
+                    const std::vector<sycl::event>& deps) const
                 {
                     return Reduce::reduce<Accum>(q, in, out, static_cast<std::size_t>(size),
                                                  scratch.data, scratch.capacity,
@@ -813,7 +804,7 @@ namespace SushiBLAS
 
             // REAL only: a fold needs an ordering and an identity, and integers are not arithmetic here; see modules/operations/MATH_README.md.
             const Detail::SpanReductionArm<Accum, Transform, Finalize> arm{
-                recorder, description, operands, span, read_T, write_R, transform, finalize, name,
+                recorder, description, operands, span, read_T, write_R, transform, finalize,
                 handle};
             with_element_type<Domain::Real>(t.dtype, "Axis reduction", name, arm);
 

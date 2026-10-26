@@ -310,7 +310,6 @@ namespace SushiBLAS
                 (const KernelPairDispatcher& pair, sycl::queue& q,
                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
                     sycl::event done;
                     const RandomFill fill(pair, q, deps);

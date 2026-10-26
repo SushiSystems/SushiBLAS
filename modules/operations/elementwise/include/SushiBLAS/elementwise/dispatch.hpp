@@ -85,6 +85,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{t.num_elements, t.dtype};
             set_task_params(description, params, name);
 
             void* ptr = t.data();
@@ -141,6 +142,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{C.num_elements, A.dtype};
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Elementwise operation",
@@ -207,6 +209,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = name;
             description.operation = op_id;
+            description.shape = ElementwiseShape{size, dtype};
             set_task_params(description, params, name);
 
             using Op = std::decay_t<decltype(Detail::task_functor(op_func))>;

@@ -54,7 +54,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x).updates(y);
 
-        const Internal::BLASMetadata metadata(op, "blas.lvl1.swap"_op);
+        const Internal::BLASMetadata metadata =
+            Internal::BLASMetadata(op, "blas.lvl1.swap"_op).shape(CopyShape{x.dtype});
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

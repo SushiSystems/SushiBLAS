@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -56,7 +57,7 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T, typename Index, typename Conj = Unconjugated>
-            [[nodiscard]] sycl::event spsymv(sycl::queue& queue, Core::Uplo uplo,
+            [[nodiscard]] Device::SubmittedEvents spsymv(sycl::queue& queue, Core::Uplo uplo,
                                              CsrPattern<Index> pattern, const T* values, T alpha,
                                              const T* x, int64_t incx, T beta, T* y, int64_t incy,
                                              Accumulator<T>* partials, std::size_t blocks,
@@ -64,7 +65,6 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPSYMV: order {}, {} entries", pattern.rows, pattern.nnz);
                 SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, pattern.rows == 0 || (partials != nullptr && blocks > 0),
                           "A symmetric spmv needs the partial sums its caller sized");
 
@@ -108,8 +108,10 @@ namespace SushiBLAS
                     });
                 });
 
-                return Detail::fold_blocks<T>(queue, scattered, n, used_blocks, partials, alpha,
-                                              beta, y, incy);
+                Device::SubmittedEvents submitted{std::vector<sycl::event>{scattered}};
+                submitted.append(Detail::fold_blocks<T>(queue, scattered, n, used_blocks, partials,
+                                                        alpha, beta, y, incy));
+                return submitted;
             }
         } // namespace SYCL
     } // namespace Kernels

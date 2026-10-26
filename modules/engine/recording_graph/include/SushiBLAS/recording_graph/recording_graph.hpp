@@ -29,6 +29,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <utility>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -91,6 +92,15 @@ namespace SushiBLAS
 
             /** @brief Returns the hold that keeps the storages of this graph's late-count tasks. */
             [[nodiscard]] const LateCountHold& late_counts() const noexcept { return late_counts_; }
+
+            /**
+             * @brief Names the graph in the spans of its runs, so a profile can tell graphs apart.
+             * @param label A short name such as the scenario a benchmark measures.
+             */
+            void set_label(std::string label)
+            {
+                graph_.set_label(std::move(label));
+            }
 
             /** @brief Returns how many tasks are recorded and have not run. */
             [[nodiscard]] std::size_t recorded_count() const noexcept

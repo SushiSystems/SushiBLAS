@@ -61,7 +61,6 @@ namespace SushiBLAS
 
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR: {}x{}", n, n);
 
                 const bool upper = (uplo == Core::Uplo::Upper);
 

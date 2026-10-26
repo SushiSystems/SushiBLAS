@@ -30,6 +30,7 @@
 #include <vector>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
@@ -52,14 +53,12 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event tbmv(sycl::queue& queue, Core::Layout layout,
+            [[nodiscard]] Device::SubmittedEvents tbmv(sycl::queue& queue, Core::Layout layout,
                                            Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
                                            int64_t n, int64_t k, const T* a, int64_t lda, T* x,
                                            int64_t incx, T* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TBMV: {}x{}, k={}", n, n, k);
-
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
                 const bool unit_diag = (diag == Core::Diag::Unit);
                 return Detail::triangular_product(queue, access, unit_diag, n, a, x, incx, work,

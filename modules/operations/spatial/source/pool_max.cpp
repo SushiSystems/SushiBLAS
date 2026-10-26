@@ -72,6 +72,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.pool_max"_op;
+        description.shape = WindowShape{span.output_elements(), g.kernel_h * g.kernel_w, in.dtype};
 
         // The switch runs on the value dtype; the index pointer is int64_t*; see modules/operations/README.md.
         auto* index_out = static_cast<int64_t*>(write_indices);

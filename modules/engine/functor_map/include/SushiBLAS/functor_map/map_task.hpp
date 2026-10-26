@@ -151,8 +151,6 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY, "{} '{}': {} elements", family_, name_, n_);
-
                         return pair.run(q, deps,
                             [this]
                             {
@@ -295,8 +293,6 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY, "{} '{}': {} elements over {} operands", family_, name_, n_, N);
-
                         return pair.run(q, deps,
                             [this]
                             {

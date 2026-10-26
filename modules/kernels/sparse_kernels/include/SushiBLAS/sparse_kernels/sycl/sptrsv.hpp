@@ -61,8 +61,6 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPTRSV: order {}, {} entries", pattern.rows, pattern.nnz);
-
                 const int64_t n = pattern.rows;
                 const bool lower = (uplo == Core::Uplo::Lower);
                 const bool unit_diag = (diag == Core::Diag::Unit);

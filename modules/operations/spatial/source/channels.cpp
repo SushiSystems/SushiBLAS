@@ -120,6 +120,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.concat_channels"_op;
+        description.shape = CopyShape{src.dtype};
 
         // A copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
         return Internal::execute_typed_task<Dispatch::Domain::All>(
@@ -169,6 +170,7 @@ namespace SushiBLAS
         TaskDescription description;
         description.name = NAME;
         description.operation = "spatial.slice_channels"_op;
+        description.shape = CopyShape{src.dtype};
 
         return Internal::execute_typed_task<Dispatch::Domain::All>(
             recorder_, description, operands, src.dtype, "Spatial operation",

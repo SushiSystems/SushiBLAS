@@ -5,12 +5,13 @@ of an input, the timing loop and the table a program prints. The module is inter
 benchmark-only: its headers are not installed, and it is added only when `SB_BUILD_BENCHMARKS`
 is on.
 
-It depends on `core`, `launch`, `tensor`, `engine`, `io` and `recording_graph`. Its header is included as
+It depends on `core`, `launch`, `tensor`, `engine`, `io`, `recording_graph`, `profile` and `profiling`. Its header is included as
 `<SushiBLAS/benchmark_harness/benchmark_harness.hpp>`.
 
 | File | Declares |
 | --- | --- |
 | `benchmark_harness.hpp` | The argument, environment, fill, timing and table helpers the benchmarks share |
+| `profile_session.hpp` | `ProfileSession`, which records a benchmark program under SushiProfiler when `SB_BENCH_PROFILE` names a folder |
 
 A benchmark program records on a `RecordingGraph` of its own, from
 `modules/engine/recording_graph/README.md`: the operation views of the program record through
@@ -31,3 +32,7 @@ recording would time the run alone. The number is the cost of recording and runn
 once. The environment block prints `record mode:`, the mode a `RecordingGraph` records under unless
 a program sets another (`K_DEFAULT_RECORDING_MODE`). The benchmark
 section of `tests/README.md` describes the programs that use it.
+
+## Under the profiler
+
+`label_graph(graph, scenario)` names the graph a program owns after the scenario it measures, so the spans of its runs carry the name and `roofline` separates graphs. `print_environment(engine, scenario)` starts a `ProfileSession` when the environment variable `SB_BENCH_PROFILE` names a folder. The session records the runtime's device spans and the library's cost and ceilings facts, marks one period of the timeline `bench.iteration` for each iteration of `time_iterations`, and writes `<scenario>.sprec.json` into the folder when the process ends. Each iteration is also the zone `bench.iteration`. Without the variable the program times exactly what it timed before: a null check and a zone with no collector open.

@@ -28,6 +28,7 @@
 #include <array>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
@@ -128,6 +129,37 @@ namespace SushiBLAS
             EXPECT_THROW((void)shelf_->take(128, TestEnvironment::device_count()),
                          std::runtime_error);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
+        }
+
+        TEST_F(Medium_ScratchShelf, ALeaseThatFindsItsClassEmptyIsAMiss)
+        {
+            Detail::ScratchBlock* block = shelf_->take(128, 0);
+
+            EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{1});
+            EXPECT_EQ(shelf_->pool_hits(), std::uint64_t{0});
+            shelf_->give_back(block);
+        }
+
+        TEST_F(Medium_ScratchShelf, ALeaseAnIdleBlockAnswersIsAHit)
+        {
+            shelf_->give_back(shelf_->take(128, 0));
+
+            Detail::ScratchBlock* again = shelf_->take(128, 0);
+
+            EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{1});
+            EXPECT_EQ(shelf_->pool_hits(), std::uint64_t{1});
+            shelf_->give_back(again);
+        }
+
+        TEST_F(Medium_ScratchShelf, ALeaseAboveTheLargestClassIsCountedAsUnpooled)
+        {
+            Detail::ScratchBlock* big = shelf_->take(Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
+            shelf_->give_back(big);
+            Detail::ScratchBlock* again = shelf_->take(Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
+
+            EXPECT_EQ(shelf_->unpooled_leases(), std::uint64_t{2});
+            EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{0});
+            shelf_->give_back(again);
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -58,7 +58,6 @@ namespace SushiBLAS
                              const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYMV: {}x{}", n, n);
 
                 auto A_at = [=](int64_t r, int64_t c) -> T
                 {

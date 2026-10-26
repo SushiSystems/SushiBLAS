@@ -102,10 +102,6 @@ namespace SushiBLAS
                 [count, element](const KernelPairDispatcher& pair, sycl::queue& q,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_TRACE(K_ELEMENTWISE_LOG_CATEGORY,
-                                 "Elementwise ordered_sum: {} elements over {} inputs", count,
-                                 element.input_count);
-
                     return pair.run(q, deps,
                         [count, element] { Serial::indexed(count, element); },
                         [count, element](sycl::queue& q2,

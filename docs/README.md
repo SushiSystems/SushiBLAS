@@ -24,6 +24,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 | Document | Holds |
 | --- | --- |
 | [Integration](guides/INTEGRATION.md) | How another CMake project consumes SushiBLAS, what it must supply, and how it writes one adapter over the interface |
+| [Profiling](guides/PROFILING.md) | Recording a run with SushiProfiler: the ceilings, the parts to register, the roofline table and the origin of a node |
 | [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |
 | [The CLI](../cli/README.md) | Every `sb` command and option; the CLI's own README |
 | [Examples](../applications/examples/README.md) | The eight example programs the build compiles, what each shows and what it prints |
@@ -43,6 +44,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 | --- | --- |
 | [Changelog](reference/CHANGELOG.md) | What changed, one line per change |
 | [Glossary](reference/GLOSSARY.md) | The words these documents use |
+| [Ceilings file format](reference/CEILINGS_FORMAT.md) | The file `device_ceilings` writes and the `profiling` module reads |
 | [Known issues](reference/KNOWN_ISSUES.md) | Defects that are recorded and not yet fixed |
 | [Security policy](../.github/SECURITY.md) | How to report a vulnerability and what is in scope |
 | [Code of conduct](../.github/CODE_OF_CONDUCT.md) | The conduct expected in project spaces |
@@ -55,6 +57,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 | [Design map](design/README.md) | Which design document covers which topic |
 | [GPU validation](design/GPU_VALIDATION/README.md) | The claims that wait for a run on GPU hardware |
 | [Module split](design/MODULE_SPLIT/README.md) | How the library is divided into modules and tiers |
+| [Profiling and logging](design/PROFILING/README.md) | What SushiBLAS tells SushiProfiler about its work, and where it logs a decision |
 | [Public seam](design/PUBLIC_SEAM/README.md) | Three properties of the public interface and the reason for each |
 | [Remaining work](design/REMAINING_WORK.md) | The backlog |
 

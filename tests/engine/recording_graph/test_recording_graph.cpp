@@ -199,5 +199,16 @@ namespace SushiBLAS
             EXPECT_EQ(out.storage->ref_count(), 1);
             EXPECT_EQ(count.storage->ref_count(), 1);
         }
+
+        TEST_F(Medium_RecordingGraph, ALabelledGraphRecordsAndRunsAsAnUnlabelledOneDoes)
+        {
+            RecordingGraph graph(engine);
+            graph.set_label("scenario");
+            record_nothing(graph);
+
+            EXPECT_EQ(graph.recorded_count(), std::size_t{1});
+            EXPECT_TRUE(graph.run().has_value());
+            EXPECT_EQ(graph.recorded_count(), std::size_t{0});
+        }
     } // namespace Test
 } // namespace SushiBLAS

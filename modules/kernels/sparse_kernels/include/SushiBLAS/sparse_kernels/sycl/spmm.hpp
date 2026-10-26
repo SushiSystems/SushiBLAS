@@ -66,9 +66,6 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPMM: {}x{}, {} entries, {} columns", pattern.rows, pattern.cols,
-                            pattern.nnz, nrhs);
-
                 const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
                 const OperandAccess at_c = operand_access(layout, Core::Transpose::NoTrans, ldc);
                 const bool keeps_c = !(beta == T(0));

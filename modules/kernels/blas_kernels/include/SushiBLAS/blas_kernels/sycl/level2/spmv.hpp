@@ -56,8 +56,6 @@ namespace SushiBLAS
                                            const T* x, int64_t incx, T beta, T* y, int64_t incy,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SPMV: {}x{}", n, n);
-
                 const PackedAccess access =
                     packed_access(layout, uplo, Core::Transpose::NoTrans, n);
                 return Detail::symmetric_product<T, Conj>(queue, access, n, n, alpha, ap, x, incx,

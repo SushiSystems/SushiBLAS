@@ -326,6 +326,10 @@ as a band width. Every routine fills its slots through it, so a reader of a reco
 flag in the same place for every routine. Writing past `TaskDescription::K_MAX_PARAMETERS` is an
 `SB_ASSERT`, which aborts in a build without `NDEBUG` and is empty with it.
 
+`shape(facts)` sets `TaskDescription::shape`, the facts the cost rule of the routine reads. `execute_gemm` states a `GemmShape`; `copy` and `swap` state a `CopyShape`, `scal` and `axpy` an `ElementwiseShape`, and `asum`, `nrm2`, `dot`, `dotc`, `dotu` and `iamax` a `ReductionShape`. The other routines state none and their rows are `Unaudited`.
+
+A GEMM epilogue states what it costs per element of C as `static constexpr std::uint32_t K_FLOPS_PER_ELEMENT`; `Dispatch::Detail::EpilogueFlops` reads it, through a `GemmEpilogue` bundle as well, and an epilogue that states none counts 0.
+
 ## `level1.hpp`
 
 ### Scalar parameters of `Level1`

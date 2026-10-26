@@ -79,7 +79,7 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, AP.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
                 using T = decltype(scalar_type);
                 auto pAP = static_cast<const T*>(read_AP);
@@ -91,7 +91,7 @@ namespace SushiBLAS
                     {
                         Kernels::Reference::tpmv<T>(layout, uplo, trans, diag, n, pAP, px, incx);
                     },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> Device::SubmittedEvents
                     {
                         return Kernels::SYCL::tpmv<T>(q2, layout, uplo, trans, diag, n, pAP, px,
                                                       incx, work, deps2);

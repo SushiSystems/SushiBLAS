@@ -169,6 +169,7 @@ namespace
                         DataType dtype, int64_t n, const SushiBLAS::Tensor& a)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::Tensor g = constant_matrix(engine, dtype, n, n, K_G_VALUE);
         const SushiBLAS::Tensor h = constant_matrix(engine, dtype, n, n, K_H_VALUE);
@@ -204,6 +205,7 @@ namespace
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
         const ModeScope scope(recorder, mode);
@@ -220,6 +222,7 @@ namespace
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
         const ModeScope scope(recorder, mode);
@@ -236,6 +239,7 @@ namespace
                     int64_t n, const SushiBLAS::Tensor& a, int64_t columns, const char* label)
     {
         SushiBLAS::RecordingGraph graph(engine);
+        Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
         const Bench::Timing timing = Bench::measure(graph, [&]()
@@ -336,7 +340,7 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine);
+        Bench::print_environment(engine, "triangular");
 
         sycl::queue& queue = runtime.advanced().queue(SushiRuntime::DeviceIndex{0});
         const Bench::ResultTable table("GFLOP/s");
