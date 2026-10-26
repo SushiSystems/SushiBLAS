@@ -27,4 +27,5 @@ sushiblas_add_test_program(
     MODULE benchmark_harness
     TESTS
         test_benchmark_harness.cpp
+        test_environment_value.cpp
         test_profile_session.cpp)
