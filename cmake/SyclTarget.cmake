@@ -26,7 +26,7 @@ include(SushiBLASSyclHeaders)
 # Which devices to generate code for.
 #
 # Empty by default, which means the targets follow SushiRuntime: whatever its
-# GPU detection resolved for this build (sushiruntime_gpu_offload) is applied
+# GPU detection resolved for this build (SushiRuntime::gpu_offload) is applied
 # here too, so the library and the runtime it links cannot disagree about which
 # devices carry an image. When the runtime publishes no offload target the
 # build is SPIR-V only: the device image is portable intermediate code that the
@@ -64,8 +64,8 @@ set(SB_SYCL_DEVICE_FLAGS "" CACHE STRING
 # runtime "no device found" on a machine that plainly has one.
 if(SB_SYCL_TARGETS)
     message(STATUS "SushiBLAS: AOT device targets = ${SB_SYCL_TARGETS} (SB_SYCL_TARGETS override)")
-elseif(TARGET sushiruntime_gpu_offload)
-    get_target_property(_sb_runtime_targets sushiruntime_gpu_offload INTERFACE_COMPILE_OPTIONS)
+elseif(TARGET SushiRuntime::gpu_offload)
+    get_target_property(_sb_runtime_targets SushiRuntime::gpu_offload INTERFACE_COMPILE_OPTIONS)
     if(_sb_runtime_targets)
         message(STATUS "SushiBLAS: device targets follow SushiRuntime = ${_sb_runtime_targets}")
     else()
@@ -92,13 +92,13 @@ endif()
 # sushiblas_runtime_device_targets(<out_compile> <out_link>)
 #   Returns the device target flags SushiRuntime resolved for this build
 #   (-fsycl-targets and its backend options), read from its
-#   sushiruntime_gpu_offload target, or empty lists when it publishes none.
+#   SushiRuntime::gpu_offload target, or empty lists when it publishes none.
 function(sushiblas_runtime_device_targets out_compile out_link)
     set(_compile "")
     set(_link "")
-    if(TARGET sushiruntime_gpu_offload)
-        get_target_property(_compile sushiruntime_gpu_offload INTERFACE_COMPILE_OPTIONS)
-        get_target_property(_link sushiruntime_gpu_offload INTERFACE_LINK_OPTIONS)
+    if(TARGET SushiRuntime::gpu_offload)
+        get_target_property(_compile SushiRuntime::gpu_offload INTERFACE_COMPILE_OPTIONS)
+        get_target_property(_link SushiRuntime::gpu_offload INTERFACE_LINK_OPTIONS)
         if(NOT _compile)
             set(_compile "")
         endif()
