@@ -118,10 +118,10 @@ endfunction()
 #
 #   The device optimisation level is -O3 in every build type. A Debug build compiles host code at
 #   -O0, and the device passes and the device link would follow it; the kernels the tests run
-#   would then be too slow to test. Each device target gets its own -Xsycl-target-frontend,
-#   named by its triple: the driver refuses the bare spelling when it compiles for more than one
-#   target, and matches a GPU alias only by triple. On the link, -O3 reaches only the device
-#   link, since the host objects are already compiled.
+#   would then be too slow to test. -Xarch_device reaches the frontend of every device target;
+#   the per-triple -Xsycl-target-frontend spelling reaches it too, but the driver reports it
+#   unused, which -Werror turns into a failure. On the link, -O3 reaches only the device link,
+#   since the host objects are already compiled.
 function(sushiblas_sycl_device_options out_compile out_link)
     set(compile -fsycl)
     set(link -fsycl)
@@ -134,18 +134,7 @@ function(sushiblas_sycl_device_options out_compile out_link)
         list(APPEND compile ${runtime_compile})
         list(APPEND link ${runtime_link})
     endif()
-    string(REGEX MATCH "-fsycl-targets=[^;]*" targets "${compile}")
-    string(REPLACE "-fsycl-targets=" "" targets "${targets}")
-    string(REPLACE "," ";" targets "${targets}")
-    foreach(target IN LISTS targets)
-        if(target MATCHES "^nvidia_gpu_")
-            set(target nvptx64-nvidia-cuda)
-        elseif(target MATCHES "^amd_gpu_")
-            set(target amdgcn-amd-amdhsa)
-        endif()
-        list(APPEND compile "SHELL:-Xsycl-target-frontend=${target} -O3")
-    endforeach()
-    list(REMOVE_DUPLICATES compile)
+    list(APPEND compile "SHELL:-Xarch_device -O3")
     list(APPEND link -O3)
     list(APPEND compile ${SB_SYCL_DEVICE_FLAGS})
     list(APPEND link ${SB_SYCL_DEVICE_FLAGS})
