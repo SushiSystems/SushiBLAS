@@ -35,7 +35,7 @@ host. [A first program](docs/getting_started/FIRST_PROGRAM.md) goes through it l
 
 ## Build
 
-Standalone, with Git, Python 3.11, CMake and a SushiRuntime checkout beside this one:
+Standalone, with Git, Python 3.11 and CMake; `sb setup` fetches SushiRuntime:
 
 ```bash
 git clone https://github.com/SushiSystems/SushiBLAS.git

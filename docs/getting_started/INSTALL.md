@@ -4,10 +4,9 @@ SushiBLAS installs in two ways. Both give the same checkout and the same `sb` co
 
 ## Standalone
 
-You need Git, Python 3.11 or later and CMake. Clone SushiRuntime beside this repository, because `sb setup` finds it there. `sb build` builds the SushiRuntime, SushiLog and SushiProfiler packages at the tags `cli/sushistack.deps.toml` pins.
+You need Git, Python 3.11 or later and CMake. You clone nothing else: `sb setup` fetches SushiRuntime, SushiLog and SushiProfiler at the tags `cli/sushistack.deps.toml` pins, and `sb build` builds a package of each. A checkout of SushiRuntime beside this one, or the folder `SUSHIRUNTIME_DIR` names, is used instead when it exists.
 
 ```bash
-git clone https://github.com/SushiSystems/SushiRuntime.git
 git clone https://github.com/SushiSystems/SushiBLAS.git
 cd SushiBLAS
 pip install -e ./cli

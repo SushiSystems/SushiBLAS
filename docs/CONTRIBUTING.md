@@ -19,8 +19,7 @@ change that breaks a public name says so in its changelog entry.
 
 ## 1. Getting set up
 
-To provision this checkout alone, with a SushiRuntime checkout beside it, install the CLI
-and run `sb setup`. SushiHub (`hub install`) provisions every checkout of a workspace at once;
+To provision this checkout alone, install the CLI and run `sb setup`, which fetches SushiRuntime. SushiHub (`hub install`) provisions every checkout of a workspace at once;
 [`INSTALL.md`](getting_started/INSTALL.md) gives both routes:
 
 ```bash
