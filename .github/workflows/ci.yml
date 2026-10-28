@@ -31,8 +31,6 @@ concurrency:
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G
-  CMAKE_C_COMPILER_LAUNCHER: ccache
-  CMAKE_CXX_COMPILER_LAUNCHER: ccache
   # sb setup downloads the Windows toolchain afresh on every run, so a cache keyed on the
   # compiler's mtime would never hit; its content is the same from run to run.
   CCACHE_COMPILERCHECK: content

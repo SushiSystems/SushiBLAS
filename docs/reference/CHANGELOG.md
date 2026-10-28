@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-28 — ci: Dropped the ccache launcher variables from the workflow environment; the memory gate finds ccache on `PATH` (`.github/workflows/ci.yml`).
 - 2026-10-28 — cli: Breaking change: Changed sb to build Debug by default, in one tree per build type and sanitizer set under build/, behind the memory gate, with --report on build and --type on test, bench, run and clean (`cli.py`).
 - 2026-10-28 — build: Pinned the release C runtime in every build type, kept device code at `-O3` in Debug and gave Debug line tables only (`SushiBLASAbiPinning.cmake`, `SyclTarget.cmake`).
 - 2026-10-28 — deps: Loosened the CLI's `sushicore` pin from 0.9.7 exactly to 0.9.7 or later (`pyproject.toml`).
