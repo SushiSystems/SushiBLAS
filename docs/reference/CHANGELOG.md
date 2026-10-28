@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-29 — deps: Pinned SushiRuntime v0.5.0, the release this tree builds and passes against (`sushistack.deps.toml`).
 - 2026-10-29 — cli: Asked for sushicore 0.10.2 and registered its `backlog` and `design` command groups beside `docs` (`cli.py`).
 - 2026-10-28 — cli: Pinned SushiRuntime at v0.4.0 in the dependency fragment, so `sb setup` fetches it and no checkout beside this one is needed (`sushistack.deps.toml`).
 - 2026-10-28 — build: Breaking change: Linked one test program per tier, `sushiblas_<tier>_tests`, from each module's `sushiblas_<module>_test_objects`, so the device link runs once per tier (`SushiBLASTests.cmake`).
