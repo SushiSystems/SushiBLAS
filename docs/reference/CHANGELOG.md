@@ -1,10 +1,11 @@
 # Changelog
 
-No release is tagged yet; the version in the build files is 0.1.0. The entries dated before
-2026-09-07 were reshaped to one line each on 2026-10-05, and their original text is frozen in
-the changelog document in the version history.
+The entries dated before 2026-09-07 were reshaped to one line each on 2026-10-05, and their
+original text is frozen in the changelog document in the version history.
 
 ## Unreleased
+
+## v0.1.0 — 2026-10-29
 
 - 2026-10-29 — deps: Pinned SushiRuntime v0.5.0, the release this tree builds and passes against (`sushistack.deps.toml`).
 - 2026-10-29 — cli: Asked for sushicore 0.10.2 and registered its `backlog` and `design` command groups beside `docs` (`cli.py`).

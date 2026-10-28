@@ -52,7 +52,7 @@ prerequisites for both; [Building](docs/getting_started/BUILDING.md) covers a CM
 
 ## Status
 
-SushiBLAS has no tagged release; it is at 0.1.0, below 1.0.0, so a MINOR release may break its
+SushiBLAS is at 0.1.0, below 1.0.0, so a MINOR release may break its
 public interface. Dense BLAS levels 1 to 3, sparse BLAS over CSR and the elementwise, non-linear,
 logic, reduction, random and spatial operations work, each with a reference path and a SYCL
 kernel. GPU coverage and performance are not yet measured, and

@@ -102,7 +102,7 @@ this becomes `SameMajorVersion`.
 SushiBLAS is below 1.0.0, and its public interface is not stable.
 
 - A MINOR release (0.2, 0.3) may change or remove any public name, signature, header path or binary layout. A PATCH release does not.
-- Pin an exact tag. Do not follow a branch. No tag exists yet; the version in `CMakeLists.txt` is 0.1.0.
+- Pin an exact tag, such as `v0.1.0`. Do not follow a branch.
 - Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.hpp>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
 - SushiBLAS's public headers include `<SushiRuntime/sushiruntime.hpp>` and name `SushiRuntime::Runtime`, `Result` and `Residency`, so a SushiRuntime release that changes those changes this interface too. The build names no SushiRuntime version: `cmake/Runtime.cmake` takes the package or the checkout it finds.
 

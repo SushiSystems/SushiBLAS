@@ -145,7 +145,6 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 
 ## What does SushiBLAS not do yet?
 
-- No release is tagged. The version in the build files is 0.1.0.
 - The tree has run on one Windows machine with one NVIDIA card, an RTX 3080 Ti. It has not run on
   Linux, on an AMD or Intel GPU, or on the OpenCL CPU device.
 - `trmm` is not implemented. Sparse matrices are CSR only.
