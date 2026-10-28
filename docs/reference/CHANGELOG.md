@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `BUILDING.md`, the README, `CONTRIBUTING.md` and `cli/README.md` (`BUILDING.md`).
+- 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sb build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).
+- 2026-10-28 — ci: Read the SushiLog pin from `[sushisystems.sushilog]`, the table the fragment has, in five jobs (`ci.yml`).
 - 2026-10-28 — build: Fixed device units failing under -Werror by giving the device -O3 as one `-Xarch_device` flag, since the driver reports the per-triple spelling unused while applying it (`SyclTarget.cmake`).
 - 2026-10-28 — ci: Dropped the ccache launcher variables from the workflow environment; the memory gate finds ccache on `PATH` (`.github/workflows/ci.yml`).
 - 2026-10-28 — cli: Breaking change: Changed sb to build Debug by default, in one tree per build type and sanitizer set under build/, behind the memory gate, with --report on build and --type on test, bench, run and clean (`cli.py`).

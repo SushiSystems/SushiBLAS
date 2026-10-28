@@ -19,24 +19,12 @@ change that breaks a public name says so in its changelog entry.
 
 ## 1. Getting set up
 
-The fastest path from a fresh machine to a built tree is SushiStack's one-shot
-installer, which installs `hub` (SushiStack owns dependency provisioning for
-the whole stack) and runs `hub install`:
+To provision this checkout alone, with a SushiRuntime checkout beside it, install the CLI
+and run `sb setup`. SushiHub (`hub install`) provisions every checkout of a workspace at once;
+[`BUILDING.md`](getting_started/BUILDING.md) gives both routes:
 
 ```bash
-curl -fsSL https://sushisystems.io/install.sh | bash
-```
-
-```powershell
-irm https://sushisystems.io/install.ps1 | iex
-```
-
-That provisions every checkout in the workspace at once. To provision this
-checkout alone, with a SushiRuntime checkout beside it, install the CLI and run
-`sb setup`:
-
-```bash
-hub install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
+pip install -e ./cli       # puts `sb` / `sushiblas` on PATH
 sb setup                  # toolchain and libraries for this checkout
 sb build                  # Debug (default)
 sb test                   # the small and medium tests

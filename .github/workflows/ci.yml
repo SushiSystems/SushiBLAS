@@ -98,7 +98,7 @@ jobs:
         id: sushilog
         shell: bash
         working-directory: .
-        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiLog
@@ -148,7 +148,7 @@ jobs:
         id: sushilog
         shell: bash
         working-directory: .
-        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiLog
@@ -206,7 +206,7 @@ jobs:
         id: sushilog
         shell: bash
         working-directory: .
-        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiLog
@@ -274,7 +274,7 @@ jobs:
         id: sushilog
         shell: bash
         working-directory: .
-        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiLog
@@ -329,7 +329,7 @@ jobs:
         id: sushilog
         shell: bash
         working-directory: .
-        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiLog

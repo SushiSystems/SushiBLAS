@@ -35,15 +35,20 @@ host. [A first program](docs/getting_started/FIRST_PROGRAM.md) goes through it l
 
 ## Build
 
+Standalone, with Git, Python 3.11, CMake and a SushiRuntime checkout beside this one:
+
 ```bash
-hub install-cli sushiblas   # puts sb on the PATH, editable against this checkout
+git clone https://github.com/SushiSystems/SushiBLAS.git
+cd SushiBLAS
+pip install -e ./cli        # puts sb on the PATH, editable against this checkout
 sb setup                    # provisions the toolchain and the libraries the build needs
 sb build                    # Debug build, in build/default-debug
 sb test                     # the small and medium tests
 ```
 
-[Building](docs/getting_started/BUILDING.md) gives the requirements, a CMake build without the
-CLI and an NVIDIA GPU target.
+With SushiHub: `hub add sushiblas` and `hub install-cli sushiblas`, or `hub link sushiblas <path>`
+for a checkout you already have. [Building](docs/getting_started/BUILDING.md) gives the
+prerequisites for both, a CMake build without the CLI and an NVIDIA GPU target.
 
 ## Status
 

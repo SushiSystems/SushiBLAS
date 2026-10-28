@@ -12,19 +12,33 @@ What the build needs, how to install the toolchain and the CLI, and how to build
 
 ## Installing
 
-SushiStack's bootstrap script installs Python and Git, installs `hub`, then runs `hub install` to fetch every toolchain and library the workspace's modules declare. SushiBLAS declares its own in `cli/sushistack.deps.toml`.
+SushiBLAS installs in two ways. Both give the same checkout and the same `sb` command, and neither needs the other: SushiHub is not required to build SushiBLAS, and a checkout made without it joins a SushiHub workspace later without any change.
+
+### Standalone
+
+You need Git, Python 3.11 or later and CMake. Clone SushiRuntime beside this repository, because `sb setup` finds it there. `sb build` builds the SushiRuntime, SushiLog and SushiProfiler packages at the tags `cli/sushistack.deps.toml` pins.
 
 ```bash
-curl -fsSL https://sushisystems.io/install.sh | bash
+git clone https://github.com/SushiSystems/SushiRuntime.git
+git clone https://github.com/SushiSystems/SushiBLAS.git
+cd SushiBLAS
+pip install -e ./cli
+sb setup
+sb build
+sb test
 ```
 
-```powershell
-irm https://sushisystems.io/install.ps1 | iex
+`pip install` also installs `sushicore` from PyPI, at the version `cli/pyproject.toml` pins. Machine paths go in the gitignored `cli/config.local.toml`; the store is `~/.sushisystems`, or the folder named by `SUSHISYSTEMS_HOME`.
+
+### With SushiHub
+
+```bash
+hub add sushiblas            # clone it into the workspace
+hub install-cli sushiblas    # put sb on the path
+hub link sushiblas <path>    # adopt a checkout you already have, instead of hub add
 ```
 
-On Windows use `irm`. In PowerShell `curl` is an alias for `Invoke-WebRequest` and does not pipe a script the same way.
-
-To use an existing checkout of this repository, link it into a workspace with `hub link`; `hub doctor` and `hub status` show what is installed. The [SushiStack](https://sushisystems.io) documentation covers both.
+`hub link` records where the checkout is and changes nothing in it. `hub install` provisions the toolchain and the libraries of every module in the workspace, and `hub doctor` and `hub status` show what is installed. After either route, `sb build` and `sb test` are the commands above.
 
 ## Using SushiBLAS from another project
 
@@ -32,11 +46,7 @@ Call `find_package(SushiBLAS REQUIRED)` and link `SushiBLAS::sushiblas`. Read th
 
 ## Building
 
-The CLI loads the compiler and toolchain paths from its configuration and drives CMake. Install it through `hub`:
-
-```bash
-hub install-cli sushiblas           # always editable, against this checkout
-```
+The CLI loads the compiler and toolchain paths from its configuration and drives CMake. Install it as above, with `pip install -e ./cli` or `hub install-cli sushiblas`; both are editable.
 
 This puts two equivalent commands on the PATH, `sb` and `sushiblas`. Run `sb setup` once before the first build; `sb setup --dry-run` shows what it would install. Shared defaults are in `cli/config.toml`; machine-specific paths go in the gitignored `cli/config.local.toml`. Inside a SushiStack workspace, or with a SushiRuntime checkout beside this one, no local configuration is needed.
 

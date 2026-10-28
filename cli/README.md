@@ -21,18 +21,17 @@ and it puts two commands on your `PATH`:
 They are identical; use whichever you prefer. Every example below uses `sb`.
 
 ```bash
-hub install-cli sushiblas      # always editable, against this checkout
+pip install -e ./cli           # or, with SushiHub: hub install-cli sushiblas
 ```
 
-This installs through **pipx** on every platform, into an isolated venv, and pipx resolves the
-shared `sushicore` package from PyPI as an ordinary dependency. The install is always editable
-and there is no flag to make it otherwise: a frozen copy would stop tracking `git pull`s on this
+Either way the install is editable, and pip resolves the shared `sushicore` package from PyPI
+at the version `pyproject.toml` pins. A frozen copy would stop tracking `git pull`s on this
 checkout without ever saying so.
 
 To remove it later:
 
 ```bash
-pipx uninstall sushiblas-cli
+pip uninstall sushiblas-cli
 ```
 
 ### How the CLI finds your compiler and runtime
@@ -48,7 +47,7 @@ packages** it builds or reuses. The CLI reads its settings from:
 
 `sb setup` provisions the toolchain and libraries for this checkout and writes
 `cli/config.local.toml`; it needs a SushiRuntime checkout beside this one. To
-provision several checkouts at once, use `hub install` from a SushiStack
+provision several checkouts at once, use `hub install` from a SushiHub
 workspace. To see what the CLI resolved, run `sb config`.
 
 A config file that is not valid TOML, or a `[cli] theme` that `sushicore` does

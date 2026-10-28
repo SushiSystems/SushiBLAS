@@ -99,7 +99,7 @@ in this repository. The licence column says where each licence was read.
 | Intel CPU Runtime for OpenCL Applications | the SYCL CPU device of the Windows CI job; `w_opencl_runtime_p` installed by `.github/actions/setup-opencl-cpu/action.yml` | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html | 2026.0.0.946, pinned with its SHA256 | unverified |
 | GoogleTest | `cmake/SushiBLASTests.cmake`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
 | hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`); `libhwloc-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/open-mpi/hwloc | not pinned | a BSD licence, from the workspace's vcpkg `share/hwloc/copyright`; the audit names BSD-3-Clause |
-| sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; the 0.5.0 installed on this machine declares Apache-2.0, and no 0.7.0 or later was read |
+| sushicore | `cli/pyproject.toml` | PyPI | >=0.9.7 | Sushi Systems' own; the 0.5.0 installed on this machine declares Apache-2.0, and no 0.7.0 or later was read |
 | typer | `cli/pyproject.toml` | PyPI | >=0.12 | MIT, from the metadata of the installed 0.20.0 |
 | rich | `cli/pyproject.toml` | PyPI | >=13.0 | MIT, from the metadata of the installed 15.0.0 |
 | tomli | `cli/pyproject.toml`, Python below 3.11 | PyPI | >=2.0 | MIT, from the metadata of the installed 2.4.0 |
