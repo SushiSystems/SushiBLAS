@@ -48,12 +48,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs spmv on the host CPU queue. */
-        class Medium_SYCLSpmv : public HostDeviceTest
+        class Medium_SYCLSparseSpmv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Medium_SYCLSpmv, MatchesTheReferencePlainAndTransposed)
+        TEST_F(Medium_SYCLSparseSpmv, MatchesTheReferencePlainAndTransposed)
         {
             // Every value is a small integer, so both kernels compute without rounding.
             const int64_t rows = 311;

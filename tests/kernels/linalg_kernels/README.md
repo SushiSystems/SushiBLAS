@@ -1,7 +1,7 @@
 # Tests of linalg_kernels
 
-The tests of the `linalg_kernels` module, built into `sushiblas_linalg_kernels_tests` by
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. The source comments state
+The tests of the `linalg_kernels` module, built into `sushiblas_linalg_kernels_test_objects` and linked
+into `sushiblas_kernels_tests` by `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. The source comments state
 what a test checks. [`tests/README.md`](../../README.md) holds the reasoning the tests share.
 
 | File | Tests |

@@ -11,12 +11,13 @@ It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `
 | `run_observer_capture.hpp` | `RunObserverCapture`, which keeps the dispatch records of the runs of a runtime |
 | `log_capture.hpp` | `LogCapture`, which keeps the records SushiBLAS writes while a test runs |
 
-`source/test_main.cpp` holds the `main` of a program with a `Medium_` or `Large_` suite:
-synchronous logging, the environment, then `RUN_ALL_TESTS`. `source/small_test_main.cpp` holds
-the `main` of a program whose suites are all `Small_`: synchronous logging and `RUN_ALL_TESTS`,
-with no environment, so the program opens no device and starts no worker thread. Neither is a
-source of the module. `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` compiles the
-one that fits the program's suites into it, so neither reaches the library.
+`source/test_main.cpp` holds the `main` of each tier program and of an application program with a
+`Medium_` or `Large_` suite: synchronous logging, the environment, then `RUN_ALL_TESTS`. It leaves
+the environment out when `--gtest_filter` selects only `Small_` suites, so a `Small_` test opens no
+device and starts no worker thread. `source/small_test_main.cpp` holds the `main` of an
+application program whose suites are all `Small_`: synchronous logging and `RUN_ALL_TESTS`, with no
+environment. Neither is a source of the module. `cmake/SushiBLASTests.cmake` compiles the one
+that fits into each program, so neither reaches the library.
 
 ## test_environment.hpp
 

@@ -1,7 +1,7 @@
 # Tests of profiling
 
-The tests of the `profiling` module, built into `sushiblas_profiling_tests` by
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. The source comments state
+The tests of the `profiling` module, built into `sushiblas_profiling_test_objects` and linked
+into `sushiblas_engine_tests` by `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. The source comments state
 what a test checks; a section below holds why a test is written the way it is.
 [`tests/README.md`](../../README.md) holds the reasoning the tests share.
 

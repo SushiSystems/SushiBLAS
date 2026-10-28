@@ -6,7 +6,8 @@ sushiai/.+ # a file of the SushiAI repository, cited as the example adapter and 
 cli/config\.local\.toml # a gitignored file each machine creates for its own paths
 KernelFailed|DeviceLost|CompileFailed|sr_format|sized_from_device # names of SushiRuntime, which this repository does not hold
 memory_allocation # an enumerator of sycl::errc
-sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its module
+sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its tier or application
+sushiblas_[a-z_]+_test_objects # the object library cmake/SushiBLASTests.cmake names from a module
 pkg_check_modules # a CMake command
 doxygen_exe # a configuration key of sushicore, the shared layer of the CLI
 HostKernel # a class of the intel-llvm SYCL runtime, named in a link error

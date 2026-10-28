@@ -200,7 +200,7 @@ def test(
     """Run the tests of the labels given.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sb run sushiblas_blas_tests -- --gtest_filter=Gemm.*
+    the binary directly: sb run sushiblas_operations_tests -- --gtest_filter=Gemm.*
 
     --package is the only check of what find_package(SushiBLAS) hands a third
     party. It runs no CTest, so --label, --filter, --repeat, --jobs and --cli do
@@ -265,7 +265,7 @@ def bench(
     rich_help_panel=K_PROJECT,
     epilog="sb run quickstart_demo\n"
            "sb run --sort  # Pick an executable from a list\n"
-           "sb run sushiblas_blas_tests -- --gtest_filter='Medium_GEMMTest.*'  # Flags after -- go to it",
+           "sb run sushiblas_operations_tests -- --gtest_filter='Medium_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True},
 )
 def run(

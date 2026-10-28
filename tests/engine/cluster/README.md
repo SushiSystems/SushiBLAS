@@ -1,7 +1,7 @@
 # Tests of cluster
 
-The tests of the `cluster` module, built into `sushiblas_cluster_tests` by
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` when `SB_ENABLE_DISTRIBUTED` is
+The tests of the `cluster` module, built into `sushiblas_cluster_test_objects` and linked
+into `sushiblas_engine_tests` by `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` when `SB_ENABLE_DISTRIBUTED` is
 on. The source comments state what a test checks; a section below holds why a test is written
 the way it is. [`tests/README.md`](../../README.md) holds the reasoning the tests share.
 

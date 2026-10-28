@@ -89,6 +89,6 @@ sb test --package                # the out-of-tree consumer of the installed pac
 sb test --filter 'Gemm.*'        # ctest -R over 'Suite.Case' test names
 sb test --repeat 5               # re-run until first failure
 
-# or run one test program directly; a module's is sushiblas_<module>_tests
-sb run sushiblas_blas_tests -- --gtest_filter='Medium_GEMMTest.*'
+# or run one test program directly; a tier's is sushiblas_<tier>_tests
+sb run sushiblas_operations_tests -- --gtest_filter='Medium_GEMMTest.*'
 ```

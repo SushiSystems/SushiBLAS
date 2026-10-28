@@ -682,7 +682,7 @@ def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monke
     console, driver, service = parts
     programs = checkout / K_RELEASE_TREE / "tests"
     programs.mkdir()
-    for name in ("benchmark_sparse", "benchmark_gemm", "sushiblas_blas_tests"):
+    for name in ("benchmark_sparse", "benchmark_gemm", "sushiblas_operations_tests"):
         (programs / name).write_text("")
     commands = _child_exits_with(monkeypatch, 0)
     assert service.bench() == 0

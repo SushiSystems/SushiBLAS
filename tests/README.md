@@ -26,10 +26,12 @@ The helpers tests of several modules share are internal test-only modules under 
 listed in [`modules/README.md`](../modules/README.md). A helper the tests of one module share
 sits in that module's folder, and a test includes it by its quoted relative path.
 
-## One program per module
+## One program per tier
 
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
-calls it in its own `CMakeLists.txt` with the files of its mirror and gets the `sushiblas_<module>_tests`. Every program lands in `tests/` of its build tree. A new test file is
+`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds the tests of every module. A
+module calls it in its own `CMakeLists.txt` with the files of its mirror and gets the object
+library `sushiblas_<module>_test_objects`, which `sushiblas_add_tier_test_programs()` links into
+`sushiblas_<tier>_tests`. Every program lands in `tests/` of its build tree. A new test file is
 listed by hand in that call; nothing globs the folders. A file that instantiates a kernel, by
 launching one or by handing a functor to a dispatch seam, is listed under `DEVICE_TESTS`, and the
 others under `TESTS`. An application's tests are built the same way by
@@ -52,10 +54,14 @@ A test's size is the prefix of its GoogleTest suite name: `Small_`, `Medium_` or
 prefixes as three filters, each with its label and timeout, and a suite with none of them stops
 the configure with its name.
 
-A program whose suites are all `Small_` is linked with
-`modules/foundation/test_runner/source/small_test_main.cpp`, which creates no runtime, so it
-opens no device and starts no worker thread. A program with a `Medium_` or `Large_` suite creates
-the shared runtime. A suite whose tests reach the runtime, a queue, a tensor or a file is
+Each module's tests build into an object library, `sushiblas_<module>_test_objects`, and each
+tier links the object libraries of its modules into one program, `sushiblas_<tier>_tests`: a
+program repeats the device link of the library, so one program per tier pays it once. The tier
+program's `main` creates the shared runtime unless `--gtest_filter` selects only `Small_` suites,
+so a `Small_` test, which CTest runs alone, opens no device and starts no worker thread. An
+application keeps a program of its own, `sushiblas_<name>_tests`; one whose suites are all
+`Small_` is linked with `modules/foundation/test_runner/source/small_test_main.cpp`, which
+creates no runtime. A suite whose tests reach the runtime, a queue, a tensor or a file is
 `Medium_`; the host reference kernels, the arithmetic and the type checks are `Small_`. No suite
 is `Large_`.
 
@@ -76,7 +82,7 @@ Tests run through `sb`, which sets the loader path the test program needs.
 | `sb test --package` | Installs the library, then configures, builds and runs `package/` against the install |
 | `sb test --cli` | The pytest tests of the `sb` CLI, by the same labels |
 | `sb test --filter <pattern>` | The tests whose name matches the pattern |
-| `sb run sushiblas_<module>_tests` | One module's program; flags after `--` go to GoogleTest |
+| `sb run sushiblas_<tier>_tests` | One tier's program; flags after `--` go to GoogleTest |
 | `sb bench` | Every benchmark program, after `sb build --benchmarks` |
 | `sb run benchmark_<name>` | One benchmark program, after `sb build --benchmarks` |
 

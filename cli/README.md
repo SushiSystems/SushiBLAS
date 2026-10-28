@@ -133,7 +133,7 @@ The options SushiBLAS itself defines:
 | Option | Default | What it does |
 |--------|---------|--------------|
 | `SB_ENABLE_LOGGING` | `ON` | Compile log calls below ERROR: TRACE and up in a debug build, DEBUG and up under `NDEBUG`. |
-| `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test program of each module from its mirror under `tests/`. |
+| `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build the tests of each module from its mirror under `tests/` and register one program per tier. |
 | `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
 | `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs of the modules under `tests/`; `sb build --benchmarks` sets it. |
 | `SB_ENABLE_DISTRIBUTED` | `OFF` | Build `modules/engine/cluster/` and SushiRuntime's distributed layer under it; `sb build --distributed` sets it. |
@@ -258,8 +258,8 @@ The target name is matched exactly first, then by substring. Anything after
 flags to the test binary:
 
 ```bash
-sb run sushiblas_blas_tests -- --gtest_filter='Medium_GEMMTest.*'
-sb run sushiblas_umbrella_tests -- --gtest_shuffle --gtest_break_on_failure
+sb run sushiblas_operations_tests -- --gtest_filter='Medium_GEMMTest.*'
+sb run sushiblas_library_tests -- --gtest_shuffle --gtest_break_on_failure
 ```
 
 An option `sb run` does not know, written before `--`, is a usage error with

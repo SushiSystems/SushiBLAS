@@ -6,6 +6,8 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-28 — build: Breaking change: Linked one test program per tier, `sushiblas_<tier>_tests`, from each module's `sushiblas_<module>_test_objects`, so the device link runs once per tier (`SushiBLASTests.cmake`).
+- 2026-10-28 — tests: Left the shared runtime out of a test program whose `--gtest_filter` selects only `Small_` suites, and renamed the sparse SpMV suite `Medium_SYCLSparseSpmv`, which shared its name with the dense one (`test_main.cpp`).
 - 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `INSTALL.md`, the README, `CONTRIBUTING.md` and `cli/README.md` (`INSTALL.md`).
 - 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sb build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).
 - 2026-10-28 — ci: Read the SushiLog pin from `[sushisystems.sushilog]`, the table the fragment has, in five jobs (`ci.yml`).

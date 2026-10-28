@@ -126,7 +126,7 @@ endif()
 # --- Testing switch ---
 # Declared before the modules: a module registers its own test program, so the switch,
 # GoogleTest and enable_testing() have to exist by the time the first module is read.
-option(SB_BUILD_TESTS "Build and register the test program of each module from its mirror under tests/" ${SB_IS_TOP_LEVEL})
+option(SB_BUILD_TESTS "Build the tests of each module from its mirror under tests/ and register one program per tier" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_TESTS)
     if(CMAKE_VERSION VERSION_LESS 3.22)
         message(FATAL_ERROR "SB_BUILD_TESTS needs CMake 3.22 for gtest_discover_tests(TEST_FILTER).")
@@ -138,12 +138,16 @@ endif()
 # Declared before the modules for the same reason: a module adds its benchmark programs, and
 # the operations tier adds benchmark_harness, only when the switch is on.
 option(SB_BUILD_BENCHMARKS "Build the benchmark programs of the modules under tests/" OFF)
-include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_application_test_program()
+include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_tier_test_programs(), ...
 
 # --- Modules ---
 # Every tier in order; the last one composes the `sushiblas` library from the object
 # libraries and the include roots the others record.
 add_subdirectory(modules)
+if(SB_BUILD_TESTS)
+    # Every module has recorded its test objects by now; each tier links them into one program.
+    sushiblas_add_tier_test_programs()
+endif()
 
 # The scenario benchmarks measure under SushiProfiler, so they need the option on. Their tests
 # need the profiling headers and build with the tests.
