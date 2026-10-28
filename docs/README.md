@@ -10,6 +10,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 
 | Document | Holds |
 | --- | --- |
+| [Install](getting_started/INSTALL.md) | The two ways to install, standalone and with SushiHub, and what each needs |
 | [Building](getting_started/BUILDING.md) | The requirements, the install, the CLI and CMake builds, an NVIDIA target and the test commands |
 | [A first program](getting_started/FIRST_PROGRAM.md) | A GEMM recorded and read back, line by line, and what every program can count on |
 

@@ -47,8 +47,8 @@ sb test                     # the small and medium tests
 ```
 
 With SushiHub: `hub add sushiblas` and `hub install-cli sushiblas`, or `hub link sushiblas <path>`
-for a checkout you already have. [Building](docs/getting_started/BUILDING.md) gives the
-prerequisites for both, a CMake build without the CLI and an NVIDIA GPU target.
+for a checkout you already have. [Install](docs/getting_started/INSTALL.md) gives the
+prerequisites for both; [Building](docs/getting_started/BUILDING.md) covers a CMake build without the CLI and an NVIDIA GPU target.
 
 ## Status
 

@@ -6,7 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
-- 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `BUILDING.md`, the README, `CONTRIBUTING.md` and `cli/README.md` (`BUILDING.md`).
+- 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `INSTALL.md`, the README, `CONTRIBUTING.md` and `cli/README.md` (`INSTALL.md`).
 - 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sb build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).
 - 2026-10-28 — ci: Read the SushiLog pin from `[sushisystems.sushilog]`, the table the fragment has, in five jobs (`ci.yml`).
 - 2026-10-28 — build: Fixed device units failing under -Werror by giving the device -O3 as one `-Xarch_device` flag, since the driver reports the per-triple spelling unused while applying it (`SyclTarget.cmake`).

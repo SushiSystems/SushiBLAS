@@ -21,7 +21,7 @@ change that breaks a public name says so in its changelog entry.
 
 To provision this checkout alone, with a SushiRuntime checkout beside it, install the CLI
 and run `sb setup`. SushiHub (`hub install`) provisions every checkout of a workspace at once;
-[`BUILDING.md`](getting_started/BUILDING.md) gives both routes:
+[`INSTALL.md`](getting_started/INSTALL.md) gives both routes:
 
 ```bash
 pip install -e ./cli       # puts `sb` / `sushiblas` on PATH
