@@ -63,6 +63,19 @@ namespace SushiBLAS
                     text.replace(at, from.size(), to);
                 return text;
             }
+
+            /** @brief Removes the object member @p key and the comma after it. */
+            std::string without_object_member(std::string text, const std::string& key)
+            {
+                const std::size_t at = text.find("\"" + key + "\"");
+                const std::size_t close = text.find('}', at);
+                const std::size_t comma = text.find(',', close);
+                EXPECT_NE(at, std::string::npos) << key;
+                EXPECT_NE(comma, std::string::npos) << key;
+                if (at != std::string::npos && comma != std::string::npos)
+                    text.erase(at, comma + 1 - at);
+                return text;
+            }
         } // namespace
 
         TEST(Small_CeilingsFile, TheWriterOutputPassesTheReader)
@@ -99,8 +112,8 @@ namespace SushiBLAS
 
         TEST(Small_CeilingsFile, RefusesAMissingBandwidth)
         {
-            const std::string text = replaced(Profiling::write_ceilings(valid_ceilings()),
-                                              "\"bandwidth\"", "\"band_width\"");
+            const std::string text =
+                without_object_member(Profiling::write_ceilings(valid_ceilings()), "bandwidth");
 
             const Profiling::CeilingsReadResult read = Profiling::read_ceilings(text);
 

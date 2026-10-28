@@ -49,7 +49,8 @@ namespace SushiBLAS
             EXPECT_EQ(layout.work, layout.residual + 10u);
             EXPECT_EQ(layout.preconditioned, layout.work + 10u);
             EXPECT_EQ(layout.factors, layout.preconditioned + 10u);
-            EXPECT_EQ(layout.scalars, layout.factors + 10u * 2u);
+            EXPECT_EQ(layout.partials, layout.factors + 10u * 2u);
+            EXPECT_EQ(layout.scalars, layout.partials + Kernels::dot_chunks(10u));
         }
 
         TEST(Small_GmresLayout, CountsThePivotsAfterTheScalars)
