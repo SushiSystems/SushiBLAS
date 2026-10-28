@@ -13,6 +13,6 @@
 # optimisation in every build type (SyclTarget.cmake). RelWithDebInfo carries full debug
 # information. The rule is in the build-throughput skill of SushiSkills.
 
-if(NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     add_compile_options("$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-gline-tables-only>")
 endif()
