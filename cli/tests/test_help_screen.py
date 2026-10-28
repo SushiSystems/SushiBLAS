@@ -81,7 +81,7 @@ def test_no_command_is_listed_under_a_group_it_does_not_belong_to():
 
 def test_a_command_help_carries_examples():
     out = _run("build", "--help")
-    assert "Examples" in out and "sb build --type debug" in out
+    assert "Examples" in out and "sb build --type release" in out
 
 
 def test_a_command_with_arguments_carries_examples():

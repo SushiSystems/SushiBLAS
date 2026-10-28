@@ -38,7 +38,7 @@ host. [A first program](docs/getting_started/FIRST_PROGRAM.md) goes through it l
 ```bash
 hub install-cli sushiblas   # puts sb on the PATH, editable against this checkout
 sb setup                    # provisions the toolchain and the libraries the build needs
-sb build                    # release build
+sb build                    # Debug build, in build/default-debug
 sb test                     # the small and medium tests
 ```
 

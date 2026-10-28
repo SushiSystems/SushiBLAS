@@ -29,8 +29,14 @@ K_SANITIZE_VALUE = {
 }
 
 
+#: Names the build tree of each sanitizer set; a sanitized tree is never the plain one.
+K_SANITIZE_TREE = {
+    Sanitizer.NONE: "default",
+    Sanitizer.ADDRESS_UNDEFINED: "asan",
+    Sanitizer.THREAD: "tsan",
+}
+
+
 def sanitize_flags(sanitizer: Sanitizer | None) -> list[str]:
-    """Returns the -D flag that sets SB_SANITIZE; None leaves the cached value."""
-    if sanitizer is None:
-        return []
-    return [f"-D{K_SANITIZE_VARIABLE}={K_SANITIZE_VALUE[sanitizer]}"]
+    """Returns the -D flag that sets SB_SANITIZE; None is the plain tree, which has none."""
+    return [f"-D{K_SANITIZE_VARIABLE}={K_SANITIZE_VALUE[sanitizer or Sanitizer.NONE]}"]

@@ -81,24 +81,35 @@ it a glow; `COLORFGBG` is read when the terminal sets it, and Windows Terminal d
 Configures and builds the library, examples, and test binary.
 
 ```bash
-sb build                  # Release build (the default)
-sb build --type debug     # Debug build
+sb build                  # Debug build (the default), in build/default-debug
+sb build --type release   # Release build, in build/default-release
 sb build --type relwithdebinfo
+sb build --sanitize address-undefined   # ASan and UBSan, in build/asan-debug
 sb build --clean          # delete the build tree first, then build from scratch
 sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
 sb build --distributed    # also build the cluster module (--no-distributed stops)
 sb build --jobs 4         # run at most 4 compile jobs at once
+sb build --report         # print what each kind of build edge cost
 sb build --build-dir build/pkg-x --lean   # what a consumer's package build runs
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
-`--jobs` (`-j`) reaches `cmake --build` as `--parallel`; left out, the generator chooses the
-count and `CMAKE_BUILD_PARALLEL_LEVEL` is honoured.
-Flags can be combined, e.g. `sb build --type debug --clean`.
+`--jobs` (`-j`) reaches `cmake --build` as `--parallel`; left out, the count is one job per
+hardware thread, and `CMAKE_BUILD_PARALLEL_LEVEL` is honoured. Flags can be combined, e.g.
+`sb build --type release --clean`.
 
-There is one build tree. Building with a different `--type` removes it and
-configures from an empty one, and `sb build` says so before it does. Ctrl+C
-during a build, a test run or `sb run` ends the command with exit code 130.
+Every build type has a tree of its own, `build/<name>-<type>`: `default-debug`,
+`default-release`, `default-relwithdebinfo`, and `asan-` or `tsan-` plus the type for a
+sanitizer build. A type change builds in another tree and empties none. A tree configured as one
+type is never configured as another: `sb build` refuses, and so does `-D CMAKE_BUILD_TYPE=...`,
+because the type picks the tree. Ctrl+C during a build, a test run or `sb run` ends the command
+with exit code 130.
+
+Every compile and link of a tree runs through sushicore's memory gate, which admits an edge only
+when its measured peak fits in the free memory. A `stop` file in `build/build_gate/` makes the
+build refuse until it is deleted. `--report` prints the wall time, the count, the longest and the
+peak memory of each kind of edge, the slowest edges, and writes `build_report.json` into the
+tree.
 
 ### Passing CMake options
 
@@ -116,7 +127,7 @@ a malformed one exits 2 and leaves the build tree untouched, even with
 
 Cache variables persist in the build tree, so dropping the flag on a later run
 does **not** unset them. Pass `VAR=` to clear one, or `--clean` to start over.
-A change of `--type` starts over too, so pass the variables again with it.
+A new `--type` is a new tree, so pass the variables again with it.
 
 The options SushiBLAS itself defines:
 
@@ -152,7 +163,7 @@ line. The folders the package
 libraries load from go first on `PATH` (Windows) or `LD_LIBRARY_PATH` (Linux) for
 the build and for `sb test`, `sb bench` and `sb run`.
 
-`--build-dir` names the tree below the checkout in place of `build/`. `--lean`
+`--build-dir` names the tree below the checkout in place of `build/<name>-<type>`. `--lean`
 builds no tests, examples or benchmarks and refuses `--benchmarks`; a plain build
 turns the tests and the examples on again. SushiCore runs these two flags when it
 builds a SushiBLAS package for a consumer, then runs `sb package --build-dir <tree>
@@ -167,6 +178,7 @@ says what each allows. `--label` (`-l`) picks the sizes and repeats:
 
 ```bash
 sb test                          # small and medium, the default
+sb test --type release           # the Release tree; --sanitize picks a sanitizer tree
 sb test --label small
 sb test --label small --label large
 sb test --label quarantined      # the quarantined tests only
@@ -204,8 +216,8 @@ exit 2.
 ### `--package`
 
 Runs no CTest test. It installs the package to
-`build/package/prefix`, configures `tests/package/` into
-`build/package/consumer` against it, builds it, stages the shared libraries
+`<tree>/package/prefix`, configures `tests/package/` into
+`<tree>/package/consumer` against it, builds it, stages the shared libraries
 beside it and runs it: it consumes SushiBLAS the way SushiAI does, through
 `find_package`, with no access to this source tree.
 
@@ -222,8 +234,9 @@ Run it before publishing anything that adds a public header or touches
 
 ## `sb bench`
 
-Runs every benchmark program under `build/tests/`, in name order, after
-`sb build --benchmarks`. A benchmark measures and does not pass or fail; the
+Runs every benchmark program under `build/default-release/tests/`, in name order, after
+`sb build --type release --benchmarks`. A benchmark measures the build that ships, so `sb bench`
+looks in the Release tree unless `--type` or `--sanitize` names another. A benchmark measures and does not pass or fail; the
 command exits with the first non-zero code a program returned.
 
 `sb bench <name> -- <options>` runs the one scenario benchmark the name matches (exact, then substring) and forwards what follows `--` to it, as `sb run` does; `sb bench device_ceilings -- --out build/ceilings` writes the ceilings of device 0. Options without a name are refused.
@@ -235,7 +248,8 @@ is the profile's `default_target` in `cli/sushiblas/config.py`; `sb config`
 prints the value in effect.
 
 ```bash
-sb run                                # run the default target
+sb run                                # run the default target from the Debug tree
+sb run --type release                 # ... from the Release tree
 sb run quickstart_demo              # run a specific binary by name
 sb run --sort                         # interactively pick from the list of executables
 ```
@@ -255,7 +269,7 @@ exit code 2. It is never taken as the target name or passed to the program.
 ## `sb clean` and `sb docs`
 
 ```bash
-sb clean                         # remove the build/ tree
+sb clean                         # remove the Debug tree; --type and --sanitize pick another
 sb docs                          # generate the Doxygen API reference into build/docs/api-site/html/
 sb docs bundle --release 1.2.3   # pack the documentation bundle into build/docs/bundle/
 ```

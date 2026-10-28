@@ -12,12 +12,20 @@ from pathlib import Path
 
 import pytest
 import sushicore.proc
+from sushicore.build_admission import (
+    BuildStoppedError,
+    compiler_cache,
+    hardware_threads,
+    launcher_defines,
+    stop_file,
+)
+from sushicore.errors import ConfigError
 from sushicore.proc import Runner
 from typer.testing import CliRunner
 
 from sushiblas import cli
 from sushiblas.services import project
-from sushiblas.services.build_type import BuildType
+from sushiblas.services.build_type import K_DEFAULT_BUILD_TYPE, BuildType
 from sushiblas.services.errors import (
     K_EXIT_USAGE,
     BuildTreeMissingError,
@@ -29,6 +37,7 @@ from sushiblas.services.errors import (
 from sushiblas.services.project import CleanResult, ProjectService
 from sushiblas.services.sanitizer import Sanitizer
 from sushiblas.services.test_label import TestLabel
+from sushiblas.services.tree_choice import TreeChoice
 
 pytestmark = pytest.mark.medium
 
@@ -36,6 +45,9 @@ K_CONFIGURE_FAILED = 9
 K_CHILD_EXIT = 7
 K_INTERRUPTED = 130
 K_EXECUTABLE = "quickstart_demo"
+#: The trees a plain build and a benchmark find, below the checkout.
+K_DEBUG_TREE = Path("build") / "default-debug"
+K_RELEASE_TREE = Path("build") / "default-release"
 
 
 class _Console:
@@ -123,6 +135,7 @@ class _Config:
     """Holds the few settings the service reads."""
 
     generator = "Ninja"
+    ccache_exe = ""
     is_windows = False
     platform = "linux"
     target_bin = K_EXECUTABLE
@@ -147,9 +160,10 @@ class _Config:
 
 @pytest.fixture
 def checkout(tmp_path):
-    """Returns a checkout with a build tree and a SushiRuntime sibling."""
+    """Returns a checkout with a Debug and a Release tree and a SushiRuntime sibling."""
     root = tmp_path / "sushiblas"
-    (root / "build").mkdir(parents=True)
+    (root / K_DEBUG_TREE).mkdir(parents=True)
+    (root / K_RELEASE_TREE).mkdir(parents=True)
     (root / "CMakeLists.txt").write_text("")
     (tmp_path / "sushiruntime").mkdir()
     (tmp_path / "sushiruntime" / "CMakeLists.txt").write_text("")
@@ -186,22 +200,22 @@ def _child_exits_with(monkeypatch, code: int) -> list[list[str]]:
     return commands
 
 
-def test_build_says_it_replaces_a_tree_it_cannot_reuse(parts, checkout):
-    """A tree configured for another build type is removed out loud, not silently."""
+def test_build_says_it_replaces_a_tree_of_another_generator(parts, checkout):
+    """A tree the driver cannot reuse is removed out loud, not silently."""
     console, driver, service = parts
     with pytest.raises(StepFailedError) as raised:
         service.build(BuildType.DEBUG)
     assert raised.value.exit_code == K_CONFIGURE_FAILED
-    assert not (checkout / "build").exists()
+    assert not (checkout / K_DEBUG_TREE).exists()
     said = console.texts("info")
     reason = next(text for text in said if "empty tree" in text)
-    assert said.index(reason) < said.index(f"Removing {checkout / 'build'}...")
+    assert said.index(reason) < said.index(f"Removing {checkout / K_DEBUG_TREE}...")
 
 
 def test_build_removes_nothing_when_there_is_no_tree(parts, checkout):
     """A first build has no tree to announce or remove."""
     console, driver, service = parts
-    (checkout / "build").rmdir()
+    (checkout / K_DEBUG_TREE).rmdir()
     with pytest.raises(StepFailedError):
         service.build(BuildType.DEBUG)
     assert not [text for text in console.texts("info") if "empty tree" in text]
@@ -211,7 +225,7 @@ def test_build_removes_nothing_when_there_is_no_tree(parts, checkout):
 def test_build_rejects_a_bad_define_before_touching_the_tree(parts, checkout):
     """A -D without '=' raises with exit 2 and leaves the tree and its files in place."""
     console, driver, service = parts
-    marker = checkout / "build" / "CMakeCache.txt"
+    marker = checkout / K_DEBUG_TREE / "CMakeCache.txt"
     marker.write_text("")
     with pytest.raises(InvalidDefineError) as raised:
         service.build(BuildType.DEBUG, clean=True, defines=["SB_ENABLE_LOGGING=OFF", "NOVALUE"])
@@ -263,11 +277,11 @@ def test_build_lets_a_caller_define_outrank_the_benchmarks_switch(parts, checkou
         (Sanitizer.ADDRESS_UNDEFINED, ["-DSB_SANITIZE=address,undefined"]),
         (Sanitizer.THREAD, ["-DSB_SANITIZE=thread"]),
         (Sanitizer.NONE, ["-DSB_SANITIZE="]),
-        (None, []),
+        (None, ["-DSB_SANITIZE="]),
     ],
 )
 def test_build_passes_the_sanitizer_set_as_a_cache_variable(parts, checkout, sanitizer, expected):
-    """--sanitize becomes one SB_SANITIZE flag; none clears it and leaving it out keeps it."""
+    """--sanitize becomes one SB_SANITIZE flag; the plain tree, left out or none, clears it."""
     console, driver, service = parts
     with pytest.raises(StepFailedError):
         service.build(BuildType.RELEASE, sanitizer=sanitizer)
@@ -288,13 +302,14 @@ class _CompilingDriver(_Driver):
         return 0
 
     def compile(self, cfg, build_dir: Path, cwd: Path, env, **options) -> int:
-        """Records the jobs the compile was asked for and succeeds."""
+        """Records the jobs the compile was asked for, leaves the tree behind and succeeds."""
         self.compiled_jobs.append(options.get("jobs"))
+        build_dir.mkdir(parents=True, exist_ok=True)
         return 0
 
 
-def test_build_hands_the_jobs_to_the_compile(checkout):
-    """The number of compile jobs reaches the driver as given, and is absent when not given."""
+def _compiling_service(checkout) -> tuple[_Console, _CompilingDriver, ProjectService]:
+    """Returns the console and driver that configure and compile, and the service on them."""
     console = _Console()
     driver = _CompilingDriver()
     service = ProjectService(
@@ -306,9 +321,107 @@ def test_build_hands_the_jobs_to_the_compile(checkout):
         find_root=lambda: checkout,
         load_config=_Config,
     )
+    return console, driver, service
+
+
+def test_build_hands_the_jobs_to_the_compile(checkout):
+    """The jobs given reach the driver as given, and one per hardware thread when not given."""
+    console, driver, service = _compiling_service(checkout)
     assert service.build(BuildType.RELEASE, jobs=4) == 0
     assert service.build(BuildType.RELEASE) == 0
-    assert driver.compiled_jobs == [4, None]
+    assert driver.compiled_jobs == [4, hardware_threads()]
+
+
+def test_the_default_build_type_is_debug():
+    """Every command that finds a tree and is not a benchmark starts from Debug."""
+    assert K_DEFAULT_BUILD_TYPE is BuildType.DEBUG
+    assert TreeChoice().build_type is BuildType.DEBUG
+
+
+@pytest.mark.parametrize(
+    ("tree", "expected"),
+    [
+        (TreeChoice(), Path("build") / "default-debug"),
+        (TreeChoice(BuildType.RELEASE), Path("build") / "default-release"),
+        (TreeChoice(BuildType.RELWITHDEBINFO), Path("build") / "default-relwithdebinfo"),
+        (TreeChoice(BuildType.DEBUG, Sanitizer.ADDRESS_UNDEFINED), Path("build") / "asan-debug"),
+        (TreeChoice(BuildType.RELEASE, Sanitizer.THREAD), Path("build") / "tsan-release"),
+        (TreeChoice(BuildType.DEBUG, Sanitizer.NONE), Path("build") / "default-debug"),
+    ],
+)
+def test_the_tree_directory_follows_the_type_and_the_sanitizer(tmp_path, tree, expected):
+    """Each build type and sanitizer set has its own directory below build/."""
+    assert tree.directory(tmp_path) == tmp_path / expected
+
+
+def test_the_build_directory_override_names_the_tree(tmp_path):
+    """--build-dir names the tree below the checkout whatever the type is."""
+    assert TreeChoice().directory(tmp_path, "build/pkg-x") == tmp_path / "build" / "pkg-x"
+
+
+@pytest.mark.parametrize(
+    ("build_type", "expected"),
+    [(BuildType.DEBUG, K_DEBUG_TREE), (BuildType.RELEASE, K_RELEASE_TREE)],
+)
+def test_build_configures_the_tree_of_its_type(checkout, build_type, expected):
+    """The configure line names the tree of the type and its CMake spelling."""
+    console, driver, service = _compiling_service(checkout)
+    service.build(build_type)
+    configured = driver.configured[0]
+    assert configured[configured.index("-B") + 1] == str(checkout / expected)
+    assert f"-DCMAKE_BUILD_TYPE={build_type.name.capitalize()}" in configured
+
+
+def test_build_refuses_to_configure_a_tree_of_another_type(checkout):
+    """A tree configured as Release is not configured as Debug, and nothing is removed."""
+    console, driver, service = _compiling_service(checkout)
+    tree = checkout / K_DEBUG_TREE
+    (tree / "CMakeCache.txt").write_text("CMAKE_BUILD_TYPE:STRING=Release\n")
+    with pytest.raises(ConfigError):
+        service.build(BuildType.DEBUG)
+    assert (tree / "CMakeCache.txt").is_file()
+    assert driver.configured == []
+
+
+def test_build_refuses_a_define_that_sets_the_build_type(checkout):
+    """-D CMAKE_BUILD_TYPE would split the tree from its name, so it is refused."""
+    console, driver, service = _compiling_service(checkout)
+    with pytest.raises(ConfigError):
+        service.build(BuildType.DEBUG, defines=["CMAKE_BUILD_TYPE=Release"])
+    assert driver.configured == []
+
+
+def test_build_refuses_while_the_memory_gate_is_stopped(checkout):
+    """The stop file of the gate ends the build before it configures."""
+    console, driver, service = _compiling_service(checkout)
+    stop = stop_file(checkout / K_DEBUG_TREE)
+    stop.parent.mkdir(parents=True)
+    stop.write_text("")
+    with pytest.raises(BuildStoppedError):
+        service.build(BuildType.DEBUG)
+    assert driver.configured == []
+
+
+def test_build_configure_carries_both_gate_launchers(checkout):
+    """The configure line sets the compiler and the linker launcher of the memory gate."""
+    console, driver, service = _compiling_service(checkout)
+    service.build(BuildType.DEBUG)
+    tree = checkout / K_DEBUG_TREE
+    entries = launcher_defines(tree, compiler_cache(""))
+    assert len(entries) == 2
+    for entry in entries:
+        assert f"-D{entry}" in driver.configured[0]
+
+
+def test_build_prints_and_writes_the_report_on_request(checkout, monkeypatch):
+    """--report prints the report lines and writes build_report.json into the tree."""
+    console, driver, service = _compiling_service(checkout)
+    service.build(BuildType.DEBUG)
+    assert not [text for text in console.texts("info") if text.startswith("Report:")]
+    service.build(BuildType.DEBUG, report=True)
+    written = checkout / K_DEBUG_TREE / "build_report.json"
+    assert written.is_file()
+    assert f"Report: {written}" in console.texts("info")
 
 
 def test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default(parts, checkout):
@@ -357,7 +470,7 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
 
     class _Service:
         def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path):
+                  tree_path, report):
             received.append(benchmarks)
             return 0
 
@@ -368,6 +481,23 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
     assert received == [expected]
 
 
+def test_build_command_defaults_to_debug_and_forwards_the_report_option(monkeypatch):
+    """With no option the build command asks for Debug and no report; --report asks for one."""
+    received = []
+
+    class _Service:
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
+                  tree_path, report):
+            received.append((build_type, report))
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    assert CliRunner().invoke(cli.app, ["build"]).exit_code == 0
+    assert CliRunner().invoke(cli.app, ["build", "--report", "--type", "release"]).exit_code == 0
+    assert received == [(BuildType.DEBUG, False), (BuildType.RELEASE, True)]
+
+
 @pytest.mark.parametrize(("args", "expected"), [(["build", "--jobs", "4"], 4), (["build"], None)])
 def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
     """The build command hands --jobs to the service unchanged, and None when it is left out."""
@@ -375,7 +505,7 @@ def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
 
     class _Service:
         def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path):
+                  tree_path, report):
             received.append(jobs)
             return 0
 
@@ -400,7 +530,7 @@ def test_build_command_forwards_the_distributed_option(monkeypatch, args, expect
 
     class _Service:
         def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path):
+                  tree_path, report):
             received.append(distributed)
             return 0
 
@@ -421,15 +551,16 @@ def test_distributed_flags_switch_the_cluster_module():
 def test_clean_reports_a_removed_tree(parts, checkout):
     """clean returns the tree and True when it removed one."""
     console, driver, service = parts
-    assert service.clean() == CleanResult(checkout / "build", True)
-    assert not (checkout / "build").exists()
+    assert service.clean() == CleanResult(checkout / K_DEBUG_TREE, True)
+    assert not (checkout / K_DEBUG_TREE).exists()
+    assert (checkout / K_RELEASE_TREE).is_dir()
 
 
 def test_clean_reports_a_missing_tree(parts, checkout):
     """clean returns False, not an error, when there is no tree."""
     console, driver, service = parts
-    (checkout / "build").rmdir()
-    assert service.clean() == CleanResult(checkout / "build", False)
+    (checkout / K_DEBUG_TREE).rmdir()
+    assert service.clean() == CleanResult(checkout / K_DEBUG_TREE, False)
 
 
 def test_clean_raises_when_the_tree_remains(parts, checkout, monkeypatch):
@@ -439,7 +570,7 @@ def test_clean_raises_when_the_tree_remains(parts, checkout, monkeypatch):
     with pytest.raises(TreeNotRemovedError) as raised:
         service.clean()
     assert raised.value.exit_code == 1
-    assert (checkout / "build").is_dir()
+    assert (checkout / K_DEBUG_TREE).is_dir()
 
 
 def test_clean_command_exits_one_when_the_tree_remains(parts, checkout, monkeypatch):
@@ -452,14 +583,14 @@ def test_clean_command_exits_one_when_the_tree_remains(parts, checkout, monkeypa
     result = CliRunner().invoke(cli.app, ["clean"])
     assert result.exit_code == 1
     assert len(printed.texts("error")) == 1
-    assert str(checkout / "build") in printed.texts("error")[0]
+    assert str(checkout / K_DEBUG_TREE) in printed.texts("error")[0]
     assert printed.texts("success") == []
 
 
 def test_run_returns_the_exit_code_of_the_child(parts, checkout, monkeypatch):
     """run launches the default target with the forwarded arguments and returns its code."""
     console, driver, service = parts
-    exe = checkout / "build" / K_EXECUTABLE
+    exe = checkout / K_DEBUG_TREE / K_EXECUTABLE
     exe.write_text("")
     commands = _child_exits_with(monkeypatch, K_CHILD_EXIT)
     assert service.run(app_args=["--flag"]) == K_CHILD_EXIT
@@ -474,11 +605,13 @@ def test_run_raises_for_a_target_that_matches_nothing(parts):
 
 
 def test_run_raises_without_a_build_tree(parts, checkout):
-    """run needs a build tree."""
+    """run needs the build tree it is asked for, and says which command makes it."""
     console, driver, service = parts
-    (checkout / "build").rmdir()
-    with pytest.raises(BuildTreeMissingError):
+    (checkout / K_DEBUG_TREE).rmdir()
+    with pytest.raises(BuildTreeMissingError) as raised:
         service.run()
+    assert "sb build --type debug" in str(raised.value)
+    assert str(checkout / K_DEBUG_TREE) in str(raised.value)
 
 
 @pytest.mark.parametrize("args", [["run", "--sortt"], ["run", "x", "--bogus"], ["run", "--", "-x"]])
@@ -547,7 +680,7 @@ def test_bench_raises_when_no_benchmark_program_is_built(parts, checkout):
 def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monkeypatch):
     """bench runs each benchmark_* program under build/tests and skips the test programs."""
     console, driver, service = parts
-    programs = checkout / "build" / "tests"
+    programs = checkout / K_RELEASE_TREE / "tests"
     programs.mkdir()
     for name in ("benchmark_sparse", "benchmark_gemm", "sushiblas_blas_tests"):
         (programs / name).write_text("")
@@ -561,7 +694,7 @@ def test_bench_runs_the_named_scenario_benchmark_with_the_forwarded_options(
 ):
     """bench with a name runs that one executable and passes the options after it."""
     console, driver, service = parts
-    exe = checkout / "build" / K_EXECUTABLE
+    exe = checkout / K_RELEASE_TREE / K_EXECUTABLE
     exe.write_text("")
     commands = _child_exits_with(monkeypatch, K_CHILD_EXIT)
     assert service.bench(K_EXECUTABLE, ["--out", "folder"]) == K_CHILD_EXIT
@@ -575,20 +708,29 @@ def test_bench_raises_for_a_scenario_benchmark_that_matches_nothing(parts, check
         service.bench("no_such_benchmark")
 
 
+def test_bench_finds_the_release_tree_unless_told_another(parts, checkout):
+    """A benchmark measures the build that ships: its default tree is the Release one."""
+    console, driver, service = parts
+    (checkout / K_RELEASE_TREE).rmdir()
+    with pytest.raises(BuildTreeMissingError) as raised:
+        service.bench()
+    assert "sb build --type release" in str(raised.value)
+
+
 def test_bench_command_forwards_the_name_and_the_options_after_the_separator(monkeypatch):
     """The bench command hands the name and what follows `--` to the service."""
     received = []
 
     class _Service:
-        def bench(self, name, app_args):
-            received.append((name, app_args))
+        def bench(self, name, app_args, tree):
+            received.append((name, app_args, tree))
             return 0
 
     monkeypatch.setattr(cli, "_service", lambda: _Service())
     monkeypatch.setattr(cli, "console", _Console())
     result = CliRunner().invoke(cli.app, ["bench", "device_ceilings", "--", "--runs", "3"])
     assert result.exit_code == 0
-    assert received == [("device_ceilings", ["--runs", "3"])]
+    assert received == [("device_ceilings", ["--runs", "3"], TreeChoice(BuildType.RELEASE))]
 
 
 def test_bench_command_without_a_name_runs_every_program(monkeypatch):
@@ -596,15 +738,15 @@ def test_bench_command_without_a_name_runs_every_program(monkeypatch):
     received = []
 
     class _Service:
-        def bench(self, name, app_args):
-            received.append((name, app_args))
+        def bench(self, name, app_args, tree):
+            received.append((name, app_args, tree))
             return 0
 
     monkeypatch.setattr(cli, "_service", lambda: _Service())
     monkeypatch.setattr(cli, "console", _Console())
     result = CliRunner().invoke(cli.app, ["bench"])
     assert result.exit_code == 0
-    assert received == [(None, [])]
+    assert received == [(None, [], TreeChoice(BuildType.RELEASE))]
 
 
 @pytest.mark.parametrize("args", [["bench", "--", "--runs", "3"], ["bench", "--sortt"]])

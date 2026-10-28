@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-28 — cli: Breaking change: Changed sb to build Debug by default, in one tree per build type and sanitizer set under build/, behind the memory gate, with --report on build and --type on test, bench, run and clean (`cli.py`).
+- 2026-10-28 — build: Pinned the release C runtime in every build type, kept device code at `-O3` in Debug and gave Debug line tables only (`SushiBLASAbiPinning.cmake`, `SyclTarget.cmake`).
+- 2026-10-28 — deps: Loosened the CLI's `sushicore` pin from 0.9.7 exactly to 0.9.7 or later (`pyproject.toml`).
 - 2026-10-26 — build: Set `SushiBLAS_DISTRIBUTED` in the package config to whether the cluster module was built, for a consumer to check (`SushiBLASConfig.cmake.in`).
 - 2026-10-26 — build: Found SushiRuntime, SushiLog and SushiProfiler as packages with `find_package`; the add_subdirectory fallbacks, `SUSHIRUNTIME_DIR` and `SUSHILOG_DIR` are gone (`Runtime.cmake`).
 - 2026-10-26 — build: Added the options `SB_ENABLE_PROFILER` (on) and `SB_PROFILE_LEVEL` (2) and the generated `profile_config.hpp` (`CMakeLists.txt`).

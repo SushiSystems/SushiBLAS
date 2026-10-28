@@ -69,6 +69,7 @@ class _Config:
     """Holds the few settings the service reads and records what it asks the resolver."""
 
     generator = "Ninja"
+    ccache_exe = ""
     is_windows = False
     platform = "linux"
     target_bin = "quickstart_demo"
@@ -166,8 +167,9 @@ def test_a_distributed_build_builds_the_runtime_package_distributed(parts):
 
 def test_a_build_that_leaves_distributed_out_keeps_what_the_tree_has(parts):
     root, cfg, driver, service = parts
-    (root / "build").mkdir()
-    (root / "build" / "CMakeCache.txt").write_text("SB_ENABLE_DISTRIBUTED:BOOL=ON\n")
+    tree = root / "build" / "default-release"
+    tree.mkdir(parents=True)
+    (tree / "CMakeCache.txt").write_text("SB_ENABLE_DISTRIBUTED:BOOL=ON\n")
 
     assert service.build(BuildType.RELEASE) == 0
 
@@ -194,8 +196,9 @@ def test_the_run_dirs_lead_the_search_path_of_the_build_and_of_a_later_run(parts
     assert service.build(BuildType.RELEASE) == 0
 
     assert driver.environments[0]["LD_LIBRARY_PATH"].split(os.pathsep) == [*K_RUN_DIRS, "/old"]
-    assert library_packages.read_run_dirs(root / "build") == K_RUN_DIRS
-    assert service._run_env(cfg, root / "build")["LD_LIBRARY_PATH"].split(os.pathsep) == [
+    release = root / "build" / "default-release"
+    assert library_packages.read_run_dirs(release) == K_RUN_DIRS
+    assert service._run_env(cfg, release)["LD_LIBRARY_PATH"].split(os.pathsep) == [
         *K_RUN_DIRS, "/old"]
 
 
@@ -242,7 +245,7 @@ def test_the_build_command_forwards_the_tree_and_lean(monkeypatch):
 
     class _Service:
         def build(self, *arguments):
-            received.append(arguments[-2:])
+            received.append(arguments[-3:-1])
             return 0
 
     monkeypatch.setattr(cli, "_service", lambda: _Service())

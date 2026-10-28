@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import enum
 
+from sushicore.build_tree import K_DEFAULT_BUILD_TYPE as K_CORE_DEFAULT_BUILD_TYPE
+
 
 class BuildType(str, enum.Enum):
     """Names the build types `sb build --type` accepts."""
@@ -24,3 +26,9 @@ K_CMAKE_BUILD_TYPE = {
     BuildType.DEBUG: "Debug",
     BuildType.RELWITHDEBINFO: "RelWithDebInfo",
 }
+
+#: The type every command builds and finds a tree for unless told otherwise: sushicore's.
+K_DEFAULT_BUILD_TYPE = BuildType(K_CORE_DEFAULT_BUILD_TYPE.lower())
+
+#: The type `sb bench` finds its tree in: a benchmark measures the build that ships.
+K_BENCHMARK_BUILD_TYPE = BuildType.RELEASE

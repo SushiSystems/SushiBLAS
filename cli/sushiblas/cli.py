@@ -24,13 +24,14 @@ from sushicore.typer_help import help_group
 from . import console
 from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
-from .services.build_type import BuildType
+from .services.build_type import K_BENCHMARK_BUILD_TYPE, K_DEFAULT_BUILD_TYPE, BuildType
 from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
 from .services.errors import CLIOptionError, PackageOptionError, ProjectError
 from .services.project import ProjectService
 from .services.project_factory import create_project_service
 from .services.sanitizer import Sanitizer
 from .services.test_label import TestLabel
+from .services.tree_choice import TreeChoice
 
 K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
@@ -50,6 +51,21 @@ app = typer.Typer(
 )
 
 register_root_options(app, distribution=K_DISTRIBUTION)
+
+
+def _type_option(default: BuildType) -> BuildType:
+    """Returns the --type option of a command that finds a tree, with *default* as its type."""
+    return typer.Option(
+        default, "--type", "-t", case_sensitive=False,
+        help="Build type of the tree: release | debug | relwithdebinfo. "
+             "Each type has a tree of its own.")
+
+
+def _sanitize_option() -> Optional[Sanitizer]:
+    """Returns the --sanitize option of a command that finds a tree."""
+    return typer.Option(
+        None, "--sanitize", case_sensitive=False,
+        help="Sanitizer tree: none | address-undefined | thread. Left out, the plain tree.")
 
 
 def _service() -> ProjectService:
@@ -75,20 +91,21 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
     "build",
     rich_help_panel=K_PROJECT,
     epilog="sb build\n"
-           "sb build --type debug  # Build with debug settings\n"
+           "sb build --type release  # The Release tree, build/default-release\n"
            "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
            "sb build --distributed  # Also build the cluster module\n"
            "sb build --jobs 4  # Run at most 4 compile jobs at once\n"
-           "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
+           "sb build --report  # Print what each kind of build edge cost\n"
+           "sb build --sanitize address-undefined  # The ASan and UBSan tree, build/asan-debug\n"
            "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through\n"
            "sb build --build-dir build/pkg-x --lean  # What a consumer's package build runs",
 )
 def build(
     type: BuildType = typer.Option(
-        BuildType.RELEASE, "--type", "-t", case_sensitive=False,
+        K_DEFAULT_BUILD_TYPE, "--type", "-t", case_sensitive=False,
         help="Build type: release | debug | relwithdebinfo. "
-             "Changing it empties the build tree first."),
+             "Each type builds in a tree of its own, build/<name>-<type>."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
     benchmarks: Optional[bool] = typer.Option(
@@ -102,7 +119,7 @@ def build(
     sanitize: Optional[Sanitizer] = typer.Option(
         None, "--sanitize", case_sensitive=False,
         help="Sanitizers for host code: none | address-undefined | thread. "
-             "Left out, the setting of the last build stays."),
+             "Each set builds in a tree of its own: build/asan-<type> or build/tsan-<type>."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
         help="Pass a CMake cache variable through to configure. Repeatable. "
@@ -110,29 +127,33 @@ def build(
              '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
     jobs: Optional[int] = typer.Option(
         None, "--jobs", "-j", min=1,
-        help="Compile jobs run at once. When omitted the generator decides, and "
+        help="Compile jobs run at once. When omitted it is one per hardware thread, and "
              "CMAKE_BUILD_PARALLEL_LEVEL is honoured."),
     build_dir: Optional[str] = typer.Option(
         None, "--build-dir", metavar="PATH",
-        help="Build in this tree, below the checkout, instead of build/."),
+        help="Build in this tree, below the checkout, instead of build/<name>-<type>."),
     lean: bool = typer.Option(
         False, "--lean",
         help="Build no tests, examples or benchmarks; what a consumer's package build of "
              "SushiBLAS uses."),
+    report: bool = typer.Option(
+        False, "--report",
+        help="After the build, print what each kind of build edge cost in time and memory "
+             "and write build_report.json into the tree."),
 ) -> None:
     """Configure and build the project.
 
     Cache variables set with -D persist in the build tree, so dropping the
     flag on a later run does not unset them; pass VAR= to clear one, or
-    --clean to start over. A different --type also starts over: the tree
-    is removed, and the variables with it.
+    --clean to start over. A different --type builds in another tree, and a
+    tree configured as one type is never configured as another.
     """
     console.header("Project Build")
 
     def step() -> int:
         """Builds and announces success."""
         rc = _service().build(type, clean, define, benchmarks, sanitize, jobs, distributed,
-                              lean, build_dir)
+                              lean, build_dir, report)
         console.success("Build completed successfully!")
         return rc
 
@@ -173,6 +194,8 @@ def test(
         False, "--package",
         help="Install the package and build tests/package/ against the install prefix "
              "instead of running the CTest tests."),
+    type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
+    sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
     """Run the tests of the labels given.
 
@@ -191,14 +214,14 @@ def test(
         if package:
             if label or filter or repeat or jobs or cli:
                 raise PackageOptionError()
-            rc = _service().test_package()
+            rc = _service().test_package(TreeChoice(type, sanitize))
             console.success("Package consumer built and ran against the install prefix.")
             return rc
         if cli:
             if filter or repeat or jobs:
                 raise CLIOptionError()
             return _service().test_cli(label)
-        return _service().test(label, filter, repeat, jobs)
+        return _service().test(label, filter, repeat, jobs, TreeChoice(type, sanitize))
 
     _exit_with(step)
 
@@ -216,6 +239,8 @@ def bench(
     name: Optional[str] = typer.Argument(
         None, help="Scenario benchmark to run (exact, then substring match). "
                    "Every micro benchmark program runs when omitted."),
+    type: BuildType = _type_option(K_BENCHMARK_BUILD_TYPE),
+    sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
     """Run the built benchmark programs, or one scenario benchmark with its options.
 
@@ -232,7 +257,7 @@ def bench(
             param_hint="NAME",
         )
     console.header("Project Bench")
-    _exit_with(lambda: _service().bench(name, list(ctx.args)))
+    _exit_with(lambda: _service().bench(name, list(ctx.args), TreeChoice(type, sanitize)))
 
 
 @app.command(
@@ -249,6 +274,8 @@ def run(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
+    type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
+    sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
     if target is not None and target.startswith("-"):
@@ -257,21 +284,27 @@ def run(
             param_hint="TARGET",
         )
     console.header("Project Run")
-    _exit_with(lambda: _service().run(target=target, sort=sort, app_args=list(ctx.args)))
+    _exit_with(lambda: _service().run(
+        target=target, sort=sort, app_args=list(ctx.args), tree=TreeChoice(type, sanitize)))
 
 
 @app.command(
     "clean",
     rich_help_panel=K_PROJECT,
-    epilog="sb clean",
+    epilog="sb clean\n"
+           "sb clean --type release  # The Release tree\n"
+           "sb clean --sanitize thread",
 )
-def clean() -> None:
-    """Remove the build/ tree."""
+def clean(
+    type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
+    sanitize: Optional[Sanitizer] = _sanitize_option(),
+) -> None:
+    """Remove one build tree: the Debug one unless --type says another."""
     console.header("Project Clean")
 
     def step() -> int:
         """Removes the tree and says what happened."""
-        result = _service().clean()
+        result = _service().clean(TreeChoice(type, sanitize))
         if result.removed:
             console.success(f"{result.tree} removed.")
         else:

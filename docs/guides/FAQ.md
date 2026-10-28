@@ -68,8 +68,8 @@ sb test
 ```
 
 `hub install-cli sushiblas` puts two equivalent commands on the PATH, `sb` and `sushiblas`.
-`sb build` makes a release build by default; `--type debug` and `--type relwithdebinfo` select
-the others, and `--clean` wipes the build tree first. `sb test` runs the small and medium tests by
+`sb build` makes a Debug build by default; `--type release` and `--type relwithdebinfo` select
+the others. Each type builds in a tree of its own, and `--clean` wipes that tree first. `sb test` runs the small and medium tests by
 default, `--label` selects a size, and `--package` builds the out-of-tree consumer.
 
 Inside a SushiStack workspace, or with a SushiRuntime checkout beside this one, no local

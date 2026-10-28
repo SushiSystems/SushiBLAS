@@ -38,7 +38,7 @@ checkout alone, with a SushiRuntime checkout beside it, install the CLI and run
 ```bash
 hub install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
 sb setup                  # toolchain and libraries for this checkout
-sb build                  # Release (default)
+sb build                  # Debug (default)
 sb test                   # the small and medium tests
 ```
 
@@ -65,8 +65,8 @@ machine-specific toolchain paths are resolved (`cli/config.local.toml`).
 ## 3. Building and testing your change
 
 ```bash
-sb build                          # Release
-sb build --type debug             # Debug
+sb build                          # Debug, in build/default-debug
+sb build --type release           # Release, in build/default-release
 sb build --clean                  # wipe the build tree first
 
 sb test --label small             # no device, fast, run this often

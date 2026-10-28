@@ -113,8 +113,15 @@ endfunction()
 # sushiblas_sycl_device_options(<out_compile> <out_link>)
 #   Returns the options a device unit compiles with and a SYCL executable links with on the
 #   intel-llvm toolchain: -fsycl, the device targets of SB_SYCL_TARGETS or else of SushiRuntime,
-#   and SB_SYCL_DEVICE_FLAGS. -fsycl-targets takes one comma-separated argument, so the CMake
-#   list in SB_SYCL_TARGETS is joined with commas.
+#   the device optimisation level, and SB_SYCL_DEVICE_FLAGS. -fsycl-targets takes one
+#   comma-separated argument, so the CMake list in SB_SYCL_TARGETS is joined with commas.
+#
+#   The device optimisation level is -O3 in every build type. A Debug build compiles host code at
+#   -O0, and the device passes and the device link would follow it; the kernels the tests run
+#   would then be too slow to test. Each device target gets its own -Xsycl-target-frontend,
+#   named by its triple: the driver refuses the bare spelling when it compiles for more than one
+#   target, and matches a GPU alias only by triple. On the link, -O3 reaches only the device
+#   link, since the host objects are already compiled.
 function(sushiblas_sycl_device_options out_compile out_link)
     set(compile -fsycl)
     set(link -fsycl)
@@ -127,6 +134,19 @@ function(sushiblas_sycl_device_options out_compile out_link)
         list(APPEND compile ${runtime_compile})
         list(APPEND link ${runtime_link})
     endif()
+    string(REGEX MATCH "-fsycl-targets=[^;]*" targets "${compile}")
+    string(REPLACE "-fsycl-targets=" "" targets "${targets}")
+    string(REPLACE "," ";" targets "${targets}")
+    foreach(target IN LISTS targets)
+        if(target MATCHES "^nvidia_gpu_")
+            set(target nvptx64-nvidia-cuda)
+        elseif(target MATCHES "^amd_gpu_")
+            set(target amdgcn-amd-amdhsa)
+        endif()
+        list(APPEND compile "SHELL:-Xsycl-target-frontend=${target} -O3")
+    endforeach()
+    list(REMOVE_DUPLICATES compile)
+    list(APPEND link -O3)
     list(APPEND compile ${SB_SYCL_DEVICE_FLAGS})
     list(APPEND link ${SB_SYCL_DEVICE_FLAGS})
     set(${out_compile} "${compile}" PARENT_SCOPE)
@@ -177,9 +197,20 @@ function(sushiblas_apply_sycl target)
 
     target_link_libraries(${target} PRIVATE sushiblas_sycl_headers)
     if(ARG_DEVICE_SOURCES)
+        # A source's COMPILE_OPTIONS does not expand SHELL: groups, so each group becomes its
+        # arguments here.
         get_target_property(device_compile sushiblas_device_code INTERFACE_COMPILE_OPTIONS)
+        set(source_options "")
+        foreach(option IN LISTS device_compile)
+            if(option MATCHES "^SHELL:(.*)$")
+                separate_arguments(group NATIVE_COMMAND "${CMAKE_MATCH_1}")
+                list(APPEND source_options ${group})
+            else()
+                list(APPEND source_options "${option}")
+            endif()
+        endforeach()
         set_property(SOURCE ${ARG_DEVICE_SOURCES} TARGET_DIRECTORY ${target}
-            PROPERTY COMPILE_OPTIONS "${device_compile}")
+            PROPERTY COMPILE_OPTIONS "${source_options}")
     endif()
 endfunction()
 

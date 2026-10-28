@@ -45,10 +45,15 @@ class LeanBenchmarksError(ProjectError):
 
 
 class BuildTreeMissingError(ProjectError):
-    """Reports a command that needs a build tree run before any build."""
+    """Reports a command that needs a build tree run before any build.
 
-    def __init__(self) -> None:
-        super().__init__("build/ not found. Run `sb build` first.")
+    Args:
+        tree: The tree the command looked for.
+        command: The `sb build` command line that makes it.
+    """
+
+    def __init__(self, tree: Path, command: str) -> None:
+        super().__init__(f"{tree} not found. Run `{command}` first.")
 
 
 class TreeNotRemovedError(ProjectError):

@@ -41,13 +41,13 @@ hub install-cli sushiblas           # always editable, against this checkout
 This puts two equivalent commands on the PATH, `sb` and `sushiblas`. Run `sb setup` once before the first build; `sb setup --dry-run` shows what it would install. Shared defaults are in `cli/config.toml`; machine-specific paths go in the gitignored `cli/config.local.toml`. Inside a SushiStack workspace, or with a SushiRuntime checkout beside this one, no local configuration is needed.
 
 ```bash
-sb build                      # release (default)
-sb build --type debug         # debug build
+sb build                      # debug (default), in build/default-debug
+sb build --type release       # release, in build/default-release
 sb build --type relwithdebinfo
 sb build --clean              # wipe the build tree first
 ```
 
-`sb clean` removes the `build/` tree. Every command is described in [cli/README.md](../../cli/README.md).
+Every build type has a tree of its own below `build/`; `sb clean` removes one. Every command is described in [cli/README.md](../../cli/README.md).
 
 ### Targeting an NVIDIA GPU
 

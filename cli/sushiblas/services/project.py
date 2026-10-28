@@ -14,7 +14,16 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sushicore.build_admission import (
+    compiler_cache,
+    hardware_threads,
+    launcher_defines,
+    refuse_a_stopped_gate,
+    state_dir,
+)
 from sushicore.build_env import StackBuildEnv
+from sushicore.build_report import ninja_log_offset, of_build
+from sushicore.build_tree import refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.discovery import ExecutableIndex
@@ -24,7 +33,7 @@ from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
 
 from ..config import Config
-from .build_type import K_CMAKE_BUILD_TYPE, BuildType
+from .build_type import K_BENCHMARK_BUILD_TYPE, BuildType
 from .errors import (
     BuildTreeMissingError,
     ExecutableNotFoundError,
@@ -36,6 +45,7 @@ from .errors import (
 from . import library_packages
 from .sanitizer import Sanitizer, sanitize_flags
 from .test_label import TestLabel, select_labels
+from .tree_choice import TreeChoice
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
 K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
@@ -43,8 +53,14 @@ K_DISTRIBUTED_VARIABLE = "SB_ENABLE_DISTRIBUTED"
 #: What the tree builds beyond the library; `--lean` turns the tests and the examples off.
 K_TESTS_VARIABLE = "SB_BUILD_TESTS"
 K_EXAMPLES_VARIABLE = "SB_BUILD_EXAMPLES"
+#: Where the generated documentation goes, below the root; it belongs to no build tree.
+K_DOCS_DIR = Path("build") / "docs"
 K_DOXYFILE = Path(".config") / "doxygen" / "Doxyfile"
 K_CLI_DIR = "cli"
+#: The tree every command but `sb bench` finds when it is not told another.
+K_DEFAULT_TREE = TreeChoice()
+#: The tree `sb bench` finds when it is not told another: the Release build.
+K_BENCHMARK_TREE = TreeChoice(K_BENCHMARK_BUILD_TYPE)
 #: Where cmake/SushiBLASTests.cmake places every test and benchmark program, under the build tree.
 K_PROGRAM_DIR = "tests"
 #: The prefix every benchmark program's name starts with.
@@ -151,15 +167,17 @@ class ProjectService:
         distributed: bool | None = None,
         lean: bool = False,
         tree_path: str | None = None,
+        report: bool = False,
     ) -> int:
-        """Configures and builds the project, replacing a tree it cannot reuse.
+        """Configures and builds the tree of *build_type* and *sanitizer*.
 
-        *benchmarks* switches the benchmark programs on or off, *distributed* the cluster
-        module, and *sanitizer* sets the sanitizers of host code; None keeps the cached value
-        of each. *jobs* caps the
-        compile jobs run at once; None leaves the count to the generator. *lean* builds no
-        tests, examples or benchmarks, which is what a library package is built as, and
-        *tree_path* names the tree below the root in place of build/.
+        Each build type and sanitizer set has a tree of its own, build/<name>-<type>, so a build
+        never empties a tree to change its type. *benchmarks* switches the benchmark programs on
+        or off and *distributed* the cluster module; None keeps the cached value of each.
+        *jobs* caps the compile jobs run at once; None runs one per hardware thread. *lean*
+        builds no tests, examples or benchmarks, which is what a library package is built as, and
+        *tree_path* names the tree below the root in place of build/<name>-<type>. *report*
+        prints what each kind of build edge cost and writes build_report.json into the tree.
 
         SushiRuntime and SushiLog are linked as built packages: a missing one is built first, and
         the folders their libraries load from go first on the search path of the build and of
@@ -168,19 +186,23 @@ class ProjectService:
         Raises:
             InvalidDefineError: An entry of *defines* is not VAR=VALUE; nothing was touched.
             LeanBenchmarksError: *lean* and ``benchmarks=True`` ask for opposite things.
+            ConfigError: The tree is configured as another build type, or *defines* sets one.
+            BuildStoppedError: The memory gate of the checkout is stopped.
             PackageError: A package of the closure cannot be chosen or built.
             TreeNotRemovedError: A tree that had to go is still there.
             StepFailedError: Configure or compile failed.
         """
         if lean and benchmarks:
             raise LeanBenchmarksError()
+        tree = TreeChoice(build_type, sanitizer)
         define_flags = (benchmarks_flags(benchmarks) + distributed_flags(distributed)
                         + sanitize_flags(sanitizer) + validate_defines(defines))
         root = self._find_root()
         cfg = self._load_config()
-        cmake_build_type = K_CMAKE_BUILD_TYPE[build_type]
-        build_dir = _build_dir(root, tree_path)
+        build_dir = tree.directory(root, tree_path)
 
+        refuse_another_build_type(build_dir, tree.cmake_type, defines or ())
+        refuse_a_stopped_gate(build_dir)
         if clean:
             self._remove_tree(build_dir)
 
@@ -188,16 +210,11 @@ class ProjectService:
         self._console.info(f"Compiler: {compiler}")
         env = self._build_env.load(cfg, build_dir)
 
-        fresh = self._driver.needs_configure(
-            build_dir,
-            cfg.generator,
-            root=root,
-            expect={"CMAKE_BUILD_TYPE": cmake_build_type},
-        )
+        fresh = self._driver.needs_configure(build_dir, cfg.generator, root=root)
         if fresh:
             if build_dir.is_dir():
                 self._console.info(
-                    "build/ was configured for another build type, generator or source path; "
+                    f"{build_dir} was configured for another generator or source path; "
                     "starting from an empty tree.",
                 )
                 self._remove_tree(build_dir)
@@ -211,7 +228,7 @@ class ProjectService:
         run_dirs = packages.run_dirs(cfg.platform)
         library_packages.prepend_run_dirs(cfg, env, run_dirs)
 
-        configure_args = self._configure_args(cfg, root, build_dir, cmake_build_type, packages)
+        configure_args = self._configure_args(cfg, root, build_dir, tree.cmake_type, packages)
         configure_args += lean_flags(lean)
         rc = self._driver.configure(configure_args + define_flags, cwd=root, env=env)
         if rc != 0:
@@ -219,25 +236,28 @@ class ProjectService:
         library_packages.record_run_dirs(build_dir, run_dirs)
 
         self._console.info("Building...")
-        rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
-                                  jobs=jobs)
+        offset = ninja_log_offset(build_dir)
+        rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=tree.cmake_type,
+                                  jobs=jobs or hardware_threads())
+        if report:
+            self._print_report(build_dir, offset)
         if rc != 0:
             raise StepFailedError("Build failed.", rc)
         return rc
 
     def test(self, labels: Sequence[TestLabel] | None = None, filter: str | None = None,
-             repeat: int = 0, jobs: int | None = None) -> int:
+             repeat: int = 0, jobs: int | None = None, tree: TreeChoice = K_DEFAULT_TREE) -> int:
         """Runs the CTest tests *labels* select and returns ctest's code.
 
         None or empty *labels* selects the small and medium tests. A quarantined test runs only
-        when *labels* names `quarantined`.
+        when *labels* names `quarantined`. *tree* picks the build tree that is tested.
 
         Raises:
             BuildTreeMissingError: There is no build tree.
         """
         root = self._find_root()
         cfg = self._load_config()
-        build_dir = _existing_build_dir(root)
+        build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
         selection = select_labels(labels)
 
@@ -259,7 +279,7 @@ class ProjectService:
         cmd = [sys.executable, "-m", "pytest", "-q", "-m", selection.pytest_expression()]
         return self._runner.run(cmd, root / K_CLI_DIR, None)
 
-    def test_package(self) -> int:
+    def test_package(self, tree: TreeChoice = K_DEFAULT_TREE) -> int:
         """Installs the package, builds tests/package/ against it and runs it.
 
         Raises:
@@ -269,12 +289,15 @@ class ProjectService:
         """
         root = self._find_root()
         cfg = self._load_config()
-        build_dir = _existing_build_dir(root)
+        build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
         return self._test_package(cfg, root, build_dir, env)
 
-    def bench(self, name: str | None = None, app_args: Sequence[str] = ()) -> int:
+    def bench(self, name: str | None = None, app_args: Sequence[str] = (),
+              tree: TreeChoice = K_BENCHMARK_TREE) -> int:
         """Runs one scenario benchmark with *app_args*, or every micro benchmark program in name order.
+
+        *tree* picks the build tree; a benchmark measures the Release build unless told another.
 
         Returns the exit code of the program, or the first non-zero code of the programs.
 
@@ -284,7 +307,7 @@ class ProjectService:
         """
         root = self._find_root()
         cfg = self._load_config()
-        build_dir = _existing_build_dir(root)
+        build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
         if name is not None:
             exe = self._index.match(build_dir, name)
@@ -303,7 +326,7 @@ class ProjectService:
         return code
 
     def run(self, target: str | None = None, sort: bool = False,
-            app_args: Sequence[str] = ()) -> int:
+            app_args: Sequence[str] = (), tree: TreeChoice = K_DEFAULT_TREE) -> int:
         """Runs a built executable with *app_args* and returns its exit code.
 
         Raises:
@@ -312,7 +335,7 @@ class ProjectService:
         """
         root = self._find_root()
         cfg = self._load_config()
-        build_dir = _existing_build_dir(root)
+        build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
 
         exe = self._pick_executable(build_dir, target, sort, cfg.target_bin)
@@ -323,21 +346,21 @@ class ProjectService:
         self._console.console.print(f"[muted]{exe}[/muted]")
         return self._runner.run([str(exe), *app_args], root, env)
 
-    def clean(self) -> CleanResult:
-        """Removes the build tree.
+    def clean(self, tree: TreeChoice = K_DEFAULT_TREE) -> CleanResult:
+        """Removes the build tree *tree* names.
 
         Raises:
             TreeNotRemovedError: The tree is still there after the removal.
         """
-        build_dir = _build_dir(self._find_root())
+        build_dir = tree.directory(self._find_root())
         return CleanResult(build_dir, self._remove_tree(build_dir))
 
     def docs(self) -> int:
         """Generates the Doxygen API reference from the repository's Doxyfile."""
         root = self._find_root()
         cfg = self._load_config()
-        env = self._build_env.load(cfg, _build_dir(root))
-        (_build_dir(root) / "docs" / "api-site").mkdir(parents=True, exist_ok=True)
+        env = self._build_env.load(cfg, K_DEFAULT_TREE.directory(root))
+        (root / K_DOCS_DIR / "api-site").mkdir(parents=True, exist_ok=True)
         return self._driver.doxygen(cfg, root / K_DOXYFILE, root, env)
 
     def _run_env(self, cfg: Config, build_dir: Path) -> dict[str, str]:
@@ -349,6 +372,13 @@ class ProjectService:
         env = self._build_env.load(cfg, build_dir)
         library_packages.prepend_run_dirs(cfg, env, library_packages.read_run_dirs(build_dir))
         return env
+
+    def _print_report(self, build_dir: Path, offset: int) -> None:
+        """Prints what the build that began at log *offset* cost and writes it into *build_dir*."""
+        report = of_build(build_dir, offset, state_dir(build_dir))
+        for line in report.lines():
+            self._console.info(line)
+        self._console.info(f"Report: {report.write(build_dir)}")
 
     def _remove_tree(self, tree: Path) -> bool:
         """Removes *tree* and returns whether it existed.
@@ -395,6 +425,9 @@ class ProjectService:
         args += _toolchain_args(cfg, root)
         if cfg.is_windows and (prefix := vcpkg_prefix(cfg, root)):
             args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
+        # Every compile and link of the tree is admitted by the memory gate.
+        args += [f"-D{entry}"
+                 for entry in launcher_defines(build_dir, compiler_cache(cfg.ccache_exe))]
         return args
 
     def _test_package(self, cfg: Config, root: Path, build_dir: Path,
@@ -472,11 +505,6 @@ class ProjectService:
         return rc
 
 
-def _build_dir(root: Path, requested: str | None = None) -> Path:
-    """Returns the build tree of the checkout at *root*: *requested* below it, else build/."""
-    return root / (requested or "build")
-
-
 def _distributed(build_dir: Path, requested: bool | None) -> bool:
     """Returns whether the cluster module is built: *requested*, else what the tree has cached."""
     if requested is not None:
@@ -484,15 +512,15 @@ def _distributed(build_dir: Path, requested: bool | None) -> bool:
     return cached_value(build_dir, K_DISTRIBUTED_VARIABLE) == "ON"
 
 
-def _existing_build_dir(root: Path) -> Path:
-    """Returns the build tree of the checkout at *root*.
+def _existing_build_dir(root: Path, tree: TreeChoice) -> Path:
+    """Returns the build tree *tree* names under the checkout at *root*.
 
     Raises:
         BuildTreeMissingError: The tree does not exist.
     """
-    build_dir = _build_dir(root)
+    build_dir = tree.directory(root)
     if not build_dir.is_dir():
-        raise BuildTreeMissingError()
+        raise BuildTreeMissingError(build_dir, tree.build_command())
     return build_dir
 
 

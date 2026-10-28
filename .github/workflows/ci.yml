@@ -226,15 +226,15 @@ jobs:
             ccache-linux-icpx-asan-${{ hashFiles('sushiblas/**/CMakeLists.txt', 'sushiblas/cmake/**') }}-
             ccache-linux-icpx-asan-
       # Release, because SushiRuntime turns ThreadSanitizer on for its own debug builds.
-      - name: sb build --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      - name: sb build --type release --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build --type release --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
           path: .ccache
           key: ccache-linux-icpx-asan-${{ hashFiles('sushiblas/**/CMakeLists.txt', 'sushiblas/cmake/**') }}-${{ github.sha }}
-      - name: sb test --label small
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label small
+      - name: sb test --label small --type release --sanitize address-undefined
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label small --type release --sanitize address-undefined
 
   gate:
     name: gate
@@ -301,10 +301,10 @@ jobs:
         with:
           path: .ccache
           key: ccache-linux-icpx-tsan-${{ hashFiles('sushiblas/**/CMakeLists.txt', 'sushiblas/cmake/**') }}-${{ github.sha }}
-      - name: sb test --label small
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label small
-      - name: sb test --label medium
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label medium
+      - name: sb test --label small --type relwithdebinfo --sanitize thread
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label small --type relwithdebinfo --sanitize thread
+      - name: sb test --label medium --type relwithdebinfo --sanitize thread
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label medium --type relwithdebinfo --sanitize thread
 
   downstream:
     name: SushiAI against this commit

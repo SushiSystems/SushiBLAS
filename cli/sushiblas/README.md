@@ -102,8 +102,15 @@ sizes pre-merge CI runs. `quarantined` alone selects the quarantined tests of ev
 ## services/sanitizer.py
 
 `Sanitizer` names the sets `sb build --sanitize` takes, and `sanitize_flags` turns one into the
-`-DSB_SANITIZE=` flag `cmake/SushiBLASSanitizers.cmake` reads. Left out, no flag is passed and the
-cached value stays, as with `--benchmarks`.
+`-DSB_SANITIZE=` flag `cmake/SushiBLASSanitizers.cmake` reads. `K_SANITIZE_TREE` names the tree of
+each set: `default`, `asan`, `tsan`. Left out, a build is the plain tree and clears the variable.
+
+## services/tree_choice.py
+
+`TreeChoice` is a build type and a sanitizer set, and `directory` turns it into
+`build/<name>-<type>` through sushicore's `tree_dir`. `build`, `test`, `test_package`, `bench`,
+`run` and `clean` take one, so each command finds the tree it was told and no command empties a
+tree to change its type. The default is Debug; `bench` defaults to Release.
 
 ## services/library_packages.py
 
@@ -114,6 +121,15 @@ SushiRuntime package. `build` writes the run-time folders of the packages to
 search path without resolving again.
 
 ## services/project.py
+
+### The gate and the type
+
+`build` refuses a tree of another type and a stopped gate before it touches anything
+(`refuse_another_build_type`, `refuse_a_stopped_gate`), appends the two launcher entries of
+`launcher_defines` to every configure, and compiles with `hardware_threads()` jobs unless `--jobs`
+says otherwise. `--report` takes `ninja_log_offset` before the compile and prints `of_build` after
+it. The package build SushiCore runs passes `--type`, `--build-dir` and `--lean` itself, so it
+builds the type it names in its own tree.
 
 ### validate_defines
 
@@ -144,7 +160,7 @@ better than accepting a flag and doing nothing with it.
 
 ### bench
 
-Runs every program whose name starts with `benchmark_` under `build/tests/`, in name order, and
+Runs every program whose name starts with `benchmark_` under `tests/` of the Release tree, in name order, and
 raises `ExecutableNotFoundError` when none is built, so a nightly run without `--benchmarks` fails
 instead of passing over nothing. With a name it runs the one executable the index matches, with the
 arguments after `--`, and raises `ExecutableNotFoundError` when none matches.
@@ -154,7 +170,7 @@ arguments after `--`, and raises `ExecutableNotFoundError` when none matches.
 It is the one test of what `find_package(SushiBLAS)` hands a third party, which is why it is not
 a CTest label: the consumer configures from an install prefix with no access to this tree. It
 compiles the public headers at C++20 while the library builds at C++17;
-`tests/package/CMakeLists.txt` says why. Both intermediates live under `build/`, so `sb clean`
+`tests/package/CMakeLists.txt` says why. Both intermediates live under the tree, so `sb clean`
 reclaims them. On Windows the shared libraries are copied beside the consumer, standing in for
 the deployment a real consumer does; without them the binary exits with 0xC0000135 before `main`.
 

@@ -20,8 +20,8 @@ cmake_minimum_required(VERSION 3.20)
 #   sb build
 #   sb test --suite package
 #
-# That installs to build/package/prefix, configures this project into
-# build/package/consumer against it, builds it and runs it. It is not part of
+# That installs to <tree>/package/prefix, configures this project into
+# <tree>/package/consumer against it, builds it and runs it. It is not part of
 # `sb test --suite all`, which covers only the CTest tests; `all` says so on
 # every run rather than leaving the gap to be discovered.
 #
@@ -48,6 +48,14 @@ cmake_minimum_required(VERSION 3.20)
 # to parse them at all. See docs/guides/INTEGRATION.md.
 
 project(SushiBLASPackageConsumer LANGUAGES CXX)
+
+# The package is built against the release C runtime and an unchecked STL in every build type
+# (cmake/SushiBLASAbiPinning.cmake), so a Debug consumer takes the same.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+set(CMAKE_MAP_IMPORTED_CONFIG_DEBUG Release RelWithDebInfo MinSizeRel "")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+    add_compile_definitions("$<$<COMPILE_LANGUAGE:CXX>:_ITERATOR_DEBUG_LEVEL=0>")
+endif()
 
 find_package(SushiBLAS REQUIRED)
 

@@ -29,7 +29,7 @@ sits in that module's folder, and a test includes it by its quoted relative path
 ## One program per module
 
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
-calls it in its own `CMakeLists.txt` with the files of its mirror and gets the `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is
+calls it in its own `CMakeLists.txt` with the files of its mirror and gets the `sushiblas_<module>_tests`. Every program lands in `tests/` of its build tree. A new test file is
 listed by hand in that call; nothing globs the folders. A file that instantiates a kernel, by
 launching one or by handing a functor to a dispatch seam, is listed under `DEVICE_TESTS`, and the
 others under `TESTS`. An application's tests are built the same way by

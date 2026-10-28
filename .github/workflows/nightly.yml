@@ -42,8 +42,8 @@ jobs:
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
-      - name: sb build --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      - name: sb build --type release --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build --type release --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
       - name: sb bench
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb bench
 

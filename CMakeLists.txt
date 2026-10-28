@@ -21,6 +21,10 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 
 project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
+# --- Build types: what Debug links and how much it records -------------------
+include(SushiBLASAbiPinning)  # the release C runtime and STL layout, in every build type
+include(SushiBLASDebugInfo)   # line tables only in Debug
+
 # --- Post-project: the dependency packages, the profiler settings, SYCL policy
 option(SB_ENABLE_DISTRIBUTED "Build the cluster module over SushiRuntime's distributed layer" OFF)
 include(SushiBLASSushiLog)  # SushiLog::SushiLog, from the package
