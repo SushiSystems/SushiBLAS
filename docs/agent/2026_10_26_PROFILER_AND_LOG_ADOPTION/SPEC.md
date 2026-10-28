@@ -7,7 +7,7 @@
 Read on 2026-10-26: this repository on `feature/layered_execution` (the uncommitted files of
 `docs/agent/2026_10_26_SYCL_COMPILE_TIME` were not read and are not touched), SushiProfiler at
 `8caa01b` (v0.1.0 plus the shared-library commit; `docs/agent/2026_10_26_CLIENT_CONTRACT/SPEC.md`
-describes v0.2.0), SushiLog's `docs/design/REMAINING_WORK.md` and SushiRuntime's
+describes v0.2.0), SushiLog's `docs/backlog/README.md` and SushiRuntime's
 `docs/agent/2026_10_26_PROFILER_AND_LOG_ADOPTION/SPEC.md` with its decisions D1 to D24. A claim that
 was not verified says so. Nothing was built or run.
 

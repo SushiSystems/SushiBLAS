@@ -67,7 +67,7 @@ is `Large_`.
 
 A test that fails intermittently and cannot be fixed the day it is seen is named in the
 `QUARANTINED` list of its program's call, as `Suite.Case`. It keeps its size and gains the label
-`quarantined`, which takes it out of every stage that gates; `docs/reference/KNOWN_ISSUES.md`
+`quarantined`, which takes it out of every stage that gates; `docs/backlog/README.md`
 names it, its owner and the date it is fixed by. No test is quarantined.
 
 ## Running
@@ -283,7 +283,7 @@ The shared argument, environment, fill, timing and table code is the internal mo
 ### Caveats
 
 The functional tests of this tree have run on one NVIDIA RTX 3080 Ti. Which benchmark programs
-have been built and run is in `docs/reference/KNOWN_ISSUES.md`; what a program prints is
+have been built and run is in `docs/backlog/README.md`; what a program prints is
 described here from its source.
 
 A number is meaningful only for the machine, device and build that printed it. Compare two

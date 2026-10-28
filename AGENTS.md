@@ -32,8 +32,8 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
   reference path. `docs/CONTRIBUTING.md`, section 5, states what a new operation carries.
 - Enumerators are PascalCase and constants are `K_UPPER_SNAKE`.
   `tools/naming/sushiblas_0_1_0.tsv` lists every name the v0.1.0 sweep changed.
-- `docs/README.md` indexes the manual. `docs/design/REMAINING_WORK.md` is the backlog and
-  `docs/reference/KNOWN_ISSUES.md` the open defects.
+- `docs/README.md` indexes the manual. `docs/backlog/README.md` is the backlog and
+  `docs/backlog/README.md` the open defects.
 
 ## Check before reporting work as finished
 

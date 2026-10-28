@@ -248,7 +248,7 @@ figure from a GPU; the CPU baseline is in the GPU runs report.
 
 ### Items that are not GPU-specific
 
-The open items that are not GPU-specific are in [`REMAINING_WORK.md`](../REMAINING_WORK.md), under
+The open items that are not GPU-specific are in [`REMAINING_WORK.md`](../../backlog/README.md), under
 "Kernels and reductions", so that a GPU run is not blamed for them. The log-softmax fix, whose
 measurements other documents cite, is in the GPU runs report.
 

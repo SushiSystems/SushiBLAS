@@ -152,7 +152,7 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 - `LinalgOps` declares SVD, QR, eigendecomposition, inverse, determinant and a general solve
   with no implementation. Its batched LU and GMRES, and the batched FFT of `TransformsOps`, run.
 
-Defects that are recorded and not yet fixed are in [known issues](../reference/KNOWN_ISSUES.md).
+Defects that are recorded and not yet fixed are in [known issues](../backlog/README.md).
 The [changelog](../reference/CHANGELOG.md) lists what has changed.
 
 ## How is SushiBLAS licensed?

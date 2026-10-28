@@ -114,7 +114,7 @@ PB-7 can run as soon as the runtime's PF-5 lands and does not wait on PB-2 to PB
 
 ### PB-11 Documentation (orchestrator)
 
-- **Files:** `docs/design/PROFILING/README.md` (BD13) and its row in `docs/design/README.md`; `docs/architecture/` page for cost and the profiler; the guide of registering the parts; the module READMEs index in `modules/README.md`; `docs/reference/CHANGELOG.md` lines; backlog entries for every pass-two task in `docs/design/REMAINING_WORK.md` (after the SYCL compile-time work commits its own edit to that file); the glossary entries; the `Implements` line of this work.
+- **Files:** `docs/design/PROFILING/README.md` (BD13) and its row in `docs/design/README.md`; `docs/architecture/` page for cost and the profiler; the guide of registering the parts; the module READMEs index in `modules/README.md`; `docs/reference/CHANGELOG.md` lines; backlog entries for every pass-two task in `docs/backlog/README.md` (after the SYCL compile-time work commits its own edit to that file); the glossary entries; the `Implements` line of this work.
 - **Acceptance:** `python tools/check_all.py .` is clean.
 
 ## Second pass (listed, not first pass)

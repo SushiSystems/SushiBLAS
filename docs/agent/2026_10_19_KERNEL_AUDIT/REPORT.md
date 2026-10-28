@@ -5,7 +5,7 @@ A read-only inspection of every header under `modules/kernels/` (127 files, 15 5
 sparse_kernels, random_kernels and packed_product_harness, with the foundation headers they lean
 on (`launch_1d.hpp`, `device_policy.hpp`, `reduce_1d.hpp`, `accumulator.hpp`,
 `multiply_add.hpp`, `running_solution.hpp`). Nothing was built, tested or benchmarked. The plan
-that follows from it is in [the backlog](../../design/REMAINING_WORK.md), section "Kernel audit".
+that follows from it is in [the backlog](../../backlog/README.md), section "Kernel audit".
 
 **[D]** is a defect visible in the code. **[M]** is a performance hypothesis that needs a
 before and after benchmark before it is accepted. Every [M] item is unmeasured. The CUDA grid

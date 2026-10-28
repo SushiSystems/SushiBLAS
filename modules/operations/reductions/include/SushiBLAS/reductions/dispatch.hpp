@@ -329,7 +329,7 @@ namespace SushiBLAS
             /**
              * @brief Records an index reduction for the element type of a with_element_type arm.
              * @tparam Dispatcher The two-path dispatcher execute_index_reduction was given.
-             * @see docs/reference/KNOWN_ISSUES.md
+             * @see docs/backlog/README.md
              */
             template<typename Dispatcher>
             struct IndexReductionArm
@@ -375,7 +375,7 @@ namespace SushiBLAS
             /**
              * @brief Records a counting reduction for the element type of a with_element_type arm.
              * @tparam Dispatcher The two-path dispatcher execute_counting_reduction was given.
-             * @see docs/reference/KNOWN_ISSUES.md
+             * @see docs/backlog/README.md
              */
             template<typename Dispatcher>
             struct CountingReductionArm
@@ -483,7 +483,7 @@ namespace SushiBLAS
             /**
              * @brief Records a segmented fold for the element type of a with_element_type arm.
              * @tparam Accum The Reduce accumulator the fold runs in.
-             * @see docs/reference/KNOWN_ISSUES.md
+             * @see docs/backlog/README.md
              */
             template<template<typename> class Accum, typename Transform, typename Finalize>
             struct SpanReductionArm

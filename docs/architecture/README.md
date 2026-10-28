@@ -5,7 +5,7 @@ it. Every class and file they name exists under `modules/`. To
 use the library, the [root README](../../README.md) and [the first program](../getting_started/FIRST_PROGRAM.md) are enough.
 
 The pages describe the tree as it is. They give no figure for speed, and
-[the known issues](../reference/KNOWN_ISSUES.md) say what has run and on which device. A header
+[the known issues](../backlog/README.md) say what has run and on which device. A header
 named alone, such as `engine/task.hpp`, is its include path after `SushiBLAS/`. A name in
 `SushiBLAS::Internal` or a `Detail` namespace is not part of the interface a consumer may rely
 on, and a header of a kernel module other than `blas_seam_kernels` is not installed.

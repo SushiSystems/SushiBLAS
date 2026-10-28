@@ -188,7 +188,7 @@ block after the license block, a `@brief` on every symbol, private members
 included, and no `TODO`, history or design reasoning in source. A block is at
 most eight lines. A `//` comment inside a body is one line, alone, that
 states an invariant the code relies on; two in a row belong in a document. Open work goes
-to [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md); the reason for a
+to [`backlog/README.md`](backlog/README.md); the reason for a
 design goes to a document under `design/`, cited by path.
 
 ### Error handling
@@ -441,10 +441,10 @@ indexed in [`README.md`](README.md).
   and test snippets here and in the root README.
 - **A design decision with an open phase** is a document under `design/` with a
   status line, listed in [`design/README.md`](design/README.md). Open work is a
-  line in [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md), the only
+  line in [`backlog/README.md`](backlog/README.md), the only
   backlog.
 - **A defect that stays open** is a row in
-  [`reference/KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md).
+  [`backlog/README.md`](backlog/README.md).
 - **Agent work** is written to its own folder,
   `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`, as `SPEC.md`, `PLAN.md` and
   `REPORT.md`.

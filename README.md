@@ -56,8 +56,8 @@ SushiBLAS has no tagged release; it is at 0.1.0, below 1.0.0, so a MINOR release
 public interface. Dense BLAS levels 1 to 3, sparse BLAS over CSR and the elementwise, non-linear,
 logic, reduction, random and spatial operations work, each with a reference path and a SYCL
 kernel. GPU coverage and performance are not yet measured, and
-[`KNOWN_ISSUES.md`](docs/reference/KNOWN_ISSUES.md) lists the limits. What is left is in
-[`REMAINING_WORK.md`](docs/design/REMAINING_WORK.md).
+[`KNOWN_ISSUES.md`](docs/backlog/README.md) lists the limits. What is left is in
+[`REMAINING_WORK.md`](docs/backlog/README.md).
 
 ## Documentation
 
