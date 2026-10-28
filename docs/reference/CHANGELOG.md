@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-29 — general: Tagged v0.1.0 (RW-8, `e96ad707`).
+
 ## v0.1.0 — 2026-10-29
 
 - 2026-10-29 — deps: Pinned SushiRuntime v0.5.0, the release this tree builds and passes against (`sushistack.deps.toml`).
