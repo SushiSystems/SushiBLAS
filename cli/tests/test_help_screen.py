@@ -22,7 +22,7 @@ pytestmark = pytest.mark.small
 K_GROUPS = {
     "Project": ["build", "test", "bench", "run", "clean", "package"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
-    "Documentation": ["docs"],
+    "Documentation": ["docs", "backlog", "design"],
 }
 K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)\b")
 K_PACKAGE_DIR = Path(sushiblas.__file__).parent
@@ -89,7 +89,10 @@ def test_a_command_with_arguments_carries_examples():
     assert "Examples" in out and "sb run quickstart_demo" in out
 
 
-@pytest.mark.parametrize("name", [name for names in K_GROUPS.values() for name in names])
+@pytest.mark.parametrize(
+    "name",
+    [name for names in K_GROUPS.values() for name in names if name not in ("backlog", "design")],
+)
 def test_every_command_help_ends_with_examples(name):
     assert "Examples" in _run(name, "--help")
 

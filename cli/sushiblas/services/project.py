@@ -28,7 +28,7 @@ from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
-from sushicore.provision.sushi_packages import PackageSet
+from sushicore.provision.sushi_packages import PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
 
@@ -421,7 +421,7 @@ class ProjectService:
             f"-DCMAKE_BUILD_TYPE={build_type}",
         ]
         # Each library package reaches CMake as <Package>_DIR; CMake never downloads.
-        args += library_packages.configure_arguments(cfg, root, packages)
+        args += configure_arguments(cfg, root, packages)
         args += _toolchain_args(cfg, root)
         if cfg.is_windows and (prefix := vcpkg_prefix(cfg, root)):
             args.append(f"-DCMAKE_PREFIX_PATH={prefix}")

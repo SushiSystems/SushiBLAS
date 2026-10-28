@@ -24,6 +24,8 @@ from sushiblas import cli
 
 pytestmark = pytest.mark.medium
 
+#: The groups sushicore adds whole; their commands are sushicore's to list, so only the group is checked.
+K_SUSHICORE_GROUPS = ("backlog", "design")
 K_VISIBLE_COMMANDS = [
     "bench", "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "package", "run",
     "setup", "test", "unlink",
@@ -127,7 +129,9 @@ def test_describe_lists_every_visible_command_and_no_hidden_one():
     assert result.exit_code == 0
     document = json.loads(result.output)
     assert document["program"] == "sb"
-    assert [command["name"] for command in document["commands"]] == K_VISIBLE_COMMANDS
+    names = [command["name"] for command in document["commands"]]
+    assert [name for name in names if name.split()[0] not in K_SUSHICORE_GROUPS] == K_VISIBLE_COMMANDS
+    assert {name.split()[0] for name in names} >= set(K_SUSHICORE_GROUPS)
 
 
 def test_env_takes_the_short_form_of_all():
