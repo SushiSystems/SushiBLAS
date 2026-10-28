@@ -26,6 +26,7 @@
  * @see tests/engine/profiling/README.md
  */
 
+#include <map>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -182,6 +183,7 @@ namespace SushiBLAS
                             ElementwiseOps(graph.recorder()).add(c, c, d);
                             graph.run().value();
                         }
+                        timeline.mark();
                         SushiProfiler::SessionStop stopped = started.session->stop();
                         record_ = std::move(stopped.record);
                         tables_ = started.session->report(record_).tables;
@@ -196,6 +198,17 @@ namespace SushiBLAS
                         if (column == nullptr || column->present[row] == 0)
                             return -1;
                         return column->integers[row];
+                    }
+
+                    /** @brief Returns the counts of periods, spans and dropped spans the record holds. */
+                    std::string record_summary() const
+                    {
+                        std::size_t spans = 0;
+                        for (const SushiProfiler::PeriodRecord& period : record_.periods)
+                            spans += period.spans.size();
+                        return std::to_string(record_.periods.size()) + " periods, " +
+                               std::to_string(spans) + " spans, " +
+                               std::to_string(record_.drops.spans_dropped) + " spans dropped";
                     }
 
                     /** @brief Returns the roofline table, or null when the session made none. */
@@ -241,7 +254,8 @@ namespace SushiBLAS
                     }
                 }
             }
-            EXPECT_TRUE(found) << "no span carries the FLOPs of the GEMM";
+            EXPECT_TRUE(found) << "no span carries the FLOPs of the GEMM; the record holds "
+                               << record_summary();
         }
 
         TEST_F(Medium_ProfilingEndToEnd, TheRooflineRowNamesTheCeiling)
@@ -284,7 +298,18 @@ namespace SushiBLAS
 
             const SushiProfiler::Table* table = roofline();
             ASSERT_NE(table, nullptr);
-            EXPECT_EQ(table->rows.size(), std::size_t{2}) << "one row per costed node: the GEMM and the add";
+            const std::size_t period = table->column("period");
+            ASSERT_LT(period, table->columns.size());
+            std::map<std::int64_t, std::size_t> rows_per_period;
+            for (const SushiProfiler::Row& row : table->rows)
+            {
+                ASSERT_NE(row[period].as_whole(), nullptr);
+                ++rows_per_period[*row[period].as_whole()];
+            }
+            EXPECT_EQ(rows_per_period.size(), std::size_t{2}) << "one group of rows per active period";
+            for (const auto& [index, rows] : rows_per_period)
+                EXPECT_EQ(rows, std::size_t{2})
+                    << "period " << index << ": one row per costed node, the GEMM and the add";
         }
 
         TEST_F(Medium_ProfilingEndToEnd, AnF16SpanIsJudgedAgainstTheF16Ceiling)
@@ -331,6 +356,7 @@ namespace SushiBLAS
                 BLASOps(graph.recorder()).gemm(a, b, c);
                 graph.run().value();
             }
+            timeline.mark();
             SushiProfiler::SessionStop stopped = started.session->stop();
             const std::vector<SushiProfiler::Table> tables = started.session->report(stopped.record).tables;
 
