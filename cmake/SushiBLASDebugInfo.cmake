@@ -13,6 +13,7 @@
 # optimisation in every build type (SyclTarget.cmake). RelWithDebInfo carries full debug
 # information. The rule is in the build-throughput skill of SushiSkills.
 
+# -Xarch_host keeps the flag off a SYCL device pass, which rejects it.
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    add_compile_options("$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:-gline-tables-only>")
+    add_compile_options("$<$<AND:$<CONFIG:Debug>,$<COMPILE_LANGUAGE:CXX>>:SHELL:-Xarch_host -gline-tables-only>")
 endif()
