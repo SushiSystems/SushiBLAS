@@ -8,6 +8,7 @@
 | RW-86 | P2 | open | Bring the Linux job of the small and medium tests under 45 minutes | the job runs within the pre-merge budget and its timeout drops from 90 minutes |  |  | 2026-10-19 |
 | RW-87 | P2 | open | Size the medium suites that reach nothing | each `Medium_` suite whose tests reach no runtime, queue, tensor or file is `Small_` |  |  | 2026-10-19 |
 | RW-88 | P2 | unmeasured | Run the release workflow once | `.github/workflows/release.yml` has run before the tag depends on it |  |  | 2026-10-19 |
+| RW-123 | P1 | open | Link TSan-instrumented library packages into a ThreadSanitizer tree | a --sanitize thread tree links SushiRuntime, SushiLog and SushiProfiler packages built with TSan, and the ThreadSanitizer job passes |  |  | 2026-10-29 |
 
 ## Known issues
 
