@@ -31,8 +31,8 @@ cli = "sb"
 # it directly; the CLI builds or reuses its package at this tag and hands its config folder to
 # CMake.
 [sushisystems.sushilog]
-version = "v0.2.3"
-commit  = "5f714a7bca6cad1a49e9a6133e75f0f791dba551"
+version = "v0.3.0"
+commit  = "30e302383527d8db55403509d244acc6266809f6"
 
 # SushiProfiler, which the profile and profiling modules write zones, values and device spans to
 # when SB_ENABLE_PROFILER is on. The CLI builds or reuses its package at this commit and hands

@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-29 — deps: Moved the SushiLog pin to v0.3.0, the first tag a consumer can build as a package (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Checked out SushiProfiler at its pinned tag beside SushiLog in every build job, and installed the CLI before the checkers so they find sushicore (`.github/workflows/ci.yml`).
 - 2026-10-29 — cli: Imported `configure_arguments` from sushicore where the build calls it, and listed sushicore's `backlog` and `design` groups in the command-list tests (`services/project.py`).
 - 2026-10-29 — general: Tagged v0.1.0 (RW-8, `e96ad707`).
