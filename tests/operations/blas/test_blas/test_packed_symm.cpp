@@ -337,7 +337,7 @@ namespace SushiBLAS
                         {
                             Kernels::SYCL::Detail::packed_gemm<T>(
                                 queue_, plan, m_, n_, order_, alpha, x, at_x, str_x,
-                                y, at_y, str_y, beta, c_.get(), at_c, str_c, 1, panels, {},
+                                y, at_y, str_y, beta, c_.get(), at_c, str_c, panels, {},
                                 Kernels::GemmIdentityEpilogue{}).wait();
                         });
 

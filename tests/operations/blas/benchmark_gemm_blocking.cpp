@@ -202,7 +202,7 @@ namespace
         {
             if (request.packed)
                 Kd::packed_gemm<T>(q, plan, n, n, n, T(1), a.get(), access, 0, b.get(), access,
-                                   0, T(0), c.get(), access, 0, 1, scratch.get(), {},
+                                   0, T(0), c.get(), access, 0, scratch.get(), {},
                                    Kernels::GemmIdentityEpilogue{}).wait();
             else
                 Kernels::SYCL::gemm<T>(q, Layout::ColumnMajor, Transpose::NoTrans,
