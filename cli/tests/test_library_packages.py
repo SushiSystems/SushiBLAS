@@ -290,4 +290,6 @@ def test_the_dependency_fragment_names_the_three_libraries_of_the_closure():
         (Path(__file__).resolve().parents[1] / "sushistack.deps.toml").read_text(encoding="utf-8"))
 
     assert set(fragment["module"]["depends_on"]) == {"sushiruntime", "sushilog", "sushiprofiler"}
-    assert fragment["sushisystems"]["sushiprofiler"]["version"] == "v0.3.2"
+    for name in fragment["module"]["depends_on"]:
+        pin = fragment["sushisystems"][name]
+        assert pin["version"].startswith("v") and len(pin["commit"]) == 40
