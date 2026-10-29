@@ -125,7 +125,11 @@ namespace SushiBLAS
                 protected:
                     void SetUp() override
                     {
-                        folder_ = std::filesystem::temp_directory_path() / "sushiblas_profiling_end_to_end";
+                        // The cases run as parallel processes, so each one has its own folder.
+                        const std::string name =
+                            ::testing::UnitTest::GetInstance()->current_test_info()->name();
+                        folder_ = std::filesystem::temp_directory_path() /
+                                  ("sushiblas_profiling_end_to_end_" + name);
                         std::filesystem::remove_all(folder_);
                         std::filesystem::create_directories(folder_);
                     }
