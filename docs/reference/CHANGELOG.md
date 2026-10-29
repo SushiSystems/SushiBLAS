@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-29 — deps: Moved the SushiProfiler pin to v0.4.0, whose CLI installs against sushicore 0.10 (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Installed the CLI of every Sushi library checked out beside sushiblas, since a library package is built by that library's own CLI (`.github/actions/`).
 - 2026-10-29 — deps: Moved the SushiLog pin to v0.3.0, the first tag a consumer can build as a package (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Checked out SushiProfiler at its pinned tag beside SushiLog in every build job, and installed the CLI before the checkers so they find sushicore (`.github/workflows/ci.yml`).
