@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-30 — tests: Fixed every Windows Debug test program crashing on load; each copies the Release gtest.dll it links over the Debug one vcpkg put beside it (`cmake/SushiBLASTests.cmake`).
 - 2026-10-29 — ci: Gave the build jobs 120 to 150 minutes; each now builds the SushiRuntime package too, and its device compiles miss the cache (`.github/workflows/ci.yml`).
 - 2026-10-29 — profiling: Fixed the profiling end-to-end tests deleting each other's folder when they run in parallel; each case writes under its own name (`test_profiler_parts.cpp`).
 - 2026-10-29 — ci: Ran `sr setup` in the SushiRuntime checkout of the Windows job, whose package build needs the vcpkg and Ninja paths it records (`.github/workflows/ci.yml`).

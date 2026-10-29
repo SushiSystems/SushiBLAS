@@ -50,14 +50,21 @@ function(sushiblas_configure_test_target target)
     endif()
     set_target_properties(${target} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${SB_TEST_OUTPUT_DIR}")
-    # hwloc is private to SushiRuntime's own build and never reaches a consumer.
+    # hwloc is private to SushiRuntime's own build and never reaches a consumer. gtest.dll is
+    # copied from the configuration the program links: a Debug tree links GTest's Release build,
+    # and vcpkg's own copy, which runs before this one, puts the Debug DLL there.
     if(WIN32)
+        set(gtest_dll "")
+        if(TARGET GTest::gtest)
+            set(gtest_dll "$<TARGET_FILE:GTest::gtest>")
+        endif()
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:SushiRuntime::shared_library>"
                 "$<TARGET_FILE:SushiLog::SushiLog>"
+                ${gtest_dll}
                 $<TARGET_FILE_DIR:${target}>
-            COMMENT "Copying sushiruntime.dll and sushilog.dll to the test directory")
+            COMMENT "Copying sushiruntime.dll, sushilog.dll and gtest.dll to the test directory")
         if(SB_ENABLE_PROFILER)
             add_custom_command(TARGET ${target} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
