@@ -874,13 +874,13 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Logs the tiled launch of one shape and runs it.
+                 * @brief Notes the tiled kernel variant for one shape and runs it.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
                 template<typename T, typename Shape, typename AccessA, typename AccessB,
                          typename Epilogue>
                 [[nodiscard]] sycl::event launch_local_tiled(
-                    GemmTileRole role, sycl::queue& queue,
+                    sycl::queue& queue,
                     int64_t m, int64_t n, int64_t k,
                     T alpha, const T* a, AccessA a_access, int64_t str_a,
                     const T* b, AccessB b_access, int64_t str_b,
@@ -916,17 +916,17 @@ namespace SushiBLAS
                     {
                         case GemmTileRole::Wide:
                             return launch_local_tiled<T, GemmTile<T, GemmTileRole::Wide>>(
-                                role, queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
+                                queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
                                 str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
                         case GemmTileRole::Compact:
                             return launch_local_tiled<T, GemmTile<T, GemmTileRole::Compact>>(
-                                role, queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
+                                queue, m, n, k, alpha, a, a_access, str_a, b, b_access,
                                 str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
                         case GemmTileRole::Balanced:
                             break;
                     }
                     return launch_local_tiled<T, GemmTile<T, GemmTileRole::Balanced>>(
-                        GemmTileRole::Balanced, queue, m, n, k, alpha, a, a_access, str_a, b,
+                        queue, m, n, k, alpha, a, a_access, str_a, b,
                         b_access, str_b, beta, c, c_access, str_c, batch_size, deps, epilogue);
                 }
 
