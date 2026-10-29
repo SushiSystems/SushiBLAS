@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-29 — cli: Fixed a Debug or sanitized build asking for Debug packages beneath it; it asks for the Release closure, as SushiRuntime does (`services/library_packages.py`).
+- 2026-10-29 — deps: Asked for sushicore 0.10.4, which gives a package build on icpx the icx beside it for the C slot (`cli/pyproject.toml`).
 - 2026-10-29 — cli: Checked that each library of the closure has a tag and a full commit pinned, not one fixed SushiProfiler tag, so a pin move no longer fails the CLI tests (`tests/test_library_packages.py`).
 - 2026-10-29 — deps: Moved the SushiProfiler pin to v0.4.1, whose CLI installs against sushicore 0.10 (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Installed the CLI of every Sushi library checked out beside sushiblas, since a library package is built by that library's own CLI (`.github/actions/`).

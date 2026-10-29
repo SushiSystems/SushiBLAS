@@ -224,7 +224,7 @@ class ProjectService:
 
         packages = library_packages.resolve(
             cfg, root, build_type.value, compiler, _distributed(build_dir, distributed),
-            self._console.info, self._console.warn)
+            sanitizer not in (None, Sanitizer.NONE), self._console.info, self._console.warn)
         run_dirs = packages.run_dirs(cfg.platform)
         library_packages.prepend_run_dirs(cfg, env, run_dirs)
 

@@ -149,12 +149,20 @@ def parts(tmp_path):
     return root, cfg, driver, service
 
 
-def test_the_build_asks_for_the_closure_with_its_compiler_and_type(parts):
+def test_a_debug_build_asks_for_the_release_closure_with_its_compiler(parts):
     root, cfg, driver, service = parts
 
     assert service.build(BuildType.DEBUG) == 0
 
-    assert cfg.asked == [{"build_type": "debug", "options": {}, "compiler": "clang++"}]
+    assert cfg.asked == [{"build_type": "release", "options": {}, "compiler": "clang++"}]
+
+
+def test_a_relwithdebinfo_build_asks_for_its_own_kind_of_closure(parts):
+    root, cfg, driver, service = parts
+
+    assert service.build(BuildType.RELWITHDEBINFO) == 0
+
+    assert cfg.asked[0]["build_type"] == "relwithdebinfo"
 
 
 def test_a_distributed_build_builds_the_runtime_package_distributed(parts):

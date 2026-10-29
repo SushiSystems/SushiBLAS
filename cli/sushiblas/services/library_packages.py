@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from sushicore.build_tree import package_build_type
 from sushicore.provision.sushi_packages import PackageSet, RunDirs
 
 from ..config import Config
@@ -35,7 +36,8 @@ def package_options(distributed: bool) -> Mapping[str, tuple[str, ...]]:
 
 
 def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
-            report: Callable[[str], None], warn: Callable[[str], None]) -> PackageSet:
+            sanitized: bool, report: Callable[[str], None],
+            warn: Callable[[str], None]) -> PackageSet:
     """Return the built packages of the closure of ``depends_on``, building a missing one.
 
     The closure is SushiLog, SushiProfiler and SushiRuntime, the three libraries
@@ -44,16 +46,19 @@ def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed
     Args:
         cfg: The resolved configuration.
         root: The project root.
-        build_type: The build type of this configure, such as ``release``.
+        build_type: The build type of this configure, such as ``release``; the packages are
+            built as :func:`sushicore.build_tree.package_build_type` maps it.
         compiler: The compiler of this build; the packages are built with it.
         distributed: Whether the cluster module is built.
+        sanitized: Whether this tree is built with a sanitizer.
         report: Receives one ``reused`` or ``built`` line per library.
         warn: Receives the warnings of the resolver.
 
     Raises:
         sushicore.provision.sushi_packages.PackageError: A package cannot be chosen.
     """
-    return cfg.sushi_packages(root, build_type, package_options(distributed),
+    return cfg.sushi_packages(root, package_build_type(build_type, sanitized),
+                              package_options(distributed),
                               report=report, warn=warn, compiler=compiler)
 
 
