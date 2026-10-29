@@ -73,7 +73,7 @@ namespace SushiBLAS
 
                 return Detail::packed_gemm<T>(queue, plan, m, n, k,
                                               alpha, a, a_access, str_a, b, b_access, str_b,
-                                              beta, c, c_access, str_c, batch_size, scratch, deps,
+                                              beta, c, c_access, str_c, scratch, deps,
                                               epilogue);
             }
         } // namespace SYCL

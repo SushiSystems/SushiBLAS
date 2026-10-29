@@ -5,7 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
-- 2026-10-29 — blas_seam_kernels: Fixed the tiled GEMM launcher failing a `-Werror` build on a role parameter it never read (`gemm.hpp`).
+- 2026-10-29 — blas_seam_kernels: Fixed the tiled GEMM launcher failing a `-Werror` build on a role parameter it never read, and the packed GEMM on a batch size its plan already holds (`gemm.hpp`, `gemm_packed.hpp`).
 - 2026-10-29 — build: Gave the Debug line tables to the host pass alone, since a clang SYCL device pass rejects the flag under `-Werror` (`cmake/`).
 - 2026-10-29 — build: Let a Debug tree link an imported package built as `None`, such as Ubuntu's GTest (`cmake/`).
 - 2026-10-29 — cli: Fixed a Debug or sanitized build asking for Debug packages beneath it; it asks for the Release closure, as SushiRuntime does (`services/library_packages.py`).

@@ -125,7 +125,7 @@ namespace SushiBLAS
                     T alpha, const T* a, AccessA a_access, int64_t str_a,
                     const T* b, AccessB b_access, int64_t str_b,
                     T beta, T* c, OperandAccess c_access, int64_t str_c,
-                    int64_t batch_size, void* scratch,
+                    void* scratch,
                     const std::vector<sycl::event>& deps, Epilogue epilogue)
                 {
                     Device::note_kernel_variant(Device::KernelVariant::GemmPacked);
@@ -169,7 +169,7 @@ namespace SushiBLAS
                     alpha, a, operand_access(layout, transA, lda), str_a,
                     b, operand_access(layout, transB, ldb), str_b,
                     beta, c, operand_access(layout, Core::Transpose::NoTrans, ldc), str_c,
-                    batch_size, scratch, deps, epilogue);
+                    scratch, deps, epilogue);
             }
         } // namespace SYCL
     } // namespace Kernels

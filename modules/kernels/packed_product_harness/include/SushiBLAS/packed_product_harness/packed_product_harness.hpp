@@ -327,7 +327,7 @@ namespace SushiBLAS
                             b_.get(), Kernels::operand_access(layout_, transB_, ldb_), str_b_,
                             beta, c_.get(),
                             Kernels::operand_access(layout_, Core::Transpose::NoTrans, ldc_),
-                            str_c_, batch_size_, scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
+                            str_c_, scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
                             epilogue).wait();
                     }
 
