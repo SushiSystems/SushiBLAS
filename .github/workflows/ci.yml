@@ -193,6 +193,10 @@ jobs:
           restore-keys: |
             ccache-windows-intel-llvm-release-${{ hashFiles('sushiblas/**/CMakeLists.txt', 'sushiblas/cmake/**') }}-
             ccache-windows-intel-llvm-release-
+      # The SushiRuntime package is built by sr, which needs the vcpkg and Ninja sr setup records.
+      - name: sr setup --yes --no-gpu
+        working-directory: sushiruntime
+        run: sr setup --yes --no-gpu
       - name: sb setup --yes --no-gpu
         run: sb setup --yes --no-gpu
       # sb setup installs the OpenCL ICD loader only; the tests need a SYCL device behind it.
