@@ -1,5 +1,5 @@
 name: Set up sb
-description: Installs Python, the sb CLI with its test extras from sushiblas/cli/ and, on Linux, ccache.
+description: Installs Python, the sb CLI with its test extras from sushiblas/cli/ the CLIs of the Sushi libraries beside it and, on Linux, ccache.
 runs:
   using: composite
   steps:
@@ -11,6 +11,14 @@ runs:
     - name: python -m pip install -e "./sushiblas/cli[test]"
       shell: bash
       run: python -m pip install -e "./sushiblas/cli[test]"
+    # A library package is built by that library's own CLI, so every Sushi library checked out
+    # beside sushiblas/ installs its CLI too.
+    - name: python -m pip install ./<library>/cli for each checked-out Sushi library
+      shell: bash
+      run: |
+        for project in */cli/pyproject.toml; do
+          [ "$project" = "sushiblas/cli/pyproject.toml" ] || python -m pip install "./${project%/pyproject.toml}"
+        done
     - name: sudo apt-get install -y ccache
       if: runner.os == 'Linux'
       shell: bash
