@@ -32,7 +32,7 @@ named follow the `documentation` skill. Neither is restated here.
 ## Words
 
 English, British spelling in prose ("licence" the noun, "optimisation"). Identifiers keep the
-spelling the code uses, such as `K_LICENSE_LINES` or the `LICENSE` file.
+spelling the code uses, such as `K_LICENSE_OPEN_LINES` or the `LICENSE` file.
 
 ## Pages not yet through the humanizer pass
 
