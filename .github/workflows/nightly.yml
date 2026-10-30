@@ -40,6 +40,30 @@ jobs:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiProfiler at the version cli/sushistack.deps.toml pins, as the sibling ../sushiprofiler sb finds.
+      - name: python -c "...pinned SushiProfiler version..."
+        id: sushiprofiler
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiprofiler']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiProfiler
+          ref: ${{ steps.sushiprofiler.outputs.version }}
+          path: sushiprofiler
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
       - name: sb build --type release --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
@@ -63,6 +87,30 @@ jobs:
         with:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiProfiler at the version cli/sushistack.deps.toml pins, as the sibling ../sushiprofiler sb finds.
+      - name: python -c "...pinned SushiProfiler version..."
+        id: sushiprofiler
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiprofiler']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiProfiler
+          ref: ${{ steps.sushiprofiler.outputs.version }}
+          path: sushiprofiler
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
