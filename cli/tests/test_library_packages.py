@@ -27,6 +27,7 @@ from sushiblas.services import library_packages
 from sushiblas.services.build_type import BuildType
 from sushiblas.services.errors import LeanBenchmarksError
 from sushiblas.services.project import ProjectService
+from sushiblas.services.sanitizer import Sanitizer
 
 pytestmark = pytest.mark.medium
 
@@ -163,6 +164,36 @@ def test_a_relwithdebinfo_build_asks_for_its_own_kind_of_closure(parts):
     assert service.build(BuildType.RELWITHDEBINFO) == 0
 
     assert cfg.asked[0]["build_type"] == "relwithdebinfo"
+
+
+def test_a_thread_sanitizer_build_asks_for_instrumented_packages(parts):
+    root, cfg, driver, service = parts
+
+    assert service.build(BuildType.RELWITHDEBINFO, sanitizer=Sanitizer.THREAD) == 0
+
+    assert cfg.asked[0]["build_type"] == "relwithdebinfo"
+    assert cfg.asked[0]["options"] == {
+        "sushilog": ("--sanitize", "thread"),
+        "sushiprofiler": ("--sanitize", "thread"),
+        "sushiruntime": ("--type", "tsan"),
+    }
+
+
+def test_a_distributed_thread_sanitizer_build_keeps_the_distributed_flag(parts):
+    root, cfg, driver, service = parts
+
+    assert service.build(BuildType.RELWITHDEBINFO, distributed=True,
+                         sanitizer=Sanitizer.THREAD) == 0
+
+    assert cfg.asked[0]["options"]["sushiruntime"] == ("--distributed", "--type", "tsan")
+
+
+def test_an_address_sanitizer_build_still_links_release_packages(parts):
+    root, cfg, driver, service = parts
+
+    assert service.build(BuildType.RELWITHDEBINFO, sanitizer=Sanitizer.ADDRESS_UNDEFINED) == 0
+
+    assert cfg.asked[0] == {"build_type": "release", "options": {}, "compiler": "clang++"}
 
 
 def test_a_distributed_build_builds_the_runtime_package_distributed(parts):

@@ -17,6 +17,7 @@ from sushicore.build_tree import package_build_type
 from sushicore.provision.sushi_packages import PackageSet, RunDirs
 
 from ..config import Config
+from .sanitizer import Sanitizer
 
 #: The file of a build tree that names the run-time folders of the packages it linked.
 K_RUN_DIRS_FILE = ".sushiblas_package_dirs.json"
@@ -26,17 +27,35 @@ K_RUNTIME = "sushiruntime"
 K_DISTRIBUTED_FLAG = "--distributed"
 
 
-def package_options(distributed: bool) -> Mapping[str, tuple[str, ...]]:
+#: The libraries whose CLI takes the sanitizer as ``--sanitize thread``.
+K_SANITIZE_FLAG_LIBRARIES = ("sushilog", "sushiprofiler")
+
+#: The package build type of a ThreadSanitizer tree; TSan needs the symbols to name a race.
+K_THREAD_PACKAGE_TYPE = "relwithdebinfo"
+
+
+def package_options(distributed: bool,
+                    sanitizer: Sanitizer | None = None) -> Mapping[str, tuple[str, ...]]:
     """Return the extra `build` arguments each library takes for this SushiBLAS build.
 
     The cluster module needs the runtime's distributed layer, so ``--distributed`` of SushiBLAS
-    becomes ``--distributed`` of the SushiRuntime package.
+    becomes ``--distributed`` of the SushiRuntime package. A ThreadSanitizer tree needs the three
+    packages built with it, because TSan cannot see a synchronisation edge that runs through an
+    uninstrumented library: SushiLog and SushiProfiler take ``--sanitize thread`` and
+    SushiRuntime takes ``--type tsan``, which follows the ``--type`` the builder already passed.
     """
-    return {K_RUNTIME: (K_DISTRIBUTED_FLAG,)} if distributed else {}
+    options: dict[str, tuple[str, ...]] = {}
+    if distributed:
+        options[K_RUNTIME] = (K_DISTRIBUTED_FLAG,)
+    if sanitizer is Sanitizer.THREAD:
+        for name in K_SANITIZE_FLAG_LIBRARIES:
+            options[name] = ("--sanitize", "thread")
+        options[K_RUNTIME] = options.get(K_RUNTIME, ()) + ("--type", "tsan")
+    return options
 
 
 def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
-            sanitized: bool, report: Callable[[str], None],
+            sanitizer: Sanitizer | None, report: Callable[[str], None],
             warn: Callable[[str], None]) -> PackageSet:
     """Return the built packages of the closure of ``depends_on``, building a missing one.
 
@@ -50,15 +69,17 @@ def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed
             built as :func:`sushicore.build_tree.package_build_type` maps it.
         compiler: The compiler of this build; the packages are built with it.
         distributed: Whether the cluster module is built.
-        sanitized: Whether this tree is built with a sanitizer.
+        sanitizer: The sanitizer set of this tree; ThreadSanitizer builds instrumented packages.
         report: Receives one ``reused`` or ``built`` line per library.
         warn: Receives the warnings of the resolver.
 
     Raises:
         sushicore.provision.sushi_packages.PackageError: A package cannot be chosen.
     """
-    return cfg.sushi_packages(root, package_build_type(build_type, sanitized),
-                              package_options(distributed),
+    sanitized = sanitizer not in (None, Sanitizer.NONE)
+    package_type = (K_THREAD_PACKAGE_TYPE if sanitizer is Sanitizer.THREAD
+                    else package_build_type(build_type, sanitized))
+    return cfg.sushi_packages(root, package_type, package_options(distributed, sanitizer),
                               report=report, warn=warn, compiler=compiler)
 
 

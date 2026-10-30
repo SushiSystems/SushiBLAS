@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-30 — cli: Made `sb build --sanitize thread` link SushiLog, SushiProfiler and SushiRuntime packages built with ThreadSanitizer, since TSan reported races through the uninstrumented Release runtime (`library_packages.py`).
 - 2026-10-30 — deps: Moved the SushiRuntime pin to v0.5.1, which pins SushiLog v0.3.0 and SushiProfiler v0.4.1 as this repository does (`cli/sushistack.deps.toml`).
 - 2026-10-30 — tests: Fixed every Windows Debug test program crashing on load; each copies the Release gtest.dll it links over the Debug one vcpkg put beside it (`cmake/SushiBLASTests.cmake`).
 - 2026-10-29 — ci: Gave the build jobs 120 to 150 minutes; each now builds the SushiRuntime package too, and its device compiles miss the cache (`.github/workflows/ci.yml`).
