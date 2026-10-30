@@ -100,13 +100,14 @@ def test_main_reports_a_malformed_config_file_as_one_line(checkout, monkeypatch,
 
 
 @pytest.mark.parametrize("command", ["config", "clean"])
-def test_main_reports_an_unknown_theme_as_one_line(checkout, monkeypatch, capsys, command):
-    """A theme sushicore does not know ends in exit 1 and one line naming it."""
+def test_main_falls_back_from_an_unknown_theme_with_one_warning(checkout, monkeypatch, capsys, command):
+    """A theme sushicore does not know keeps the command running at the default, with one warning naming it."""
     checkout('[cli]\ntheme = "no-such-theme"\n')
     code, lines = _run_main(monkeypatch, capsys, command)
-    assert code == 1
-    assert len(lines) == 1, lines
-    assert "no-such-theme" in lines[0]
+    assert code == 0
+    warnings = [line for line in lines if "no-such-theme" in line]
+    assert len(warnings) == 1, lines
+    assert "Unknown CLI theme" in warnings[0]
 
 
 def test_main_exits_zero_after_a_command_that_succeeds(checkout, monkeypatch, capsys):
