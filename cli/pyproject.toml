@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sushiblas-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "SushiBLAS developer CLI (build / test / run)"
 authors = [{ name = "Mustafa Garip", email = "mustafagarip@sushisystems.io" }]
 license = { text = "PolyForm-Noncommercial-1.0.0" }

@@ -15,7 +15,7 @@
 # lands in build/docs/api-site/html, which git ignores.
 PROJECT_NAME           = "SushiBLAS"
 PROJECT_BRIEF          = "SYCL tensor and BLAS engine — C++ API reference"
-PROJECT_NUMBER         = "0.1.0"
+PROJECT_NUMBER         = "0.1.1"
 
 OUTPUT_DIRECTORY       = build/docs/api-site
 HTML_OUTPUT            = html

@@ -35,10 +35,10 @@
 /** @brief Minor version. */
 #define SUSHIBLAS_VERSION_MINOR 1
 /** @brief Patch version. */
-#define SUSHIBLAS_VERSION_PATCH 0
+#define SUSHIBLAS_VERSION_PATCH 1
 
 /** @brief Dotted version, as a literal. */
-#define SUSHIBLAS_VERSION_STRING "0.1.0"
+#define SUSHIBLAS_VERSION_STRING "0.1.1"
 
 /**
  * @brief The version as one comparable integer.
