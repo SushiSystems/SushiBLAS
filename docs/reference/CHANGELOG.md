@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-31 — ci: Brought the Windows pre-merge job inside its 150-minute timeout, with `sb build` taking about 78 minutes on main (`.github/workflows/ci.yml`).
 - 2026-10-30 — cli: An unknown theme in `cli/config.toml` now runs at the default with one warning naming it, as sushicore 0.10.6 makes it, rather than exiting 1; the CLI tests check that (`cli/tests/test_cli.py`).
 - 2026-10-30 — cli: Made `sb build --sanitize thread` link SushiLog, SushiProfiler and SushiRuntime packages built with ThreadSanitizer, since TSan reported races through the uninstrumented Release runtime (`library_packages.py`).
 - 2026-10-30 — deps: Moved the SushiRuntime pin to v0.5.1, which pins SushiLog v0.3.0 and SushiProfiler v0.4.1 as this repository does (`cli/sushistack.deps.toml`).
@@ -23,7 +24,6 @@ original text is frozen in the changelog document in the version history.
 - 2026-10-29 — deps: Moved the SushiLog pin to v0.3.0, the first tag a consumer can build as a package (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Checked out SushiProfiler at its pinned tag beside SushiLog in every build job, and installed the CLI before the checkers so they find sushicore (`.github/workflows/ci.yml`).
 - 2026-10-29 — cli: Imported `configure_arguments` from sushicore where the build calls it, and listed sushicore's `backlog` and `design` groups in the command-list tests (`services/project.py`).
-- 2026-10-29 — general: Tagged v0.1.0 (RW-8, `e96ad707`).
 
 ## v0.1.0 — 2026-10-29
 
