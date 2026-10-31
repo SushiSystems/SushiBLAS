@@ -19,7 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(Vcpkg)      # (Windows) locate vcpkg + set the toolchain file
 include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 
-project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
+project(SushiBLAS VERSION 0.1.1 LANGUAGES CXX C)
 
 # --- Build types: what Debug links and how much it records -------------------
 include(SushiBLASAbiPinning)  # the release C runtime and STL layout, in every build type
