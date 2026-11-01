@@ -49,8 +49,11 @@ namespace
     using SushiBLAS::Core::Uplo;
     using SushiBLAS::ExecutionMode;
 
-    /// @brief Matrix orders timed when no size is given.
-    const std::vector<int64_t> K_DEFAULT_SIZES = {256, 1024, 4096};
+    /// @brief Matrix orders timed on a CPU device when no size is given; a CPU runs the large solves slowly.
+    const std::vector<int64_t> K_CPU_SIZES = {32, 128, 512};
+
+    /// @brief Matrix orders timed on a GPU device when no size is given.
+    const std::vector<int64_t> K_GPU_SIZES = {64, 512, 4096};
 
     /// @brief Data types timed for every size.
     const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
@@ -355,9 +358,11 @@ namespace
     /// @brief Times every requested size in each layout.
     void run(int argc, char** argv)
     {
-        const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
-
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        const bool gpu = runtime.advanced().queue(SushiRuntime::DeviceIndex{0}).get_device().is_gpu();
+        const std::vector<int64_t> sizes =
+            Bench::parse_sizes(argc, argv, gpu ? K_GPU_SIZES : K_CPU_SIZES);
+
         for (const Layout layout : K_LAYOUTS)
             benchmark_layout(runtime, layout, sizes);
     }

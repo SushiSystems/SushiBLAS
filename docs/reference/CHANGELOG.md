@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-01 — bench: Gave the triangular benchmark sizes by device when none is given: 32, 128 and 512 on a CPU, 64, 512 and 4096 on a GPU, so the CPU nightly runner finishes (`tests/operations/blas/benchmark_triangular.cpp`).
+
 ## v0.1.1 — 2026-10-31
 
 - 2026-10-31 — ci: Brought the Windows pre-merge job inside its 150-minute timeout, with `sb build` taking about 78 minutes on main (`.github/workflows/ci.yml`).
