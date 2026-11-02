@@ -67,18 +67,16 @@ namespace SushiBLAS
             const Device::SubmittedEvents some(std::vector<sycl::event>(3));
             sycl::event from_some = some;
 
-            from_none.wait();
-            from_some.wait();
-            SUCCEED();
+            EXPECT_NO_THROW(from_none.wait());
+            EXPECT_NO_THROW(from_some.wait());
         }
 
         TEST(Small_SubmittedEvents, WaitOnAnEmptyValueReturns)
         {
             const Device::SubmittedEvents none;
 
-            none.wait();
-            none.wait_and_throw();
-            SUCCEED();
+            EXPECT_NO_THROW(none.wait());
+            EXPECT_NO_THROW(none.wait_and_throw());
         }
     } // namespace Test
 } // namespace SushiBLAS

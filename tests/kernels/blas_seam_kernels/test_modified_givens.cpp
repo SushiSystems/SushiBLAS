@@ -111,8 +111,6 @@ namespace SushiBLAS
         {
             static_assert(modified_givens_matches_hand_values<TypeParam>(),
                           "modified_givens gives the values worked by hand.");
-
-            SUCCEED();
         }
 
         /**

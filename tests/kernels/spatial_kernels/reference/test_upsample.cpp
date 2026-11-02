@@ -25,6 +25,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -39,6 +41,9 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /// Relative bound on the two sides of an adjoint identity, which add the same products in different orders.
+        constexpr double K_ADJOINT_TOLERANCE = 1e-12;
+
         /** @brief Returns the span of an upsample of a dense NHWC input by scale_h x scale_w. */
         static Spatial::WindowSpan upsample_span(int64_t batch, int64_t height, int64_t width,
                                                  int64_t channels, int64_t scale_h,
@@ -75,8 +80,9 @@ namespace SushiBLAS
             Kernels::Reference::upsample_nearest(span, 3, 2, x.data(), y.data());
             Kernels::Reference::upsample_nearest_backward(span, 3, 2, dy.data(), dx.data());
 
-            EXPECT_EQ(std::inner_product(y.begin(), y.end(), dy.begin(), 0.0),
-                      std::inner_product(x.begin(), x.end(), dx.begin(), 0.0));
+            const double lhs = std::inner_product(y.begin(), y.end(), dy.begin(), 0.0);
+            const double rhs = std::inner_product(x.begin(), x.end(), dx.begin(), 0.0);
+            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
         }
     } // namespace Test
 } // namespace SushiBLAS

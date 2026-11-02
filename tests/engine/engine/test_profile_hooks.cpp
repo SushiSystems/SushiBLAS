@@ -77,10 +77,11 @@ namespace SushiBLAS
 
         TEST(Small_ProfileHooks, EveryLeaseKindIsCountedWithoutACollector)
         {
-            Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolHit);
-            Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolMiss);
-            Internal::count_scratch_lease(Internal::ScratchLeaseKind::Unpooled);
-            SUCCEED();
+            EXPECT_NO_THROW({
+                Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolHit);
+                Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolMiss);
+                Internal::count_scratch_lease(Internal::ScratchLeaseKind::Unpooled);
+            });
         }
 
         TEST(Small_ProfileHooks, InstallingTheHooksSetsTheVariantObserverAndIsRepeatable)

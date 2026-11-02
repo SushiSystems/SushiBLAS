@@ -225,7 +225,6 @@ namespace SushiBLAS
                         Kernels::ConjugationFor<std::complex<float>, Kernels::Conjugated>>,
                     Kernels::SymmetricAccess<Kernels::Conjugated>>,
                 "A complex element type keeps the policy it was given.");
-            SUCCEED();
         }
 
         TEST(Small_SymmetricAccess, IsAConstantExpression)
@@ -241,7 +240,6 @@ namespace SushiBLAS
                           "A mirrored element is read from the stored triangle.");
             static_assert(access.at(K_CONSTANT_MATRIX, 1, 1) == 4.0f,
                           "A diagonal element is read where it lies.");
-            SUCCEED();
         }
     } // namespace Test
 } // namespace SushiBLAS

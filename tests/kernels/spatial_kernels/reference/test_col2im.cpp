@@ -25,6 +25,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -40,6 +42,9 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /// Relative bound on the two sides of an adjoint identity, which add the same products in different orders.
+        constexpr double K_ADJOINT_TOLERANCE = 1e-12;
+
         TEST(Small_ReferenceCol2Im, IsTheAdjointOfIm2Col)
         {
             // <im2col(x), y> equals <x, col2im(y)>; on small integers both sides are exact.
@@ -53,8 +58,9 @@ namespace SushiBLAS
             Kernels::Reference::im2col(span, cols, x.data(), columns.data());
             Kernels::Reference::col2im(span, cols, y.data(), folded.data());
 
-            EXPECT_EQ(std::inner_product(columns.begin(), columns.end(), y.begin(), 0.0),
-                      std::inner_product(x.begin(), x.end(), folded.begin(), 0.0));
+            const double lhs = std::inner_product(columns.begin(), columns.end(), y.begin(), 0.0);
+            const double rhs = std::inner_product(x.begin(), x.end(), folded.begin(), 0.0);
+            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
         }
 
         TEST(Small_ReferenceCol2Im, OnesFoldIntoTheOverlapCountOfEachPixel)

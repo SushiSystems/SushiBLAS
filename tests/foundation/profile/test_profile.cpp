@@ -37,6 +37,7 @@ namespace SushiBLAS
         TEST(Small_Profile, EveryMacroIsUsableInOneScope)
         {
             double sample = 0.5;
+            const auto every_macro = [&]
             {
                 SB_ZONE("test_profile.stage");
                 SB_ZONE_FINE("test_profile.fine");
@@ -44,15 +45,15 @@ namespace SushiBLAS
                 SB_VALUE("test_profile.sample", "", sample);
                 SB_COUNTER("test_profile.count", "", Add, sample);
                 SB_INSTANT("test_profile.instant");
-            }
-            SUCCEED();
+            };
+            EXPECT_NO_THROW(every_macro());
         }
 
         TEST(Small_Profile, AValueOnlyAMacroReadsIsNotUnused)
         {
             const double only_read_by_the_macro = 1.0;
-            SB_VALUE("test_profile.only_read", "", only_read_by_the_macro);
-            SUCCEED();
+            const auto read_by_the_macro = [&] { SB_VALUE("test_profile.only_read", "", only_read_by_the_macro); };
+            EXPECT_NO_THROW(read_by_the_macro());
         }
     } // namespace Test
 } // namespace SushiBLAS

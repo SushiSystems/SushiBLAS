@@ -25,6 +25,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -40,6 +42,9 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /// Relative bound on the two sides of an adjoint identity, which add the same products in different orders.
+        constexpr double K_ADJOINT_TOLERANCE = 1e-12;
+
         TEST(Small_ReferenceWindowDotWeights, PairsWithTheWindowProduct)
         {
             // <window_dot(x, w), dy> equals <w, dweights(dy, x)>, exact on small integers.
@@ -55,8 +60,9 @@ namespace SushiBLAS
             Kernels::Reference::window_dot_weights_backward(span, taps, dy.data(), x.data(),
                                                             dw.data());
 
-            EXPECT_EQ(std::inner_product(y.begin(), y.end(), dy.begin(), 0.0),
-                      std::inner_product(w.begin(), w.end(), dw.begin(), 0.0));
+            const double lhs = std::inner_product(y.begin(), y.end(), dy.begin(), 0.0);
+            const double rhs = std::inner_product(w.begin(), w.end(), dw.begin(), 0.0);
+            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
         }
 
         TEST(Small_ReferenceWindowDotWeights, AOneTapWindowGivesTheChannelDotProduct)

@@ -231,8 +231,6 @@ namespace SushiBLAS
                           "K_MAXIMUM is the largest power of two.");
             static_assert(Scaling::K_ROOT_MINIMUM == GivensLimits<R>::K_SAFE_ROOT_MINIMUM,
                           "K_ROOT_MINIMUM is the root of K_MINIMUM.");
-
-            SUCCEED();
         }
 
         /**

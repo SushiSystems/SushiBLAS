@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-02 — tests: Gave each small test that asserted a literal or nothing a real assertion: `static_assert` alone for compile-time facts, EXPECT_NO_THROW for calls, a tolerance for four adjoints (`tests/`).
 - 2026-11-02 — cli: Ran `sb test` through the shared test command of sushicore 0.10.11, which shuffles, prints the seed and the budget line; added `--all`, `--shuffle`, `--seed`; dropped the local label module (RW-128, `a1edb237`).
 - 2026-11-02 — cli: Left `benchmark_gemm_blocking` out of a bare `sb bench`, since it needs arguments and failed the nightly with a usage error; `sb bench gemm_blocking -- <args>` still runs it (`services/project.py`).
 - 2026-11-01 — bench: Gave the triangular benchmark sizes by device when none is given: 32, 128 and 512 on a CPU, 64, 512 and 4096 on a GPU, so the CPU nightly runner finishes (`tests/operations/blas/benchmark_triangular.cpp`).

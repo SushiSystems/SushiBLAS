@@ -36,7 +36,6 @@ namespace SushiBLAS
         {
             static_assert(K_RANDOM_LOG_CATEGORY.module() == "random", "the folder name of the module");
             static_assert(K_RANDOM_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-            SUCCEED();
         }
     } // namespace Test
 } // namespace SushiBLAS

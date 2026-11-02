@@ -61,8 +61,6 @@ namespace SushiBLAS
                                                                Kernels::Conjugated>,
                                        Kernels::Conjugated>::value,
                           "A complex type keeps it.");
-
-            SUCCEED();
         }
 
         TEST(Small_Conjugation, AHermitianUpdateTakesARealScalar)
@@ -75,8 +73,6 @@ namespace SushiBLAS
                                                                  Kernels::Unconjugated>,
                                        std::complex<double>>::value,
                           "SYR takes an alpha of the element type.");
-
-            SUCCEED();
         }
     } // namespace Test
 } // namespace SushiBLAS

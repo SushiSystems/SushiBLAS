@@ -122,7 +122,6 @@ namespace SushiBLAS
                           "a build without the profiler compiles nothing in");
             write_stage_zone_at_level_one();
             write_fine_zone_at_level_one();
-            SUCCEED();
         }
 #endif
     } // namespace Test

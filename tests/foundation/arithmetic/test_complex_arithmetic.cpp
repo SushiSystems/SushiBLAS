@@ -105,7 +105,6 @@ namespace SushiBLAS
             static_assert(std::is_same_v<Kernels::RealType<R>, R>, "A real type is its own.");
             static_assert(std::is_same_v<Kernels::RealType<std::complex<R>>, R>,
                           "A complex type names its component.");
-            SUCCEED();
         }
 
         TYPED_TEST(Small_ComplexArithmetic, RealMultiplyAndDivideAreTheBareOperators)

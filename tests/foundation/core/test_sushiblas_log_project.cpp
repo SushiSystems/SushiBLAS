@@ -37,7 +37,6 @@ namespace SushiBLAS
             static_assert(K_SUSHIBLAS_LOG_PROJECT.name() == "sushiblas", "the project's name");
             static_assert(K_SUSHIBLAS_LOG_PROJECT.level_variable() == "SB_LOG_LEVEL",
                           "the variable that sets its levels");
-            SUCCEED();
         }
     } // namespace Test
 } // namespace SushiBLAS

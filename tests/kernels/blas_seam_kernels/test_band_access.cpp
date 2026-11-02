@@ -292,8 +292,6 @@ namespace SushiBLAS
                           "A row-major upper triangle band is the CBLAS one.");
             static_assert(triangle_band_matches_cblas(Layout::RowMajor, Uplo::Lower),
                           "A row-major lower triangle band is the CBLAS one.");
-
-            SUCCEED();
         }
 
         /**

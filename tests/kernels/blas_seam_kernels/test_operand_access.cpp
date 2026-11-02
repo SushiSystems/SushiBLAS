@@ -206,7 +206,6 @@ namespace SushiBLAS
                                                              "dimension.");
             static_assert(access.conjugated, "A conjugate transpose conjugates.");
             static_assert(access.index(1, 1) == K_LEADING_DIMENSION + 1, "index is constexpr.");
-            SUCCEED();
         }
     } // namespace Test
 } // namespace SushiBLAS
