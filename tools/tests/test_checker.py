@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import sys
 import unittest
 from pathlib import Path
@@ -19,6 +20,9 @@ from checking.checker import Checker, run  # noqa: E402
 
 K_CHECKER = Checker(description="Checks nothing.", collect=lambda paths: [],
                     rules={"rule_first": lambda subject: iter(()), "rule_second": lambda subject: iter(())})
+
+
+pytestmark = pytest.mark.small
 
 
 class CheckerTest(unittest.TestCase):

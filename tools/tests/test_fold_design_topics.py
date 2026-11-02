@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import pytest
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,9 @@ K_FILES = {
     "docs/guides/use.md": "Read docs/design/AUDIO.md and [it](../design/AUDIO.md).\n",
     "modules/audio/README.md": "# Audio\n",
 }
+
+
+pytestmark = pytest.mark.medium
 
 
 def _root(folder: str) -> Path:

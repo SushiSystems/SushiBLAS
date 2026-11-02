@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,9 @@ from logs.check_logging import (  # noqa: E402
     rule_swallowed_error,
     rule_uncategorized_call,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 class LoggingTest(unittest.TestCase):

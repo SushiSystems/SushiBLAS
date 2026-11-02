@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,9 @@ from layering.check_layering import (  # noqa: E402
 K_LAYOUT = Layout(("foundation", "domain"))
 K_DOMAINS = Layout(("core", "vision", "language"), domain_tiers=("vision", "language"))
 K_BUILD = Layout(("foundation",), module_function="project_add_module")
+
+
+pytestmark = pytest.mark.medium
 
 
 def _write(root: Path, relative: str, text: str = "\n") -> None:

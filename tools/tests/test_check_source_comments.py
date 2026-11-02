@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -46,6 +47,9 @@ K_OWN_BOX_LINES = (K_COPYRIGHT, "", *K_ACME.box_lines)
 K_LACKS_COPYRIGHT = f"license block lacks '{K_ACME.copyright_shape}'"
 K_FOREIGN_LICENCE = "Licensed under the Apache License, Version 2.0. See LICENSE."
 K_OLD_HOLDER = "Copyright (c) 2026 Acme Corp"
+
+
+pytestmark = pytest.mark.medium
 
 
 def setUpModule() -> None:

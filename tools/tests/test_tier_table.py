@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+import pytest
 import sys
 import unittest
 from pathlib import Path
@@ -15,6 +16,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from settings import K_TIER_ORDER  # noqa: E402
+
+pytestmark = pytest.mark.small
+
 
 K_REPOSITORY = Path(__file__).resolve().parents[2]
 K_LAYERS_FILE = K_REPOSITORY / "cmake" / "SushiBLASLayers.cmake"

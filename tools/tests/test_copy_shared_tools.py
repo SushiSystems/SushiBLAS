@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,9 @@ K_LOCAL_HEADER = "# check.py\n# Local - https://example.org/local\n"
 K_BODY = '"""Checks something."""\n\nK_VALUE = 2\n'
 K_OLD_BODY = '"""Checks something."""\n\nK_VALUE = 1\n'
 K_EDITED_BODY = '"""Checks something."""\n\nK_VALUE = 99\n'
+
+
+pytestmark = pytest.mark.medium
 
 
 def _write(root: Path, relative: str, text: str) -> None:

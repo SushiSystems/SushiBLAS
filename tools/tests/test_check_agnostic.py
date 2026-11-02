@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -35,6 +36,9 @@ K_TERMS = "\n".join((
     "allow: AcmeSkills",
     "",
 ))
+
+
+pytestmark = pytest.mark.medium
 
 
 class AgnosticTest(unittest.TestCase):

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import pytest
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,9 @@ from documentation.check_docs_layout import (  # noqa: E402
     rule_required_entries,
     rule_status_lines,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 def _repository(folder: str, files: dict[str, str]) -> Repository:

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -23,6 +24,9 @@ from testing.check_test_mirror import (  # noqa: E402
     rule_unit_file_and_folder,
     rule_untested_unit,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 def _touch(root: Path, relative: str) -> None:

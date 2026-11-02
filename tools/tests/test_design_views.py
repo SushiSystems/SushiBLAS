@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import sys
 import tempfile
 import unittest
@@ -76,6 +77,9 @@ K_FILES = {
     "docs/agent/2026_09_01_MIXER/SPEC.md": K_CLOSED_WORK.replace("AUDIO#A1", "AUDIO#A0"),
     "modules/domain/audio/README.md": "# Audio\n\nThe module.\n",
 }
+
+
+pytestmark = pytest.mark.medium
 
 
 def _root(folder: str, files: dict[str, str] | None = None) -> Path:

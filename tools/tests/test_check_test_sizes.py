@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -17,9 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from testing.check_test_sizes import (  # noqa: E402
     discover,
     rule_unsized_cpp_suite,
+    rule_unsized_csharp_fixture,
     rule_unsized_python_test,
     rule_unsized_typescript_suite,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 class TestSizesTest(unittest.TestCase):
@@ -52,6 +57,31 @@ class TestSizesTest(unittest.TestCase):
         self.write("tests/test_a.py", "import pytest\n\npytestmark = pytest.mark.small\n\ndef test_x():\n    pass\n")
         self.write("cli/tests/test_b.py", "import pytest\n\npytestmark = [pytest.mark.medium]\n\ndef test_y():\n    pass\n")
         self.assertEqual(self.found(rule_unsized_python_test), [])
+
+    def test_reaches_every_folder_named_tests_at_any_depth_and_every_dunder_tests_folder(self) -> None:
+        self.write("tools/tests/test_a.py", "def test_x():\n    pass\n")
+        self.write("app/gui/tests/test_b.py", "def test_y():\n    pass\n")
+        self.write("web/src/__tests__/camera.test.ts", "describe('orbit', () => {});\n")
+        self.write("src/test_c.py", "def test_z():\n    pass\n")
+        self.assertEqual(self.found(rule_unsized_python_test), [("test_b.py", 1), ("test_a.py", 1)])
+        self.assertEqual(self.found(rule_unsized_typescript_suite), [("camera.test.ts", 1)])
+
+    def test_reports_a_csharp_fixture_without_a_size_category(self) -> None:
+        self.write("tests/Editor/ShapeTests.cs",
+                   "[TestFixture]\n[Category(\"small\")]\npublic class ShapeTests {\n  [Test] public void A() {}\n}\n"
+                   "[TestFixture]\npublic class LoadTests {\n  [Test] public void B() {}\n}\n"
+                   "[Category(\"slow\")]\npublic class ScanTests {\n  [UnityTest] public void C() {}\n}\n"
+                   "public abstract class BaseTests {\n  [Test] public void D() {}\n}\n"
+                   "public class Helper {\n  public void E() {}\n}\n")
+        self.assertEqual(self.found(rule_unsized_csharp_fixture), [("ShapeTests.cs", 6), ("ShapeTests.cs", 10)])
+
+    def test_skips_a_benchmark_suite_in_every_language(self) -> None:
+        self.write("tests/test_a.cpp", "TEST(Benchmark_Wave, Run) {}\n")
+        self.write("tests/web/a.test.ts", "describe('Benchmark_wave', () => {});\n")
+        self.write("tests/test_b.py", "class TestBenchmark_Wave:\n    pass\n")
+        self.write("tests/B.cs", "[TestFixture]\npublic class Benchmark_Wave {\n  [Test] public void A() {}\n}\n")
+        self.assertEqual(self.found(rule_unsized_cpp_suite) + self.found(rule_unsized_typescript_suite)
+                         + self.found(rule_unsized_python_test) + self.found(rule_unsized_csharp_fixture), [])
 
     def test_reports_a_python_test_whose_file_and_function_carry_no_size(self) -> None:
         self.write("tests/test_c.py", "import pytest\n\n@pytest.mark.large\ndef test_x():\n    pass\n\n"

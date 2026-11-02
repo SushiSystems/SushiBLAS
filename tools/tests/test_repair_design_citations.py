@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import sys
 import tempfile
 import unittest
@@ -32,6 +33,9 @@ K_FILES = {
     "docs/guides/use.md": "See `docs/design/AUDIO.md` and [the ecs](../design/ECS/README.md#phases).\n",
     "modules/core/source/mixer.cpp": "// The rule is in docs/design/ECS/README.md.\n",
 }
+
+
+pytestmark = pytest.mark.medium
 
 
 def _root(folder: str, files: dict[str, str] | None = None) -> Path:

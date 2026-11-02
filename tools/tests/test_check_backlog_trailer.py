@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import pytest
 import subprocess
 import sys
 import tempfile
@@ -27,11 +28,15 @@ from commits.check_backlog_trailer import (  # noqa: E402
     rule_trailer,
     trailer_problems,
 )
+from documentation import docs_follow  # noqa: E402
 from hooks import commit_msg, install_hooks  # noqa: E402
 
 K_AREA = "docs/backlog/GENERAL.md"
 K_TABLE = "| ID | Pri |\n| --- | --- |\n| AB-1 | P1 |\n| AB-22 | P2 |\n"
 K_KNOWN = frozenset({"AB-1", "AB-22"})
+
+
+pytestmark = pytest.mark.medium
 
 
 class TrailerProblemsTest(unittest.TestCase):
@@ -166,7 +171,8 @@ class HookTest(RepositoryTest):
         previous = Path.cwd()
         os.chdir(self.root)
         try:
-            with mock.patch.object(check_backlog_trailer, "K_SINCE", self.base), contextlib.redirect_stderr(errors):
+            with (mock.patch.object(check_backlog_trailer, "K_SINCE", self.base),
+                  mock.patch.object(docs_follow, "K_SINCE", ""), contextlib.redirect_stderr(errors)):
                 code = commit_msg.main([str(path)])
         finally:
             os.chdir(previous)
@@ -190,7 +196,8 @@ class HookTest(RepositoryTest):
     def test_checks_nothing_without_a_base(self) -> None:
         path = self.root / "MESSAGE"
         path.write_text("fix: a thing\n", encoding="utf-8")
-        with mock.patch.object(check_backlog_trailer, "K_SINCE", ""):
+        with (mock.patch.object(check_backlog_trailer, "K_SINCE", ""),
+              mock.patch.object(docs_follow, "K_SINCE", "")):
             self.assertEqual(commit_msg.main([str(path)]), 0)
 
     def test_wants_exactly_one_argument(self) -> None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,9 @@ K_FILES = {
     "docs/archive/agent/2026_01_01_X/SPEC.md": "# X\n",
     "docs/guides/use.md": "# Use\n",
 }
+
+
+pytestmark = pytest.mark.medium
 
 
 def _git(root: Path, *arguments: str) -> str:

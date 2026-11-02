@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,9 @@ K_SETTINGS = SimpleNamespace(
     K_LICENSE_CLOSED_BOX_LINES=("Closed box row.",),
     K_CLOSED=False,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 class LicenceTest(unittest.TestCase):

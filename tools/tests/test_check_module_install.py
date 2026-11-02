@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,9 @@ from documentation.check_module_install import K_CHECKER, collect  # noqa: E402
 
 K_INSTALL = "# Install\n\n## Standalone\n\nx\n\n## With AcmeHub\n\ny\n"
 K_WORKSPACE_READ = r"\bacmehub (?:install|add)\b|ACME_HOME"
+
+
+pytestmark = pytest.mark.medium
 
 
 class ModuleInstallTest(unittest.TestCase):

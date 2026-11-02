@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -72,6 +73,9 @@ K_FILES = {
     "modules/domain/audio/README.md": "# Audio\n",
     "modules/domain/dsp/README.md": "# Dsp\n",
 }
+
+
+pytestmark = pytest.mark.medium
 
 
 def _repository(folder: str, files: dict[str, str], is_required: bool = False, ceiling: int = 0, untracked: bool = False) -> Repository:

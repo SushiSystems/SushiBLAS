@@ -15,6 +15,8 @@
 | RW-18 | P2 | open | Settle the open items each design lists | each open or unverified item of the designs is settled or moved here |  |  | 2026-10-19 |
 | RW-101 | P2 | open | State and test that tensors may be created from several threads | `TensorFactory::create` and `Engine::create_tensor` state it, and a test creates and releases tensors from eight threads |  |  | 2026-10-19 |
 | RW-102 | P2 | open | State and test host access to a Shared tensor between executions | a plan compiled once copies a source the host rewrites between three executions, and the destination matches each time |  |  | 2026-10-19 |
+| RW-128 | P2 | blocked | Adopt the sushicore shared test command after its release | sb test runs through sushicore.testing and prints the budget line; project.py's own test driver is gone | external: sushicore feat/test-command-budget (ea0fb99) is not released |  | 2026-11-02 |
+| RW-129 | P2 | open | Bring the tests to the TEST_PIPELINE doctrine, tier by tier | check_test_value, check_test_sizes and the shuffled run report no finding in small, medium and large |  |  | 2026-11-02 |
 
 ## Known issues
 

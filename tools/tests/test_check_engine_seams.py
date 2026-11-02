@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,9 @@ from layering.check_engine_seams import (  # noqa: E402
     rule_view_engine_calls,
 )
 from layering.check_tier_contents import KnownViolation, Repository  # noqa: E402
+
+pytestmark = pytest.mark.medium
+
 
 K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine/engine.hpp>\n"
 K_TEST_ONLY_TIER = "if(SB_BUILD_TESTS)\n    add_subdirectory(engine_fixture)\nendif()\n"

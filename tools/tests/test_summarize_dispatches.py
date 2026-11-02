@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import unittest
 from pathlib import Path
@@ -23,6 +24,9 @@ K_LINES = (
     "dispatch: fix the docs — haiku medium, 2 turns, passed",
     "dispatch is mentioned here but this is prose",
 )
+
+
+pytestmark = pytest.mark.small
 
 
 class SummarizeDispatchesTest(unittest.TestCase):

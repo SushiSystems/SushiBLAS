@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,9 @@ from profiling.check_operation_costs import (  # noqa: E402
     rule_operation_without_row,
     rule_row_without_operation,
 )
+
+pytestmark = pytest.mark.medium
+
 
 K_TABLE = "modules/foundation/cost/source/cost_table.cpp"
 K_SEAM = "modules/operations/blas/source/level3/gemm.cpp"

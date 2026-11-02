@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import sys
 import tempfile
 import unittest
@@ -30,6 +31,9 @@ from versioning.check_version import (  # noqa: E402
     rule_source_version,
     rule_version_header,
 )
+
+pytestmark = pytest.mark.medium
+
 
 K_CMAKE = "CMakeLists.txt"
 K_HEADER = "modules/foundation/core/include/SushiBLAS/core/version.hpp"

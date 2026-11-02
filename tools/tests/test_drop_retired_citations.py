@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import sys
 import tempfile
 import unittest
@@ -21,6 +22,9 @@ from documentation.drop_retired_citations import drop_text, main, phrase, run  #
 K_ARCHIVE = ["docs/archive"]
 K_WORK = ["docs/agent/2026_09_22_ROOM_FURNISHINGS"]
 K_FILE = Path("x.md")
+
+
+pytestmark = pytest.mark.medium
 
 
 def _drop(text: str, prefixes: list[str] | None = None) -> str:

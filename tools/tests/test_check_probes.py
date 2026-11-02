@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,9 @@ from testing.check_probes import (  # noqa: E402
     rule_program_test_framework,
     rule_unlisted_program,
 )
+
+
+pytestmark = pytest.mark.medium
 
 
 class ProbesTest(unittest.TestCase):

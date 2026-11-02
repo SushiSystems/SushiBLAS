@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import pytest
 import subprocess
 from datetime import date
 import sys
@@ -46,6 +47,9 @@ K_PROJECT = "AcmeRuntime - https://github.com/AcmeCorp/AcmeRuntime"
 K_COPYRIGHT = "Copyright (c) 2026-present Jane Doe & Acme Corp"
 K_HEADER = Header(K_PROJECT)
 K_EDGE = "/" + "*" * 74 + "/"
+
+
+pytestmark = pytest.mark.medium
 
 
 def setUpModule() -> None:

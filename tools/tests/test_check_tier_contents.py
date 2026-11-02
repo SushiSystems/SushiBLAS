@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,9 @@ from layering.check_tier_contents import (  # noqa: E402
     rule_operation_engine_calls,
     rule_foundation_independence,
 )
+
+pytestmark = pytest.mark.medium
+
 
 K_KERNEL = "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/add.hpp"
 K_FOUNDATION = "modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp"

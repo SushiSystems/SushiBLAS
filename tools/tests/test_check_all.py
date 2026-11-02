@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import pytest
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from check_all import K_CHECKERS, own_checkers, run_check  # noqa: E402
+
+
+pytestmark = pytest.mark.medium
 
 
 class OwnCheckersTest(unittest.TestCase):
