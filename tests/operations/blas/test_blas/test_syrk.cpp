@@ -44,7 +44,7 @@ namespace SushiBLAS
         class Medium_SYRKTest : public SushiBLASTest 
         {
             public:
-                void test_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::RowMajor, bool upper = false, bool transA = false) 
+                void expect_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::RowMajor, bool upper = false, bool transA = false) 
                 {
                     reinit_engine(layout);
 
@@ -95,32 +95,32 @@ namespace SushiBLAS
 
         TYPED_TEST(Medium_SYRKTest, SmallMatrixLowerNoTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::RowMajor, false, false);
+            this->expect_accuracy(4, 3, Core::Layout::RowMajor, false, false);
         }
 
         TYPED_TEST(Medium_SYRKTest, SmallMatrixUpperNoTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::RowMajor, true, false);
+            this->expect_accuracy(4, 3, Core::Layout::RowMajor, true, false);
         }
 
         TYPED_TEST(Medium_SYRKTest, SmallMatrixLowerTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::RowMajor, false, true);
+            this->expect_accuracy(4, 3, Core::Layout::RowMajor, false, true);
         }
 
         TYPED_TEST(Medium_SYRKTest, SmallMatrixUpperTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::RowMajor, true, true);
+            this->expect_accuracy(4, 3, Core::Layout::RowMajor, true, true);
         }
 
         TYPED_TEST(Medium_SYRKTest, SmallMatrixColMajor) 
         {
-            this->test_accuracy(4, 3, Core::Layout::ColumnMajor, false, false);
+            this->expect_accuracy(4, 3, Core::Layout::ColumnMajor, false, false);
         }
 
         TYPED_TEST(Medium_SYRKTest, Rectangular) 
         {
-            this->test_accuracy(8, 16, Core::Layout::RowMajor, false, false);
+            this->expect_accuracy(8, 16, Core::Layout::RowMajor, false, false);
         }
     }
 }

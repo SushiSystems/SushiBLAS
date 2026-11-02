@@ -46,5 +46,5 @@ TEST_F(Medium_Logical_xorTest, FloatForward)
     SushiBLAS::LogicOps(recorder()).logical_xor(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {0.00000f, 1.00000f, 1.00000f, 0.00000f});
+    expect_tensor(c, {0.00000f, 1.00000f, 1.00000f, 0.00000f});
 }

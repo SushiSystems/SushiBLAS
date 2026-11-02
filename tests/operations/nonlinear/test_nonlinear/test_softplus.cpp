@@ -43,7 +43,7 @@ TEST_F(Medium_SoftplusTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).softplus(t);
     recording->run().value();
     
-    verify_tensor(t, {0.313262f, 0.693147f, 1.313262f, 2.126928f});
+    expect_tensor(t, {0.313262f, 0.693147f, 1.313262f, 2.126928f});
 }
 
 TEST_F(Medium_SoftplusTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_SoftplusTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).softplus_backward(dy, x, dx);
     recording->run().value();
     
-    verify_tensor(dx, {0.268941f, 0.5f, 0.731059f, 0.880797f});
+    expect_tensor(dx, {0.268941f, 0.5f, 0.731059f, 0.880797f});
 }

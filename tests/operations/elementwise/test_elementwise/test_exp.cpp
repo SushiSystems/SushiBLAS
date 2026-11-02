@@ -46,7 +46,7 @@ TEST_F(Medium_ExpTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).exp(t);
     recording->run().value();
     
-    verify_tensor(t, {2.71828f, 7.38906f, 0.04979f, 1.64872f});
+    expect_tensor(t, {2.71828f, 7.38906f, 0.04979f, 1.64872f});
 }
 
 namespace
@@ -82,7 +82,7 @@ TEST_F(Medium_ExpTest, ZeroInSingleElement)
     recording->run().value();
 
     // exp(0) is 1.
-    verify_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_ExpTest, PositiveInfinity)
@@ -93,7 +93,7 @@ TEST_F(Medium_ExpTest, PositiveInfinity)
     SushiBLAS::ElementwiseOps(recorder()).exp(t);
     recording->run().value();
 
-    verify_tensor(t, {K_INF});
+    expect_tensor(t, {K_INF});
 }
 
 TEST_F(Medium_ExpTest, ThousandElements)
@@ -104,7 +104,7 @@ TEST_F(Medium_ExpTest, ThousandElements)
     SushiBLAS::ElementwiseOps(recorder()).exp(t);
     recording->run().value();
 
-    verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_ExpTest, Float64)
@@ -115,5 +115,5 @@ TEST_F(Medium_ExpTest, Float64)
     SushiBLAS::ElementwiseOps(recorder()).exp(t);
     recording->run().value();
 
-    verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
+    expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

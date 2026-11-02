@@ -388,7 +388,7 @@ TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
         [](auto x, auto y) { return (x * y + decltype(x)(1)) / decltype(x)(2); });
     recording->run().value();
 
-    verify_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
+    expect_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
 }
 
 TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
@@ -402,7 +402,7 @@ TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
     recording->run().value();
 
-    verify_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
+    expect_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
 }
 
 TEST_F(Medium_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
@@ -440,13 +440,13 @@ TEST_F(Medium_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
             return (d < decltype(x)(0) ? -d : d) <= decltype(x)(2) ? decltype(x)(1) : decltype(x)(0);
         });
     recording->run().value();
-    verify_tensor(mask, {1.0f, 1.0f, 1.0f, 0.0f});
+    expect_tensor(mask, {1.0f, 1.0f, 1.0f, 0.0f});
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(
         recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
     recording->run().value();
-    verify_tensor(total, {3.0f});
+    expect_tensor(total, {3.0f});
 }
 
 TEST_F(Medium_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
@@ -549,7 +549,7 @@ TEST_F(Medium_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, 1e-6, float);
 
     // A read-only operand comes back bit for bit. See tests/library/umbrella/README.md.
-    verify_tensor(g, g0, 0.0);
+    expect_tensor(g, g0, 0.0);
 }
 
 TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
@@ -717,8 +717,8 @@ TEST_F(Medium_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
                                    sb::Dispatch::ElementScalar(0.5)));
     recording->run().value();
 
-    verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
-    verify_tensor(x, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
+    expect_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
+    expect_tensor(x, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
 }
 
 /**
@@ -796,7 +796,7 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
 
     recording->run().value();
-    verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
 }
 
 /**
@@ -873,12 +873,12 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
             read));
     recording->run().value();
 
-    verify_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
-    verify_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
-    verify_tensor(backward, {4.0f, 12.0f, 36.0f, 56.0f}, K_EXACT_TOLERANCE);
-    verify_tensor(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f}, K_EXACT_TOLERANCE);
-    verify_tensor(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f}, K_EXACT_TOLERANCE);
-    verify_tensor(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(backward, {4.0f, 12.0f, 36.0f, 56.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f}, K_EXACT_TOLERANCE);
+    expect_tensor(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f}, K_EXACT_TOLERANCE);
 }
 
 /**

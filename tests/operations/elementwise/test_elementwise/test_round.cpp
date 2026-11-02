@@ -43,5 +43,5 @@ TEST_F(Medium_RoundTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).round(t);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
+    expect_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
 }

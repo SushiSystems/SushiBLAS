@@ -56,7 +56,7 @@ TEST_F(Medium_SYMVTest, SimpleSYMV)
     recording->run().value();
 
     // Y = A * X = [1+2+3, 2+4+5, 3+5+6] = [6, 11, 14].
-    verify_tensor(Y, {6, 11, 14});
+    expect_tensor(Y, {6, 11, 14});
 }
 
 namespace
@@ -83,7 +83,7 @@ TEST_F(Medium_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
     recording->run().value();
 
     // S * [1 2 3] = [2+2+12, 1+6+15, 4+10+21].
-    verify_tensor(Y, {16, 22, 35});
+    expect_tensor(Y, {16, 22, 35});
 }
 
 TEST_F(Medium_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
@@ -101,5 +101,5 @@ TEST_F(Medium_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
     recording->run().value();
 
     // S * [1 2 3] = [1+4+9, 2+8+15, 3+10+18].
-    verify_tensor(Y, {14, 25, 31});
+    expect_tensor(Y, {14, 25, 31});
 }

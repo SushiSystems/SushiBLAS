@@ -46,7 +46,7 @@ TEST_F(Medium_SinTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).sin(t);
     recording->run().value();
     
-    verify_tensor(t, {0.84147f, 0.90930f, -0.14112f, 0.47943f});
+    expect_tensor(t, {0.84147f, 0.90930f, -0.14112f, 0.47943f});
 }
 
 namespace
@@ -85,7 +85,7 @@ TEST_F(Medium_SinTest, ZeroInSingleElement)
     recording->run().value();
 
     // sin(0) is 0.
-    verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_SinTest, PositiveInfinity)
@@ -96,7 +96,7 @@ TEST_F(Medium_SinTest, PositiveInfinity)
     SushiBLAS::ElementwiseOps(recorder()).sin(t);
     recording->run().value();
 
-    verify_tensor(t, {K_NAN});
+    expect_tensor(t, {K_NAN});
 }
 
 TEST_F(Medium_SinTest, ThousandElements)
@@ -107,7 +107,7 @@ TEST_F(Medium_SinTest, ThousandElements)
     SushiBLAS::ElementwiseOps(recorder()).sin(t);
     recording->run().value();
 
-    verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_SinTest, Float64)
@@ -118,5 +118,5 @@ TEST_F(Medium_SinTest, Float64)
     SushiBLAS::ElementwiseOps(recorder()).sin(t);
     recording->run().value();
 
-    verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
+    expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

@@ -27,12 +27,10 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include <chrono>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
-#include <iostream>
 
 namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
@@ -75,8 +73,6 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
         activations.push_back(H);
     }
     
-    auto start_time = std::chrono::high_resolution_clock::now();
-    
     // Build the DAG 
     for (int i = 0; i < num_layers; ++i) 
     {
@@ -93,11 +89,6 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     // Execute all deep operations asynchronously
     recording->run().value();
     
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> duration = end_time - start_time;
-    
-    std::cout << "[Framework Sim] Deep Forward Pass (10 Layers " << batch_size << "x" << features << ") Took: " << duration.count() << " ms\n";
-    
     // Layer 0 sums all features; later layers see only the even half that survived ReLU.
     double magnitude = static_cast<double>(features) * static_cast<double>(K_WEIGHT);
     for (int i = 1; i < num_layers; ++i)
@@ -108,7 +99,7 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     for (int i = 0; i < batch_size * features; ++i)
         expected[i] = static_cast<float>(((i % features) % 2 == 0) ? magnitude : -magnitude);
 
-    verify_tensor(activations.back(), expected, magnitude * 1e-3);
+    expect_tensor(activations.back(), expected, magnitude * 1e-3);
 }
 
 /**
@@ -145,8 +136,6 @@ TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference)
         outputs.push_back(Y);
     }
     
-    auto start_time = std::chrono::high_resolution_clock::now();
-    
     // Submit all models to the DAG
     for (int i = 0; i < num_models; ++i) 
     {
@@ -157,16 +146,11 @@ TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference)
     // The scheduler should dispatch these horizontally to all worker threads
     recording->run().value();
     
-    auto end_time = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> duration = end_time - start_time;
-    
-    std::cout << "[Framework Sim] Parallel Inference (" << num_models << " models) Took: " << duration.count() << " ms\n";
-    
     // Every element of Y_i is relu(k * input_of(i) * weight_of(i)), exact in float.
     for (int i = 0; i < num_models; ++i)
     {
         const float pre_activation = static_cast<float>(k) * input_of(i) * weight_of(i);
         const float expected = pre_activation > 0.0f ? pre_activation : 0.0f;
-        verify_tensor(outputs[i], std::vector<float>(m * n, expected), 0.0);
+        expect_tensor(outputs[i], std::vector<float>(m * n, expected), 0.0);
     }
 }

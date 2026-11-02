@@ -43,5 +43,5 @@ TEST_F(Medium_ClampTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).clamp(t, -1.5f, 1.5f);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 1.50000f, -1.50000f, 0.50000f});
+    expect_tensor(t, {1.00000f, 1.50000f, -1.50000f, 0.50000f});
 }

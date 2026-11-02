@@ -43,7 +43,7 @@ TEST_F(Medium_ELUTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).elu(t, 1.0f);
     recording->run().value();
     
-    verify_tensor(t, {-0.632121f, 0.0f, 1.0f, 2.0f});
+    expect_tensor(t, {-0.632121f, 0.0f, 1.0f, 2.0f});
 }
 
 TEST_F(Medium_ELUTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_ELUTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).elu_backward(dy, x, dx, 1.0f);
     recording->run().value();
     
-    verify_tensor(dx, {0.367879f, 1.0f, 1.0f, 1.0f});
+    expect_tensor(dx, {0.367879f, 1.0f, 1.0f, 1.0f});
 }

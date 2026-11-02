@@ -43,5 +43,5 @@ TEST_F(Medium_ReciprocalTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).reciprocal(t);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 0.50000f, -0.33333f, 2.00000f});
+    expect_tensor(t, {1.00000f, 0.50000f, -0.33333f, 2.00000f});
 }

@@ -43,5 +43,5 @@ TEST_F(Medium_CeilTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).ceil(t);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 2.00000f, -3.00000f, 1.00000f});
+    expect_tensor(t, {1.00000f, 2.00000f, -3.00000f, 1.00000f});
 }

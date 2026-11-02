@@ -58,7 +58,7 @@ TEST_F(Medium_TRSMTest, SimpleTRSM)
     recording->run().value();
 
     // A * X = B solves to X = [2 3; 1 2], which overwrites B. See tests/operations/blas/README.md.
-    verify_tensor(B, {2, 3, 1, 2});
+    expect_tensor(B, {2, 3, 1, 2});
 }
 
 TEST_F(Medium_TRSMTest, SimpleTRSMColumnMajor) 
@@ -83,5 +83,5 @@ TEST_F(Medium_TRSMTest, SimpleTRSMColumnMajor)
     recording->run().value();
 
     // X is [1 1.25; 2 3.5], stored column-major. See tests/operations/blas/README.md.
-    verify_tensor(B, {1.0f, 2.0f, 1.25f, 3.5f});
+    expect_tensor(B, {1.0f, 2.0f, 1.25f, 3.5f});
 }

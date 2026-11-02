@@ -10,7 +10,7 @@ It depends on `core`, `tensor`, `test_runner` and GoogleTest. Its headers are in
 | --- | --- |
 | `scalar_dtype.hpp` | `sushiblas_dtype`, the `DataType` of a C++ element type |
 | `tensor_fill.hpp` | `fill_tensor`, `fill_random` and the generator `fill_random` draws from |
-| `tensor_comparison.hpp` | `verify_tensor`, `assert_tensor_near`, `EXPECT_TENSOR_NEAR` and `SB_ASSERT_TENSOR_NEAR` |
+| `tensor_comparison.hpp` | `expect_tensor`, `assert_tensor_near`, `EXPECT_TENSOR_NEAR` and `SB_ASSERT_TENSOR_NEAR` |
 | `tensor_readback.hpp` | `read_tensor`, which copies a tensor's elements into a host vector |
 
 The fill, comparison and readback headers copy through `TestEnvironment::queue()` and wait, so a
@@ -50,15 +50,15 @@ can land on `max_val` itself.
 On an integer dtype each draw is truncated toward zero. With the default range `(-1, 1)` every
 element is 0. A test that needs varied integers passes a wider range or uses `fill_tensor`.
 
-`read_tensor<T>` copies a tensor's elements into a host vector for checks that `verify_tensor`
+`read_tensor<T>` copies a tensor's elements into a host vector for checks that `expect_tensor`
 cannot express, such as sample statistics. It throws `std::invalid_argument` when `T` does not
 map to the tensor's dtype, before it copies anything.
 
 ## tensor_comparison.hpp
 
-### verify_tensor
+### expect_tensor
 
-`verify_tensor` takes a `std::vector<float>` or, through a template overload, a
+`expect_tensor` takes a `std::vector<float>` or, through a template overload, a
 `std::vector<double>`, `std::vector<std::complex<float>>` or `std::vector<std::complex<double>>`.
 A braced list such as `{1.0f, 2.0f}` picks the `float` overload, because a braced list cannot
 deduce the template's element type.

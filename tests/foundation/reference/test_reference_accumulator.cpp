@@ -56,7 +56,6 @@ namespace SushiBLAS
                           "FLOAT32 is summed in double.");
             static_assert(std::is_same_v<Kernels::ReferenceAccumulator<double>, double>,
                           "FLOAT64 is summed in double.");
-            SUCCEED();
         }
 
         TEST(Medium_ReferenceAccumulator, ComplexTypesAccumulateInComplexDouble)
@@ -67,7 +66,6 @@ namespace SushiBLAS
             static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<double>>,
                                          std::complex<double>>,
                           "COMPLEX64 is summed in complex double.");
-            SUCCEED();
         }
 
         TEST(Medium_ReferenceAccumulator, OnlyTheDoubleTypesAreCompensated)

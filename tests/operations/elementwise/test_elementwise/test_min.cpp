@@ -49,7 +49,7 @@ TEST_F(Medium_MinTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).min(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {1.00000f, 0.50000f, -3.00000f, -1.50000f});
+    expect_tensor(c, {1.00000f, 0.50000f, -3.00000f, -1.50000f});
 }
 
 /**

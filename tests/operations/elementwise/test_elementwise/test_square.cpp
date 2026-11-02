@@ -43,5 +43,5 @@ TEST_F(Medium_SquareTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).square(t);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 4.00000f, 9.00000f, 0.25000f});
+    expect_tensor(t, {1.00000f, 4.00000f, 9.00000f, 0.25000f});
 }

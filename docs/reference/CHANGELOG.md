@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-02 — tests: Renamed the assert-through helpers `expect_*` (`expect_tensor`, `expect_accuracy`) so 177 medium cases show their assertion; dropped timers from four stress tests and `SUCCEED()` from six cases (`tests/`).
 - 2026-11-02 — tests: Gave each small test that asserted a literal or nothing a real assertion: `static_assert` alone for compile-time facts, EXPECT_NO_THROW for calls, a tolerance for four adjoints (`tests/`).
 - 2026-11-02 — cli: Ran `sb test` through the shared test command of sushicore 0.10.11, which shuffles, prints the seed and the budget line; added `--all`, `--shuffle`, `--seed`; dropped the local label module (RW-128, `a1edb237`).
 - 2026-11-02 — cli: Left `benchmark_gemm_blocking` out of a bare `sb bench`, since it needs arguments and failed the nightly with a usage error; `sb bench gemm_blocking -- <args>` still runs it (`services/project.py`).

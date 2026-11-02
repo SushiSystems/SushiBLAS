@@ -73,7 +73,7 @@ the benchmark section of `tests/README.md` describes them.
 
 ## test_blas/test_gemm.cpp
 
-`test_accuracy` seeds both C buffers identically, or a non-zero beta would compare two
+`expect_accuracy` seeds both C buffers identically, or a non-zero beta would compare two
 different problems. When beta is zero they are poisoned, not zeroed: BLAS says that case must
 not read C at all, and a NaN that leaks through fails the comparison where a zero would hide in
 a plausible number. A NaN is the strongest available witness, because 0*NaN is NaN, so any read

@@ -113,7 +113,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
             recording->run().value();
 
-            verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
+            expect_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
 
         TEST_F(Medium_BlasValidationTest, SyrkRejectsNonSquareC)
@@ -188,7 +188,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
             recording->run().value();
 
-            verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
+            expect_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
 
         TEST_F(Medium_BlasValidationTest, Level2RejectsMatrixAboveRankTwo)

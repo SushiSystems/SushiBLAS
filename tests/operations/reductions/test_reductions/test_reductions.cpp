@@ -826,7 +826,7 @@ class Medium_ReductionOps : public SushiBLASTest
             SushiBLAS::ReductionOps(recorder()).logsumexp(t, result);
             recording->run().value();
 
-            verify_tensor(result, {expected}, K_LOGSUMEXP_TOLERANCE);
+            expect_tensor(result, {expected}, K_LOGSUMEXP_TOLERANCE);
         }
 
         /** @brief Reduces values with argmax and argmin and checks both indices. */

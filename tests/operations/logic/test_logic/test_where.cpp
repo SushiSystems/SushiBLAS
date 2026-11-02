@@ -47,5 +47,5 @@ TEST_F(Medium_WhereTest, FloatForward)
     SushiBLAS::LogicOps(recorder()).where(cond, a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {1.00000f, 20.00000f, 3.00000f, 40.00000f});
+    expect_tensor(c, {1.00000f, 20.00000f, 3.00000f, 40.00000f});
 }

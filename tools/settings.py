@@ -61,3 +61,4 @@ K_TEST_BUDGET: dict[str, int] = {
     "cases_per_fix": 5,
     "second_program": 0,
 }
+K_TEST_VALUE_SINCE = '4457691b612ace5ff3ba8a498840a289df6498af'

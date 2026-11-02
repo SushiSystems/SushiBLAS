@@ -48,7 +48,7 @@ TEST_F(Medium_AddTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
+    expect_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
 }
 
 namespace
@@ -125,7 +125,7 @@ TEST_F(Medium_AddTest, BorrowedOperandsAreNamedByAddressAndAddedInPlace)
     EXPECT_EQ(plan->nodes[0].writes[0].base, c.storage->allocation_base());
 
     EXPECT_TRUE(recording->run_succeeds());
-    verify_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
+    expect_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
 }
 
 TEST_F(Medium_AddTest, ARunNamingABorrowedOperandWhoseOwnerLetGoIsRefused)

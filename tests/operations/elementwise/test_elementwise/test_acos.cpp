@@ -43,5 +43,5 @@ TEST_F(Medium_AcosTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).acos(t);
     recording->run().value();
     
-    verify_tensor(t, {1.570796f, 1.047197f, 2.094395f, 0.00000f});
+    expect_tensor(t, {1.570796f, 1.047197f, 2.094395f, 0.00000f});
 }

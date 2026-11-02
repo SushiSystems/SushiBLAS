@@ -46,7 +46,7 @@ TEST_F(Medium_LogTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).log(t);
     recording->run().value();
     
-    verify_tensor(t, {0.00000f, 0.693147f, 1.098612f, 1.386294f});
+    expect_tensor(t, {0.00000f, 0.693147f, 1.098612f, 1.386294f});
 }
 
 namespace
@@ -85,7 +85,7 @@ TEST_F(Medium_LogTest, ZeroInSingleElement)
     recording->run().value();
 
     // log(0) is -inf.
-    verify_tensor(t, std::vector<double>{-K_INF}, K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>{-K_INF}, K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_LogTest, NegativeInputIsNaN)
@@ -97,7 +97,7 @@ TEST_F(Medium_LogTest, NegativeInputIsNaN)
     recording->run().value();
 
     // log(-1) is outside the real domain.
-    verify_tensor(t, {K_NAN});
+    expect_tensor(t, {K_NAN});
 }
 
 TEST_F(Medium_LogTest, PositiveInfinity)
@@ -108,7 +108,7 @@ TEST_F(Medium_LogTest, PositiveInfinity)
     SushiBLAS::ElementwiseOps(recorder()).log(t);
     recording->run().value();
 
-    verify_tensor(t, {K_INF});
+    expect_tensor(t, {K_INF});
 }
 
 TEST_F(Medium_LogTest, ThousandElements)
@@ -119,7 +119,7 @@ TEST_F(Medium_LogTest, ThousandElements)
     SushiBLAS::ElementwiseOps(recorder()).log(t);
     recording->run().value();
 
-    verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_LogTest, Float64)
@@ -130,5 +130,5 @@ TEST_F(Medium_LogTest, Float64)
     SushiBLAS::ElementwiseOps(recorder()).log(t);
     recording->run().value();
 
-    verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
+    expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

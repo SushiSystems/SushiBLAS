@@ -49,6 +49,6 @@ TEST_F(Medium_SWAPTest, SimpleSWAP)
     recording->run().value();
 
     // Expected: X = {4, 5, 6}, Y = {1, 2, 3}
-    verify_tensor(X, {4, 5, 6});
-    verify_tensor(Y, {1, 2, 3});
+    expect_tensor(X, {4, 5, 6});
+    expect_tensor(Y, {1, 2, 3});
 }

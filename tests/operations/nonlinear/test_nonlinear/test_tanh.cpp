@@ -43,7 +43,7 @@ TEST_F(Medium_TanhTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).tanh(t);
     recording->run().value();
     
-    verify_tensor(t, {0.0f, 0.761594f, -0.761594f, 0.964028f});
+    expect_tensor(t, {0.0f, 0.761594f, -0.761594f, 0.964028f});
 }
 
 TEST_F(Medium_TanhTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_TanhTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).tanh_backward(dy, y, dx);
     recording->run().value();
     
-    verify_tensor(dx, {1.0f, 0.419974f, 0.419974f, 0.070651f});
+    expect_tensor(dx, {1.0f, 0.419974f, 0.419974f, 0.070651f});
 }

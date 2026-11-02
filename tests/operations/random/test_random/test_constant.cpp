@@ -59,7 +59,7 @@ class Medium_ConstantTest : public SushiBLASTest
             auto t = engine->create_tensor({size}, dtype);
             SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, value);
             recording->run().value();
-            verify_tensor(t, std::vector<double>(static_cast<size_t>(size), value), 0.0);
+            expect_tensor(t, std::vector<double>(static_cast<size_t>(size), value), 0.0);
         }
 };
 
@@ -69,7 +69,7 @@ TEST_F(Medium_ConstantTest, Float32)
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, 2.5);
     recording->run().value();
-    verify_tensor(t, std::vector<float>(N, 2.5f));
+    expect_tensor(t, std::vector<float>(N, 2.5f));
 }
 
 TEST_F(Medium_ConstantTest, HalfOddSize)

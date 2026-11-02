@@ -49,10 +49,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_SparseBLAS, IsBuiltOverARecorder)
         {
-            const SparseBLAS sparse(recorder());
-
-            (void)sparse;
-            SUCCEED();
+            EXPECT_NO_THROW(const SparseBLAS sparse(recorder()); (void)sparse);
         }
     } // namespace Test
 } // namespace SushiBLAS

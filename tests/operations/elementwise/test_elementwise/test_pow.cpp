@@ -43,5 +43,5 @@ TEST_F(Medium_PowTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).pow(t, 2.0f);
     recording->run().value();
     
-    verify_tensor(t, {1.0f, 4.0f, 9.0f, 0.25f});
+    expect_tensor(t, {1.0f, 4.0f, 9.0f, 0.25f});
 }

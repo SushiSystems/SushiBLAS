@@ -46,5 +46,5 @@ TEST_F(Medium_FmodTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).fmod(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {1.00000f, 0.00000f, -3.00000f, 0.50000f});
+    expect_tensor(c, {1.00000f, 0.00000f, -3.00000f, 0.50000f});
 }

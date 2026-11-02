@@ -50,5 +50,5 @@ TEST_F(Medium_NRM2Test, SimpleNRM2)
     recording->run().value();
 
     // Expected norm: sqrt(3^2 + 4^2 + 0^2) = sqrt(25) = 5
-    verify_tensor(R, {5.0f});
+    expect_tensor(R, {5.0f});
 }

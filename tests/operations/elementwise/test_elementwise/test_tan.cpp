@@ -43,5 +43,5 @@ TEST_F(Medium_TanTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).tan(t);
     recording->run().value();
     
-    verify_tensor(t, {1.55741f, -2.18504f, 0.14255f, 0.54630f});
+    expect_tensor(t, {1.55741f, -2.18504f, 0.14255f, 0.54630f});
 }

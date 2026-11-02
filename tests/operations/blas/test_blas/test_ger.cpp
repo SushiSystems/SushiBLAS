@@ -53,5 +53,5 @@ TEST_F(Medium_GERTest, SimpleGER)
     recording->run().value();
 
     // A = x * y^T = [1; 2] * [1 2 3] = [1 2 3; 2 4 6].
-    verify_tensor(A, {1, 2, 3, 2, 4, 6});
+    expect_tensor(A, {1, 2, 3, 2, 4, 6});
 }

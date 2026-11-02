@@ -49,7 +49,7 @@ TEST_F(Medium_MaxTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).max(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {2.00000f, 2.00000f, 4.00000f, 0.50000f});
+    expect_tensor(c, {2.00000f, 2.00000f, 4.00000f, 0.50000f});
 }
 
 /**

@@ -43,5 +43,5 @@ TEST_F(Medium_AnyTest, FloatForward)
     SushiBLAS::LogicOps(recorder()).any(t, out);
     recording->run().value();
     
-    verify_tensor(out, {1.0f});
+    expect_tensor(out, {1.0f});
 }

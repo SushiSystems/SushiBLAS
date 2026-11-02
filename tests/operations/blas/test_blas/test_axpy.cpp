@@ -49,5 +49,5 @@ TEST_F(Medium_AXPYTest, SimpleAXPY)
     recording->run().value();
 
     // Expected: 2 * X + Y = {2+4, 4+5, 6+6} = {6, 9, 12}
-    verify_tensor(Y, {6, 9, 12});
+    expect_tensor(Y, {6, 9, 12});
 }

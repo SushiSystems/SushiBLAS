@@ -56,7 +56,7 @@ TEST_F(Medium_TRSVTest, SimpleTRSV)
     recording->run().value();
 
     // Expected: b solved to x = [1, 1, 1]
-    verify_tensor(b, {1, 1, 1});
+    expect_tensor(b, {1, 1, 1});
 }
 
 namespace
@@ -92,7 +92,7 @@ class Medium_TRSVPoisonTest : public SushiBLASTest
                                              SushiBLAS::Core::Diag::NonUnit);
             recording->run().value();
 
-            verify_tensor(b, K_SOLUTION);
+            expect_tensor(b, K_SOLUTION);
         }
 };
 

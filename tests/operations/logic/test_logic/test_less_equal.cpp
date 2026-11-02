@@ -46,5 +46,5 @@ TEST_F(Medium_Less_equalTest, FloatForward)
     SushiBLAS::LogicOps(recorder()).less_equal(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {1.00000f, 1.00000f, 0.00000f, 1.00000f});
+    expect_tensor(c, {1.00000f, 1.00000f, 0.00000f, 1.00000f});
 }

@@ -49,5 +49,5 @@ TEST_F(Medium_COPYTest, SimpleCOPY)
     recording->run().value();
 
     // Expected: Y = X
-    verify_tensor(Y, {1, 2, 3});
+    expect_tensor(Y, {1, 2, 3});
 }

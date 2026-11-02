@@ -43,5 +43,5 @@ TEST_F(Medium_AsinTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).asin(t);
     recording->run().value();
     
-    verify_tensor(t, {0.00000f, 0.523598f, -0.523598f, 1.570796f});
+    expect_tensor(t, {0.00000f, 0.523598f, -0.523598f, 1.570796f});
 }

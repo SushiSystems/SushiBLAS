@@ -81,10 +81,10 @@ class Medium_SumEdgeCasesTest : public SushiBLASTest
             SushiBLAS::ReductionOps(recorder()).min(t, min);
             recording->run().value();
 
-            verify_tensor(sum, {expected.sum}, K_TOLERANCE);
-            verify_tensor(mean, {expected.mean}, K_TOLERANCE);
-            verify_tensor(max, {expected.max}, K_TOLERANCE);
-            verify_tensor(min, {expected.min}, K_TOLERANCE);
+            expect_tensor(sum, {expected.sum}, K_TOLERANCE);
+            expect_tensor(mean, {expected.mean}, K_TOLERANCE);
+            expect_tensor(max, {expected.max}, K_TOLERANCE);
+            expect_tensor(min, {expected.min}, K_TOLERANCE);
         }
 
         /**
@@ -101,8 +101,8 @@ class Medium_SumEdgeCasesTest : public SushiBLASTest
             SushiBLAS::ReductionOps(recorder()).mean(t, mean);
             recording->run().value();
 
-            verify_tensor(sum, {expected_sum}, K_TOLERANCE);
-            verify_tensor(mean, {expected_mean}, K_TOLERANCE);
+            expect_tensor(sum, {expected_sum}, K_TOLERANCE);
+            expect_tensor(mean, {expected_mean}, K_TOLERANCE);
         }
 };
 

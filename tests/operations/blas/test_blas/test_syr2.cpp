@@ -52,5 +52,5 @@ TEST_F(Medium_SYR2Test, SimpleSYR2)
 
     // Only the lower triangle of x*y^T + y*x^T is written. See tests/operations/blas/README.md.
     
-    verify_tensor(A, {2, 0, 0, 2, 0, 0, 3, 0, 0});
+    expect_tensor(A, {2, 0, 0, 2, 0, 0, 3, 0, 0});
 }

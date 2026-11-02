@@ -281,8 +281,6 @@ namespace SushiBLAS
             static_assert(
                 std::is_same_v<Half, Float>,
                 "A HALF product accumulates in the register block of float.");
-
-            SUCCEED();
         }
 
         /**

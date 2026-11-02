@@ -99,7 +99,7 @@ TEST_F(Medium_RunFailureTest, AFailedRunLeavesNothingRecorded)
 
     // A throwing task still on the graph would fail this run too.
     EXPECT_TRUE(recording->run().has_value());
-    verify_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f}, 0.0);
+    expect_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f}, 0.0);
 }
 
 /** @brief Tests that the graph records and runs a valid operation after a failed run. */
@@ -117,5 +117,5 @@ TEST_F(Medium_RunFailureTest, TheGraphRunsAgainAfterAFailedRun)
 
     ASSERT_TRUE(ran.has_value()) << ran.error().message;
     // 2 * {1, 2, 3, 4} + {10, 20, 30, 40}.
-    verify_tensor(y, {12.0f, 24.0f, 36.0f, 48.0f}, 0.0);
+    expect_tensor(y, {12.0f, 24.0f, 36.0f, 48.0f}, 0.0);
 }

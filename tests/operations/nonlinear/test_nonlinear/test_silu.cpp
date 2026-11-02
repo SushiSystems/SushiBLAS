@@ -43,7 +43,7 @@ TEST_F(Medium_SiLUTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).silu(t);
     recording->run().value();
     
-    verify_tensor(t, {-0.268941f, 0.0f, 0.731059f, 1.761594f});
+    expect_tensor(t, {-0.268941f, 0.0f, 0.731059f, 1.761594f});
 }
 
 TEST_F(Medium_SiLUTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_SiLUTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).silu_backward(dy, x, dx);
     recording->run().value();
     
-    verify_tensor(dx, {0.072329f, 0.5f, 0.927671f, 1.090784f});
+    expect_tensor(dx, {0.072329f, 0.5f, 0.927671f, 1.090784f});
 }

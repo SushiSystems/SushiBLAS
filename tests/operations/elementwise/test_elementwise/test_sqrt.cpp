@@ -46,7 +46,7 @@ TEST_F(Medium_SqrtTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).sqrt(t);
     recording->run().value();
     
-    verify_tensor(t, {1.00000f, 1.414213f, 1.732050f, 2.00000f});
+    expect_tensor(t, {1.00000f, 1.414213f, 1.732050f, 2.00000f});
 }
 
 namespace
@@ -85,7 +85,7 @@ TEST_F(Medium_SqrtTest, ZeroInSingleElement)
     recording->run().value();
 
     // sqrt(0) is 0.
-    verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_SqrtTest, NegativeInputIsNaN)
@@ -97,7 +97,7 @@ TEST_F(Medium_SqrtTest, NegativeInputIsNaN)
     recording->run().value();
 
     // sqrt(-4) is outside the real domain.
-    verify_tensor(t, {K_NAN});
+    expect_tensor(t, {K_NAN});
 }
 
 TEST_F(Medium_SqrtTest, PositiveInfinity)
@@ -108,7 +108,7 @@ TEST_F(Medium_SqrtTest, PositiveInfinity)
     SushiBLAS::ElementwiseOps(recorder()).sqrt(t);
     recording->run().value();
 
-    verify_tensor(t, {K_INF});
+    expect_tensor(t, {K_INF});
 }
 
 TEST_F(Medium_SqrtTest, ThousandElements)
@@ -119,7 +119,7 @@ TEST_F(Medium_SqrtTest, ThousandElements)
     SushiBLAS::ElementwiseOps(recorder()).sqrt(t);
     recording->run().value();
 
-    verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_SqrtTest, Float64)
@@ -130,5 +130,5 @@ TEST_F(Medium_SqrtTest, Float64)
     SushiBLAS::ElementwiseOps(recorder()).sqrt(t);
     recording->run().value();
 
-    verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
+    expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

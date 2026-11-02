@@ -50,5 +50,5 @@ TEST_F(Medium_SYRTest, SimpleSYR)
 
     // Only the lower triangle of x*x^T is written. See tests/operations/blas/README.md.
     
-    verify_tensor(A, {1, 0, 0, 2, 4, 0, 3, 6, 9});
+    expect_tensor(A, {1, 0, 0, 2, 4, 0, 3, 6, 9});
 }

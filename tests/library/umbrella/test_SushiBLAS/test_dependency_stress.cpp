@@ -27,7 +27,6 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include <chrono>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
@@ -73,16 +72,12 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
         SushiBLAS::BLASOps(recorder()).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
     }
     
-    auto start = std::chrono::high_resolution_clock::now();
     recording->run().value();
-    auto end = std::chrono::high_resolution_clock::now();
-    
-    std::chrono::duration<double, std::milli> duration = end - start;
-    
+
     // writer = 32 * 2 * 2 = 128 everywhere; every reader = 32 * 128 * 2 = 8192.
     const std::vector<float> K_EXPECTED_READER(N * N, 8192.0f);
     for (int i = 0; i < num_readers; ++i)
-        verify_tensor(reader_outputs[i], K_EXPECTED_READER, 0.0);
+        expect_tensor(reader_outputs[i], K_EXPECTED_READER, 0.0);
 }
 
 /**
@@ -113,13 +108,9 @@ TEST_F(Medium_DependencyStressTest, ShardCollisionStress)
         SushiBLAS::BLASOps(recorder()).gemm(As[i], Bs[i], Cs[i]);
     }
     
-    auto start = std::chrono::high_resolution_clock::now();
     recording->run().value();
-    auto end = std::chrono::high_resolution_clock::now();
-    
-    std::chrono::duration<double, std::milli> duration = end - start;
-    
+
     // Every element of C_i is N * a_i * K_B_VALUE = 4 * a_i, exact in float.
     for (int i = 0; i < num_ops; ++i)
-        verify_tensor(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE), 0.0);
+        expect_tensor(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE), 0.0);
 }

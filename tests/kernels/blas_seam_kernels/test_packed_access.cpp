@@ -170,8 +170,6 @@ namespace SushiBLAS
                           "A row-major upper packed triangle is the CBLAS one.");
             static_assert(packed_matches_cblas(Layout::RowMajor, Uplo::Lower),
                           "A row-major lower packed triangle is the CBLAS one.");
-
-            SUCCEED();
         }
 
         /**

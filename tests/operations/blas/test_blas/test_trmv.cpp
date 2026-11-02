@@ -56,7 +56,7 @@ TEST_F(Medium_TRMVTest, SimpleTRMV)
     recording->run().value();
 
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
-    verify_tensor(X, {1, 6, 14});
+    expect_tensor(X, {1, 6, 14});
 }
 
 namespace
@@ -92,7 +92,7 @@ class Medium_TRMVPoisonTest : public SushiBLASTest
                                              SushiBLAS::Core::Diag::NonUnit);
             recording->run().value();
 
-            verify_tensor(X, expected);
+            expect_tensor(X, expected);
         }
 };
 

@@ -43,7 +43,7 @@ TEST_F(Medium_LeakyReLUTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).leaky_relu(t, 0.01f);
     recording->run().value();
     
-    verify_tensor(t, {-0.02f, -0.005f, 0.0f, 3.5f});
+    expect_tensor(t, {-0.02f, -0.005f, 0.0f, 3.5f});
 }
 
 TEST_F(Medium_LeakyReLUTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_LeakyReLUTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).leaky_relu_backward(dy, x, dx, 0.01f);
     recording->run().value();
     
-    verify_tensor(dx, {0.01f, 0.02f, 3.0f, 4.0f});
+    expect_tensor(dx, {0.01f, 0.02f, 3.0f, 4.0f});
 }

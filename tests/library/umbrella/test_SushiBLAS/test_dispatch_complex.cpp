@@ -223,9 +223,9 @@ TEST_F(Medium_DispatchComplexTest, RealDtypesAreUnaffected)
 
     SushiBLAS::ElementwiseOps(recorder()).max(a, b, c);
     recording->run().value();
-    verify_tensor(c, {2.0f, 2.0f, 4.0f, 0.5f});
+    expect_tensor(c, {2.0f, 2.0f, 4.0f, 0.5f});
 
     SushiBLAS::ElementwiseOps(recorder()).min(a, b, c);
     recording->run().value();
-    verify_tensor(c, {1.0f, 0.5f, -3.0f, -1.5f});
+    expect_tensor(c, {1.0f, 0.5f, -3.0f, -1.5f});
 }

@@ -53,6 +53,6 @@ TEST_F(Medium_ROTTest, SimpleROT)
     recording->run().value();
 
     // With c = 0 and s = 1, x becomes y and y becomes -x.
-    verify_tensor(X, {0, 1});
-    verify_tensor(Y, {-1, 0});
+    expect_tensor(X, {0, 1});
+    expect_tensor(Y, {-1, 0});
 }

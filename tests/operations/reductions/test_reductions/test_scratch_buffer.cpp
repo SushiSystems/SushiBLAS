@@ -252,12 +252,12 @@ namespace SushiBLAS
 
             recording->run().value();
             const std::size_t live_after_first = TestEnvironment::live_allocation_count();
-            verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
+            expect_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             ReductionOps(recorder()).sum(input, result);
             recording->run().value();
             const std::size_t live_after_second = TestEnvironment::live_allocation_count();
-            verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
+            expect_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             EXPECT_EQ(live_after_first, live_before_record + 1);
             EXPECT_EQ(live_after_second, live_after_first);

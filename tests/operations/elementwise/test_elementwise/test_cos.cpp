@@ -46,7 +46,7 @@ TEST_F(Medium_CosTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
     recording->run().value();
     
-    verify_tensor(t, {0.54030f, -0.41615f, -0.98999f, 0.87758f});
+    expect_tensor(t, {0.54030f, -0.41615f, -0.98999f, 0.87758f});
 }
 
 namespace
@@ -85,7 +85,7 @@ TEST_F(Medium_CosTest, ZeroInSingleElement)
     recording->run().value();
 
     // cos(0) is 1.
-    verify_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_CosTest, PositiveInfinity)
@@ -96,7 +96,7 @@ TEST_F(Medium_CosTest, PositiveInfinity)
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
     recording->run().value();
 
-    verify_tensor(t, {K_NAN});
+    expect_tensor(t, {K_NAN});
 }
 
 TEST_F(Medium_CosTest, ThousandElements)
@@ -107,7 +107,7 @@ TEST_F(Medium_CosTest, ThousandElements)
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
     recording->run().value();
 
-    verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
+    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_CosTest, Float64)
@@ -118,5 +118,5 @@ TEST_F(Medium_CosTest, Float64)
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
     recording->run().value();
 
-    verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
+    expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

@@ -51,5 +51,5 @@ TEST_F(Medium_DOTTest, SimpleDOT)
     recording->run().value();
 
     // Expected: 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
-    verify_tensor(R, {32.0f});
+    expect_tensor(R, {32.0f});
 }

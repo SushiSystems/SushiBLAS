@@ -87,8 +87,7 @@ namespace SushiBLAS
                 run_two_nodes(runtime);
             }
 
-            run_two_nodes(runtime);
-            SUCCEED();
+            EXPECT_NO_THROW(run_two_nodes(runtime));
         }
     } // namespace Test
 } // namespace SushiBLAS

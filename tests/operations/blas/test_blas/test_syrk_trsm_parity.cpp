@@ -62,7 +62,7 @@ namespace SushiBLAS
         {
             public:
                 /** @brief Compares SYRK of a random A on both paths with alpha 1.5 and beta 0.5. */
-                void check_syrk(bool upper, bool trans_a)
+                void expect_syrk(bool upper, bool trans_a)
                 {
                     std::srand(K_SEED);
                     const auto dtype = sushiblas_dtype<T>();
@@ -89,7 +89,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Compares TRSM of a diagonally dominant A on both paths with alpha 1.5. */
-                void check_trsm(bool left_side, bool upper, bool trans_a, bool unit_diag)
+                void expect_trsm(bool left_side, bool upper, bool trans_a, bool unit_diag)
                 {
                     std::srand(K_SEED);
                     const auto dtype = sushiblas_dtype<T>();
@@ -157,52 +157,52 @@ namespace SushiBLAS
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkLowerNoTranspose)
         {
-            this->check_syrk(false, false);
+            this->expect_syrk(false, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkUpperNoTranspose)
         {
-            this->check_syrk(true, false);
+            this->expect_syrk(true, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkLowerTransposed)
         {
-            this->check_syrk(false, true);
+            this->expect_syrk(false, true);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkUpperTransposed)
         {
-            this->check_syrk(true, true);
+            this->expect_syrk(true, true);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftLowerNoTranspose)
         {
-            this->check_trsm(true, false, false, false);
+            this->expect_trsm(true, false, false, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftUpperTransposed)
         {
-            this->check_trsm(true, true, true, false);
+            this->expect_trsm(true, true, true, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftUpperUnitDiagonal)
         {
-            this->check_trsm(true, true, false, true);
+            this->expect_trsm(true, true, false, true);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightUpperNoTranspose)
         {
-            this->check_trsm(false, true, false, false);
+            this->expect_trsm(false, true, false, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightLowerTransposed)
         {
-            this->check_trsm(false, false, true, false);
+            this->expect_trsm(false, false, true, false);
         }
 
         TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightLowerUnitDiagonal)
         {
-            this->check_trsm(false, false, false, true);
+            this->expect_trsm(false, false, false, true);
         }
     } // namespace Test
 } // namespace SushiBLAS

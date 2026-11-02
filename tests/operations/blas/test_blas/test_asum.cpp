@@ -49,5 +49,5 @@ TEST_F(Medium_ASUMTest, SimpleASUM)
     recording->run().value();
 
     // Expected asum: |-1| + |2| + |-3| + |4| = 1 + 2 + 3 + 4 = 10
-    verify_tensor(R, {10.0f});
+    expect_tensor(R, {10.0f});
 }

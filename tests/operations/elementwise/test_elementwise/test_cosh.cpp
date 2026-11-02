@@ -43,5 +43,5 @@ TEST_F(Medium_CoshTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).cosh(t);
     recording->run().value();
     
-    verify_tensor(t, {1.54308f, 3.76220f, 10.06766f, 1.12763f});
+    expect_tensor(t, {1.54308f, 3.76220f, 10.06766f, 1.12763f});
 }

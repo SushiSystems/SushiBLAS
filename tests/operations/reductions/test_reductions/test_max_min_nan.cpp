@@ -85,8 +85,8 @@ class Medium_MaxMinNaNTest : public SushiBLASTest
             SushiBLAS::ReductionOps(recorder()).min(t, min);
             recording->run().value();
 
-            verify_tensor(max, {expected_max}, K_TOLERANCE);
-            verify_tensor(min, {expected_min}, K_TOLERANCE);
+            expect_tensor(max, {expected_max}, K_TOLERANCE);
+            expect_tensor(min, {expected_min}, K_TOLERANCE);
         }
 };
 
@@ -138,7 +138,7 @@ TEST_F(Medium_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfini
     SushiBLAS::ReductionOps(recorder()).max_along(x, 1, out);
     recording->run().value();
 
-    verify_tensor(out, {-K_INF}, K_TOLERANCE);
+    expect_tensor(out, {-K_INF}, K_TOLERANCE);
 }
 
 TEST_F(Medium_MaxMinNaNTest, NaNFirstGivesNaN)
@@ -208,8 +208,8 @@ TEST_F(Medium_MaxMinNaNTest, AxisExtremaPropagateNaN)
     SushiBLAS::ReductionOps(recorder()).min_along(x, 1, min);
     recording->run().value();
 
-    verify_tensor(max, expected_max, K_TOLERANCE);
-    verify_tensor(min, expected_min, K_TOLERANCE);
+    expect_tensor(max, expected_max, K_TOLERANCE);
+    expect_tensor(min, expected_min, K_TOLERANCE);
 
     auto& q = TestEnvironment::queue();
     const std::size_t local = Reduce::group_width(SushiBLAS::Device::profile_for(q));
@@ -241,7 +241,7 @@ TEST_F(Medium_MaxMinNaNTest, AxisExtremaPropagateNaN)
             q, x.data_as<float>(), shape_min.data_as<float>(), span,
             Reduce::AxisPlan{width}, identity, keep, {}).wait();
 
-        verify_tensor(shape_max, expected_max, K_TOLERANCE);
-        verify_tensor(shape_min, expected_min, K_TOLERANCE);
+        expect_tensor(shape_max, expected_max, K_TOLERANCE);
+        expect_tensor(shape_min, expected_min, K_TOLERANCE);
     }
 }

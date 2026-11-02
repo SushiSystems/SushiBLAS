@@ -119,7 +119,7 @@ namespace SushiBLAS
 
             EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).all(t, out));
             recording->run().value();
-            verify_tensor(out, {1.0f});
+            expect_tensor(out, {1.0f});
         }
 
         /**
@@ -133,7 +133,7 @@ namespace SushiBLAS
 
             EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).any(t, out));
             recording->run().value();
-            verify_tensor(out, {0.0f});
+            expect_tensor(out, {0.0f});
         }
 
         /**
@@ -191,11 +191,11 @@ namespace SushiBLAS
             EXPECT_NO_THROW(reductions.count_nonfinite(t, count));
             recording->run().value();
 
-            verify_tensor(sum, {0.0f});
-            verify_tensor(asum, {0.0f});
-            verify_tensor(nrm2, {0.0f});
-            verify_tensor(prod, {1.0f});
-            verify_tensor(count, {0.0f});
+            expect_tensor(sum, {0.0f});
+            expect_tensor(asum, {0.0f});
+            expect_tensor(nrm2, {0.0f});
+            expect_tensor(prod, {1.0f});
+            expect_tensor(count, {0.0f});
         }
 
         /**
@@ -238,7 +238,7 @@ namespace SushiBLAS
 
             EXPECT_NO_THROW(SushiBLAS::ReductionOps(recorder()).sum_along(no_rows, 0, sums));
             recording->run().value();
-            verify_tensor(sums, std::vector<float>(5, 0.0f));
+            expect_tensor(sums, std::vector<float>(5, 0.0f));
 
             // Folding axis 0 of a [5, 0] tensor leaves no position to write.
             Tensor no_columns(SushiRuntime::sushi_ptr<Storage>(), {5, 0});

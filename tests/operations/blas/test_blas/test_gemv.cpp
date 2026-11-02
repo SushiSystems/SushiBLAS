@@ -56,7 +56,7 @@ TEST_F(Medium_GEMVTest, SimpleGEMV)
     recording->run().value();
 
     // Expected: Y = A * X = [1+2+3, 4+5+6] = [6, 15]
-    verify_tensor(Y, {6, 15});
+    expect_tensor(Y, {6, 15});
 }
 
 /** @brief Tests a transposed product with three long rows of op(A), each read with stride lda. */
@@ -78,5 +78,5 @@ TEST_F(Medium_GEMVTest, FewLongStridedRows)
     SushiBLAS::BLASOps(recorder()).gemv(A, X, Y, SushiBLAS::Core::Transpose::Trans);
     recording->run().value();
 
-    verify_tensor(Y, {10000, 20000, 30000});
+    expect_tensor(Y, {10000, 20000, 30000});
 }

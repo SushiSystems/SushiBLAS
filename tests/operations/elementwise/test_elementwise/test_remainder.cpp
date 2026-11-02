@@ -46,5 +46,5 @@ TEST_F(Medium_RemainderTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).remainder(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {1.00000f, 0.00000f, 1.00000f, 0.50000f});
+    expect_tensor(c, {1.00000f, 0.00000f, 1.00000f, 0.50000f});
 }

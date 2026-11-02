@@ -141,7 +141,7 @@ namespace SushiBLAS
                 Tensor result = vector_of({0.0f});
                 expect_task_computes("doti",
                     [&](TaskRecorder& r) { return SparseOps(r).doti(x, y, result); },
-                    [&] { verify_tensor(result, std::vector<float>{260.0f}, K_TOLERANCE); });
+                    [&] { expect_tensor(result, std::vector<float>{260.0f}, K_TOLERANCE); });
             }
 
             {
@@ -150,7 +150,7 @@ namespace SushiBLAS
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
                 expect_task_computes("spmv under NO_TRANS",
                     [&](TaskRecorder& r) { return SparseOps(r).spmv(A, x, y); },
-                    [&] { verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE); });
+                    [&] { expect_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE); });
             }
 
             {
@@ -162,7 +162,7 @@ namespace SushiBLAS
                     {
                         return SparseOps(r).spmv(A, x, y, Core::Transpose::Trans);
                     },
-                    [&] { verify_tensor(y, transposed, K_TOLERANCE); });
+                    [&] { expect_tensor(y, transposed, K_TOLERANCE); });
             }
 
             {
@@ -174,7 +174,7 @@ namespace SushiBLAS
                     {
                         return SparseOps(r).spsymv(A, x, y, Core::Uplo::Lower);
                     },
-                    [&] { verify_tensor(y, std::vector<float>{28, 19, 51, 59}, K_TOLERANCE); });
+                    [&] { expect_tensor(y, std::vector<float>{28, 19, 51, 59}, K_TOLERANCE); });
             }
 
             {
@@ -190,7 +190,7 @@ namespace SushiBLAS
                     },
                     [&]
                     {
-                        verify_tensor(C, std::vector<float>{25, 0, 9, 0, 12, 0, 2, 0, 43, 0},
+                        expect_tensor(C, std::vector<float>{25, 0, 9, 0, 12, 0, 2, 0, 43, 0},
                                       K_TOLERANCE);
                     });
             }
@@ -200,7 +200,7 @@ namespace SushiBLAS
                 Tensor b = vector_of({2.0f, 7.0f, 23.0f, 59.0f});
                 expect_task_computes("sptrsv",
                     [&](TaskRecorder& r) { return SparseOps(r).sptrsv(A, b, Core::Uplo::Lower); },
-                    [&] { verify_tensor(b, four, K_TOLERANCE); });
+                    [&] { expect_tensor(b, four, K_TOLERANCE); });
             }
         }
 
@@ -221,7 +221,7 @@ namespace SushiBLAS
 
             recording->run().value();
 
-            verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
+            expect_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
         }
 
         TEST_F(Medium_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
@@ -277,7 +277,7 @@ namespace SushiBLAS
             first.execute().value();
             second.execute().value();
 
-            verify_tensor(y_first, expected, K_TOLERANCE);
+            expect_tensor(y_first, expected, K_TOLERANCE);
             EXPECT_EQ(read_tensor<float>(y_first), read_tensor<float>(y_second));
         }
     } // namespace Test

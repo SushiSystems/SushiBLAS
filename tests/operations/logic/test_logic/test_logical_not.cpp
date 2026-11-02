@@ -43,5 +43,5 @@ TEST_F(Medium_Logical_notTest, FloatForward)
     SushiBLAS::LogicOps(recorder()).logical_not(a, c);
     recording->run().value();
     
-    verify_tensor(c, {0.00000f, 1.00000f, 0.00000f, 1.00000f});
+    expect_tensor(c, {0.00000f, 1.00000f, 0.00000f, 1.00000f});
 }

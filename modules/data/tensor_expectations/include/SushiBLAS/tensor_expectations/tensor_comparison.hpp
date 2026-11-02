@@ -21,7 +21,7 @@
 
 /**
  * @file tensor_comparison.hpp
- * @brief Declares verify_tensor and assert_tensor_near, which compare a dense tensor with host expectations.
+ * @brief Declares expect_tensor and assert_tensor_near, which compare a dense tensor with host expectations.
  * @author Mustafa Garip
  * @see modules/data/tensor_expectations/README.md
  */
@@ -172,10 +172,10 @@ namespace SushiBLAS
              * @tparam E float, double, std::complex<float> or std::complex<double>.
              */
             template <typename E>
-            void verify_tensor_elements(const Tensor& tensor, const std::vector<E>& expected, double tolerance)
+            void expect_tensor_elements(const Tensor& tensor, const std::vector<E>& expected, double tolerance)
             {
                 ASSERT_EQ(expected.size(), static_cast<size_t>(tensor.num_elements))
-                    << "verify_tensor: expected value count does not match tensor size.";
+                    << "expect_tensor: expected value count does not match tensor size.";
 
                 switch (tensor.dtype)
                 {
@@ -199,9 +199,9 @@ namespace SushiBLAS
         * A complex element must match on its real part and have a zero imaginary part. An integer
         * element is compared exactly. A NaN expectation expects a NaN.
         */
-        inline void verify_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = 1e-4)
+        inline void expect_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = 1e-4)
         {
-            Detail::verify_tensor_elements(tensor, expected, tolerance);
+            Detail::expect_tensor_elements(tensor, expected, tolerance);
         }
 
         /**
@@ -209,9 +209,9 @@ namespace SushiBLAS
         * @tparam E double, std::complex<float> or std::complex<double>; a complex E checks both parts.
         */
         template <typename E>
-        void verify_tensor(const Tensor& tensor, const std::vector<E>& expected, double tolerance = 1e-4)
+        void expect_tensor(const Tensor& tensor, const std::vector<E>& expected, double tolerance = 1e-4)
         {
-            Detail::verify_tensor_elements(tensor, expected, tolerance);
+            Detail::expect_tensor_elements(tensor, expected, tolerance);
         }
     } // namespace Test
 } // namespace SushiBLAS
@@ -220,5 +220,5 @@ namespace SushiBLAS
     SushiBLAS::Test::assert_tensor_near<type>(actual, expected, tol)
 
 #define EXPECT_TENSOR_NEAR(tensor, expected_list, tol) \
-    SushiBLAS::Test::verify_tensor(tensor, expected_list, tol)
+    SushiBLAS::Test::expect_tensor(tensor, expected_list, tol)
 

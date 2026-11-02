@@ -43,5 +43,5 @@ TEST_F(Medium_AcoshTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).acosh(t);
     recording->run().value();
     
-    verify_tensor(t, {0.00000f, 1.316957f, 1.762747f, 2.063437f});
+    expect_tensor(t, {0.00000f, 1.316957f, 1.762747f, 2.063437f});
 }

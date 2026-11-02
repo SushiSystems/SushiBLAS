@@ -43,5 +43,5 @@ TEST_F(Medium_NegTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).neg(t);
     recording->run().value();
     
-    verify_tensor(t, {-1.00000f, -2.00000f, 3.00000f, -0.50000f});
+    expect_tensor(t, {-1.00000f, -2.00000f, 3.00000f, -0.50000f});
 }

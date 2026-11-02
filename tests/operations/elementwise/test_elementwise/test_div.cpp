@@ -46,5 +46,5 @@ TEST_F(Medium_DivTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).div(a, b, c);
     recording->run().value();
     
-    verify_tensor(c, {0.50000f, 4.00000f, -0.75000f, -0.33333f});
+    expect_tensor(c, {0.50000f, 4.00000f, -0.75000f, -0.33333f});
 }

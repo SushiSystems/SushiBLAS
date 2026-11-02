@@ -76,7 +76,6 @@ namespace SushiBLAS
                           "HALF is carried in FLOAT32.");
             static_assert(std::is_same_v<Kernels::RunningSolution<double>::Wide, double>,
                           "FLOAT64 is carried in itself.");
-            SUCCEED();
         }
 
         TEST(Medium_RunningSolution, FloatSetWritesTheBoundArray)

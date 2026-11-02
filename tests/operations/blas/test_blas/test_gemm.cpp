@@ -65,7 +65,7 @@ namespace SushiBLAS
                 * What that cannot catch is a defect the two implementations share - see
                 * Medium_GEMMKernelTest for the absolute, hand-computed pins that can.
                 */
-                void test_accuracy(int64_t m, int64_t n, int64_t k,
+                void expect_accuracy(int64_t m, int64_t n, int64_t k,
                                    Core::Layout layout = Core::Layout::RowMajor,
                                    bool transA = false, bool transB = false,
                                    double alpha = 1.0, double beta = 0.0)
@@ -111,7 +111,7 @@ namespace SushiBLAS
                 * strides, which is what makes this exercise the stride arithmetic rather
                 * than a single shared step.
                 */
-                void test_batched(int64_t batch, int64_t m, int64_t n, int64_t k,
+                void expect_batched(int64_t batch, int64_t m, int64_t n, int64_t k,
                                   double alpha = 1.0, double beta = 0.0)
                 {
                     reinit_engine(Core::Layout::RowMajor);
@@ -190,22 +190,22 @@ namespace SushiBLAS
 
             TYPED_TEST(Medium_GEMMTest, SmallMatrix)
             {
-                this->test_accuracy(4, 4, 4);
+                this->expect_accuracy(4, 4, 4);
             }
 
             TYPED_TEST(Medium_GEMMTest, SmallMatrixColMajor)
             {
-                this->test_accuracy(4, 4, 4, Core::Layout::ColumnMajor);
+                this->expect_accuracy(4, 4, 4, Core::Layout::ColumnMajor);
             }
 
             TYPED_TEST(Medium_GEMMTest, Rectangular)
             {
-                this->test_accuracy(8, 16, 4);
+                this->expect_accuracy(8, 16, 4);
             }
 
             TYPED_TEST(Medium_GEMMTest, RectangularColMajor)
             {
-                this->test_accuracy(8, 16, 4, Core::Layout::ColumnMajor);
+                this->expect_accuracy(8, 16, 4, Core::Layout::ColumnMajor);
             }
 
             /**
@@ -214,12 +214,12 @@ namespace SushiBLAS
              */
             TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxis)
             {
-                this->test_accuracy(37, 23, 13);
+                this->expect_accuracy(37, 23, 13);
             }
 
             TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxisColMajor)
             {
-                this->test_accuracy(37, 23, 13, Core::Layout::ColumnMajor);
+                this->expect_accuracy(37, 23, 13, Core::Layout::ColumnMajor);
             }
 
             /**
@@ -228,7 +228,7 @@ namespace SushiBLAS
              */
             TYPED_TEST(Medium_GEMMTest, KShorterThanOneTile)
             {
-                this->test_accuracy(40, 40, 3);
+                this->expect_accuracy(40, 40, 3);
             }
 
             /**
@@ -237,19 +237,19 @@ namespace SushiBLAS
              */
             TYPED_TEST(Medium_GEMMTest, DeepProduct)
             {
-                this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, false,
+                this->expect_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, false,
                                     1.0 / 4096.0, 0.0);
             }
 
             TYPED_TEST(Medium_GEMMTest, DeepProductTransposeB)
             {
-                this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, true,
+                this->expect_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, true,
                                     1.0 / 4096.0, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, DeepProductTransposeBothColMajor)
             {
-                this->test_accuracy(9, 4, 4133, Core::Layout::ColumnMajor, true, true,
+                this->expect_accuracy(9, 4, 4133, Core::Layout::ColumnMajor, true, true,
                                     1.0 / 4096.0, 0.5);
             }
 
@@ -259,69 +259,69 @@ namespace SushiBLAS
              */
             TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanes)
             {
-                this->test_accuracy(130, 131, 4133, Core::Layout::RowMajor, false, false,
+                this->expect_accuracy(130, 131, 4133, Core::Layout::RowMajor, false, false,
                                     1.0 / 4096.0, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanesTransposeA)
             {
-                this->test_accuracy(41, 70, 4133, Core::Layout::RowMajor, true, false,
+                this->expect_accuracy(41, 70, 4133, Core::Layout::RowMajor, true, false,
                                     1.0 / 4096.0, 0.0);
             }
 
             TYPED_TEST(Medium_GEMMTest, DeepProductBatched)
             {
-                this->test_batched(3, 5, 6, 4100, 1.0 / 4096.0, 0.5);
+                this->expect_batched(3, 5, 6, 4100, 1.0 / 4096.0, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, SingleElement)
             {
-                this->test_accuracy(1, 1, 1);
+                this->expect_accuracy(1, 1, 1);
             }
 
             TYPED_TEST(Medium_GEMMTest, TallSkinny)
             {
-                this->test_accuracy(65, 2, 33);
+                this->expect_accuracy(65, 2, 33);
             }
 
             TYPED_TEST(Medium_GEMMTest, ShortWide)
             {
-                this->test_accuracy(2, 65, 33);
+                this->expect_accuracy(2, 65, 33);
             }
 
             TYPED_TEST(Medium_GEMMTest, NoTransposeScaled)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, false, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, false, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeA)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, false, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, true, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeB)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, true, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, false, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeBoth)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, true, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, true, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeBothColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, true, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeAColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, false, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, TransposeBColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, false, true, 1.5, 0.5);
+                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, false, true, 1.5, 0.5);
             }
 
             /**
@@ -330,17 +330,17 @@ namespace SushiBLAS
              */
             TYPED_TEST(Medium_GEMMTest, BetaZeroNeverReadsC)
             {
-                this->test_accuracy(37, 23, 13, Core::Layout::RowMajor, false, false, 1.0, 0.0);
+                this->expect_accuracy(37, 23, 13, Core::Layout::RowMajor, false, false, 1.0, 0.0);
             }
 
             TYPED_TEST(Medium_GEMMTest, Batched)
             {
-                this->test_batched(4, 13, 7, 5, 1.5, 0.5);
+                this->expect_batched(4, 13, 7, 5, 1.5, 0.5);
             }
 
             TYPED_TEST(Medium_GEMMTest, BatchedRagged)
             {
-                this->test_batched(3, 33, 17, 23);
+                this->expect_batched(3, 33, 17, 23);
             }
 
             /**

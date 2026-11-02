@@ -81,7 +81,7 @@ namespace SushiBLAS
             /// @brief The FLOAT64 tolerance the same five files name.
             constexpr double K_NAMED_FLOAT64_TOLERANCE = 1e-12;
 
-            /// @brief verify_tensor's default; every other math operation's value test uses it.
+            /// @brief expect_tensor's default; every other math operation's value test uses it.
             constexpr double K_DEFAULT_TOLERANCE = 1e-4;
 
             /// @brief Absolute tolerance on a sum of small whole numbers: it is exact.
@@ -851,7 +851,7 @@ namespace SushiBLAS
                 EXPECT_NO_THROW(ElementwiseOps(probe.recorder()).add(*a, b, c));
                 probe.execute().value();
 
-                verify_tensor(c, {11.0f, 22.0f, 33.0f, 44.0f}, K_EXACT_TOLERANCE);
+                expect_tensor(c, {11.0f, 22.0f, 33.0f, 44.0f}, K_EXACT_TOLERANCE);
             }
 
             GraphProbe reference(ExecutionMode::ForceReference);

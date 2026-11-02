@@ -47,5 +47,5 @@ TEST_F(Medium_SCALTest, SimpleSCAL)
     recording->run().value();
 
     // Expected: 3 * X = {3, 6, 9}
-    verify_tensor(X, {3, 6, 9});
+    expect_tensor(X, {3, 6, 9});
 }

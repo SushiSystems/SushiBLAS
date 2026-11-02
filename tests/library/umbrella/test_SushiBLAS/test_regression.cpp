@@ -316,7 +316,7 @@ namespace SushiBLAS
              * @brief Reads the first FLOAT32 (or complex-real) word of a tensor to the host.
              *
              * The nrm2 sentinels below check values at 1e38 and 1e-40, where the absolute
-             * tolerance `verify_tensor` applies is meaningless: 1e-4 of absolute slack
+             * tolerance `expect_tensor` applies is meaningless: 1e-4 of absolute slack
              * passes any answer at all against 2e38, and rejects every answer at 5e-40.
              * They compare relative error instead, so they need the raw number.
              */

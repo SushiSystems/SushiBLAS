@@ -165,7 +165,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(this->recorder()).max_along(x, 1, out);
             this->recording->run().value();
 
-            verify_tensor(out, K_ROW_MAX);
+            expect_tensor(out, K_ROW_MAX);
         }
 
         TYPED_TEST(Medium_AxisReductionsTyped, ColumnMaxFoldsAxisZero)
@@ -178,7 +178,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(this->recorder()).max_along(x, 0, out);
             this->recording->run().value();
 
-            verify_tensor(out, K_COL_MAX);
+            expect_tensor(out, K_COL_MAX);
         }
 
         TYPED_TEST(Medium_AxisReductionsTyped, RowSumFoldsAxisOne)
@@ -191,7 +191,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(this->recorder()).sum_along(x, 1, out);
             this->recording->run().value();
 
-            verify_tensor(out, K_ROW_SUM);
+            expect_tensor(out, K_ROW_SUM);
         }
 
         TYPED_TEST(Medium_AxisReductionsTyped, ColumnSumFoldsAxisZero)
@@ -204,7 +204,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(this->recorder()).sum_along(x, 0, out);
             this->recording->run().value();
 
-            verify_tensor(out, K_COL_SUM);
+            expect_tensor(out, K_COL_SUM);
         }
 
         class Medium_AxisReductions : public SushiBLASTest {};
@@ -226,8 +226,8 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum_along(x, 0, cols);
             recording->run().value();
 
-            verify_tensor(rows, K_ROW_MAX);
-            verify_tensor(cols, K_COL_SUM);
+            expect_tensor(rows, K_ROW_MAX);
+            expect_tensor(cols, K_COL_SUM);
         }
 
         /**
@@ -253,7 +253,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).max_along(tail, 1, out);
             recording->run().value();
 
-            verify_tensor(out, K_ROW_MAX);
+            expect_tensor(out, K_ROW_MAX);
         }
 
         /**
@@ -284,7 +284,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum_along(packed, 1, out);
             recording->run().value();
 
-            verify_tensor(out, {36.0f, 36.0f, 36.0f});
+            expect_tensor(out, {36.0f, 36.0f, 36.0f});
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
@@ -356,8 +356,8 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).min_along(matrix, 0, cols);
             recording->run().value();
 
-            verify_tensor(rows, K_ROW_MIN);
-            verify_tensor(cols, K_COL_MIN);
+            expect_tensor(rows, K_ROW_MIN);
+            expect_tensor(cols, K_COL_MIN);
 
             // Rank 1 in: there is no axis to fold away.
             auto vector = engine->create_tensor({4});

@@ -43,7 +43,7 @@ TEST_F(Medium_GELUTest, Forward)
     SushiBLAS::NonLinearOps(recorder()).gelu(t);
     recording->run().value();
     
-    verify_tensor(t, {-0.158865f, 0.0f, 0.841135f, 1.954598f});
+    expect_tensor(t, {-0.158865f, 0.0f, 0.841135f, 1.954598f});
 }
 
 TEST_F(Medium_GELUTest, Backward) 
@@ -59,5 +59,5 @@ TEST_F(Medium_GELUTest, Backward)
     SushiBLAS::NonLinearOps(recorder()).gelu_backward(dy, x, dx);
     recording->run().value();
     
-    verify_tensor(dx, {-0.082937f, 0.5f, 1.082937f, 1.086099f});
+    expect_tensor(dx, {-0.082937f, 0.5f, 1.082937f, 1.086099f});
 }

@@ -281,7 +281,7 @@ compared, for a reader who wants to see the behaviour as well.
 
 ### scalar_of
 
-The nrm2 sentinels check values near 1e38 and 1e-40. The absolute tolerance `verify_tensor`
+The nrm2 sentinels check values near 1e38 and 1e-40. The absolute tolerance `expect_tensor`
 applies means nothing there: 1e-4 of absolute slack accepts any answer against 2e38 and rejects
 every answer at 5e-40. The sentinels compare relative error, so they read the raw number.
 

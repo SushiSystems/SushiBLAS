@@ -43,5 +43,5 @@ TEST_F(Medium_AtanhTest, FloatForward)
     SushiBLAS::ElementwiseOps(recorder()).atanh(t);
     recording->run().value();
     
-    verify_tensor(t, {0.00000f, 0.549306f, -0.549306f, 1.098612f});
+    expect_tensor(t, {0.00000f, 0.549306f, -0.549306f, 1.098612f});
 }

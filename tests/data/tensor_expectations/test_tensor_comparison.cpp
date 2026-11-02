@@ -65,7 +65,7 @@ namespace SushiBLAS
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f});
 
-            EXPECT_NONFATAL_FAILURE(verify_tensor(tensor, std::vector<float>{1.0f, 2.5f}, 1e-4),
+            EXPECT_NONFATAL_FAILURE(expect_tensor(tensor, std::vector<float>{1.0f, 2.5f}, 1e-4),
                                     "Mismatch (value) at index 1");
         }
 
@@ -74,8 +74,8 @@ namespace SushiBLAS
             const float nan = std::numeric_limits<float>::quiet_NaN();
             const Tensor tensor = float_tensor({nan, 1.0f});
 
-            verify_tensor(tensor, std::vector<float>{nan, 1.0f}, 0.0);
-            EXPECT_NONFATAL_FAILURE(verify_tensor(float_tensor({0.0f, 1.0f}),
+            expect_tensor(tensor, std::vector<float>{nan, 1.0f}, 0.0);
+            EXPECT_NONFATAL_FAILURE(expect_tensor(float_tensor({0.0f, 1.0f}),
                                                   std::vector<float>{nan, 1.0f}, 0.0),
                                     "Expected NaN");
         }
@@ -84,8 +84,8 @@ namespace SushiBLAS
         {
             const float infinity = std::numeric_limits<float>::infinity();
 
-            verify_tensor(float_tensor({infinity}), std::vector<float>{infinity}, 0.0);
-            EXPECT_NONFATAL_FAILURE(verify_tensor(float_tensor({-infinity}),
+            expect_tensor(float_tensor({infinity}), std::vector<float>{infinity}, 0.0);
+            EXPECT_NONFATAL_FAILURE(expect_tensor(float_tensor({-infinity}),
                                                   std::vector<float>{infinity}, 0.0),
                                     "Infinity mismatch");
         }
