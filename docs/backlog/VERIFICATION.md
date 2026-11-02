@@ -16,6 +16,9 @@
 | RW-101 | P2 | open | State and test that tensors may be created from several threads | `TensorFactory::create` and `Engine::create_tensor` state it, and a test creates and releases tensors from eight threads |  |  | 2026-10-19 |
 | RW-102 | P2 | open | State and test host access to a Shared tensor between executions | a plan compiled once copies a source the host rewrites between three executions, and the destination matches each time |  |  | 2026-10-19 |
 | RW-129 | P2 | open | Bring the tests to the TEST_PIPELINE doctrine, tier by tier | check_test_value, check_test_sizes and the shuffled run report no finding in small, medium and large |  |  | 2026-11-02 |
+| RW-130 | P2 | open | Give test_budget.py a program map so the small and medium budgets gate | sb test prints per-program small totals and a whole-run total, and a run over 10 s per program or 375 s default fails the gate |  | `tools/testing/test_budget.py` | 2026-11-02 |
+| RW-131 | P3 | open | Name why each float EXPECT_EQ may stay, or give it a tolerance | no float EXPECT_EQ is left whose test name lacks the reason, incl. test_modified_givens.cpp:195-196 and the SYCL-vs-reference == checks |  | `tests/kernels/blas_seam_kernels/test_modified_givens.cpp` | 2026-11-02 |
+| RW-132 | P3 | open | Move static_assert-only Medium_ cases to Small_ | no Medium_ case holds only static_assert, such as Medium_ReferenceAccumulator and Medium_PackedAccess ones |  | `tests/foundation/reference/test_reference_accumulator.cpp` | 2026-11-02 |
 
 ## Known issues
 
