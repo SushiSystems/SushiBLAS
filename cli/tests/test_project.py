@@ -21,6 +21,7 @@ from sushicore.build_admission import (
 )
 from sushicore.errors import ConfigError
 from sushicore.proc import Runner
+from sushicore.testing import TestLabel
 from typer.testing import CliRunner
 
 from sushiblas import cli
@@ -36,7 +37,6 @@ from sushiblas.services.errors import (
 )
 from sushiblas.services.project import CleanResult, ProjectService
 from sushiblas.services.sanitizer import Sanitizer
-from sushiblas.services.test_label import TestLabel
 from sushiblas.services.tree_choice import TreeChoice
 
 pytestmark = pytest.mark.medium

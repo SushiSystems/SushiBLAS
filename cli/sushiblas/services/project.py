@@ -29,10 +29,11 @@ from sushicore.cmake_driver import CMakeDriver
 from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
 from sushicore.provision.sushi_packages import PackageSet, configure_arguments
+from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
 
-from ..config import Config
+from ..config import PROFILE, Config
 from .build_type import K_BENCHMARK_BUILD_TYPE, BuildType
 from .errors import (
     BuildTreeMissingError,
@@ -44,7 +45,6 @@ from .errors import (
 )
 from . import library_packages
 from .sanitizer import Sanitizer, sanitize_flags
-from .test_label import TestLabel, select_labels
 from .tree_choice import TreeChoice
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
@@ -248,11 +248,14 @@ class ProjectService:
         return rc
 
     def test(self, labels: Sequence[TestLabel] | None = None, filter: str | None = None,
-             repeat: int = 0, jobs: int | None = None, tree: TreeChoice = K_DEFAULT_TREE) -> int:
-        """Runs the CTest tests *labels* select and returns ctest's code.
+             repeat: int = 0, jobs: int | None = None, tree: TreeChoice = K_DEFAULT_TREE,
+             every_size: bool = False, shuffle: bool = True, seed: int | None = None) -> int:
+        """Runs the CTest tests *labels* select through the shared test command and returns ctest's code.
 
         None or empty *labels* selects the small and medium tests. A quarantined test runs only
-        when *labels* names `quarantined`. *tree* picks the build tree that is tested.
+        when *labels* names `quarantined`. The large tests run only with a *filter* or *every_size*.
+        *tree* picks the build tree that is tested; *shuffle* runs each program's tests in a random
+        order, with *seed* when given. The budget line is printed after the run.
 
         Raises:
             BuildTreeMissingError: There is no build tree.
@@ -261,18 +264,12 @@ class ProjectService:
         cfg = self._load_config()
         build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
-        selection = select_labels(labels)
-
-        return self._driver.ctest_run(
-            cfg,
-            build_dir,
-            env,
-            label_regex=selection.ctest_include(),
-            exclude_label_regex=selection.ctest_exclude(),
-            filter=filter,
-            repeat=repeat,
-            jobs=jobs,
-        )
+        module = ModuleTests(
+            profile=PROFILE, project_root=lambda: root, console=lambda: self._console,
+            build_tree=lambda: build_dir, run=self._runner.run,
+            run_ctest=lambda directory, **options: self._driver.ctest_run(cfg, directory, env, **options))
+        return run_tests(module, select_labels(labels, every_size=every_size), name_filter=filter,
+                         repeat=repeat, jobs=jobs, every_size=every_size, shuffle=shuffle, seed=seed)
 
     def test_cli(self, labels: Sequence[TestLabel] | None = None) -> int:
         """Runs the pytest tests of this CLI that *labels* select and returns pytest's code."""

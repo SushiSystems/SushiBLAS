@@ -21,6 +21,8 @@ from sushicore.docs_bundle import ApiSource, register_docs_commands
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
 from sushicore.provision.package_command import register_package_command
 from sushicore.root_options import register_root_options
+from sushicore.testing import (TestLabel, all_option, filter_option, jobs_option, label_option,
+                               repeat_option, seed_option, shuffle_option)
 from sushicore.typer_help import help_group
 
 from . import console
@@ -32,7 +34,6 @@ from .services.errors import CLIOptionError, PackageOptionError, ProjectError
 from .services.project import ProjectService
 from .services.project_factory import create_project_service
 from .services.sanitizer import Sanitizer
-from .services.test_label import TestLabel
 from .services.tree_choice import TreeChoice
 
 K_PROJECT = "Project"
@@ -171,25 +172,19 @@ def build(
            "sb test --label quarantined\n"
            "sb test --filter 'Gemm.*'  # Match Suite.Case test names\n"
            "sb test --repeat 5  # Re-run each test until one fails\n"
+           "sb test --seed 4242  # Repeat the order of an earlier shuffled run\n"
+           "sb test --all  # Every size, the large tests included\n"
            "sb test --cli  # The pytest tests of this CLI\n"
            "sb test --package  # The out-of-tree consumer of the installed package",
 )
 def test(
-    label: Optional[list[TestLabel]] = typer.Option(
-        None, "--label", "-l", case_sensitive=False,
-        help="Run the tests of this label: small | medium | large | quarantined. Repeatable. "
-             "Left out, the small and medium tests run. A quarantined test runs only when "
-             "quarantined is named."),
-    filter: Optional[str] = typer.Option(
-        None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
-    repeat: int = typer.Option(
-        0, "--repeat", "-r", min=0,
-        help="Re-run each test up to N times, stopping on the first failure "
-             "(ctest --repeat until-fail). Handy for hunting flaky tests."),
-    jobs: Optional[int] = typer.Option(
-        None, "--jobs", "-j", min=1,
-        help="Tests run at once. When omitted ctest decides, and "
-             "CTEST_PARALLEL_LEVEL is honoured."),
+    label: Optional[list[TestLabel]] = label_option(),
+    filter: Optional[str] = filter_option(),
+    repeat: int = repeat_option(),
+    jobs: Optional[int] = jobs_option(),
+    all_sizes: bool = all_option(),
+    shuffle: bool = shuffle_option(),
+    seed: Optional[int] = seed_option(),
     cli: bool = typer.Option(
         False, "--cli", help="Run the pytest tests of this CLI instead of the CTest tests."),
     package: bool = typer.Option(
@@ -199,10 +194,11 @@ def test(
     type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
     sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
-    """Run the tests of the labels given.
+    """Run the tests of the labels given, then print the budget line.
 
-    For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sb run sushiblas_operations_tests -- --gtest_filter=Gemm.*
+    The tests run shuffled and the seed is printed. For GTest-level knobs
+    (break-on-failure) run the binary directly:
+    sb run sushiblas_operations_tests -- --gtest_filter=Gemm.*
 
     --package is the only check of what find_package(SushiBLAS) hands a third
     party. It runs no CTest, so --label, --filter, --repeat, --jobs and --cli do
@@ -223,7 +219,8 @@ def test(
             if filter or repeat or jobs:
                 raise CLIOptionError()
             return _service().test_cli(label)
-        return _service().test(label, filter, repeat, jobs, TreeChoice(type, sanitize))
+        return _service().test(label, filter, repeat, jobs, TreeChoice(type, sanitize),
+                               every_size=all_sizes, shuffle=shuffle, seed=seed)
 
     _exit_with(step)
 

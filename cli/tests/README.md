@@ -27,8 +27,3 @@ outside a checkout failed for as long as the copies existed. The lifecycle now l
 `sushicore.cli_console.LazyConsole`. These tests pin that this CLI is wired to it, which is the
 part a shared implementation cannot check on its own.
 
-## test_test_label.py
-
-`sb test` keeps quarantined tests out of every selection that does not name them. These tests pin
-the regexes and the marker expression each selection produces, so a stage that gates never picks
-up a quarantined test by accident.

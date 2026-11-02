@@ -33,7 +33,8 @@ def test_import_does_not_build_console():
 def test_import_outside_project_does_not_raise(monkeypatch, tmp_path):
     """Simulate running outside a checkout: import + reload must not SystemExit."""
     monkeypatch.chdir(tmp_path)
-    _fresh_console_module()
+    console_mod = _fresh_console_module()
+    assert console_mod._lazy.built is False
 
 
 def test_output_helper_falls_back_outside_project(monkeypatch, tmp_path):

@@ -85,19 +85,13 @@ index. It still prints progress lines through the console it receives, because s
 `services/diag.py` keeps `K_DIAGNOSTICS` at module level: `register_diagnostic_commands` takes
 the object when the commands are declared.
 
-## services/test_label.py
+## Tests
 
-### TestLabel
-
-`small`, `medium` and `large` are the sizes `cmake/SushiBLASTests.cmake` gives every test as its
-one CTest label; `quarantined` is the label a quarantined test carries beside its size.
-
-### select_labels
-
-Turns the labels given to `sb test` into a `LabelSelection`: the `ctest -L` regex of the sizes,
-the `ctest -LE` regex that keeps quarantined tests out unless `quarantined` was named, and the
-same choice as a `pytest -m` expression for `--cli`. No label selects `small` and `medium`, the
-sizes pre-merge CI runs. `quarantined` alone selects the quarantined tests of every size.
+`ProjectService.test` hands the build tree and the CTest call to `sushicore.testing.run_tests`, the
+shared test command. It owns the labels, the shuffle, the printed seed and the budget line; this
+module keeps `--type`, `--sanitize`, `--cli` and `--package`, which the shared command does not
+know. `small`, `medium` and `large` are the sizes `cmake/SushiBLASTests.cmake` gives every test as
+its one CTest label; `quarantined` is the label a quarantined test carries beside its size.
 
 ## services/sanitizer.py
 
