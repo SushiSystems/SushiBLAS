@@ -678,11 +678,11 @@ def test_bench_raises_when_no_benchmark_program_is_built(parts, checkout):
 
 
 def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monkeypatch):
-    """bench runs each benchmark_* program under build/tests and skips the test programs."""
+    """bench runs each benchmark_* program under build/tests, skipping the test programs and the ones that take arguments."""
     console, driver, service = parts
     programs = checkout / K_RELEASE_TREE / "tests"
     programs.mkdir()
-    for name in ("benchmark_sparse", "benchmark_gemm", "sushiblas_operations_tests"):
+    for name in ("benchmark_sparse", "benchmark_gemm", "benchmark_gemm_blocking", "sushiblas_operations_tests"):
         (programs / name).write_text("")
     commands = _child_exits_with(monkeypatch, 0)
     assert service.bench() == 0

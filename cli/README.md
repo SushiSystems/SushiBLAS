@@ -236,7 +236,7 @@ Run it before publishing anything that adds a public header or touches
 Runs every benchmark program under `build/default-release/tests/`, in name order, after
 `sb build --type release --benchmarks`. A benchmark measures the build that ships, so `sb bench`
 looks in the Release tree unless `--type` or `--sanitize` names another. A benchmark measures and does not pass or fail; the
-command exits with the first non-zero code a program returned.
+command exits with the first non-zero code a program returned. A benchmark that takes arguments (`benchmark_gemm_blocking`) is left out and runs only when named.
 
 `sb bench <name> -- <options>` runs the one scenario benchmark the name matches (exact, then substring) and forwards what follows `--` to it, as `sb run` does; `sb bench device_ceilings -- --out build/ceilings` writes the ceilings of device 0. Options without a name are refused.
 

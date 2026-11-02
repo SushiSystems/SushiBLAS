@@ -65,6 +65,8 @@ K_BENCHMARK_TREE = TreeChoice(K_BENCHMARK_BUILD_TYPE)
 K_PROGRAM_DIR = "tests"
 #: The prefix every benchmark program's name starts with.
 K_BENCHMARK_PREFIX = "benchmark_"
+#: The benchmark programs that take arguments, so `sb bench` runs them only when they are named.
+K_SCENARIO_PROGRAMS = frozenset({"benchmark_gemm_blocking"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -525,13 +527,16 @@ def _existing_build_dir(root: Path, tree: TreeChoice) -> Path:
 
 
 def _benchmark_programs(program_dir: Path) -> list[Path]:
-    """Returns the benchmark programs under *program_dir*, sorted by name."""
+    """Returns the micro benchmark programs under *program_dir*, sorted by name.
+
+    A program of K_SCENARIO_PROGRAMS needs arguments, so it is left out; `sb bench <name>` runs it.
+    """
     if not program_dir.is_dir():
         return []
     return sorted(
         path for path in program_dir.iterdir()
         if path.is_file() and path.name.startswith(K_BENCHMARK_PREFIX)
-        and path.suffix in ("", ".exe")
+        and path.suffix in ("", ".exe") and path.stem not in K_SCENARIO_PROGRAMS
     )
 
 
