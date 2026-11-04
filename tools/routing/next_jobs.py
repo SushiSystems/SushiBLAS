@@ -28,25 +28,35 @@ K_EXIT_FINISHED = 2
 K_EXIT_MALFORMED = 3
 
 
+def plan_report(label: str, text: str, free: int) -> tuple[int, list[str]]:
+    """Returns the exit code of a plan and its lines: the faults, or the ids that may start."""
+    jobs, problems = read_jobs(text)
+    if not problems:
+        problems = graph_problems(jobs)
+    if problems:
+        faults = [f"{label}:{p.line}: {p.rule}: {p.message}" for p in problems]
+        return K_EXIT_MALFORMED, faults
+    if all(job.status == K_DONE for job in jobs):
+        return K_EXIT_FINISHED, []
+    ready = ready_jobs(jobs, free)
+    return (K_EXIT_READY if ready else K_EXIT_WAITING), ready
+
+
 def main(argv: list[str] | None = None) -> int:
     """Prints the ids of the ready jobs of a plan, one per line, and returns the exit code."""
     parser = argparse.ArgumentParser(description="Lists the jobs of a plan that may start now.")
     parser.add_argument("plan", type=Path)
     parser.add_argument("--free", type=int, default=1, help="how many subagents are free")
     arguments = parser.parse_args(argv)
-    jobs, problems = read_jobs(arguments.plan.read_text(encoding="utf-8"))
-    if not problems:
-        problems = graph_problems(jobs)
-    for problem in problems:
-        print(f"{arguments.plan}:{problem.line}: {problem.rule}: {problem.message}")
-    if problems:
-        return K_EXIT_MALFORMED
-    if all(job.status == K_DONE for job in jobs):
-        return K_EXIT_FINISHED
-    ready = ready_jobs(jobs, arguments.free)
-    for job_id in ready:
-        print(job_id)
-    return K_EXIT_READY if ready else K_EXIT_WAITING
+    code, lines = plan_report(str(arguments.plan), _read_plan(arguments.plan), arguments.free)
+    for line in lines:
+        print(line)
+    return code
+
+
+def _read_plan(path: Path) -> str:
+    """Returns the text of a plan file, read as UTF-8."""
+    return path.read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

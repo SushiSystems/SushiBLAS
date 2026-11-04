@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import sys
 import unittest
 from pathlib import Path
@@ -18,7 +17,7 @@ from routing.job_table import Job  # noqa: E402
 from routing.ready_jobs import graph_problems, ready_jobs  # noqa: E402
 
 
-pytestmark = pytest.mark.small
+K_TEST_SIZE = "small"
 
 
 def job(job_id: str, files: str = "", waits: str = "", status: str = "todo") -> Job:

@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import sys
 import tempfile
 import unittest
@@ -58,7 +57,7 @@ None.
 K_PATH = "docs/design/KERNELS.md"
 
 
-pytestmark = pytest.mark.medium
+K_TEST_SIZE = "medium"
 
 
 def _repository(folder: str, files: dict[str, str]) -> Repository:

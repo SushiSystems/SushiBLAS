@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import sys
 import unittest
 from pathlib import Path
@@ -21,7 +20,7 @@ K_PY = Path("tests/test_shape.py")
 K_TS = Path("tests/web/camera.test.ts")
 
 
-pytestmark = pytest.mark.small
+K_TEST_SIZE = "small"
 
 
 def one(path: Path, text: str):
@@ -84,6 +83,23 @@ class PythonCasesTest(unittest.TestCase):
                 "def test_d():\n    assert 1\n")
         self.assertEqual([(case.name, case.size) for case in cases_of(K_PY, text)],
                          [("test_a", "small"), ("test_c", "large"), ("test_d", "medium")])
+
+    def test_reads_a_testcase_subclass_whatever_its_name(self) -> None:
+        text = ("K_TEST_SIZE = \"small\"\n\nclass RuleTableTest(unittest.TestCase):\n    def test_a(self):\n        assert 1\n\n"
+                "class Plain(unittest.mock.Mock):\n    def test_b(self):\n        assert 1\n\n"
+                "class Other(TestCase):\n    def test_c(self):\n        assert 1\n")
+        self.assertEqual([case.name for case in cases_of(K_PY, text)], ["test_a", "test_c"])
+
+    def test_a_class_size_attribute_beats_the_file_size(self) -> None:
+        text = ("K_TEST_SIZE = \"small\"\n\nclass AlphaTest(unittest.TestCase):\n    K_TEST_SIZE = \"medium\"\n"
+                "    def test_a(self):\n        assert 1\n\nclass BetaTest(unittest.TestCase):\n"
+                "    def test_b(self):\n        assert 1\n")
+        self.assertEqual([(case.name, case.size) for case in cases_of(K_PY, text)],
+                         [("test_a", "medium"), ("test_b", "small")])
+
+    def test_size_comes_from_a_module_size_constant(self) -> None:
+        text = "K_TEST_SIZE = \"medium\"\n\nclass TestA(unittest.TestCase):\n    def test_b(self):\n        assert 1\n"
+        self.assertEqual([case.size for case in cases_of(K_PY, text)], ["medium"])
 
 
 class TypeScriptCasesTest(unittest.TestCase):

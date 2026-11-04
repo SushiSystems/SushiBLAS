@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import subprocess
 import sys
 import tempfile
@@ -20,7 +19,7 @@ from checking.ignored_paths import drop_ignored, ignored_folders  # noqa: E402
 from documentation.check_source_comments import collect  # noqa: E402
 
 
-pytestmark = pytest.mark.medium
+K_TEST_SIZE = "medium"
 
 
 def _link(link: Path, target: Path) -> bool:

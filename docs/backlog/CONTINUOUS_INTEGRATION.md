@@ -12,6 +12,7 @@
 | RW-124 | P1 | open | Check out SushiLog and SushiProfiler in the nightly benchmark and quarantined jobs | Both nightly jobs check out the pinned SushiLog and SushiProfiler and sb finds them; the nightly run is green |  | `.github/workflows/nightly.yml` | 2026-10-30 |
 | RW-126 | P0 | decision | Choose how the pre-merge builds fit their time budget: raise the timeout or cut the build | The owner rules whether timeouts rise above the 20/45-minute budget or the build cost falls |  | `.github/workflows/ci.yml` | 2026-10-30 |
 | RW-127 | P1 | open | Make the nightly Benchmarks job finish sb bench inside its 120-minute timeout | The nightly Benchmarks job completes sb bench inside timeout-minutes and the nightly run is green |  | `.github/workflows/nightly.yml` | 2026-10-31 |
+| RW-133 | P2 | open | Clear the known findings of the shared checkers | tools/known_findings.toml holds no entry and tools/check_all.py is clean without it |  | `tools/check_all.py` | 2026-11-05 |
 
 ## Known issues
 

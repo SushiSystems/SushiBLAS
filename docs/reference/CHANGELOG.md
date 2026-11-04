@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-05 — tools: Took the shared checkers of 2026-11-05 with a baseline of the findings they meet, which RW-133 clears.
 - 2026-11-02 — tests: Renamed the asserting helpers to `expect_*` (`expect_tensor`, `expect_accuracy`), so the checker counts 177 medium cases; removed the timers of four stress tests and `SUCCEED()` from six cases (`tests/`).
 - 2026-11-02 — tests: Gave the small tests that asserted a literal or nothing a real assertion: `static_assert` alone for compile-time facts, `EXPECT_NO_THROW` for calls that must return, a tolerance for four adjoint identities (`tests/`).
 - 2026-11-02 — cli: Moved `sb test` onto the shared test command of sushicore 0.10.11, which shuffles and prints the seed and the budget line, added `--all`, `--shuffle` and `--seed` and dropped the local label module (RW-128, `a1edb237`).

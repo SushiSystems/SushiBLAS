@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import sys
 import tempfile
 import unittest
@@ -22,7 +21,7 @@ from documentation.check_backlog import K_CHECKER, Repository, rule_backlog  # n
 K_HAS_TOOLING = tooling_bridge.load("backlog", Path(__file__).resolve().parents[2]) is not None
 
 
-pytestmark = pytest.mark.medium
+K_TEST_SIZE = "medium"
 
 
 def _repository(folder: str, files: dict[str, str]) -> Repository:

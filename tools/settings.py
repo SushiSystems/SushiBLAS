@@ -62,3 +62,10 @@ K_TEST_BUDGET: dict[str, int] = {
     "second_program": 0,
 }
 K_TEST_VALUE_SINCE = '4457691b612ace5ff3ba8a498840a289df6498af'
+
+# The time limits of the testing skill, read by tools/testing/test_budget.py.
+K_TEST_TIMES: dict[str, float] = {
+    "small_test_s": 0.1,
+    "medium_test_s": 5,
+    "pre_merge_s": 600,
+}
