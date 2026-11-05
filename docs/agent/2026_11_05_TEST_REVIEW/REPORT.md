@@ -1,0 +1,5387 @@
+# Test review: report
+
+**Status:** Open — every test has a verdict; the plan's jobs are next
+
+Every test in the repository has a verdict from `skills/testing/REVIEWING.md` of SushiSkills, reviewed
+on 2026-11-05 as part of J15 (`docs/agent/2026_11_03_INDUSTRIAL_TESTING/` in SushiSkills). The review read
+the code and ran nothing. Each record names the files it read. The tests of the shared checkers under
+`tools/` are reviewed once, in SushiSkills; this report covers this repository's own tests and its own
+checkers' tests.
+
+## What the review found
+
+- **Loops and tolerances.** Nested loops over layout, triangle, transpose, diagonal, mode and batch, and
+  tolerance literals: one chunk alone held 167 literals and 144 loops. `expect_tensor` defaults to a
+  typed `1e-4`; `rotmg` uses a typed `K_TOLERANCE`; `K_ADJOINT_TOLERANCE` covers adjoint identities that
+  are exact on small integers.
+- **Host logic labelled medium:** BLAS scalars, argument checks, scratch sizes, packed plans, planners
+  and decoders decide on values but run through the runtime or a device. A host-callable functor or
+  host-buffer seam lets them run small.
+- **Copies:** the operations tests repeat the promises of the level 1 and level 2 reference tests and of
+  the kernel SYCL tests (36 deletes), and the facade `Simple*` cases repeat operations cases (87 deletes
+  in one chunk). Log-category `static_assert` tests repeat in about 14 modules.
+- **Runtimes per test:** `test_recording_graph.cpp`'s fixture and `expect_chain_matches_scheduler` build
+  their own; `TestEnvironment::runtime()` is the program-wide runtime and the shape to extend.
+- **Benchmarks in the test tree:** six `benchmark_*.cpp` files with no assertion.
+
+## Defects the review found
+
+- `K_GEMM_TILE_TABLE` is `std::array<GemmTileEntry, 0>` (`gemm_tile_table.hpp` line 73), so both
+  tile-table tests can never fail.
+- `AWorkGroupOfPartialSubGroupsIsNeverReturned` asserts the opposite of its name.
+- `Medium_GemmFallbackLog` asserts `EXPECT_LE(count, 1)`, which passes with nothing logged.
+- The syrk test cannot show the packed branch ran (`selects_packed_product`, `packed_product_plan.hpp`
+  line 211).
+- The complex `iamax` case picks index 1 under both abs1 and modulus, so it cannot tell them apart.
+- The reference `roti` test uses `c = 0`, so a defect in the c term survives; `K_MAX_SCATTER_BLOCKS` is
+  never reached.
+- `sycl/test_pool_avg.cpp` claims no rounding but divides by 6; equality holds only because both loops
+  add in one order.
+- Random tests that pass for a constant fill (non-NaN, non-negative, positive only); PTRS count
+  comparisons are bitwise though the device `log` and `lgamma` can flip them.
+- `ForceReferenceRefusesADeviceOnlyOperand` expects `std::invalid_argument`; `operations/blas/README.md`
+  says `UnsupportedExecution`.
+- `tensor_expectations/README.md` says `fill_random` lies in `[min, max]`; the test asserts `< max`.
+- `test_triangular_system.cpp` cites `DESIGN_BLAS_L3` section 7.4, which no file holds; the
+  `graph_primitives` README documents per-test runtimes; the `geometry` README calls the spatial file
+  device-free, yet it is `Medium_`.
+- `test_launch_1d.cpp` and `test_serial_reduce.cpp` copy `SharedArray` instead of including
+  `shared_array.hpp`.
+- `HostDeviceTest::SetUp` builds the queue lazily through a static local, not in a gtest Environment.
+- The sushiblas package prefix is stale for SushiRuntime: `run_observer.hpp` is missing.
+- `tests/README.md` sets 60 s, 300 s and 900 s.
+- `tools/testing/check_test_additions.py` and its test are a leftover: SushiSkills removed the checker in
+  phase B, and the copier never removes a file upstream dropped. Both are deleted.
+- `tools/tests/test_test_budget_settings.py` skips here, since the repository has no `skills/` folder, so
+  its promise is checked nowhere; it also defines `read_budget` and `differences` in the test file.
+
+## The owner's decisions waiting
+
+1. `ForceReferenceRefusesADeviceOnlyOperand`: the page or the code.
+2. `fill_random`'s range: the page or the code.
+3. `multiply_add`, reachable only as `Kernels::Detail`: a public door or not.
+4. Whether a compile check (`spatial.hpp`, a `static_assert` file) counts as a test.
+5. A ceilings source port for the six profiling tests that read the ceilings folder.
+
+## Dispatches
+
+dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
+
+## Totals
+
+| Tests | Keep | Rewrite | Resize | Split | Merge | Delete | Characterize | Add |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2652 | 350 | 1217 | 412 | 204 | 174 | 295 | 0 | 117 |
+
+Kept as they stand: 350 of 2652 (13%).
+
+## Verdicts by question
+
+| Verdict | Question | What it means | Tests |
+| --- | --- | --- | --- |
+| rewrite | 1 | a forbidden kind | 736 |
+| rewrite | 7 | a long-test sign | 420 |
+| resize | 8 | wrong size | 412 |
+| delete | 1 | a forbidden kind | 220 |
+| split | 3 | no single promise | 204 |
+| merge | 4 | a duplicate | 174 |
+| delete | 4 | a duplicate | 68 |
+| rewrite | 6 | oracle is the code | 28 |
+| rewrite | 2 | cannot fail | 21 |
+| delete | 3 | no single promise | 6 |
+| rewrite | 3 | no single promise | 5 |
+| rewrite | 5 | tied to the inside | 5 |
+
+## Modules
+
+| Module | Files | Tests | Keep | Rewrite | Resize | Split | Merge | Delete | Characterize |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `operations/blas` | 53 | 543 | 29 | 327 | 41 | 4 | 16 | 126 | 0 |
+| `engine` | 56 | 308 | 62 | 67 | 70 | 31 | 43 | 35 | 0 |
+| `library` | 13 | 124 | 7 | 63 | 26 | 8 | 4 | 16 | 0 |
+| `operations/elementwise` | 38 | 113 | 3 | 38 | 52 | 6 | 7 | 7 | 0 |
+| `operations/reductions` | 13 | 116 | 13 | 66 | 3 | 12 | 0 | 22 | 0 |
+| `foundation/graph_primitives` | 14 | 106 | 7 | 82 | 10 | 7 | 0 | 0 | 0 |
+| `cli` | 8 | 100 | 6 | 56 | 18 | 1 | 13 | 6 | 0 |
+| `kernels/blas_seam_kernels` | 25 | 123 | 33 | 62 | 14 | 4 | 5 | 5 | 0 |
+| `operations/sparse` | 12 | 82 | 1 | 50 | 6 | 9 | 8 | 8 | 0 |
+| `kernels/blas_kernels` | 56 | 93 | 13 | 55 | 2 | 12 | 1 | 10 | 0 |
+| `tools` | 7 | 78 | 0 | 11 | 37 | 11 | 14 | 5 | 0 |
+| `operations/spatial` | 12 | 78 | 3 | 44 | 17 | 12 | 1 | 1 | 0 |
+| `operations/random` | 11 | 64 | 8 | 32 | 1 | 8 | 11 | 4 | 0 |
+| `data` | 12 | 58 | 3 | 12 | 17 | 22 | 3 | 1 | 0 |
+| `foundation/launch` | 6 | 46 | 8 | 14 | 14 | 1 | 1 | 8 | 0 |
+| `operations/io` | 5 | 35 | 4 | 15 | 8 | 0 | 7 | 1 | 0 |
+| `foundation/geometry` | 6 | 52 | 26 | 15 | 1 | 3 | 2 | 5 | 0 |
+| `kernels/sparse_kernels` | 16 | 33 | 7 | 13 | 1 | 4 | 6 | 2 | 0 |
+| `foundation/core` | 9 | 40 | 15 | 18 | 3 | 1 | 2 | 1 | 0 |
+| `foundation/arithmetic` | 6 | 35 | 11 | 19 | 1 | 3 | 0 | 1 | 0 |
+| `operations/nonlinear` | 10 | 23 | 0 | 22 | 1 | 0 | 0 | 0 | 0 |
+| `foundation/cost` | 4 | 37 | 15 | 5 | 0 | 7 | 6 | 4 | 0 |
+| `operations/index` | 1 | 23 | 2 | 3 | 2 | 3 | 11 | 2 | 0 |
+| `kernels/random_kernels` | 6 | 21 | 1 | 12 | 4 | 2 | 0 | 2 | 0 |
+| `foundation/reference` | 3 | 21 | 2 | 4 | 10 | 1 | 0 | 4 | 0 |
+| `kernels/linalg_kernels` | 7 | 24 | 5 | 14 | 0 | 3 | 1 | 1 | 0 |
+| `operations/experimental` | 3 | 18 | 1 | 6 | 11 | 0 | 0 | 0 | 0 |
+| `foundation/sparse_assembly` | 1 | 16 | 0 | 2 | 14 | 0 | 0 | 0 | 0 |
+| `operations/logic` | 15 | 16 | 0 | 13 | 0 | 2 | 0 | 1 | 0 |
+| `applications` | 6 | 27 | 13 | 3 | 0 | 5 | 4 | 2 | 0 |
+| `kernels/signal_kernels` | 6 | 23 | 9 | 10 | 0 | 0 | 2 | 2 | 0 |
+| `kernels/spatial_kernels` | 19 | 29 | 15 | 6 | 0 | 6 | 0 | 2 | 0 |
+| `operations/benchmark_harness` | 3 | 14 | 0 | 4 | 8 | 2 | 0 | 0 | 0 |
+| `operations/blend` | 1 | 15 | 1 | 11 | 1 | 2 | 0 | 0 | 0 |
+| `foundation/reduction` | 2 | 17 | 4 | 4 | 8 | 1 | 0 | 0 | 0 |
+| `foundation/sparse_fixtures` | 2 | 12 | 2 | 7 | 0 | 2 | 0 | 1 | 0 |
+| `foundation/test_runner` | 4 | 10 | 0 | 6 | 1 | 1 | 1 | 1 | 0 |
+| `foundation/substitution` | 1 | 9 | 0 | 4 | 0 | 0 | 3 | 2 | 0 |
+| `foundation/blas_test_oracle` | 4 | 17 | 9 | 6 | 1 | 1 | 0 | 0 | 0 |
+| `foundation/profile` | 3 | 9 | 1 | 2 | 3 | 0 | 0 | 3 | 0 |
+| `operations/signal` | 1 | 8 | 1 | 5 | 1 | 1 | 0 | 0 | 0 |
+| `foundation/host_device` | 3 | 7 | 1 | 1 | 3 | 1 | 0 | 1 | 0 |
+| `kernels/blend_kernels` | 3 | 11 | 6 | 4 | 0 | 0 | 1 | 0 | 0 |
+| `foundation/orthonormal` | 1 | 3 | 0 | 0 | 0 | 0 | 0 | 3 | 0 |
+| `foundation/serial_reductions` | 1 | 5 | 2 | 0 | 0 | 3 | 0 | 0 | 0 |
+| `foundation/small_integers` | 1 | 3 | 0 | 2 | 0 | 1 | 0 | 0 | 0 |
+| `kernels/packed_product_harness` | 1 | 4 | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
+| `foundation/typed_suite_naming` | 1 | 2 | 0 | 0 | 1 | 0 | 1 | 0 | 0 |
+| `package` | 1 | 1 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+
+## Records
+
+One line per test: `file::test | verdict | question | reason | files read`.
+
+### `cli/tests/test_aliases.py`
+
+```
+test_the_old_word_runs_the_new_command[docs/doxygen] | rewrite | 1 | stand-in service replaces the repository service through cli._service; rewrite through ProjectService on in-memory ports | cli/tests/test_aliases.py; cli/tests/test_cli.py; cli/sushiblas/cli.py; cli/sushiblas/aliases.py
+test_the_old_word_is_absent_from_help | delete | 4 | test_help_screen.py::test_no_command_is_listed_under_a_group_it_does_not_belong_to asserts the grouped set, which leaves doxygen out | cli/tests/test_aliases.py; cli/tests/test_help_screen.py
+test_the_old_word_is_absent_from_describe | delete | 4 | test_cli.py::test_describe_lists_every_visible_command_and_no_hidden_one checks the exact list without doxygen | cli/tests/test_aliases.py; cli/tests/test_cli.py
+test_every_row_names_its_replacement_and_the_shared_date[doxygen] | rewrite | 6 | the expected mapping and date are copied from aliases.py, so the oracle restates the code; rewrite to check the table invariants | cli/tests/test_aliases.py; cli/sushiblas/aliases.py
+test_no_row_has_expired_today | resize | 8 | reads the real clock; K_ALIASES.expired already takes a date, so a small test passes fixed dates | cli/tests/test_aliases.py; cli/sushiblas/aliases.py
+```
+
+### `cli/tests/test_cli.py`
+
+```
+test_main_reports_a_malformed_config_file_as_one_line[config/clean] | resize | 8 | the one-line error is decided on the error value and can be seen small; the exit code through main stays a medium boundary; the fixture reloads the console module | cli/tests/test_cli.py; cli/sushiblas/cli.py; cli/sushiblas/config.py
+test_main_falls_back_from_an_unknown_theme_with_one_warning[config/clean] | resize | 8 | the single warning is decided on the theme value and can be seen small; the fixture reloads the console module | cli/tests/test_cli.py; cli/sushiblas/cli.py
+test_main_exits_zero_after_a_command_that_succeeds | keep | 9 | the exit code through main is a process boundary and cannot be seen smaller; clean runs on a temporary tree | cli/tests/test_cli.py; cli/sushiblas/cli.py
+test_version_prints_the_distribution_and_its_version | rewrite | 6 | the oracle is version_line, the function sb delegates to; the expected value must name sushiblas-cli and the version literally | cli/tests/test_cli.py; D:/Projects/sushicore/source/sushicore/root_options.py
+test_describe_lists_every_visible_command_and_no_hidden_one | resize | 8 | help-only check; small | cli/tests/test_cli.py; cli/sushiblas/cli.py
+test_env_takes_the_short_form_of_all | resize | 8 | help-only check; small | cli/tests/test_cli.py
+test_config_and_env_are_not_declared_in_this_package | delete | 1 | change detector: asserts the module that defines each command; the promise that config and env exist is tested in test_describe_lists_every_visible_command_and_no_hidden_one | cli/tests/test_cli.py
+test_docs_runs_the_api_build_and_bundle_is_its_subcommand | rewrite | 1 | stand-in _DocsService replaces the repository service through cli._service and find_project_root is patched; three promises in one test, so split in the rewrite | cli/tests/test_cli.py; cli/sushiblas/cli.py; cli/sushiblas/services/project.py
+test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in | rewrite | 1 | replaces cli.console with a SimpleNamespace stand-in; the rewrite needs an in-memory sink of the sushicore console, not confirmed to exist there | cli/tests/test_cli.py; cli/sushiblas/cli.py
+test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder | rewrite | 1 | patches cli.find_project_root and builds the expected folder by parsing the Doxyfile in the test; rewrite with a literal oracle build/docs/api-site/xml under a temporary root | cli/tests/test_cli.py; cli/sushiblas/cli.py; .config/doxygen/Doxyfile
+```
+
+### `cli/tests/test_config.py`
+
+```
+test_find_project_root_raises_outside_checkout | delete | 4 | root search belongs to sushicore; its test_module_config.py covers the no-marker case; this copy walks the real ancestors of the temporary folder | cli/tests/test_config.py; cli/sushiblas/config.py; D:/Projects/sushicore/tests/test_module_config.py
+test_find_project_root_walks_up_to_marker | delete | 4 | sushicore test_module_config.py covers marker discovery (test_a_root_marker_alone_marks_a_source_root, test_presence_falls_back_to_the_discovered_root) | cli/tests/test_config.py; cli/sushiblas/config.py; D:/Projects/sushicore/tests/test_module_config.py
+test_config_dir_prefers_cli | merge | 4 | with test_config_dir_defaults_to_cli_when_absent: same promise with config.toml present; one row table; the name claims a preference that no test checks | cli/tests/test_config.py; cli/sushiblas/config.py
+test_config_dir_defaults_to_cli_when_absent | merge | 4 | with test_config_dir_prefers_cli: same promise with config.toml absent; the merged medium test keeps the file-existence boundary | cli/tests/test_config.py; cli/sushiblas/config.py
+```
+
+### `cli/tests/test_console_lazy.py`
+
+```
+test_import_does_not_build_console | merge | 4 | with test_import_outside_project_does_not_raise: same built-flag promise with another working folder | cli/tests/test_console_lazy.py; cli/sushiblas/console.py; cli/sushiblas/config.py
+test_import_outside_project_does_not_raise | resize | 8 | reloads the process-wide console module and changes the working folder; seam is LazyConsole(config_dir) built with a fake config_dir; holds the merged rows | cli/tests/test_console_lazy.py; cli/sushiblas/console.py; cli/sushiblas/config.py
+test_output_helper_falls_back_outside_project | resize | 8 | reloads the process-wide console and prints through it; seam is a LazyConsole over a folder with no config files | cli/tests/test_console_lazy.py; cli/sushiblas/console.py
+test_sources_inside_project_are_this_repos_config | resize | 8 | depends on the process working folder; seam is a LazyConsole given this CLI cli folder | cli/tests/test_console_lazy.py; cli/sushiblas/console.py; cli/sushiblas/config.py
+test_console_attribute_resolves | resize | 8 | reloads the process-wide module and changes the working folder; seam is LazyConsole.attribute on a fresh instance | cli/tests/test_console_lazy.py; cli/sushiblas/console.py
+test_unknown_attribute_raises_attribute_error | resize | 8 | reloads the process-wide module; seam is LazyConsole.attribute on a fresh instance | cli/tests/test_console_lazy.py; cli/sushiblas/console.py
+```
+
+### `cli/tests/test_help_screen.py`
+
+```
+test_root_help_lists_the_three_groups_in_order | keep | 9 | none of questions 1 to 8 applies; the order check fails when the group order changes | cli/tests/test_help_screen.py
+test_every_command_sits_under_its_own_group[Project/Diagnostics/Documentation] | merge | 4 | with test_no_command_is_listed_under_a_group_it_does_not_belong_to, whose set equality subsumes it | cli/tests/test_help_screen.py
+test_no_command_is_listed_under_a_group_it_does_not_belong_to | keep | 9 | holder of the grouping rows; none of questions 1 to 8 applies to the set check | cli/tests/test_help_screen.py
+test_a_command_help_carries_examples | merge | 4 | with test_every_command_help_ends_with_examples; the exact example wording is not a promise | cli/tests/test_help_screen.py
+test_a_command_with_arguments_carries_examples | merge | 4 | with test_every_command_help_ends_with_examples; the exact example wording is not a promise | cli/tests/test_help_screen.py
+test_every_command_help_ends_with_examples[13 commands] | rewrite | 3 | the name says the help ends with examples; the assertion only checks that Examples appears; rename or assert the position | cli/tests/test_help_screen.py
+test_no_source_string_names_a_raw_colour | resize | 8 | the input is every source file of the package; the smallest reach is a checker under tools/, not a unit test | cli/tests/test_help_screen.py; cli/sushiblas/
+```
+
+### `cli/tests/test_library_packages.py`
+
+```
+test_a_debug_build_asks_for_the_release_closure_with_its_compiler | rewrite | 1 | parts fixture uses the _Config stand-in in place of the repository Config type; rewrite with a real Config and an in-memory package resolver port, which sb does not yet have | cli/tests/test_library_packages.py; cli/sushiblas/config.py; cli/sushiblas/services/library_packages.py
+test_a_relwithdebinfo_build_asks_for_its_own_kind_of_closure | rewrite | 1 | same parts fixture stand-in; rewrite as rows with the debug case | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py
+test_a_thread_sanitizer_build_asks_for_instrumented_packages | rewrite | 1 | same parts fixture stand-in; the option mapping is pure and belongs to a small test of package_options | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py
+test_a_distributed_thread_sanitizer_build_keeps_the_distributed_flag | rewrite | 1 | same parts fixture stand-in; the mapping is pure and belongs to package_options rows | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py
+test_an_address_sanitizer_build_still_links_release_packages | rewrite | 1 | same parts fixture stand-in; rows with the debug case | cli/tests/test_library_packages.py
+test_a_distributed_build_builds_the_runtime_package_distributed | rewrite | 1 | same parts fixture stand-in; the mapping is pure and belongs to package_options rows | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py
+test_a_build_that_leaves_distributed_out_keeps_what_the_tree_has | rewrite | 1 | parts fixture stand-in; keep the CMakeCache boundary in the rewrite | cli/tests/test_library_packages.py; cli/sushiblas/services/project.py
+test_the_configure_passes_each_package_and_no_checkout_directory | rewrite | 1 | parts fixture stand-in for Config; the driver double is sushicore's port, not the repository's | cli/tests/test_library_packages.py; cli/sushiblas/services/project.py
+test_the_run_dirs_lead_the_search_path_of_the_build_and_of_a_later_run | rewrite | 1 | parts fixture stand-in for Config; keep the run-folder file boundary in the rewrite | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py
+test_the_windows_run_dirs_lead_path | resize | 8 | pure edit of a dict with a Config built in memory; small | cli/tests/test_library_packages.py; cli/sushiblas/services/library_packages.py; cli/sushiblas/config.py
+test_a_lean_build_leaves_out_the_tests_the_examples_and_the_benchmarks | rewrite | 1 | parts fixture stand-in for Config; rows with the plain build case | cli/tests/test_library_packages.py; cli/sushiblas/services/project.py
+test_a_plain_build_asks_for_the_tests_and_the_examples | rewrite | 1 | parts fixture stand-in for Config; rows with the lean build case | cli/tests/test_library_packages.py
+test_lean_refuses_the_benchmarks | rewrite | 1 | parts fixture stand-in for Config; the refusal is a check on two flags and can be a small test once it is a pure function | cli/tests/test_library_packages.py; cli/sushiblas/services/project.py
+test_the_build_command_forwards_the_tree_and_lean | rewrite | 1 | monkeypatches cli._service and cli.console, both the repository's; rewrite through ProjectService on in-memory ports | cli/tests/test_library_packages.py; cli/sushiblas/cli.py
+test_the_package_command_is_registered_with_its_options | resize | 8 | help-only check; small | cli/tests/test_library_packages.py
+test_the_compiler_the_environment_names_outranks_the_pinned_one | resize | 8 | pure: Config(cxx, stack_cxx).resolved_compiler; the name says environment but no environment is read; rename and make small | cli/tests/test_library_packages.py; cli/sushiblas/config.py
+test_load_config_reads_the_stack_compiler_from_the_environment | rewrite | 1 | replaces config._MODULE, a repository object, with a stand-in; rewrite with the real module over a temporary checkout | cli/tests/test_library_packages.py; cli/sushiblas/config.py
+test_the_fragment_names_the_cli | keep | 9 | reads the manifest file; the file is the boundary and no other test checks the cli field | cli/tests/test_library_packages.py; cli/sushistack.deps.toml
+test_the_dependency_fragment_names_the_three_libraries_of_the_closure | split | 3 | the closure set and the pin format are two promises; the loop over libraries in the body becomes rows | cli/tests/test_library_packages.py; cli/sushistack.deps.toml
+```
+
+### `cli/tests/test_project.py`
+
+```
+test_build_says_it_replaces_a_tree_of_another_generator | rewrite | 1 | parts fixture uses the _Config stand-in in place of the repository Config type | cli/tests/test_project.py; cli/sushiblas/services/project.py; cli/sushiblas/config.py
+test_build_removes_nothing_when_there_is_no_tree | rewrite | 1 | same parts fixture stand-in | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_rejects_a_bad_define_before_touching_the_tree | rewrite | 1 | same parts fixture stand-in; define validation is pure and can be a small test | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_appends_defines_after_every_default | rewrite | 1 | same parts fixture stand-in | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_passes_the_benchmarks_switch_as_a_cache_variable[True/False/None] | rewrite | 1 | same parts fixture stand-in; the flag mapping is pure and gets its own small rows | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_lets_a_caller_define_outrank_the_benchmarks_switch | rewrite | 1 | same parts fixture stand-in; a row of the defines-after-defaults promise | cli/tests/test_project.py
+test_build_passes_the_sanitizer_set_as_a_cache_variable[4] | rewrite | 1 | same parts fixture stand-in; the flag mapping is pure | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_hands_the_jobs_to_the_compile | rewrite | 1 | same stand-in config; two builds in one test, so split in the rewrite | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_the_default_build_type_is_debug | delete | 1 | forbidden default-value check; the CLI default is checked by test_build_command_defaults_to_debug_and_forwards_the_report_option | cli/tests/test_project.py
+test_the_tree_directory_follows_the_type_and_the_sanitizer[6 cases] | resize | 8 | pure path arithmetic on TreeChoice with literal expected paths; small | cli/tests/test_project.py; cli/sushiblas/services/tree_choice.py
+test_the_build_directory_override_names_the_tree | merge | 4 | with test_the_tree_directory_follows_the_type_and_the_sanitizer: same directory function, the override input | cli/tests/test_project.py; cli/sushiblas/services/tree_choice.py
+test_build_configures_the_tree_of_its_type[Debug/Release] | rewrite | 1 | _compiling_service uses the stand-in config | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_refuses_to_configure_a_tree_of_another_type | rewrite | 1 | _compiling_service uses the stand-in config; keep the cache-file boundary | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_refuses_a_define_that_sets_the_build_type | rewrite | 1 | _compiling_service uses the stand-in config | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_refuses_while_the_memory_gate_is_stopped | rewrite | 1 | _compiling_service uses the stand-in config; keep the stop-file boundary | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_configure_carries_both_gate_launchers | rewrite | 1 | _compiling_service uses the stand-in config; the oracle is sushicore launcher_defines, the helper the code also uses, so the rewrite needs literal names | cli/tests/test_project.py; D:/Projects/sushicore/source/sushicore/build_admission.py
+test_build_prints_and_writes_the_report_on_request | rewrite | 1 | stand-in config; two builds in one test, so split in the rewrite | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default | rewrite | 1 | parts fixture stand-in config, which test() reads for the run environment | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_test_passes_no_exclusion_when_quarantined_is_named | merge | 4 | with test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default: same selection with a named quarantined label | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_test_hands_the_jobs_to_ctest | rewrite | 1 | parts fixture stand-in config; two calls in one test, so split in the rewrite | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_test_cli_runs_pytest_with_the_marker_expression | rewrite | 7 | the config field of the fixture is not used by test_cli; the subprocess boundary stays in the rewrite | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_build_command_forwards_the_benchmarks_option[3 cases] | rewrite | 1 | monkeypatches cli._service and cli.console, both the repository's; rewrite through ProjectService on in-memory ports | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_build_command_defaults_to_debug_and_forwards_the_report_option | rewrite | 1 | monkeypatches cli._service and cli.console | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_build_command_forwards_the_jobs_option[2 cases] | merge | 4 | with test_build_command_forwards_the_benchmarks_option: same forwarding, another option; one rows test in the rewrite | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_build_command_forwards_the_distributed_option[3 cases] | merge | 4 | with test_build_command_forwards_the_benchmarks_option: same forwarding, another option | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_distributed_flags_switch_the_cluster_module | resize | 8 | pure function distributed_flags; small | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_clean_reports_a_removed_tree | merge | 4 | with test_clean_reports_a_missing_tree: same CleanResult promise with the tree present; one rows test | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_clean_reports_a_missing_tree | merge | 4 | with test_clean_reports_a_removed_tree: same CleanResult promise with the tree absent | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_clean_raises_when_the_tree_remains | rewrite | 7 | the parts fixture config is unused by clean, which reads only the root; a fixture field is a sign; the rmtree patch is on the standard library module, which is allowed | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_clean_command_exits_one_when_the_tree_remains | rewrite | 1 | monkeypatches cli._service and cli.console, both the repository's | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_run_returns_the_exit_code_of_the_child | rewrite | 1 | parts fixture stand-in config, which run() reads for the target | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_run_raises_for_a_target_that_matches_nothing | rewrite | 1 | parts fixture stand-in config, which run() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_run_raises_without_a_build_tree | rewrite | 1 | parts fixture stand-in config, which run() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_run_command_rejects_a_mistyped_option[3 cases] | rewrite | 1 | monkeypatches cli._service to fail if reached; the stub is a repository function; rewrite asserts only exit 2 through the real command | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_test_command_refuses_options_that_do_not_apply[6 cases] | rewrite | 1 | monkeypatches cli._service to fail if reached; rewrite asserts only exit 2 | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_docs_creates_the_site_folder_under_the_build_tree | rewrite | 1 | parts fixture stand-in config, which docs() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_an_interrupted_child_ends_in_exit_code_130 | keep | 9 | the Runner is built with catch_interrupt as sb builds it; the console is sushicore's port; no other test checks the interrupt wiring | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_raises_when_no_benchmark_program_is_built | rewrite | 1 | parts fixture stand-in config, which bench() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_runs_every_benchmark_program_in_name_order | rewrite | 1 | parts fixture stand-in config, which bench() reads; keep the folder listing boundary | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_runs_the_named_scenario_benchmark_with_the_forwarded_options | rewrite | 1 | parts fixture stand-in config, which bench() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_raises_for_a_scenario_benchmark_that_matches_nothing | rewrite | 1 | parts fixture stand-in config, which bench() reads | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_finds_the_release_tree_unless_told_another | rewrite | 1 | parts fixture stand-in config | cli/tests/test_project.py; cli/sushiblas/services/project.py
+test_bench_command_forwards_the_name_and_the_options_after_the_separator | rewrite | 1 | monkeypatches cli._service and cli.console | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_bench_command_without_a_name_runs_every_program | merge | 4 | with test_bench_command_forwards_the_name_and_the_options_after_the_separator: same forwarding with no name | cli/tests/test_project.py; cli/sushiblas/cli.py
+test_bench_command_rejects_options_that_belong_to_no_benchmark[2 cases] | rewrite | 1 | monkeypatches cli._service to fail if reached; rewrite asserts only exit 2 | cli/tests/test_project.py; cli/sushiblas/cli.py
+```
+
+### `cli/tests/test_provision_commands.py`
+
+```
+test_the_four_provision_commands_are_registered | resize | 8 | help-only check of the app; small is the size that sees it, as test_help_screen.py already does | cli/tests/test_provision_commands.py; cli/tests/test_help_screen.py
+test_setup_takes_the_shared_options | resize | 8 | help-only check; small | cli/tests/test_provision_commands.py
+test_config_is_a_provision_config | rewrite | 5 | the assertion is issubclass, so an internal change such as composition breaks it while the field promise is never checked; rewrite to check the fields | cli/tests/test_provision_commands.py; cli/sushiblas/config.py
+test_setup_stops_when_the_runtime_checkout_is_missing | keep | 9 | the decision reads the sibling checkout on disk, so a file boundary is the smallest size that sees it; no other test checks it | cli/tests/test_provision_commands.py; cli/sushiblas/config.py; cli/tests/conftest.py
+```
+
+### `tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp`
+
+```
+Small_CeilingsOptions.NoArgumentGivesTheDefaultProtocol | keep | 9 | none of questions 1 to 8 applies; defaults match the header | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.EveryOptionTakesItsValue | keep | 9 | one action, one promise; each field checked against its option | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.HelpIsNotAnError | rewrite | 3 | the name says not an error while the body asserts ok is false; the header says ok is false when help is asked; rename to what is asserted | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.RefusesAnUnknownOption | keep | 9 | none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.RefusesAnOptionWithNoValue | keep | 9 | none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.RefusesAValueOutsideTheRange | rewrite | 7 | seven calls of one promise in one body; rows over option and value | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+Small_CeilingsOptions.AWarmupOfZeroIsAccepted | keep | 9 | boundary value of warmup; none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_ceilings_options.cpp; applications/benchmarks/device_ceilings/ceilings_options.hpp
+```
+
+### `tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp`
+
+```
+Small_CeilingsStatistics.TheMedianOfAnOddCountIsTheMiddleValue | merge | 4 | with TheMedianOfAnEvenCountIsTheMeanOfTheMiddlePair: same median promise with other inputs; one row table | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+Small_CeilingsStatistics.TheMedianOfAnEvenCountIsTheMeanOfTheMiddlePair | merge | 4 | with TheMedianOfAnOddCountIsTheMiddleValue: same median promise with other inputs | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+Small_CeilingsStatistics.TheSpreadIsTheRangeOverTheMedian | keep | 9 | holder of the spread rows; none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+Small_CeilingsStatistics.ASingleRunHasNoSpread | merge | 4 | with TheSpreadIsTheRangeOverTheMedian: same spread promise with one run | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+Small_CeilingsStatistics.NoRunGivesAZeroResult | keep | 9 | empty input is its own promise; none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+Small_CeilingsStatistics.AZeroMedianHasNoSpread | merge | 4 | with TheSpreadIsTheRangeOverTheMedian: same spread promise with a zero median | tests/applications/benchmarks/device_ceilings/test_ceilings_statistics.cpp; applications/benchmarks/device_ceilings/ceilings_statistics.hpp
+```
+
+### `tests/applications/benchmarks/device_ceilings/test_device_meter.cpp`
+
+```
+Medium_DeviceMeter.TheF32ComputeCeilingIsPositiveAndFinite | split | 3 | the name joins positive and finite, which can break apart; the runs count is a third check; one test per property | tests/applications/benchmarks/device_ceilings/test_device_meter.cpp; applications/benchmarks/device_ceilings/device_meter.hpp
+Medium_DeviceMeter.TheBandwidthIsPositiveAndFinite | split | 3 | the name joins positive and finite; split into the two properties | tests/applications/benchmarks/device_ceilings/test_device_meter.cpp; applications/benchmarks/device_ceilings/device_meter.hpp
+Medium_DeviceMeter.TheLaunchFloorIsNotNegative | keep | 9 | device measurement boundary; none of questions 1 to 8 applies; the oracle is a bare bound and is weak | tests/applications/benchmarks/device_ceilings/test_device_meter.cpp; applications/benchmarks/device_ceilings/device_meter.hpp
+Medium_DeviceMeter.F32IsAlwaysSupported | keep | 9 | device query boundary; none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_device_meter.cpp; applications/benchmarks/device_ceilings/device_meter.hpp
+Medium_DeviceMeter.EveryComputeKindHasAName | delete | 1 | forbidden trivial check of an enumerator-to-string table; no behaviour is checked | tests/applications/benchmarks/device_ceilings/test_device_meter.cpp; applications/benchmarks/device_ceilings/device_meter.hpp
+```
+
+### `tests/applications/benchmarks/device_ceilings/test_span_observer.cpp`
+
+```
+Small_SpanObserver.TheSpanRunsFromTheFirstStartToTheLastEnd | keep | 9 | none of questions 1 to 8 applies; pure over literal records | tests/applications/benchmarks/device_ceilings/test_span_observer.cpp; applications/benchmarks/device_ceilings/span_observer.hpp
+Small_SpanObserver.TakingTheSpanForgetsIt | keep | 9 | none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_span_observer.cpp; applications/benchmarks/device_ceilings/span_observer.hpp
+Small_SpanObserver.ARunWithNoDispatchHasNoSpan | keep | 9 | none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_span_observer.cpp; applications/benchmarks/device_ceilings/span_observer.hpp
+Small_SpanObserver.TheLastRunReplacesTheOneBefore | keep | 9 | none of questions 1 to 8 applies | tests/applications/benchmarks/device_ceilings/test_span_observer.cpp; applications/benchmarks/device_ceilings/span_observer.hpp
+```
+
+### `tests/applications/examples/adapter/test_host_program.cpp`
+
+```
+Small_HostProgram.EveryStatusCodeHasItsOwnName | split | 3 | two promises: the names are distinct, and the default Status is Ok with no message; the loop over codes becomes rows | tests/applications/examples/adapter/test_host_program.cpp; applications/examples/adapter/host_program.hpp
+Medium_HostProgram.MultiplyAddGivesTheShiftedProductAndItsSum | split | 3 | the name joins the product and its sum, which can break apart; split into two tests | tests/applications/examples/adapter/test_host_program.cpp; applications/examples/adapter/sushiblas_adapter.cpp; applications/examples/adapter/host_program.hpp
+Medium_HostProgram.MismatchedShapesAreAnInvalidRequest | delete | 4 | gemm refusal is tested by tests/operations/blas/test_blas/test_blas_validation.cpp::GemmRejectsInnerDimensionMismatch; the invalid_argument to InvalidRequest mapping is tested by test_status_mapping.cpp::TheGuardNamesTheExceptionItCaught | tests/applications/examples/adapter/test_host_program.cpp; applications/examples/adapter/sushiblas_adapter.cpp; tests/operations/blas/test_blas/test_blas_validation.cpp
+```
+
+### `tests/applications/examples/adapter/test_status_mapping.cpp`
+
+```
+Medium_StatusMapping.EveryRuntimeErrorHasAHostStatus | split | 3 | two promises: the code mapping and the message kept; covers 6 of 11 codes, so the rewrite needs the five missing ones | tests/applications/examples/adapter/test_status_mapping.cpp; applications/examples/adapter/status_mapping.hpp
+Medium_StatusMapping.TheGuardNamesTheExceptionItCaught | rewrite | 7 | several exception types in one body; rows over exception type; the thrower bodies are callables, not ports, so no in-memory adapter applies | tests/applications/examples/adapter/test_status_mapping.cpp; applications/examples/adapter/status_mapping.hpp
+```
+
+### `tests/data/sparse_storage/test_sparse_builder.cpp`
+
+```
+Medium_SparseBuilder/TheSampleTripletsGiveTheSampleMatrixUnderBothBases | rewrite | 7 | loops over the two bases in the body; rows over base | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp; modules/data/sparse_storage/include/SushiBLAS/sparse_storage/sparse_builder.hpp
+Medium_SparseBuilder/TheThreeTensorsHaveRankOneAndTheDtypesOfTheirHostTypes | split | 3 | the name joins rank and dtypes, two results that can break apart | tests/data/sparse_storage/test_sparse_builder.cpp
+Medium_SparseBuilder/EntriesGivenTwiceAsHalvesGiveTheSameSevenEntries | rewrite | 7 | the loop builds the doubled input in the body; a builder replaces it | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilder/AMatrixWithoutEntriesHasNoValueStorage | split | 3 | two promises: no value storage, and row offsets at the first index; the loop over bases becomes rows | tests/data/sparse_storage/test_sparse_builder.cpp
+Medium_SparseBuilder/ADenseTensorCompressesToTheSampleInEitherLayout | rewrite | 7 | loops over layouts, bases and index widths in the body; rows | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilder/ADenseTensorDropsANegativeZeroAndKeepsANaN | split | 3 | the name joins two results: negative zero dropped, NaN kept | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilder/ADenseTensorWithoutElementsGivesAMatrixWithoutEntries | rewrite | 7 | two calls, zero rows and zero columns, in one body; rows | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilder/ASparseVectorHoldsItsPositionsAndValues | split | 3 | the name joins positions and values; the loop over bases and entries becomes rows | tests/data/sparse_storage/test_sparse_builder.cpp
+Medium_SparseBuilder/VectorArraysOfDifferentLengthsThrow | resize | 8 | the length check runs before any allocation, but the builder needs a TensorFactory over the device runtime; seam is a host-only check of the two counts | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/include/SushiBLAS/sparse_storage/sparse_builder.hpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilder/ARepeatedVectorPositionThrows | resize | 8 | the decision is in Sparse::require_distinct_positions, named in the header; a small test of that function is the smallest reach; this test keeps only the wiring | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/include/SushiBLAS/sparse_storage/sparse_builder.hpp
+Medium_SparseBuilderRules.ADenseTensorLargerThanOneTransferKeepsEveryEntry | rewrite | 7 | loop builds the 3000 by 2000 input in the body; a builder replaces the loop; keep the device transfer boundary | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.ADenseTensorOfRankOneThrows | resize | 8 | the rank check reads metadata only, but the test reaches a device through the factory; seam is a metadata-only Tensor, since rank is tested before storage | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.ADenseTensorOfIntegersThrows | resize | 8 | the dtype check comes after the storage check, so the test needs storage and a device; seam is a metadata-only tensor or the dtype check moved earlier | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.AFloatingPointIndexDtypeThrows | resize | 8 | the index-dtype check comes after the storage check; seam as for the integers test | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.AStridedDenseViewThrows | resize | 8 | the contiguity check comes after the storage check; seam as above | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.AnIndexBaseOutsideTheEnumerationThrows | split | 3 | one promise over three entry points; one test per call | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+Medium_SparseBuilderRules.TheDeviceIndexReachesTheStorageOfEveryTensor | split | 3 | two builds, a matrix and a vector, in one test; split | tests/data/sparse_storage/test_sparse_builder.cpp
+Medium_SparseBuilderRules.ADeviceIndexPastTheLastThrows | resize | 8 | the device count comes from the process-wide runtime; seam is a device count port | tests/data/sparse_storage/test_sparse_builder.cpp; modules/data/sparse_storage/source/sparse_builder.cpp
+```
+
+### `tests/data/sparse_storage/test_sparse_matrix.cpp`
+
+```
+Medium_SparseMatrix.ADefaultMatrixIsEmptyAndZeroBased | resize | 8 | a default matrix needs no device; small | tests/data/sparse_storage/test_sparse_matrix.cpp
+Medium_SparseMatrix.ReadsItsCountAndDtypesFromItsTensors | split | 3 | the name joins count and dtypes | tests/data/sparse_storage/test_sparse_matrix.cpp
+```
+
+### `tests/data/sparse_storage/test_sparse_vector.cpp`
+
+```
+Medium_SparseVector.ADefaultVectorIsEmptyAndZeroBased | resize | 8 | a default vector needs no device; small | tests/data/sparse_storage/test_sparse_vector.cpp
+Medium_SparseVector.ReadsItsCountAndDtypesFromItsTensors | split | 3 | the name joins count and dtypes | tests/data/sparse_storage/test_sparse_vector.cpp
+```
+
+### `tests/data/tensor/test_host_data_type.cpp`
+
+```
+Medium_HostDataType.EachHostTypeHasItsDataType | resize | 8 | compile-time mapping with no device; small | tests/data/tensor/test_host_data_type.cpp; modules/data/tensor/include/SushiBLAS/tensor/host_data_type.hpp
+Medium_HostDataType.TheDataTypeHasTheSizeOfItsHostType | resize | 8 | sizeof comparison with no device; small | tests/data/tensor/test_host_data_type.cpp
+```
+
+### `tests/data/tensor/test_storage.cpp`
+
+```
+Medium_Storage.RoundsItsSizeUpToTheAlignment | resize | 8 | rounding is inline in the Storage constructor after device allocation (storage.hpp lines 86-87); seam is a host function for the rounding, then small | tests/data/tensor/test_storage.cpp; modules/data/tensor/include/SushiBLAS/tensor/storage.hpp
+Medium_Storage.ItsAllocationIsAligned | keep | 9 | the address of a device allocation is the boundary; none of questions 1 to 8 applies | tests/data/tensor/test_storage.cpp; modules/data/tensor/include/SushiBLAS/tensor/storage.hpp
+Medium_Storage.ReportsItsResidencyDeviceAndQueue | keep | 9 | device and queue identity is the boundary | tests/data/tensor/test_storage.cpp; modules/data/tensor/include/SushiBLAS/tensor/storage.hpp
+Medium_Storage.RefusesAnEmptyRequestAndADeviceItDoesNotHave | split | 3 | the name joins an empty request and a missing device: two refusals | tests/data/tensor/test_storage.cpp
+Medium_Storage.ReturnsItsAllocationWhenTheLastHandleGoes | keep | 9 | device allocation lifetime is the boundary; live count from the test environment | tests/data/tensor/test_storage.cpp; modules/data/tensor/include/SushiBLAS/tensor/storage.hpp
+Medium_Storage.ABorrowedStorageViewsTheOwnersMemoryWithoutAllocating | split | 3 | the no-allocation view and the view size, residency, device and queue are separate promises | tests/data/tensor/test_storage.cpp
+Medium_Storage.AnOwnedStorageIsNotBorrowedAndWatchesNoOwner | split | 3 | the name joins not borrowed and liveness | tests/data/tensor/test_storage.cpp
+Medium_Storage.ABorrowedStorageWatchesTheOwnerAndLeavesItsMemoryAlone | split | 3 | the name joins liveness and memory left alone | tests/data/tensor/test_storage.cpp
+Medium_Storage.ABorrowedStorageRefusesAnEmptyOrMisalignedBuffer | rewrite | 7 | two refused buffers in one body; rows over the bad request | tests/data/tensor/test_storage.cpp
+Medium_Storage.ATensorOverABorrowedStorageIsHeldToTheBufferSize | merge | 4 | with tests/data/tensor/test_tensor.cpp::Medium_Tensor.CountsItsElementsAndChecksItsCapacity: same capacity promise over a borrowed storage; one row table | tests/data/tensor/test_storage.cpp; tests/data/tensor/test_tensor.cpp
+```
+
+### `tests/data/tensor/test_tensor.cpp`
+
+```
+Medium_Tensor.RowMajorStridesRunFromTheLastAxis | merge | 4 | with ColumnMajorTransposesTheMatrixAxesOnly: same layout-stride promise with other layouts; one rows test | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.ColumnMajorTransposesTheMatrixAxesOnly | merge | 4 | with RowMajorStridesRunFromTheLastAxis: same promise with another layout | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.StridesRefuseANegativeDimensionAndTooManyAxes | split | 3 | the name joins two refusals | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.CountsItsElementsAndChecksItsCapacity | split | 3 | the name joins counts and the capacity refusal | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.ATransposeSwapsShapeAndStridesAndIsNotContiguous | split | 3 | the name joins shape, strides and contiguity | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.ASliceMovesTheOffsetAndKeepsTheStrides | split | 3 | the name joins offset and strides | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.AReshapeKeepsTheElementsOfAContiguousTensor | split | 3 | the element-keeping reshape and the size-change refusal are two promises | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.TheElementSpanOfAViewReachesItsLastElement | resize | 8 | element_span is arithmetic on metadata; a small test needs a Tensor without storage, which the header must allow (not confirmed) | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_Tensor.ATensorWithoutStorageHasNoData | split | 3 | the name is one promise; the device throw is a second promise | tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+```
+
+### `tests/data/tensor/test_tensor_factory.cpp`
+
+```
+Medium_TensorFactory.KeepsItsRuntimeAndLayout | split | 3 | the name joins runtime and layout | tests/data/tensor/test_tensor_factory.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp
+Medium_TensorFactory.AllocationBytesIsTheElementCountTimesTheElementSize | rewrite | 7 | three inputs of one promise in one body (product, zero extent, negative extent); rows; the function is static, so the rows are small | tests/data/tensor/test_tensor_factory.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp
+Medium_TensorFactory.CreatesATensorOfItsLayoutAndTheGivenType | split | 3 | the name joins layout and type; the storage size is a third check | tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactory.ATensorWithoutElementsHasNoStorage | split | 3 | no storage and the kept shape are two promises | tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactory.PlacesTheStorageOnTheGivenDeviceAndResidency | split | 3 | the name joins device and residency | tests/data/tensor/test_tensor_factory.cpp
+```
+
+### `tests/data/tensor/test_tensor_log_category.cpp`
+
+```
+Small_TensorLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | static_assert run as a test of a constant; forbidden kind | tests/data/tensor/test_tensor_log_category.cpp
+```
+
+### `tests/data/tensor_expectations/test_scalar_dtype.cpp`
+
+```
+Medium_ScalarDtype.NamesEveryElementType | resize | 8 | sushiblas_dtype maps each type; it touches no device, file or clock, so Small_ sees it; tests/README.md puts type checks in Small_ | tests/data/tensor_expectations/test_scalar_dtype.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/scalar_dtype.hpp; tests/README.md
+```
+
+### `tests/data/tensor_expectations/test_tensor_comparison.cpp`
+
+```
+Medium_TensorComparison.AcceptsValuesWithinTheTolerance | rewrite | 1 | forbidden kind: bare tolerance literal (1e-4 in EXPECT_TENSOR_NEAR); only test of expect_tensor accepting a value within tolerance; its second half (SB_ASSERT_TENSOR_NEAR at zero tolerance) is a second promise, split in the rewrite | tests/data/tensor_expectations/test_tensor_comparison.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_TensorComparison.ReportsAValueOutsideTheTolerance | rewrite | 1 | forbidden kind: bare tolerance literal (1e-4); only test that expect_tensor reports a value outside its tolerance, with the index | tests/data/tensor_expectations/test_tensor_comparison.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_TensorComparison.ANaNMatchesOnlyANaN | resize | 8 | promise: a NaN expectation matches only a NaN element; the decision is host logic in Detail::expect_scalar_near, reached only through a device copy in compare_host_elements; seam: a public host-side comparison of values, then Small_ | tests/data/tensor_expectations/test_tensor_comparison.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_TensorComparison.AnInfinityMatchesOnlyItself | resize | 8 | promise: an infinite expectation matches only the same infinity; same logic and seam as ANaNMatchesOnlyANaN | tests/data/tensor_expectations/test_tensor_comparison.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+```
+
+### `tests/data/tensor_expectations/test_tensor_fill.cpp`
+
+```
+Medium_TensorFill.ConvertsTheValuesToTheTensorsDtype | resize | 8 | promise: fill_tensor converts values to the tensor's dtype; the cast per dtype is host logic in a switch reached through the shared queue; seam: a host function returning the typed vector, then Small_; the test checks three of eight dtypes, the rest are adds | tests/data/tensor_expectations/test_tensor_fill.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_TensorFill.FillRandomStaysInRangeAndRepeatsFromItsSeed | rewrite | 1 | forbidden kind: control flow in the body (the EXPECT_GE and EXPECT_LT loop); it states two promises, split in the rewrite; EXPECT_LT contradicts modules/data/tensor_expectations/README.md, which says floating values lie in the closed range [min, max], so the owner decides the contract; the test also reaches the process-wide generator through reset_fill_random_generator | tests/data/tensor_expectations/test_tensor_fill.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp; modules/data/tensor_expectations/README.md
+```
+
+### `tests/data/tensor_expectations/test_tensor_readback.cpp`
+
+```
+Medium_TensorReadback.CopiesTheElementsOut | rewrite | 7 | setup sign: eight lines (factory, dims, create, values, memcpy) for a one-line check; the existing builder is fill_tensor in tensor_fill.hpp; Medium stays, because the device to host copy is the boundary the promise names | tests/data/tensor_expectations/test_tensor_readback.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_TensorReadback.RefusesATypeThatIsNotTheDtype | rewrite | 7 | setup sign: four lines to make a device tensor for a one-line check; the refusal is decided before any copy, so a storage-less Tensor (as tests/engine/cluster/test_pack_layout.cpp builds them) serves and the test is Small_ (type checks are Small_ in tests/README.md) | tests/data/tensor_expectations/test_tensor_readback.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/scalar_dtype.hpp; tests/engine/cluster/test_pack_layout.cpp; tests/README.md
+```
+
+### `tests/engine/cluster/test_bound_pack.cpp`
+
+```
+Small_BoundPack.NamesSegmentsAndTensorsTyped | split | 3 | several promises: a segment at its layout offset with type and count; tensor(0) count; an absent type gives a null pointer; as<float> refusal; the expected offset is read from the layout under test, so the rewrite uses the hand-derived 128 | tests/engine/cluster/test_bound_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/bound_pack.hpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/bound_pack.cpp (grep); tests/engine/cluster/README.md
+Small_BoundPack.BindViewsRefusesAViewOfAnotherSize | keep | 9 | bind_views refuses a view whose size differs from its layout | tests/engine/cluster/test_bound_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/remote_task.hpp; modules/engine/cluster/source/remote_task.cpp (grep); tests/engine/cluster/README.md
+Small_BoundPack.BindViewsRefusesAnotherViewCount | keep | 9 | bind_views refuses a count of views other than the layouts' count | tests/engine/cluster/test_bound_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/remote_task.hpp; modules/engine/cluster/source/remote_task.cpp (grep); tests/engine/cluster/README.md
+```
+
+### `tests/engine/cluster/test_cluster_binding.cpp`
+
+```
+Medium_ClusterBinding.SharesAPackWithTheCluster | split | 3 | several promises: share marks a pack shared and leaves an unshared one out; has_worker_for is false before any worker joins; the skip guard and the runtime made in the body are answered on the rewrite | tests/engine/cluster/test_cluster_binding.cpp; modules/engine/cluster/include/SushiBLAS/cluster/cluster_binding.hpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; modules/engine/cluster/source/cluster_binding.cpp (grep); tests/engine/cluster/README.md
+Medium_ClusterBinding.RefusesANullRegistry | rewrite | 7 | the skip guard in the body moves to the fixture; the runtime and the cluster are made in the body; the null check is in the constructor, which takes a Cluster, so the rewrite also needs the check as a function of the pointer, seen Small_ (question 8) | tests/engine/cluster/test_cluster_binding.cpp; modules/engine/cluster/include/SushiBLAS/cluster/cluster_binding.hpp; modules/engine/cluster/source/cluster_binding.cpp (grep); modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; tests/engine/cluster/README.md
+```
+
+### `tests/engine/cluster/test_pack_layout.cpp`
+
+```
+Small_PackLayout.GroupsTensorsOfOneTypeInGivenOrder | keep | 9 | PackLayout::of gives one segment per type, tensors in the order given, and the segment size is their sum (32 bytes by hand) | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/pack_layout.cpp (grep)
+Small_PackLayout.AlignsSegmentsInTypeOrder | split | 3 | two promises: segments follow the DataType order and start on 128-byte multiples; size_bytes ends at the aligned end of the last non-empty segment and an empty segment takes no bytes (384 is align_up(256 + 4) in pack_layout.cpp) | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/pack_layout.cpp (grep); modules/engine/cluster/README.md
+Small_PackLayout.GivesUInt32ASegmentAfterInt64 | split | 3 | two promises: UInt32 takes the last segment (offset 128, size 12); the fingerprint changes when a type changes; the placement part repeats the type-order promise of the test above for its last type | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/pack_layout.cpp (grep)
+Small_PackLayout.FingerprintIsStableForEqualLayouts | rewrite | 2 | promise: equal layouts give equal fingerprints; the test passes the same tensor vector twice, so a fingerprint keyed on the tensors' identity still passes; no other test states this promise (the change test checks only inequality); the rewrite builds the second layout from separately constructed tensors | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/pack_layout.cpp (grep); modules/engine/cluster/README.md
+Small_PackLayout.FingerprintChangesWithShapeTypeLayoutAndOrder | keep | 9 | the fingerprint changes with shape, type, layout or tensor order; four inputs of one promise, each written out | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp
+Small_Regression_PackLayout.SegmentRefusesADataTypeOutsideTheEnumeration | keep | 9 | segment refuses a DataType outside the enumeration and leaves Half intact; the regression it fixes cannot be seen failing from the files (no commit was read) | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/foundation/core/include/SushiBLAS/core/common.hpp
+Small_PackLayout.RefusesAPackWithNoElement | keep | 9 | PackLayout::of refuses an empty list and a list whose tensors hold no element; both are refusals of one promise | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/pack_layout.cpp (grep)
+Small_PackLayout.MatchesComparesTypeLayoutAndShape | keep | 9 | matches compares type, layout and shape against an entry; each negative changes one field | tests/engine/cluster/test_pack_layout.cpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp
+```
+
+### `tests/engine/cluster/test_remote_task.cpp`
+
+```
+Medium_RemoteTask.PackOfEveryTypeRoundTripsThroughAWorker | split | 3 | two promises: routing (the worker runs once, the master zero times, one offload, the operation advertised) and result (bit for bit); the skip guard and the two runtimes made in the body are answered on the rewrite; the README gives a reason for two runtimes (Cluster::attach changes the runtime), which the owner should check against the device rule | tests/engine/cluster/test_remote_task.cpp; modules/engine/cluster/include/SushiBLAS/cluster/remote_task.hpp; modules/engine/cluster/include/SushiBLAS/cluster/cluster_binding.hpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; tests/engine/cluster/README.md
+Medium_RemoteTask.WorkerOfAnotherLayoutNeverSeesTheTask | split | 3 | two promises: routing (no advertisement, no offload, the master runs the task) and result (the master's bytes match the host reference); the two checks share one run, so the rewrite lets one run serve both | tests/engine/cluster/test_remote_task.cpp; modules/engine/cluster/include/SushiBLAS/cluster/remote_task.hpp; tests/engine/cluster/README.md
+```
+
+### `tests/engine/cluster/test_tensor_pack.cpp`
+
+```
+Medium_TensorPack.GatherThenScatterCopiesEveryByte | rewrite | 1 | forbidden kind: control flow in the body (two loops that build the input), with the skip guard and the runtime made in the body; the only test of gather then scatter, since test_pack_ordered_sum.cpp uses segment_tensor alone | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; tests/library/umbrella/test_SushiBLAS/test_pack_ordered_sum.cpp (grep)
+Medium_TensorPack.EntryTensorReadsTheBytesTheGatherWrote | rewrite | 1 | forbidden kind: loop in the body that builds the input; it states two promises (the view outlives the pack with its bytes; tensor(index) past the count throws), split in the rewrite | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp
+Medium_TensorPack.SegmentTensorHasTheSegmentsSizeAndOffset | rewrite | 1 | forbidden kind: loops in the body (building the sources, then checking each type); the rewrite is rows over the eight types | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp
+Medium_TensorPack.GatherRefusesATensorOfAnotherShape | rewrite | 7 | the skip guard in the body moves to the fixture; the refusal is the PackLayout::matches check, so with a seam in record_gather the test can be Small_ (question 8) | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; modules/engine/cluster/include/SushiBLAS/cluster/pack_layout.hpp; modules/engine/cluster/source/tensor_pack.cpp (grep); modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_Regression_TensorPack.BufferLivesOnTheDeviceItIsGiven | rewrite | 1 | forbidden kind: loop over devices in the body (the rewrite is rows over the device index); it states two promises (the given device; an out-of-range index refused), and the device-index check is logic that goes through a seam while the making stays in one program | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; modules/engine/cluster/README.md
+Medium_Regression_TensorPack.GatherRefusesATensorOnAnotherDevice | rewrite | 7 | two skip guards in the body (no device, fewer than two devices) move to the fixture or the program's environment; the device comparison is logic that goes through a seam (question 8) | tests/engine/cluster/test_tensor_pack.cpp; modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp; modules/engine/cluster/source/tensor_pack.cpp (grep)
+```
+
+### `tests/engine/engine/test_dispatch.cpp`
+
+```
+Medium_Dispatch.TheDomainsAreBitsAndTheirUnions | resize | 8 | dispatch: domain_admits admits exactly the families its bits name; values only, no device, file or thread, so small; the Medium label is wrong | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+Medium_Dispatch.EveryDtypeBelongsToItsDomain | resize | 8 | dispatch: domain_of names the family of each dtype; values only, so small; the rows assert five of eight dtypes, Float32, Complex64 and Int32 are unasserted and belong in the resized test | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+Medium_Dispatch.NoDomainAdmitsUInt32 | resize | 8 | dispatch: no domain admits UInt32; require_domain and with_element_type refuse it; values and host calls, so small; the with_element_type check is EXPECT_ANY_THROW, where SB_THROW_IF throws std::runtime_error | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp; modules/foundation/core/include/SushiBLAS/core/logger.hpp (grep)
+Medium_Dispatch.RequireDomainRefusesADtypeOutsideIt | resize | 8 | dispatch: require_domain admits the dtypes of its domain and refuses the rest; values only, so small; the refusal is EXPECT_ANY_THROW and should name std::invalid_argument, as the sibling NoDomainAdmitsUInt32 does | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+Medium_Dispatch.WithElementTypeCallsTheArmForTheDtypesType | resize | 8 | dispatch: with_element_type calls the arm with the C++ type of the dtype; host types and sizeof, so small | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+Medium_Dispatch.WithElementTypeThrowsForADtypeTheDomainDoesNotServe | resize | 8 | dispatch: with_element_type refuses an unserved dtype and does not call its arm; host only, so small | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+Medium_Dispatch.SetTaskParamsFillsTheSlotsInOrderAndRefusesTooMany | split | 3 | two promises in one test: dispatch: set_task_params writes its values to slots 0 to n-1 in order; dispatch: set_task_params refuses values plus reserved slots above capacity | tests/engine/engine/test_dispatch.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp
+```
+
+### `tests/engine/engine/test_engine/test_reduce_plans.cpp`
+
+```
+Medium_ReducePlans.AnInjectedTwoStagePlanFoldsEveryElement | delete | 4 | reduce: a plan-taking reduce folds every element once under every geometry; the same promise is held in the unit's own module by tests/foundation/reduction/test_reduce_1d.cpp::Medium_Reduce1DOnDevice.TheStagedAndTheSequentialSumGiveTheExactSum, which stays; the fewer-elements-than-work-items case is not there and is an add | tests/engine/engine/test_engine/test_reduce_plans.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; tests/foundation/reduction/test_reduce_1d.cpp (read in part, lines 180 to 215)
+Medium_ReducePlans.AnInjectedPlanElectsTheSameIndex | keep | 9 | reduce: reduce_indexed elects the same index under a staged and a single-pass geometry; the own-module test ArgMaxKeepsTheFirstIndexOfATie checks the tie break alone, not the geometry; a device launch is a boundary, so medium | tests/engine/engine/test_engine/test_reduce_plans.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; tests/foundation/reduction/test_reduce_1d.cpp (read in part, lines 180 to 215)
+Medium_ReducePlans.TheQueueFormMatchesThePlanItComputes | rewrite | 6 | reduce: the queue form computes bit for bit the plan it names; the oracle is the plan form, the other path of the code under test, so rewrite with a named host oracle (a CompensatedSum folded in the order the plan fixes); its input loop is also a Q7 sign | tests/engine/engine/test_engine/test_reduce_plans.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+```
+
+### `tests/engine/engine/test_engine/test_run_failure.cpp`
+
+```
+Medium_RunFailureTest.AThrowingBodyReturnsKernelFailedWithItsMessage | keep | 9 | recording-graph: a body that throws makes run return KernelFailed carrying its message and the task name; the run is a boundary where the runtime executes a recorded task, so medium; no sibling of the same promise in tests/engine | tests/engine/engine/test_engine/test_run_failure.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+Medium_RunFailureTest.AFailedRunLeavesNothingRecorded | merge | 4 | recording-graph: a failed run drops its tasks; merged with TheGraphRunsAgainAfterAFailedRun, which pins the same drop and adds a valid operation; that test is the survivor and takes the unchanged-output check | tests/engine/engine/test_engine/test_run_failure.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+Medium_RunFailureTest.TheGraphRunsAgainAfterAFailedRun | merge | 4 | recording-graph: a failed run drops its tasks and the graph runs a valid operation after it; merged with AFailedRunLeavesNothingRecorded, which this test survives and absorbs | tests/engine/engine/test_engine/test_run_failure.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+```
+
+### `tests/engine/engine/test_engine/test_runtime_shapes.cpp`
+
+```
+Medium_RuntimeShapes.CreateTensorTakesAVectorShape | merge | 4 | tensor-create: create_tensor from a run-time shape gives its rank, element count, dtype and row-major strides; merged with CreateTensorTakesAVectorShapeAndDtype, which takes the dtype as a row; the survivor is that test | tests/engine/engine/test_engine/test_runtime_shapes.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp
+Medium_RuntimeShapes.CreateTensorTakesAVectorShapeAndDtype | merge | 4 | tensor-create: create_tensor from a run-time shape takes the dtype argument; merged with CreateTensorTakesAVectorShape as its row set; this test is the survivor | tests/engine/engine/test_engine/test_runtime_shapes.cpp
+Medium_RuntimeShapes.CreateTensorRejectsANegativeDimension | resize | 8 | tensor-factory: allocation refuses a negative dimension before any allocation; TensorFactory::create calls allocation_bytes first, which throws before the runtime's device count is read, so a static call with no runtime sees the promise; the nearest sibling tests/data/tensor/test_tensor.cpp::Medium_Tensor.StridesRefuseANegativeDimensionAndTooManyAxes checks Tensor strides, not the factory | tests/engine/engine/test_engine/test_runtime_shapes.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp; tests/data/tensor/test_tensor.cpp
+Medium_RuntimeShapes.ReshapeTakesAVectorShape | delete | 4 | tensor-reshape: reshape keeps the element count and the contiguous elements; the same promise is held in the unit's own module by tests/data/tensor/test_tensor.cpp::Medium_Tensor.AReshapeKeepsTheElementsOfAContiguousTensor, which takes the vector overload, and that test stays | tests/engine/engine/test_engine/test_runtime_shapes.cpp; tests/data/tensor/test_tensor.cpp
+Medium_RuntimeShapes.ReshapeRejectsAnotherElementCount | delete | 4 | tensor-reshape: reshape refuses a shape with another element count; the own-module test tests/data/tensor/test_tensor.cpp::Medium_Tensor.AReshapeKeepsTheElementsOfAContiguousTensor (line 129) refuses matrix.reshape({5}), and that test stays | tests/engine/engine/test_engine/test_runtime_shapes.cpp; tests/data/tensor/test_tensor.cpp
+```
+
+### `tests/engine/engine/test_engine/test_tensor_const_access.cpp`
+
+```
+Medium_TensorConstAccessTest.ConstAndMutableAccessorsShareAnAddress | rewrite | 6 | tensor-accessors: const and non-const data accessors return the same address; the oracle is the non-const accessor, the code under test, so rewrite with an independent oracle (the storage's base address); the file-scope static_asserts are compile-time checks and stay | tests/engine/engine/test_engine/test_tensor_const_access.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_TensorConstAccessTest.ConstAndMutableAccessorsShareAnAddressOnAnOffsetView | delete | 4 | the offset address is held by tests/data/tensor/test_tensor.cpp::Medium_Tensor.ASliceMovesTheOffsetAndKeepsTheStrides (line 116, rows.data_as equals matrix.data_as plus 4), which stays; the const-twin part is covered by the rewrite of ConstAndMutableAccessorsShareAnAddress | tests/engine/engine/test_engine/test_tensor_const_access.cpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorConstAccessTest.DataOrNullIsNullWithoutStorage | delete | 4 | tensor-accessors: data_or_null is nullptr without storage; the own-module test tests/data/tensor/test_tensor.cpp (line 146, empty.data_or_null() equals nullptr) stays | tests/engine/engine/test_engine/test_tensor_const_access.cpp; tests/data/tensor/test_tensor.cpp
+```
+
+### `tests/engine/engine/test_engine/test_tensor_factory.cpp`
+
+```
+Medium_TensorFactoryTest.AZeroDimensionGivesATensorWithoutStorage | delete | 4 | tensor-factory: a zero dimension gives a tensor without storage; the same promise is held in the unit's own module by tests/data/tensor/test_tensor_factory.cpp::Medium_TensorFactory.ATensorWithoutElementsHasNoStorage, which stays | tests/engine/engine/test_engine/test_tensor_factory.cpp; tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactoryTest.TheDeviceIndexReachesTheStorage | delete | 4 | tensor-factory: the device index reaches the storage; the same promise is held in the unit's own module by tests/data/tensor/test_tensor_factory.cpp::Medium_TensorFactory.PlacesTheStorageOnTheGivenDeviceAndResidency, which stays | tests/engine/engine/test_engine/test_tensor_factory.cpp; tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactoryTest.ADeviceIndexOutOfRangeThrows | resize | 8 | tensor-factory: a device index past the last queue throws, for an empty shape too; the range decision is a value, but the count is read from the process runtime; seam: a pure check that takes the device count as a value, which tensor_factory.hpp does not yet have; no own-module test of this promise | tests/engine/engine/test_engine/test_tensor_factory.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp; tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactoryTest.BraceListVectorAndSpanAgree | rewrite | 6 | tensor-create: the brace, vector and span overloads give equal shapes and strides; the oracle is the brace overload's own result, which is code under test; rewrite against the literal shape {2, 3, 4} and strides {12, 4, 1} that tests/engine/engine/test_engine/test_runtime_shapes.cpp already states | tests/engine/engine/test_engine/test_tensor_factory.cpp; tests/engine/engine/test_engine/test_runtime_shapes.cpp
+Medium_TensorFactoryTest.EngineCreateTensorUsesTheEngineLayout | delete | 4 | tensor-factory: a factory creates tensors of its layout; the same promise is held in the unit's own module by tests/data/tensor/test_tensor_factory.cpp::Medium_TensorFactory.CreatesATensorOfItsLayoutAndTheGivenType, which stays | tests/engine/engine/test_engine/test_tensor_factory.cpp; tests/data/tensor/test_tensor_factory.cpp
+Medium_TensorFactoryTest.StorageSizeIsRoundedUpToTheAlignment | delete | 4 | storage: the stored size rounds up to the alignment; the same promise is held in the unit's own module by tests/data/tensor/test_storage.cpp::Medium_Storage.RoundsItsSizeUpToTheAlignment, which stays | tests/engine/engine/test_engine/test_tensor_factory.cpp; tests/data/tensor/test_storage.cpp
+```
+
+### `tests/engine/engine/test_engine/test_tensor_view.cpp`
+
+```
+Medium_TensorViewTest.SliceAlongEachAxisAddressesItsElementsRowMajor | rewrite | 6 | tensor-view: a slice along any axis reaches, through its own strides and offset, the elements its parent placed; the truth is computed from parent.strides, which is the code under test's output; rewrite with the parent's layout asserted against literal strides first; the readback is a device copy that a host-buffer Tensor could replace, so resize follows in the rewrite | tests/engine/engine/test_engine/test_tensor_view.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorViewTest.SliceAlongEachAxisAddressesItsElementsColumnMajor | rewrite | 6 | tensor-view: the same promise for a column-major parent; the oracle is parent.strides, code under test; rewrite with literal column-major strides asserted first | tests/engine/engine/test_engine/test_tensor_view.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_TensorViewTest.SliceAlongEachAxisAddressesItsElementsRankThree | rewrite | 6 | tensor-view: the same promise for a rank-three parent; the oracle is parent.strides, code under test; rewrite with literal strides asserted first | tests/engine/engine/test_engine/test_tensor_view.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_TensorViewTest.InnerAxisSliceReportsItselfNonContiguous | split | 3 | two promises in one test: tensor-view: narrowing an outer axis keeps a view contiguous and narrowing an inner axis makes it non-contiguous (held in the unit's own module by tests/data/tensor/test_tensor.cpp::Medium_Tensor.ASliceMovesTheOffsetAndKeepsTheStrides, line 113); tensor-reshape: reshape refuses a non-contiguous view, which no test holds, and that part survives as its own test | tests/engine/engine/test_engine/test_tensor_view.cpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorViewTest.FullWidthSliceIsTheIdentity | rewrite | 7 | tensor-view: a whole-axis slice equals its parent in shape, strides, offset and contiguity; the loop over dim in the body is a non-size sign; rewrite with a row table over the two axes; the identity is a metamorphic relation with a clear specification, so no oracle change is needed | tests/engine/engine/test_engine/test_tensor_view.cpp
+Medium_TensorViewTest.RegionCoversEveryByteAStridedViewReaches | resize | 8 | tensor-region: region covers every byte a strided view reaches; the oracle is literal (8 elements, span 14, offsets from the comment); values only after the allocation, so small with a host-buffer Tensor as tests/data/tensor/test_tensor.cpp builds them; no sibling states the region length, tests/data/tensor/test_storage.cpp:198 states only the base | tests/engine/engine/test_engine/test_tensor_view.cpp; tests/data/tensor/test_storage.cpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorViewTest.ContiguousTensorSpansExactlyItsElements | merge | 4 | tensor-region: region covers every byte a tensor reaches; merged with RegionCoversEveryByteAStridedViewReaches as its contiguous row (the survivor); the element_span equality is held by tests/data/tensor/test_tensor.cpp, line 137 | tests/engine/engine/test_engine/test_tensor_view.cpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorViewTest.TransposeSpansItsWholeMatrix | resize | 8 | tensor-view: a transposed view spans its whole matrix; no sibling states the span of a transpose (tests/data/tensor/test_tensor.cpp:91 checks shape and strides); values only, small with a host-buffer Tensor | tests/engine/engine/test_engine/test_tensor_view.cpp; tests/data/tensor/test_tensor.cpp
+Medium_TensorViewTest.StrideExplicitConstructorRejectsIncoherentMetadata | resize | 8 | tensor-ctor: the stride-explicit constructor refuses negative strides and a span past capacity; tests/data/tensor/test_tensor.cpp::CountsItsElementsAndChecksItsCapacity checks the offset constructor's capacity, another constructor, so not the same promise; values only, small with a host-buffer Tensor | tests/engine/engine/test_engine/test_tensor_view.cpp; tests/data/tensor/test_tensor.cpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+```
+
+### `tests/engine/engine/test_engine/test_unsupported_execution.cpp`
+
+```
+Medium_UnsupportedExecution.IsAFinalInvalidArgumentBuiltFromAMessage | delete | 1 | a static_assert run as a test, the forbidden kind of SKILL.md; its promise is held in the core module by tests/foundation/core/test_errors.cpp::Medium_UnsupportedExecution.IsAFinalInvalidArgument and KeepsTheMessageItWasGiven | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/foundation/core/test_errors.cpp
+Medium_UnsupportedExecution.IsCaughtAsItselfAndAsInvalidArgument | delete | 4 | unsupported: UnsupportedExecution is an invalid_argument; the unit's own module holds it in tests/foundation/core/test_errors.cpp::Medium_UnsupportedExecution.IsAFinalInvalidArgument (line 45), which stays | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/foundation/core/test_errors.cpp
+Medium_UnsupportedExecution.APlainInvalidArgumentIsNotCaughtAsIt | delete | 4 | unsupported: a plain invalid_argument is not an UnsupportedExecution; the unit's own module holds it in tests/foundation/core/test_errors.cpp::Medium_UnsupportedExecution.DoesNotCatchAPlainInvalidArgument, which stays | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/foundation/core/test_errors.cpp
+Medium_UnsupportedExecution.TheExecutionHelperThrowsItNamingTheOperation | rewrite | 7 | unsupported: throw_execution_error throws UnsupportedExecution with the text 'op: message'; no other test names the helper; the try and catch in the body are a non-size sign; rewrite with the message checked through a helper outside the body | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/engine/engine/test_operand_check.cpp
+Medium_UnsupportedExecution.TheOperandAndDtypeHelpersDoNotThrowIt | delete | 4 | dispatch: the operand and dtype helpers throw invalid_argument; the unit's own module, the operand check file, holds it in tests/engine/engine/test_operand_check.cpp::Medium_OperandCheckTest.ADtypeErrorIsAnInvalidArgument and the require_* refusals, which stay; throw_dtype_error is defined in modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_UnsupportedExecutionSites.ForceReferenceRefusesADeviceOnlyOperand | rewrite | 7 | unsupported: under ForceReference a device-only operand makes gemm refuse with UnsupportedExecution; the GTEST_SKIP guard in the body is a non-size sign and moves into the fixture or the program's environment; no other test holds this refusal | tests/engine/engine/test_engine/test_unsupported_execution.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_UnsupportedExecutionSites.AWrongDtypeUnderForceReferenceIsNotARefusal | resize | 8 | dispatch: under ForceReference a wrong dtype is an invalid_argument, not a refusal; the decision is a value made in operand_check.hpp, reached here through BLASOps and the recorder over the process runtime; seam: call the operand check directly on a null-storage tensor | tests/engine/engine/test_engine/test_unsupported_execution.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_UnsupportedExecutionSites.AWrongRankIsNotARefusal | resize | 8 | dispatch: a wrong rank is an invalid_argument, not a refusal; the decision is a value in operand_check.hpp; seam: require_rank on a null-storage tensor | tests/engine/engine/test_engine/test_unsupported_execution.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_UnsupportedExecutionSites.ADtypeTheDeviceLacksIsARefusal | merge | 4 | require_device_dtype refuses a dtype the device lacks; merged into the device group of tests/engine/engine/test_operand_check.cpp, survivor RequireDeviceDtypeAcceptsWhatTheDeviceOffers, which takes the refusal as its rows | tests/engine/engine/test_engine/test_unsupported_execution.cpp; tests/engine/engine/test_operand_check.cpp
+Medium_UnsupportedExecutionSites.PoissonWithoutFp64IsARefusal | rewrite | 7 | random: poisson on a device without fp64 is refused with UnsupportedExecution; the if around recording->run().value() in the body is a non-size sign; rewrite with the run in a helper; no other test under tests/engine asserts this refusal | tests/engine/engine/test_engine/test_unsupported_execution.cpp
+```
+
+### `tests/engine/engine/test_engine_log_category.cpp`
+
+```
+Small_EngineLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | a log category and a static_assert run as a test, both forbidden kinds; the same test exists in tests/data/tensor/test_tensor_log_category.cpp::Small_TensorLogCategory.TheCategoryIsNamedAfterTheModule | tests/engine/engine/test_engine_log_category.cpp; tests/data/tensor/test_tensor_log_category.cpp (grep)
+```
+
+### `tests/engine/engine/test_execution_mode.cpp`
+
+```
+Medium_ExecutionModeTest.SetModeIsReadBack | resize | 8 | execution mode: set_mode is read back by mode(); values only, but Engine is built over the process runtime; seam: the mode as a value on a type that needs no runtime; tests/engine/engine_fixture/test_sushiblas_test.cpp lines 70 to 72 read the mode back too, in another module, and that copy is deleted by its own chunk | tests/engine/engine/test_execution_mode.cpp; tests/engine/engine_fixture/test_sushiblas_test.cpp (grep) (name checked by grep)
+Medium_ExecutionModeTest.ForceReferenceAndForceSYCLAgreeOnAxpy | rewrite | 1 | execution mode: ForceReference and ForceSYCL agree on axpy; expect_tensor takes a bare tolerance 1e-6, a forbidden kind of SKILL.md; rewrite with the derived tolerance helper and keep the device path | tests/engine/engine/test_execution_mode.cpp
+```
+
+### `tests/engine/engine/test_kernel_pair_dispatcher.cpp`
+
+```
+Medium_KernelPairDispatcher.ForceReferenceRunsTheReferenceBody | merge | 4 | kernel-pair: the reference body runs under ForceReference and the SYCL body in every other mode; merged with EveryOtherModeRunsTheSYCLBody as rows; this test is the survivor | tests/engine/engine/test_kernel_pair_dispatcher.cpp
+Medium_KernelPairDispatcher.EveryOtherModeRunsTheSYCLBody | merge | 4 | kernel-pair: the same promise with the other modes as inputs; merged into ForceReferenceRunsTheReferenceBody | tests/engine/engine/test_kernel_pair_dispatcher.cpp
+Medium_KernelPairDispatcher.TheReferenceBodyRunsAfterItsDependencies | keep | 9 | kernel-pair: the reference body runs after its dependency events; the oracle is the value 7 that the writer kernel stores, independent of the dispatcher; the ordering is a device boundary, so medium; no sibling | tests/engine/engine/test_kernel_pair_dispatcher.cpp
+```
+
+### `tests/engine/engine/test_late_count_hold.cpp`
+
+```
+Medium_LateCountHold.ReleaseLetsGoOfTheStoragesAndKillsTheToken | split | 3 | two claims: late-count: a kept token holds the operand and count storages until release, and release frees them and expires the observer; late-count: borrowing exposes the count's words, one per four bytes (line 70), which is a separate claim | tests/engine/engine/test_late_count_hold.cpp
+```
+
+### `tests/engine/engine/test_operand_check.cpp`
+
+```
+Medium_OperandCheckTest.RequireStorageAcceptsTensorWithStorage | merge | 4 | dispatch: require_storage accepts a tensor with storage and refuses one without; merged with RequireStorageRejectsTensorWithoutStorage, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireStorageRejectsTensorWithoutStorage | merge | 4 | the same promise; this test is the survivor and takes the accepting input as a row | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireDtypeAcceptsMatchingDtype | merge | 4 | dispatch: require_dtype accepts the dtype it is given and refuses another; merged with RequireDtypeRejectsOtherDtype, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireDtypeRejectsOtherDtype | merge | 4 | the same promise; survivor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameShapeAcceptsEqualShapes | merge | 4 | dispatch: require_same_shape accepts equal shapes and refuses a same-count other shape; merged with RequireSameShapeRejectsSameCountOtherShape, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameShapeRejectsSameCountOtherShape | merge | 4 | the same promise; survivor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameLayoutAcceptsEqualLayouts | merge | 4 | dispatch: require_same_layout accepts equal layouts and refuses another; merged with RequireSameLayoutRejectsOtherLayout, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameLayoutAcceptsRankOneOperands | resize | 8 | dispatch: require_same_layout passes rank-one operands whatever their layout; a distinct promise with no other test; values only, so small with null-storage tensors | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireSameLayoutRejectsOtherLayout | merge | 4 | the same promise as RequireSameLayoutAcceptsEqualLayouts; survivor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameElementCountAcceptsReshapedOperand | merge | 4 | dispatch: require_same_element_count accepts a reshaped operand and refuses another count; merged with RequireSameElementCountRejectsOtherCount, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireSameElementCountRejectsOtherCount | merge | 4 | the same promise; survivor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireMinElementsAcceptsExactMinimum | merge | 4 | dispatch: require_min_elements accepts a count at the minimum and refuses fewer; merged with RequireMinElementsRejectsTooFew, which survives | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireMinElementsRejectsTooFew | merge | 4 | the same promise; survivor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireContiguousAcceptsRowMajorTensor | merge | 4 | dispatch: require_contiguous accepts dense tensors and refuses views that are not dense; six tests state it and merge into rows; this one is the survivor of the group | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireContiguousAcceptsColumnMajorTensor | merge | 4 | the same promise; merged into the group survivor RequireContiguousAcceptsRowMajorTensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireContiguousAcceptsStorageOffsetView | merge | 4 | the same promise; merged into the group survivor RequireContiguousAcceptsRowMajorTensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireContiguousRejectsTransposeView | merge | 4 | the same promise; merged into the group survivor RequireContiguousAcceptsRowMajorTensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireContiguousRejectsStrideZeroView | merge | 4 | the same promise; merged into the group survivor RequireContiguousAcceptsRowMajorTensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireContiguousRejectsSlicedView | merge | 4 | the same promise; merged into the group survivor RequireContiguousAcceptsRowMajorTensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.RequireRankNamesBothRanks | resize | 8 | dispatch: require_rank refuses an unexpected rank with a message naming both ranks; no other test; values only, so small with a null-storage tensor | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireScalarRejectsZeroAndTwoElements | resize | 8 | dispatch: require_scalar accepts exactly one element and refuses zero or two; no other test; values only, so small with null-storage tensors | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireExtentNamesTheExtent | resize | 8 | dispatch: require_extent refuses unequal extents with a message naming the extent; no other test; values only, so small | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireOperandPassesItsFormatThrough | resize | 8 | dispatch: require_operand refuses a false condition with its formatted message; no other test; values only, so small | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.ADtypeErrorIsAnInvalidArgument | resize | 8 | unsupported helpers: throw_dtype_error throws invalid_argument naming family, name and dtype; this is the owner test of the promise, so it stays; values only, so small | tests/engine/engine/test_operand_check.cpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_OperandCheckTest.RequireDeviceDtypeAcceptsWhatTheDeviceOffers | merge | 4 | dispatch: require_device_dtype accepts what the device offers and refuses what it lacks; survivor of the device group with ADtypeTheDeviceLacksIsARefusal and RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt; its if and else in the body are a non-size sign and become rows keyed on the profile | tests/engine/engine/test_operand_check.cpp; tests/engine/engine/test_engine/test_unsupported_execution.cpp
+Medium_OperandCheckTest.ANarrowedOpHoldsOnlyTheElementType | split | 3 | two claims in one test: functor-map: a narrowed bound functor holds the element type's scalars (its clamp value is held by tests/engine/functor_map/test_scalar_binding.cpp::Medium_ScalarBinding.AppendsTheScalarsInTheElementType, lines 54 to 56); functor-map: the narrowed functor's size is at most three floats, which no test holds, and that part survives as its own small test | tests/engine/engine/test_operand_check.cpp; tests/engine/functor_map/test_scalar_binding.cpp
+Medium_OperandCheckTest.APlainFunctorPassesThroughNarrowFor | delete | 4 | functor-map: narrow_for passes a plain functor through; the unit's own module holds the value form in tests/engine/functor_map/test_scalar_binding.cpp::Medium_ScalarBinding.NarrowForPicksTheBoundFormOrPassesAPlainFunctor (lines 65 to 68), which stays; the address-identity check of this test is not in it, so if identity is part of the promise, its EXPECT moves into that test | tests/engine/engine/test_operand_check.cpp; tests/engine/functor_map/test_scalar_binding.cpp
+Medium_OperandCheckTest.TensorRejectsNegativeDimension | resize | 8 | tensor-ctor: the Tensor constructor refuses a negative dimension; tests/data/tensor/test_tensor.cpp::StridesRefuseANegativeDimensionAndTooManyAxes checks strides_of, and it is not verified that the constructor calls it; values only, so small with a null-storage tensor | tests/engine/engine/test_operand_check.cpp; tests/data/tensor/test_tensor.cpp
+Medium_OperandCheckTest.TensorRejectsOverflowingElementCount | resize | 8 | tensor-ctor: the Tensor constructor refuses an element count that overflows; no sibling; values only, so small with a null-storage tensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.TensorRejectsRankAboveLimit | resize | 8 | tensor-ctor: the Tensor constructor refuses a rank above the limit; the same caveat as TensorRejectsNegativeDimension applies to strides_of; values only, so small with a null-storage tensor | tests/engine/engine/test_operand_check.cpp; tests/data/tensor/test_tensor.cpp
+Medium_OperandCheckTest.TransposeRejectsNegativeDimensionIndex | resize | 8 | tensor-transpose: transpose refuses a negative dimension index; no sibling; values only, so small with a null-storage tensor | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.TransposeRejectsDimensionIndexAtRank | delete | 4 | tensor-transpose: transpose refuses an index at the rank; the unit's own module holds it in tests/data/tensor/test_tensor.cpp, line 101, transpose(0, 2) throws, which stays | tests/engine/engine/test_operand_check.cpp; tests/data/tensor/test_tensor.cpp
+Medium_OperandCheckTest.RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt | merge | 4 | dispatch: require_device_dtype for half; merged into the device group survivor RequireDeviceDtypeAcceptsWhatTheDeviceOffers; its if and else are rewritten into its rows | tests/engine/engine/test_operand_check.cpp
+Medium_OperandCheckTest.TheProfileReportsTheFp16AspectOfItsDevice | keep | 9 | device profile: the profile reports the fp16 aspect the device has; the oracle is the SYCL device's own aspect query, independent of the profile; device-bound, so medium; grep finds no other test of supports_fp16 | tests/engine/engine/test_operand_check.cpp
+```
+
+### `tests/engine/engine/test_operand_set.cpp`
+
+```
+Medium_OperandSet.ReadsWritesAndUpdatesDeclareTheirRegions | split | 3 | two claims in one test: operand-set: reads, writes and updates declare regions by their access kind; operand-set: the set retains its operands and reports no device-only operand, which is a second claim | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.ATensorWithoutStorageDeclaresNothing | resize | 8 | operand-set: a tensor without storage declares no region and retains nothing; values only, no device, so small with a null-storage tensor; the Medium label is wrong for the claim | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.AStorageIsRetainedOnceAndKeptAliveByTheSet | split | 3 | two claims in one name: operand-set: a storage used by several operands is retained once; operand-set: the set keeps the storage alive past its tensor, checked through the process allocation counter, which is a process-wide reach | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.MoreStoragesThanTheInlineCapacityAreAllRetained | rewrite | 1 | operand-set: the set retains every storage past the inline capacity; the test names Internal::StorageKeepAlive::K_INLINE_CAPACITY, an internal symbol of the kind SKILL.md forbids as Detail::, and loops to build its inputs; rewrite with a literal count and no internal symbol | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.ADeviceTensorIsReportedAndSurvivesAMerge | keep | 9 | operand-set: a merge keeps the device-only flag and the declarations of both sets; the device tensor is the boundary, so medium | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.DeclaredBytesCountAnUpdatedRegionTwice | merge | 4 | operand-set: declared bytes count an updated region twice; the empty set's zero is a default value and is deleted, so this test is the survivor of the declared-bytes family; merging is with nothing else in the file; its values need storages, so the rewrite of its inputs is a seam follow-up | tests/engine/engine/test_operand_set.cpp
+Medium_OperandSet.DeclaredBytesOfAnEmptySetIsZero | delete | 1 | a default value, the trivial kind SKILL.md forbids; its promise is the empty case that the survivor's family already states; no separate promise | tests/engine/engine/test_operand_set.cpp
+```
+
+### `tests/engine/engine/test_operation_options.cpp`
+
+```
+Small_OperationOptions.ANameAloneStatesNoDeterminismClass | keep | 9 | operation-options: a name alone states no determinism class; the default is the documented promise, not a trivial getter | tests/engine/engine/test_operation_options.cpp
+Small_OperationOptions.AClassIsTheRuntimesOwn | delete | 1 | a getter check, a kind SKILL.md forbids; the stated class's journey to the plan is held by tests/engine/engine/test_task_recorder.cpp::Medium_TaskRecorderTest.ADescriptionsDeterminismReachesThePlanNode | tests/engine/engine/test_operation_options.cpp; tests/engine/engine/test_task_recorder.cpp
+Small_OperationOptions.TheSharedCheckAcceptsEveryClassOfTheRuntime | rewrite | 7 | operation-options: the shared check accepts every class of the runtime; the loop over classes in the body is a non-size sign; rewrite with one row per class | tests/engine/engine/test_operation_options.cpp
+Small_OperationOptions.TheSharedCheckRefusesAnEmptyOrNullName | keep | 9 | operation-options: the shared check refuses an empty or null name; three inputs, one refusal, no other sign | tests/engine/engine/test_operation_options.cpp
+Small_OperationOptions.TheSharedCheckRefusesAClassOutsideTheEnum | keep | 9 | operation-options: the shared check refuses a class outside the enum | tests/engine/engine/test_operation_options.cpp
+Small_OperationOptions.TheMessageNamesTheOperationAndOptions | rewrite | 7 | operation-options: the refusal message names the operation and 'options'; the try and catch with ADD_FAILURE in the body is a non-size sign; move the check into a helper outside the body | tests/engine/engine/test_operation_options.cpp
+```
+
+### `tests/engine/engine/test_profile_hooks.cpp`
+
+```
+Small_ProfileHooks.ARecordingBodyRunsOnceWhileTheMutexIsHeld | resize | 8 | profile-hooks: a recording body runs once while the mutex is held; the test starts a second thread to try the lock, so it is a medium test labelled small; resize to medium, no seam needed | tests/engine/engine/test_profile_hooks.cpp
+Small_ProfileHooks.AnExceptionOfARecordingBodyLeavesTheMutexFree | keep | 9 | profile-hooks: an exception from a recording body leaves the mutex free; no thread, no device, no file | tests/engine/engine/test_profile_hooks.cpp
+Small_ProfileHooks.AScratchLeaseBodyRunsOnce | keep | 9 | profile-hooks: a scratch lease body runs once | tests/engine/engine/test_profile_hooks.cpp
+Small_ProfileHooks.EveryLeaseKindIsCountedWithoutACollector | delete | 1 | EXPECT_NO_THROW around calls to count_scratch_lease, which is declared noexcept, so it cannot throw: the forbidden kind of SKILL.md; the test states no other promise | tests/engine/engine/test_profile_hooks.cpp; modules/engine/engine/include/SushiBLAS/engine/profile_hooks.hpp (grep)
+Small_ProfileHooks.InstallingTheHooksSetsTheVariantObserverAndIsRepeatable | split | 3 | two claims: profile-hooks: installing the hooks sets the kernel-variant observer; profile-hooks: installing twice is harmless; the observer slot is process-wide (modules/foundation/launch/include/SushiBLAS/launch/kernel_variant.hpp, line 51, grep), and note_kernel_variant is called with no check | tests/engine/engine/test_profile_hooks.cpp; modules/engine/engine/include/SushiBLAS/engine/profile_hooks.hpp (grep); modules/foundation/launch/include/SushiBLAS/launch/kernel_variant.hpp (grep)
+```
+
+### `tests/engine/engine/test_rng_stream.cpp`
+
+```
+Medium_RngStreamTest.ReseedRewindsTheOffset | rewrite | 7 | rng: reseed sets the seed and rewinds the offset to zero; the test uses none of the fixture it inherits, which builds an engine, so the fixture is a general fixture hiding nothing; rewrite as a small test with no fixture | tests/engine/engine/test_rng_stream.cpp
+Medium_RngStreamTest.ReserveReturnsConsecutiveDisjointRanges | rewrite | 7 | rng: reserve returns consecutive disjoint ranges; the same unused fixture as ReseedRewindsTheOffset; the rows are four calls with a literal oracle; rewrite small | tests/engine/engine/test_rng_stream.cpp
+Medium_RngStreamTest.ConcurrentReservationsAreDistinct | rewrite | 7 | rng: concurrent reservations are distinct; two threads make the test medium, which stays; the unused fixture is dropped | tests/engine/engine/test_rng_stream.cpp
+Medium_RngStreamTest.ReseedRacingReservationsNeverPairsAForeignSeed | rewrite | 7 | rng: a reservation pairs only a seed that was live; the threads race on no seeded schedule, so the race reproduces only by chance; the unused fixture is dropped; the rewrite runs the reseeder on a seeded executor per the testing rule on concurrency, and the real-thread form stays medium | tests/engine/engine/test_rng_stream.cpp
+Medium_RngStreamTest.EqualSeedsGiveBitEqualNormalFills | keep | 9 | rng: equal seeds give bit-equal normal fills; the promise is the determinism relation itself, with no other oracle needed; the fill runs on the device, so medium | tests/engine/engine/test_rng_stream.cpp
+```
+
+### `tests/engine/engine/test_scratch.cpp`
+
+```
+Medium_Scratch.AnEmptyBufferHoldsNothing | delete | 1 | a default value, the trivial kind SKILL.md forbids; no promise beyond the default state | tests/engine/engine/test_scratch.cpp
+Medium_Scratch.ALeaseNamesItsBytesAndItsRegion | rewrite | 3 | scratch: a lease names its byte count and holds storage of at least that size; the name claims a region that the body never checks, so the name and the body do not state one promise; rewrite the name to the bytes and storage, or add the region check | tests/engine/engine/test_scratch.cpp
+Medium_Scratch.TheBlockReturnsToTheShelfWhenTheLastCopyGoes | resize | 8 | scratch: a pooled block returns to the idle shelf when its last copy goes; the decision is bookkeeping on counts, but the pool allocates through the process runtime; seam: an allocation port for the pool, so the count is seen small | tests/engine/engine/test_scratch.cpp
+```
+
+### `tests/engine/engine/test_scratch_pool.cpp`
+
+```
+Medium_ScratchPool.StartsWithoutIdleBlocks | delete | 1 | a default value, the trivial kind SKILL.md forbids; the shelf accessor non-null check is a getter | tests/engine/engine/test_scratch_pool.cpp
+Medium_ScratchPool.AReturnedBlockIsReusedForTheSameSize | resize | 8 | scratch-pool: a returned block is reused for the same size; the reuse decision is bookkeeping, but the blocks come from the process runtime; seam: an allocation port, as TheBlockReturnsToTheShelfWhenTheLastCopyGoes needs | tests/engine/engine/test_scratch_pool.cpp
+Medium_ScratchPool.TrimReleasesTheIdleBlocks | resize | 8 | scratch-pool: trim releases the idle blocks and their memory; the check reads the process allocation counter, a process-wide reach; seam: an allocation port with a counter | tests/engine/engine/test_scratch_pool.cpp
+```
+
+### `tests/engine/engine/test_scratch_shelf.cpp`
+
+```
+Medium_ScratchShelf.ARequestIsRoundedUpToItsClass | rewrite | 7 | scratch-shelf: a request rounds up to its size class; the loop over four requests in the body is a non-size sign; rewrite with one row per request | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.AReturnedBlockIsLentAgain | resize | 8 | scratch-shelf: a returned block is lent again without a new allocation; the counter is the process allocation counter; seam: an allocation port for the shelf; the pool-level test AReturnedBlockIsReusedForTheSameSize states the reuse at its level, not the same unit | tests/engine/engine/test_scratch_shelf.cpp; tests/engine/engine/test_scratch_pool.cpp
+Medium_ScratchShelf.ARequestAboveTheLargestClassIsNotPooled | resize | 8 | scratch-shelf: a request above the largest class is freed on return and never kept idle; process counter; seam: an allocation port | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.AFullClassFreesWhatItCannotKeep | rewrite | 7 | scratch-shelf: a full class frees the blocks it cannot keep; two loops in the body build and return the blocks; the literal 64 repeats the named constant K_SCRATCH_IDLE_BLOCKS_PER_CLASS; rewrite with a builder and the named constant | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.TrimFreesEveryIdleBlock | resize | 8 | scratch-shelf: trim frees every idle block; the counter is process-wide; seam: an allocation port | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.AnUnknownDeviceIsRefused | resize | 8 | scratch-shelf: a device index past the last queue is refused before any allocation; the count is read from the runtime, and the range decision is a value; seam: the count as a value of a pure check | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.ALeaseThatFindsItsClassEmptyIsAMiss | merge | 4 | scratch-shelf: a lease counts a hit or a miss by whether its class holds an idle block; merged with ALeaseAnIdleBlockAnswersIsAHit into one rows test, which is the survivor | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.ALeaseAnIdleBlockAnswersIsAHit | merge | 4 | scratch-shelf: the same promise; this test is the survivor and takes the miss as its first row | tests/engine/engine/test_scratch_shelf.cpp
+Medium_ScratchShelf.ALeaseAboveTheLargestClassIsCountedAsUnpooled | resize | 8 | scratch-shelf: a lease above the largest class counts as unpooled; the counter is the shelf's own, but the allocation goes through the process runtime; seam: an allocation port | tests/engine/engine/test_scratch_shelf.cpp
+```
+
+### `tests/engine/engine/test_task.cpp`
+
+```
+Medium_Task.RecordsOneTaskThatRunsTheArmOfItsDtype | keep | 9 | task: a typed task records one task whose body runs the arm of its dtype; the recording and the run through the graph are a boundary to the runtime; the arm choice alone is small-tested in tests/engine/engine/test_dispatch.cpp (WithElementTypeCallsTheArmForTheDtypesType), so not a duplicate of the claim recorded here | tests/engine/engine/test_task.cpp; tests/engine/engine/test_dispatch.cpp
+Medium_Task.RefusesADtypeItsDomainDoesNotAdmit | resize | 8 | task: a typed task refuses a dtype its domain does not admit and records nothing; the refusal is the value check require_domain, which the task calls before recording (modules/engine/engine/include/SushiBLAS/engine/task.hpp line 152, grep); seam: the refusal tested on the value check, with no probe | tests/engine/engine/test_task.cpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp; modules/engine/engine/include/SushiBLAS/engine/task.hpp (grep)
+```
+
+### `tests/engine/engine/test_task_description.cpp`
+
+```
+Medium_TaskDescription.StartsUnnamedWithEverySlotZero | delete | 1 | a default value, the trivial kind SKILL.md forbids: the default name and zeroed slots are constructor output, with no promise beyond the default | tests/engine/engine/test_task_description.cpp
+Medium_TaskDescription.ASlotGivesBackTheValueOfItsType | resize | 8 | task-description: a slot gives back the value of its type; values only, no runtime, so small (the Medium label is wrong) | tests/engine/engine/test_task_description.cpp
+```
+
+### `tests/engine/engine/test_task_handle.cpp`
+
+```
+Medium_TaskHandleTest.DefaultHandleNamesNoTask | delete | 1 | a default value, the trivial kind SKILL.md forbids; the promise that a call which records nothing returns no task is held by ANoOpRecordReturnsTheHandleOfNoTask | tests/engine/engine/test_task_handle.cpp
+Medium_TaskHandleTest.ARecordCallReturnsAValidHandle | merge | 4 | task-handle: a record call returns a valid handle, and a call that records nothing returns the handle of no task; merged with ANoOpRecordReturnsTheHandleOfNoTask; this test is the survivor | tests/engine/engine/test_task_handle.cpp
+Medium_TaskHandleTest.TwoRecordCallsReturnDifferentHandles | merge | 4 | task-handle: two handles from record calls differ; merged with HandlesOfTwoRecordersDiffer; this test is the survivor | tests/engine/engine/test_task_handle.cpp
+Medium_TaskHandleTest.ACopyComparesEqual | keep | 9 | task-handle: a copy compares equal to its source; value-type equality of a handle a recorder returned; a small form would need a TaskHandle built without a recorder, and this review did not check task_handle.hpp for one, so the Q8 answer is not claimed | tests/engine/engine/test_task_handle.cpp
+Medium_TaskHandleTest.ANoOpRecordReturnsTheHandleOfNoTask | merge | 4 | task-handle: a call over empty tensors records nothing and returns the handle of no task; merged into ARecordCallReturnsAValidHandle | tests/engine/engine/test_task_handle.cpp
+Medium_TaskHandleTest.HandlesOfTwoRecordersDiffer | merge | 4 | task-handle: handles from two recorders differ; merged into TwoRecordCallsReturnDifferentHandles | tests/engine/engine/test_task_handle.cpp
+```
+
+### `tests/engine/engine/test_task_recorder.cpp`
+
+```
+Medium_TaskRecorderTest.RecordsOnTheGraphItWasGiven | resize | 8 | recorder: a record call adds its node to the graph it was given only; the decision is which graph gets the node, a value, but the tensors come from the process runtime; seam: host-buffer tensors and the graph count read without the runtime | tests/engine/engine/test_task_recorder.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_TaskRecorderTest.ADescriptionsDeterminismReachesThePlanNode | keep | 9 | recorder: the stated determinism reaches the plan node; the observation is the runtime's plan, a handover to SushiRuntime, which makes the test a boundary | tests/engine/engine/test_task_recorder.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_TaskRecorderTest.ALateCountOutsideHostInt32IsRefusedAndRecordsNothing | rewrite | 7 | recorder: a late count outside host int32 is refused and records nothing; the for loop over modes in the body is a non-size sign; rewrite with one row per mode | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.ALateCountTaskRunsWhileItsRecorderLives | rewrite | 7 | recorder: a late-count task runs the indices below its count; the loop that fills the output in the body is a builder; rewrite with a helper | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.ALateCountTaskRunAfterItsHoldIsGoneIsRefused | rewrite | 7 | recorder: a late-count task whose hold is gone is refused as DanglingResource and leaves its tensor untouched; the two loops in the body are non-size signs; rewrite with a helper | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.ANodeInAPlacementScopeTakesItsClassAndKey | keep | 9 | recorder: a node in a placement scope takes the scope's class and key, and a node outside takes neither; the plan is the runtime's, a boundary | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.TwoThreadsRecordOnOneRecorder | rewrite | 7 | recorder: two threads recording on one recorder each keep their tasks; the loops that compare handles sit in the body; move the checks into a helper, and the threads keep the test medium | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.ARecorderHandsOutThePoolItWasGiven | delete | 1 | a getter check, the kind SKILL.md forbids; no promise beyond returning the pool it was given | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.EveryFamilyRecordsUnderForceReference | split | 3 | several promises in one test: recorder: each operation family records one task under ForceReference; recorder: each family's result is the one its operation states, one promise per family (elementwise, nonlinear, logic, reduction, random, blas, spatial) | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderTest.TheSameCallsReplayIntoASecondGraph | rewrite | 1 | recorder: the same calls recorded into two graphs give equal edges and results; EXPECT_TENSOR_NEAR takes a bare tolerance literal 1e-5, a forbidden kind of SKILL.md; rewrite with the derived tolerance helper | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderCost.GemmNodeStatesFlopsBytesAndDtype | split | 3 | two claims in one name: recorder: a gemm node states 2mnk flops and the bytes of its operands; recorder: the node's dtype class is F32 | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderCost.ABetaZeroGemmReadsNoC | resize | 8 | recorder: beta zero declares C as written only; the access and cost assembly is inside TaskRecorder, not a host function (modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp, lines 376 to 432, grep only); seam: extract the assembly as a value function of operation, shape and access sets; then small with host-buffer tensors | tests/engine/engine/test_task_recorder.cpp; modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp (grep)
+Medium_TaskRecorderCost.AnUpdatedOperandCountsTwiceInTheBytes | resize | 8 | recorder: an updated operand counts twice in the node's bytes; the same seam as ABetaZeroGemmReadsNoC; the operand-set owner test DeclaredBytesCountAnUpdatedRegionTwice holds the set-level promise, not the node's cost, so this is not a duplicate | tests/engine/engine/test_task_recorder.cpp; tests/engine/engine/test_operand_set.cpp
+Medium_TaskRecorderCost.AnElementwiseNodeStatesItsElementCount | resize | 8 | recorder: an elementwise node states one flop per element; the same seam as ABetaZeroGemmReadsNoC | tests/engine/engine/test_task_recorder.cpp; modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp (grep)
+Medium_TaskRecorderCost.AnEmptyEventTaskIsUncosted | resize | 8 | recorder: a task whose call site states no shape and returns an empty event states no cost; the uncosted reason is set in the record path (task_recorder.hpp, grep); the same seam as ABetaZeroGemmReadsNoC | tests/engine/engine/test_task_recorder.cpp; modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp (grep)
+Medium_TaskRecorderCost.ALateCountTaskIsUncosted | resize | 8 | recorder: a late-count task states no cost; the uncosted reason is set in the record path (task_recorder.hpp, grep); the same seam as ABetaZeroGemmReadsNoC | tests/engine/engine/test_task_recorder.cpp; modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp (grep)
+Medium_TaskRecorderCost.TheCostSurvivesAPlanRebuild | keep | 9 | recorder: a node keeps its cost when the plan is rebuilt after another record call; the rebuild is the runtime's plan, a handover to SushiRuntime, so the test is a boundary | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderJoin.EachRecordCallAddsOneRuleAtTheNodeCountItSaw | merge | 4 | recorder: each record call adds one rule at the node count it saw; merged with ALateCountPairIsOneRule; this test is the survivor | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderJoin.ALateCountPairIsOneRule | merge | 4 | recorder: a late-count pair adds one rule; the same promise with a late-count input; merged into EachRecordCallAddsOneRuleAtTheNodeCountItSaw | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderJoin.RuleRegistrationMapsEveryRuleToADistinctIndex | rewrite | 7 | recorder: each rule of a chain maps to its own registration index; the loop over plan nodes in the body inserts and checks; rewrite with a helper | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderOrigin.TasksInAScopeCarryItsLabelAndOneAfterItCarriesNone | merge | 4 | recorder: tasks in a scope carry its label and a task outside carries none; merged with ARecorderWithNoScopeStampsNoOrigin into rows; this test is the survivor | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderOrigin.ANestedScopeRestoresTheOuterLabel | resize | 8 | recorder: a nested scope restores the outer label; the label is set on the recorder and read back through the runtime plan; seam: a host-only record collector for the label | tests/engine/engine/test_task_recorder.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_TaskRecorderOrigin.ARecorderWithNoScopeStampsNoOrigin | merge | 4 | recorder: a recorder with no scope stamps no origin; merged into TasksInAScopeCarryItsLabelAndOneAfterItCarriesNone | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderOrigin.AMovedScopeRestoresTheLabelOnce | resize | 8 | recorder: a moved scope restores the label once, when its last owner ends; the same seam as ANestedScopeRestoresTheOuterLabel | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderZones.ARecordCallWritesAZoneIntoAnOpenCollector | merge | 4 | profiler: a record call writes a zone while a collector is open; merged with ARecordCallWritesNothingWhileTheCollectorIsClosed into rows; this test is the survivor; the collector is the process-wide Collector::instance(), so the merged test is also the one that needs the seam; the class exists only when SB_ENABLE_PROFILER is set | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderZones.ARecordCallWritesNothingWhileTheCollectorIsClosed | merge | 4 | profiler: nothing is written while the collector is closed; merged into ARecordCallWritesAZoneIntoAnOpenCollector | tests/engine/engine/test_task_recorder.cpp
+Medium_TaskRecorderCoverage.EveryNodeOfAnInferenceLikeGraphStatesACostOrAReason | rewrite | 7 | recorder: every node of an inference-like graph states a cost or has a cost-table row; the loop over recorded tasks in the body is a non-size sign; rewrite with a helper and rows per operation | tests/engine/engine/test_task_recorder.cpp; SushiBLAS/cost/cost_table.hpp (included by task_recorder.hpp, line 43; grep only)
+Medium_TaskRecorderCoverage.EveryNodeOfAGraphPrimitiveCarriesAnOperationId | rewrite | 7 | recorder: every node a graph primitive records carries an operation id; the loop over plan nodes in the body is a non-size sign; rewrite with a helper | tests/engine/engine/test_task_recorder.cpp
+```
+
+### `tests/engine/engine_fixture/test_recording_fixture.cpp`
+
+```
+Medium_RecordingFixture.RunSucceedsAcceptsAnEmptyFixture | merge | 4 | merge with Medium_RecordingFixture.RunSucceedsRunsTheRecordedTaskAndEmptiesTheFixture into rows over 0 and 1 recorded tasks; promise "run_succeeds reports success" | tests/engine/engine_fixture/test_recording_fixture.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp; tests/engine/recording_graph/test_recording_graph.cpp
+Medium_RecordingFixture.RunSucceedsRunsTheRecordedTaskAndEmptiesTheFixture | split | 3 | the name joins two results that can break apart: (a) run_succeeds reports success for one task, kept as row 1 of the merged rows; (b) a run leaves the fixture empty, deleted at question 4 as the same promise as Medium_RecordingGraph.RunningTheGraphEmptiesIt in tests/engine/recording_graph/test_recording_graph.cpp | tests/engine/engine_fixture/test_recording_fixture.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp; tests/engine/recording_graph/test_recording_graph.cpp
+Medium_RecordingFixture.DiscardDropsTheTasksAndCountsThem | delete | 4 | same promise as Medium_RecordingGraph.DiscardDropsTheTasksAndCountsThem in tests/engine/recording_graph/test_recording_graph.cpp, the owning unit's own test; the fixture only forwards | tests/engine/engine_fixture/test_recording_fixture.cpp; tests/engine/recording_graph/test_recording_graph.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+Medium_RecordingFixture.TheRecorderBorrowsTheModeOfTheEngine | delete | 4 | same promise as Medium_RecordingGraph.TheRecorderBorrowsTheModeOfTheEngine in tests/engine/recording_graph/test_recording_graph.cpp | tests/engine/engine_fixture/test_recording_fixture.cpp; tests/engine/recording_graph/test_recording_graph.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+```
+
+### `tests/engine/engine_fixture/test_sushiblas_test.cpp`
+
+```
+Medium_SushiBLASTest.GivesARowMajorEngine | delete | 1 | a default value, a forbidden kind in SKILL.md ("A test of trivial code"); the default is relied on, and checked, by Medium_MatrixOperand.ARowMajorMatrixLeadsByItsColumns, which fails if it changes | tests/engine/engine_fixture/test_sushiblas_test.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tests/engine/operands/test_matrix_operand.cpp
+Medium_SushiBLASTest.ReinitRebuildsTheEngineInAnotherLayout | keep | 9 | sushiblas_test: reinit_engine gives the new engine the layout it was given | tests/engine/engine_fixture/test_sushiblas_test.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_SushiBLASTest.ReinitGivesTheNewEngineAFreshGraph | split | 3 | the name and body state two results: (a) reinit gives an empty graph, kept; (b) the recorder takes the engine's mode, kept as its own test | tests/engine/engine_fixture/test_sushiblas_test.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp
+Medium_SushiBLASTest.SetModeReachesTheEngineAndTheRecorder | split | 3 | "and" joins two results that can break apart: (a) set_mode sets the engine's mode; (b) set_mode sets the recorder's mode; two tests | tests/engine/engine_fixture/test_sushiblas_test.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SushiBLASTest.AnInitialisedTensorHoldsTheHostValues | keep | 9 | sushiblas_test: create_initialized_tensor holds the host values; the dtype check is the precondition of reading the values back as int32, not a second promise | tests/engine/engine_fixture/test_sushiblas_test.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+```
+
+### `tests/engine/execution_mode_sweep/test_execution_mode_sweep.cpp`
+
+```
+Medium_ExecutionModeSweep.NamesBothForcedModesOnce | delete | 1 | a constant read back: a trivial test (forbidden kind); the constant is consumed by tests/operations/logic/test_dispatch.cpp and tests/operations/sparse/test_sparse/test_sparse_level1.cpp, which fail if it changes; size would be small if kept | tests/engine/execution_mode_sweep/test_execution_mode_sweep.cpp; modules/engine/execution_mode_sweep/include/SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp; tests/engine/execution_mode_sweep/README.md; tests/operations/logic/test_dispatch.cpp
+```
+
+### `tests/engine/functor_map/test_functor_map_log_category.cpp`
+
+```
+Small_FunctorMapLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | a log category, a forbidden trivial kind; the body is two static_asserts run as a test and states no behaviour | tests/engine/functor_map/test_functor_map_log_category.cpp; tests/engine/operands/test_operands_log_category.cpp
+```
+
+### `tests/engine/functor_map/test_index_task.cpp`
+
+```
+Medium_IndexTask.BothPathsOfAFixedCountWriteEveryIndex | keep | 9 | index_task: a fixed-count index task writes every index on the reference and SYCL paths alike (host reference) | tests/engine/functor_map/test_index_task.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/index_task.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_IndexTask.TheHostBodyOfALateCountStopsAtTheWidth | rewrite | 7 | the body loops over the output with a conditional expression; rewrite as one comparison against a builder of the expected prefix (index_task: the host body writes only the indices below the live width); the body needs only a plain pointer, so the rewrite is small | tests/engine/functor_map/test_index_task.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/index_task.hpp
+Medium_IndexTask.TheHostBodyOfALateCountReadsTheWidthWhenItRuns | resize | 8 | index_task: the host body reads the width when it runs; LateIndexHostRun takes a plain uint32 pointer and a plain output pointer (index_task.hpp, LateIndexHostRun constructor), so the SharedArray and the CPU-queue skip guard are device reach the promise does not need; resize to small with a std::vector buffer | tests/engine/functor_map/test_index_task.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/index_task.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_IndexTask.TheHostBodyOfALateCountRefusesAWidthOutsideTheCapacity | resize | 8 | index_task: the host body refuses a width outside [0, capacity]; the refusal is an SB_THROW_IF in LateIndexHostRun::operator(), with no device; resize to small with the same seam | tests/engine/functor_map/test_index_task.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/index_task.hpp
+```
+
+### `tests/engine/functor_map/test_map_task.cpp`
+
+```
+Medium_MapTask.BothPathsOfAMapTaskWriteTheSameElements | keep | 9 | map_task: a map task writes the same elements on both paths (host reference) | tests/engine/functor_map/test_map_task.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_MapTask.BothPathsOfAZipTaskLeaveTheSameElements | keep | 9 | map_task: a zip task leaves the same elements on both paths (host reference); gap noted: the reference first output is checked only through the cross-path equality, so add M3 | tests/engine/functor_map/test_map_task.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+```
+
+### `tests/engine/functor_map/test_read_binding/test_include_order.cpp`
+
+```
+Small_Regression_BindingIncludeOrder.ASeamDefinedFirstChecksAWriteBundlesReads | keep | 9 | write_binding: a seam defined before write_binding.hpp refuses a read without storage; small (no device, no runtime, storage-less tensor) | tests/engine/functor_map/test_read_binding/test_include_order.cpp; tests/engine/functor_map/test_read_binding/test_read_binding.cpp
+```
+
+### `tests/engine/functor_map/test_read_binding/test_read_binding.cpp`
+
+```
+Medium_ReadBinding.PointersFollowTheElementsInBoundOrder | keep | 9 | read_binding: read pointers follow the bound order; medium because the pointers come from storage (read_binding.hpp require_bound_tensors calls require_storage) | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/read_binding.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ReadBinding.AnElementReadTakesTheOperationsType | keep | 9 | read_binding: an element read arrives as a pointer to the operation's element type; medium, storage pointers | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/read_binding.hpp
+Medium_ReadBinding.BoundScalarsComeAfterThePointers | keep | 9 | read_binding: bound scalars follow the read pointers; medium, storage pointers | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar_binding.hpp
+Medium_ReadBinding.TheKernelFunctorHoldsNoStorage | keep | 9 | read_binding: the kernel functor holds no storage; the live allocation count of the shared runtime is the only observation of the release, so medium is the size it needs | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ReadBinding.AReadIsCheckedAsAnOperand | rewrite | 7 | five accept and refuse cases of one check, each with its own assertion; rewrite as rows over dtype, extent, stride and the refused read's index; stays medium (read_binding.hpp require_bound_tensors calls require_storage) | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/read_binding.hpp
+Medium_ReadBinding.AReadMayNotOverlapAWrittenRegion | split | 3 | two results: (a) a read overlapping a write is refused and declares nothing; (b) a read declares its region; two tests | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/read_binding.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp
+Medium_ReadBinding.APlainFunctorPassesThroughUntouched | resize | 8 | read_binding: a plain functor passes through untouched; no tensor, no runtime, and the fixture's engine is unused; small | tests/engine/functor_map/test_read_binding/test_read_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/read_binding.hpp
+```
+
+### `tests/engine/functor_map/test_scalar.cpp`
+
+```
+Medium_ElementScalar.HoldsTheValueInEachFloatingType | rewrite | 7 | one promise read through four calls over float types; rows over double, float and half; no device so small | tests/engine/functor_map/test_scalar.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar.hpp
+Medium_ElementScalar.IntegersTruncateTowardZero | rewrite | 7 | two inputs of opposite sign over two integer types; rows; small | tests/engine/functor_map/test_scalar.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar.hpp
+Medium_ElementScalar.IntegersSaturateAndANaNBecomesZero | split | 3 | "and" joins saturation at both ends and the NaN-to-zero rule; two tests; small | tests/engine/functor_map/test_scalar.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar.hpp
+```
+
+### `tests/engine/functor_map/test_scalar_binding.cpp`
+
+```
+Medium_ScalarBinding.AppendsTheScalarsInTheElementType | rewrite | 7 | three narrowings of one call over element types; rows over the element types; no device, so small | tests/engine/functor_map/test_scalar_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar_binding.hpp
+Medium_ScalarBinding.NarrowForPicksTheBoundFormOrPassesAPlainFunctor | split | 3 | two results: (a) a bound functor is narrowed; (b) a plain functor passes through; two tests, small | tests/engine/functor_map/test_scalar_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/scalar_binding.hpp
+```
+
+### `tests/engine/functor_map/test_update_binding.cpp`
+
+```
+Medium_UpdateBinding.UpdatePointersSitBetweenTheReadAndTheWritePointers | split | 3 | two results: (a) the pointers sit in read, update, write order, medium because they are storage pointers; (b) element_dtype_of gives the update's dtype, kept as its own test | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp
+Medium_UpdateBinding.AnUpdateIsDeclaredAsOneReadAndOneWrite | keep | 9 | update_binding: an update is declared as one read and one write; medium because retained() reads storage ownership | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp
+Medium_UpdateBinding.AnUpdateThatIsAlsoReadIsRefused | keep | 9 | update_binding: an update that is also read is refused | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp
+Medium_UpdateBinding.AWriteThatOverlapsAnUpdateIsRefused | keep | 9 | update_binding: a write overlapping an update is refused | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp
+Medium_UpdateBinding.TwoOverlappingUpdatesAreRefused | keep | 9 | update_binding: two overlapping updates are refused | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp
+Medium_UpdateBinding.AnUpdateOfAnotherDtypeIsRefused | keep | 9 | update_binding: an update of another dtype is refused; medium kept, not verified whether the dtype path needs storage | tests/engine/functor_map/test_update_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/update_binding.hpp
+```
+
+### `tests/engine/functor_map/test_write_binding.cpp`
+
+```
+Medium_WriteBinding.WritePointersFollowTheReadPointersInBoundOrder | keep | 9 | write_binding: write pointers follow the read pointers in bound order; medium, storage pointers | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.AnElementWriteTakesTheOperationsType | keep | 9 | write_binding: an element write arrives as a pointer to the element type; medium, storage pointers | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.BoundScalarsComeAfterTheWrites | keep | 9 | write_binding: bound scalars come after the writes; medium, storage pointers | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.TheKernelFunctorHoldsNoStorage | keep | 9 | write_binding: the kernel functor holds no storage; live allocation count of the shared runtime is the observation | tests/engine/functor_map/test_write_binding.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_WriteBinding.AWriteIsCheckedAsAnOperand | rewrite | 7 | same shape as AReadIsCheckedAsAnOperand: five cases of one check; rewrite as rows over dtype, extent, stride and the refused write's index; stays medium (the write side mirrors the read side, which needs storage) | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.ALaterReaderWaitsForTheTaskThatWritesTheTensor | delete | 4 | the read-after-write dependency is graph_probe's promise, tested by Medium_GraphProbe.ReportsAReadAfterAWriteAsADependency in tests/engine/graph_probe/test_graph_probe.cpp, the unit's own test; this test repeats it through bind_writes | tests/engine/functor_map/test_write_binding.cpp; tests/engine/graph_probe/test_graph_probe.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_WriteBinding.ATensorReadAndWrittenIsDeclaredOnceAsEach | split | 3 | two results: (a) the declarations: one read region, one write region, one retained tensor, kept; (b) the recorded task has one read and one write, deleted at question 4 as a repeat of the dependency and count checks in tests/engine/graph_probe/test_graph_probe.cpp | tests/engine/functor_map/test_write_binding.cpp; tests/engine/graph_probe/test_graph_probe.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_WriteBinding.ATensorNamedTwiceAsAWriteIsDeclaredOnce | keep | 9 | write_binding: a tensor named twice as a write is declared once | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.AWriteMayNotOverlapAReadThroughAnotherView | keep | 9 | write_binding: a write may not overlap a read through another view; the read-side rule is a different unit's promise | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+Medium_WriteBinding.APlainFunctorDeclaresNoWrites | resize | 8 | write_binding: a plain functor declares no writes; no tensor, no runtime, fixture engine unused; small | tests/engine/functor_map/test_write_binding.cpp; modules/engine/functor_map/include/SushiBLAS/functor_map/write_binding.hpp
+```
+
+### `tests/engine/graph_probe/test_graph_probe.cpp`
+
+```
+Medium_GraphProbe.AFreshProbeHasRecordedNothing | keep | 9 | graph_probe: a fresh probe has recorded nothing; medium because GraphProbe builds on TestEnvironment::runtime() (graph_probe.hpp constructor) | tests/engine/graph_probe/test_graph_probe.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_GraphProbe.ReportsAReadAfterAWriteAsADependency | keep | 9 | graph_probe: a read after a write is reported as a dependency on the writer | tests/engine/graph_probe/test_graph_probe.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_GraphProbe.TakeAndExecuteEmptyTheProbe | split | 3 | "And" joins two actions: (a) take_recorded_count empties the probe; (b) execute empties the probe; two tests | tests/engine/graph_probe/test_graph_probe.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+```
+
+### `tests/engine/operands/test_argument_check.cpp`
+
+```
+Medium_ArgumentCheck.AFlagMustBeAnEnumerator | resize | 8 | argument_check: require_flag accepts an enumerator and refuses a value outside the enum; no tensor, no runtime, fixture engine unused; small | tests/engine/operands/test_argument_check.cpp; modules/engine/operands/include/SushiBLAS/operands/argument_check.hpp
+Medium_ArgumentCheck.ARealTensorTakesOnlyARealScalar | rewrite | 7 | the name says tensor but the body checks a scalar against a dtype; the name states no promise (SKILL.md signs table); rename to the scalar promise and make rows over three cases; small | tests/engine/operands/test_argument_check.cpp; modules/engine/operands/include/SushiBLAS/operands/argument_check.hpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_ArgumentCheck.ARealRoutineRefusesAComplexTensor | resize | 8 | argument_check: a real routine refuses a complex tensor; require_real_dtype does not call require_storage (argument_check.hpp lines 74-85), so a storage-less tensor as in test_include_order.cpp reaches the dtype check; small | tests/engine/operands/test_argument_check.cpp; modules/engine/operands/include/SushiBLAS/operands/argument_check.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; tests/engine/functor_map/test_read_binding/test_include_order.cpp
+Medium_ArgumentCheck.ARefusedTransposeIsNamed | rewrite | 2 | the name promises the refused transpose is named, the body checks only that it throws; no other test checks the naming, so rewrite to check the message names the sibling; small | tests/engine/operands/test_argument_check.cpp; modules/engine/operands/include/SushiBLAS/operands/argument_check.hpp
+```
+
+### `tests/engine/operands/test_blas_metadata.cpp`
+
+```
+Medium_BLASMetadata.FillsTheSlotsInTheOrderGiven | resize | 8 | blas_metadata: the slots are filled in the order given; no device, no runtime; small | tests/engine/operands/test_blas_metadata.cpp; modules/engine/operands/include/SushiBLAS/operands/blas_metadata.hpp
+```
+
+### `tests/engine/operands/test_matrix_operand.cpp`
+
+```
+Medium_MatrixOperand.ARowMajorMatrixLeadsByItsColumns | keep | 9 | matrix_operand: a row-major matrix leads by its columns and reports its shape; medium because describe_matrix_operand calls require_storage (matrix_operand.hpp line 68); also the test that keeps the fixture's default layout checked (see record 5) | tests/engine/operands/test_matrix_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/matrix_operand.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp
+Medium_MatrixOperand.AColumnMajorBatchLeadsByItsRowsAndCountsItsMatrices | split | 3 | "And" joins two results: (a) describe leads by rows and counts matrices; (b) batch_stride returns the stride and refuses a wrong count; two tests, both medium | tests/engine/operands/test_matrix_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/matrix_operand.hpp
+Medium_MatrixOperand.AVectorOrAStridedViewIsNoMatrix | keep | 9 | matrix_operand: a vector or a strided view is no matrix; the rank refusal precedes require_storage (matrix_operand.hpp lines 65 and 68); the strided case is kept at medium | tests/engine/operands/test_matrix_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/matrix_operand.hpp
+Medium_MatrixOperand.TwoOperandsMustShareLayoutAndExtents | split | 3 | three results: (a) operands with different layouts are refused; (b) an extent mismatch is refused; (c) require_unbatched accepts a rank-2 operand; the name covers only (a) and (b); two or three tests | tests/engine/operands/test_matrix_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/matrix_operand.hpp
+```
+
+### `tests/engine/operands/test_operands_log_category.cpp`
+
+```
+Small_OperandsLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | a log category, a forbidden trivial kind; two static_asserts run as a test | tests/engine/operands/test_operands_log_category.cpp; tests/engine/functor_map/test_functor_map_log_category.cpp
+```
+
+### `tests/engine/operands/test_scalar.cpp`
+
+```
+Medium_BlasScalar.RealAndComplexDoubleConvertImplicitly | rewrite | 7 | the same promise over four types, each with a static_assert and an EXPECT_TRUE that repeat each other; rows over the types and drop the static_asserts; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.ComplexFloatDoesNotConvertImplicitly | resize | 8 | BLASScalar: a complex float does not convert implicitly; no device; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.ARealValueKeepsItsValueAndAZeroImaginaryPart | rewrite | 7 | six real() and imag() checks over three input types; rows over the input types; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AComplexValueKeepsBothParts | resize | 8 | BLASScalar: a complex value keeps both parts; no device; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsReturnsTheValueInEachRealType | rewrite | 7 | as<T> called for float, double and half, which are different calls; rows over the real types; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsRoundsADoubleOnceToFloat | split | 3 | two results: (a) as<float> rounds once; (b) as<double> keeps the value; two tests, small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsReturnsBothPartsInEachComplexType | rewrite | 7 | as<T> over complex float and double; rows; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsGivesARealScalarAZeroImaginaryPartInAComplexType | rewrite | 7 | a real scalar as complex float and double; rows over the complex types; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsHalfRoundsThroughFloat | rewrite | 7 | a for-loop over three values in the body; rows over the values; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsHalfKeepsTheLargestHalfExactly | resize | 8 | BLASScalar: as<half> keeps the largest half exactly; no device; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsHalfLandsOnANeighbourOfAnInexactValue | resize | 8 | BLASScalar: as<half> lands on a neighbour of an inexact value; the tolerance is a named constant whose derivation (2^-14) sits beside it, so it is derived; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.AsHalfTakesAValueBelowTheRangeToZeroOrTheSmallestHalf | resize | 8 | BLASScalar: as<half> maps a value below the range to zero or the smallest half; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.IsRealHoldsForAZeroImaginaryPart | resize | 8 | BLASScalar: is_real holds for a zero imaginary part; several inputs of one call, one outcome each; no device; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.IsRealFailsForANanImaginaryPart | resize | 8 | BLASScalar: is_real fails for a NaN imaginary part; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.IsZeroHoldsOnlyWhenBothPartsAreZero | resize | 8 | BLASScalar: is_zero holds only when both parts are zero; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+Medium_BlasScalar.IsZeroFailsForANanPart | resize | 8 | BLASScalar: is_zero fails for a NaN part; small | tests/engine/operands/test_scalar.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar.hpp
+```
+
+### `tests/engine/operands/test_scalar_result.cpp`
+
+```
+Medium_ScalarResult.AComplexDtypeHasTheRealDtypeOfItsParts | rewrite | 7 | the same function over three dtypes; rows over Complex32, Complex64 and Half; the static_assert duplicates the first EXPECT; real_result_dtype is constexpr with no device, so small | tests/engine/operands/test_scalar_result.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar_result.hpp
+Medium_ScalarResult.AResultHoldsOneElementOfTheExpectedDtype | keep | 9 | scalar_result: a scalar result holds one element of the expected dtype; medium because require_scalar_result calls require_storage (scalar_result.hpp line 60) | tests/engine/operands/test_scalar_result.cpp; modules/engine/operands/include/SushiBLAS/operands/scalar_result.hpp
+```
+
+### `tests/engine/operands/test_scratch_lease.cpp`
+
+```
+Medium_ScratchLease.AnIntegerSolutionNeedsNoWorkspace | split | 3 | two results: (a) an integer solution needs no workspace, kept, small; (b) the half workspace bytes equal sizeof of the code's own type when its constant is set; the oracle is the code under test (question 6), rewrite with a specified value, small | tests/engine/operands/test_scratch_lease.cpp; modules/engine/operands/include/SushiBLAS/operands/scratch_lease.hpp
+Medium_ScratchLease.ALeaseIsDeclaredAsAWrite | split | 3 | two results: (a) the lease reserves the requested bytes; (b) the lease is declared as one write; two tests, medium because GraphProbe uses the shared runtime | tests/engine/operands/test_scratch_lease.cpp; modules/engine/operands/include/SushiBLAS/operands/scratch_lease.hpp; tests/engine/graph_probe/test_graph_probe.cpp
+Medium_ScratchLease.ForceReferenceAndAnEmptyRequestLeaseNothing | split | 3 | "And" joins three cases: (a) force-reference leases nothing; (b) a zero-byte request leases nothing; (c) a level-1 request with no partials leases nothing; three tests, medium | tests/engine/operands/test_scratch_lease.cpp; modules/engine/operands/include/SushiBLAS/operands/scratch_lease.hpp
+```
+
+### `tests/engine/operands/test_vector_operand.cpp`
+
+```
+Medium_VectorOperand.AContiguousTensorIsAUnitStrideVectorOfAllItsElements | keep | 9 | vector_operand: a contiguous tensor is a unit-stride vector of all its elements; medium because describe_vector_operand calls require_storage (vector_operand.hpp line 57) | tests/engine/operands/test_vector_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/vector_operand.hpp
+Medium_VectorOperand.AStridedViewAboveRankOneIsRefused | keep | 9 | vector_operand: a strided view above rank one is refused; medium, the view is made from a stored tensor | tests/engine/operands/test_vector_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/vector_operand.hpp
+Medium_VectorOperand.LengthAndIncrementChecksNameTheirOperand | split | 3 | "Checks" joins three results: (a) a length mismatch is refused, and the naming of the operand is untested, so rewrite that part to check the message; (b) an increment other than one is refused; (c) a matching length is accepted; small | tests/engine/operands/test_vector_operand.cpp; modules/engine/operands/include/SushiBLAS/operands/vector_operand.hpp
+```
+
+### `tests/engine/profiling/test_blas_environment.cpp`
+
+```
+StatesTheTilePinAndTheDefaultMode | resize | 8 | blas_environment: default mode and tile pin are stated; the test needs a temporary folder only because BlasEnvironment reads files from one, so the smallest size needs a ceilings source port with an in-memory adapter (seam to build). Tile pin checked for presence only | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp
+StatesTheVersionAndTheProfileLevelAsBuildFacts | resize | 8 | blas_environment: version and profile level are stated as build facts; same seam as above, the folder is not needed for this promise. Q1 considered: it checks the record carries the build version, a wiring promise, not the constant | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp
+StatesTheCeilingsOfADeviceWithAFile | resize | 8 | blas_environment: valid file gives measured peak facts; the decision is made on values read from a folder, so the test reaches a file where a ceilings source port with an in-memory adapter (seam to build) would let it run small | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+MarksTheCeilingsOfASmokeOnlyDevice | resize | 8 | blas_environment: smoke-only file marks the device smoke_only; decision on a value reached through a folder; seam as above | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+StatesUnmeasuredWithoutAFile | resize | 8 | blas_environment: missing file gives unmeasured and no ceiling fact; the absence is decided on a file lookup; seam as above | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp
+StatesRefusedForAFileTheReaderRefuses | resize | 8 | blas_environment: refused file gives refused and no ceiling fact; the refusal is decided on the reader status reached through a written file; seam as above, the reader already takes text (read_ceilings) | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+EachDeviceGetsItsOwnCeilings | resize | 8 | blas_environment: two devices get independent states; decided on files in a folder; seam as above | tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp
+```
+
+### `tests/engine/profiling/test_ceilings.cpp`
+
+```
+ADefaultValueStatesNoDtypeAndNoBandwidth | delete | 1 | forbidden kind: a default value (trivial). Its unmeasured promise is reached through the environment in tests/engine/profiling/test_blas_environment.cpp::StatesUnmeasuredWithoutAFile | tests/engine/profiling/test_ceilings.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings.hpp;tests/engine/profiling/test_blas_environment.cpp
+AComputeCeilingStartsAtZero | delete | 1 | forbidden kind: a default value (trivial), no promise a reader depends on | tests/engine/profiling/test_ceilings.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings.hpp
+```
+
+### `tests/engine/profiling/test_ceilings_file.cpp`
+
+```
+TheWriterOutputPassesTheReader | keep | 9 | ceilings_file: the reader accepts the writer output and returns every field; it absorbs ASmokeOnlyFlagSurvivesTheRoundTrip | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings.hpp
+RefusesAnUnknownVersion | keep | 9 | ceilings_file: a version the reader does not know is refused UnknownVersion with a message | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesAMissingBandwidth | keep | 9 | ceilings_file: a missing member is refused Invalid and named in the message | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesTextThatIsNotJson | keep | 9 | ceilings_file: non-JSON refused NotJson | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesADocumentOfAnotherFormat | keep | 9 | ceilings_file: another format refused WrongFormat | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesADtypeThatIsNotMeasured | keep | 9 | ceilings_file: dtype f8 refused Invalid | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings.hpp
+RefusesADtypeListedTwice | keep | 9 | ceilings_file: duplicate dtype refused Invalid | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesACeilingThatIsNotPositive | rewrite | 7 | ceilings_file: non-positive ceiling refused Invalid. Two inputs, two reads (compute zero, bandwidth negative) in one body; rewrite as a row table over both cases, one oracle (Invalid) | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesAFileWithNoDtype | keep | 9 | ceilings_file: empty dtype list refused Invalid | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+RefusesAMemberThatIsNotInTheFormat | keep | 9 | ceilings_file: unknown member refused Invalid | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+ASmokeOnlyFlagSurvivesTheRoundTrip | merge | 4 | ceilings_file: same round-trip promise as TheWriterOutputPassesTheReader with smoke_only true; merge as a row over false and true into tests/engine/profiling/test_ceilings_file.cpp::TheWriterOutputPassesTheReader | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+TheFileNameIsTheDeviceNameInLowerCaseWithUnderscores | rewrite | 7 | ceilings_file: file-name rule. Several calls with different results in one body; the empty-name default is a second case; rewrite as a row table over name and expected file name | tests/engine/profiling/test_ceilings_file.cpp;modules/engine/profiling/include/SushiBLAS/profiling/ceilings_file.hpp
+```
+
+### `tests/engine/profiling/test_profiler_parts.cpp`
+
+```
+AddsTheContributorToTheRegistry | keep | 9 | profiler_parts: registering adds exactly one contributor, the parts' environment | tests/engine/profiling/test_profiler_parts.cpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+RefusesASecondRegistration | keep | 9 | profiler_parts: a second registration into one registry throws invalid_argument and leaves one contributor | tests/engine/profiling/test_profiler_parts.cpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+TwoRegistriesTakeOneSetEach | rewrite | 2 | profiler_parts: each registry takes one set. The body asserts only the second registry's count; the first registry is never checked, so a fault in the first would pass. Rewrite to assert both counts | tests/engine/profiling/test_profiler_parts.cpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+TheContributorStatesItsFactsWhileThePartsLive | delete | 4 | profiler_parts: the version fact is the promise of tests/engine/profiling/test_blas_environment.cpp::StatesTheVersionAndTheProfileLevelAsBuildFacts, which is the unit's own file and stays. The stability of two gathers has no other test and is added (see Adds) | tests/engine/profiling/test_profiler_parts.cpp;tests/engine/profiling/test_blas_environment.cpp;modules/engine/profiling/include/SushiBLAS/profiling/blas_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+AGemmSpanCarriesFlopsBytesAndAType | rewrite | 7 | profiler_parts (end to end): the body has a for loop and an if with a found flag. Q8 also applies: it reaches TestEnvironment::runtime(), a process-wide static runtime. The 2MNK formula is tested small in tests/foundation/cost/test_cost_table.cpp::GemmCostsTwoMNKPerBatch, so the rewrite keeps only the span wiring, on one span found by index | tests/engine/profiling/test_profiler_parts.cpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/foundation/cost/test_cost_table.cpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+TheRooflineRowNamesTheCeiling | rewrite | 7 | profiler_parts (end to end): for loop with an accumulated flag in the body. The name says the row names the ceiling; the body checks only that some row has a non-empty bound cell. Name and check need to agree; the process-wide runtime (Q8) is replaced by the rewrite's seam | tests/engine/profiling/test_profiler_parts.cpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+TheRooflineRowHasABound | rewrite | 7 | profiler_parts (end to end): for loop over rows with assertions in the body. The checks (limit is compute or memory, share above zero) are one promise; write them as a row check with a named helper (expect_*) | tests/engine/profiling/test_profiler_parts.cpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+AnUncostedOperationHasNoRow | rewrite | 7 | profiler_parts (end to end): loops and a map in the body. The name promises that an uncosted operation has no row, but the test drives no uncosted operation and asserts two rows per period (the GEMM and the add). Name and body disagree; rewrite to the body's promise under a name that says it | tests/engine/profiling/test_profiler_parts.cpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+AnF16SpanIsJudgedAgainstTheF16Ceiling | rewrite | 7 | profiler_parts (end to end): a GTEST_SKIP guard and a step loop in the body; the setup repeats record() instead of using it. The guard moves into the fixture or the program environment. Q8 also applies: the process-wide runtime (test_environment.hpp) | tests/engine/profiling/test_profiler_parts.cpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/profiling/include/SushiBLAS/profiling/profiler_parts.hpp
+```
+
+### `tests/engine/profiling/test_profiling_log_category.cpp`
+
+```
+TheCategoryIsNamedAfterTheModule | delete | 1 | forbidden kind: a static_assert run as a test, on a log category constant; no runtime assertion, the compile already checks it | tests/engine/profiling/test_profiling_log_category.cpp
+```
+
+### `tests/engine/recording_graph/test_recording_graph.cpp`
+
+```
+AFreshGraphIsEmptyAndRunsNothing | rewrite | 7 | recording_graph: the fixture field runtime is not used by this test (it reaches the device only through engine), and the fixture makes a runtime per test, which medium forbids. Rewrite on the host port of the seam, small after the seam is built | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+RunningTheGraphEmptiesIt | rewrite | 7 | recording_graph: fixture field runtime unused; per-test runtime in the fixture, same reason as above | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+DiscardDropsTheTasksAndCountsThem | rewrite | 7 | recording_graph: fixture field runtime unused; per-test runtime in the fixture, same reason | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+TheRecorderBorrowsTheModeOfTheEngine | rewrite | 7 | recording_graph: fixture field runtime unused; per-test runtime in the fixture, same reason | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+TheRuntimeConstructorRecordsUnderTheModeItIsGiven | resize | 8 | recording_graph: the mode a graph records under is logic on values, but the test takes the device runtime from the fixture; seam: a RecordingGraph over a host port, so the mode check runs small | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+TheGraphRunsAgainAfterItWasEmptied | rewrite | 7 | recording_graph: fixture field runtime unused; per-test runtime in the fixture, same reason | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+ThePlanOrdersOneEntryPerRecordedTask | rewrite | 2 | recording_graph: the body checks that the plan has a value and the recorded count, not the plan's node count, so a plan with dropped or duplicated entries passes. The one-entry promise is also asserted by tests/engine/engine/test_task_recorder.cpp (nodes.size() at lines 150, 268, 619). This file is RecordingGraph's own, so it stays and is rewritten to assert the node count, not deleted | tests/engine/recording_graph/test_recording_graph.cpp;tests/engine/engine/test_task_recorder.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+ARunLetsGoOfTheStoragesOfItsLateCountTasks | resize | 8 | recording_graph: held count and storage reference counts are logic on values, reached through a device runtime and device tensors; small after a storage port with an in-memory adapter (seam to build). Regression test of a late-count release | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+ADiscardLetsGoOfTheStoragesOfItsLateCountTasks | resize | 8 | recording_graph: same as ARunLetsGoOfTheStoragesOfItsLateCountTasks for discard | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+ALabelledGraphRecordsAndRunsAsAnUnlabelledOneDoes | rewrite | 7 | recording_graph: fixture field runtime unused; per-test runtime in the fixture, same reason | tests/engine/recording_graph/test_recording_graph.cpp;modules/engine/recording_graph/include/SushiBLAS/recording_graph/recording_graph.hpp
+```
+
+### `tests/foundation/arithmetic/test_accumulator.cpp`
+
+```
+HalfAccumulatesInFloat | delete | 1 | forbidden kind: a static_assert run as a test, with a trait check of a compile-time type; the run-time promise is checked by AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses in the same file | tests/foundation/arithmetic/test_accumulator.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp
+EveryOtherTypeAccumulatesInItself | rewrite | 1 | forbidden kind: a static_assert run as a test, all five checks compile-time; move them to file scope so the compiler keeps the promise | tests/foundation/arithmetic/test_accumulator.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp
+AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses | rewrite | 7 | accumulator: the narrow line checks sycl::half's own rounding, not a SushiBLAS promise, so it goes; the wide sum (2049) and the accumulator type stay. Medium is wrong for a host-only test: small | tests/foundation/arithmetic/test_accumulator.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp
+```
+
+### `tests/foundation/arithmetic/test_complex_arithmetic.cpp`
+
+```
+RealOfNamesTheComponentType | rewrite | 1 | forbidden kind: a static_assert run as a test, both checks compile-time; the component mapping has no other test, so rewrite it as a run-time check through a value | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+RealMultiplyAndDivideAreTheBareOperators | rewrite | 7 | a for loop over 1000 draws in the body; the loop builds the input, so rows or a builder replace it | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+RealConjugationLeavesTheValue | keep | 9 | one value through four calls of one promise: conjugation of a real value leaves it unchanged | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexConjugateNegatesTheImaginaryPart | keep | 9 | one call, one promise | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ConjugateIfConjugatesOnlyWhenEnabled | keep | 9 | enabled and disabled calls of one function, one promise | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+RealPartZeroesTheImaginaryPart | keep | 9 | one call, one promise | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexMultiplyIsTheFourProductFormulaToTheBit | rewrite | 7 | a for loop over draws in the body; the oracle is a plain expression whose contraction under the build flags is not checked against the kernel here | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+RealTimesComplexScalesEachPart | rewrite | 7 | a for loop over draws in the body | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexDivideAgreesWithStdDivision | rewrite | 7 | a for loop with continue and an if in the body; the bound multiplies a typed constant (K_DIVIDE_EPSILONS = 6.0), not the repository tolerance helper, and tests/support is absent from tests/ | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexDivideIsExactForARealDivisor | rewrite | 7 | a for loop with continue in the body | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexDivideStaysFiniteForALargeDivisor | keep | 9 | one case: finite quotient within one rounding of 1 / divisor; the ASSERT checks the precondition that the square overflows | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+ComplexDivideByZeroGivesNanParts | keep | 9 | one case, NaN parts | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+SafeWrappersReturnWhatTheBricksReturn | rewrite | 7 | a for loop with continue in the body; the oracle is the brick, a metamorphic relation, so rows over the wrappers suffice | tests/foundation/arithmetic/test_complex_arithmetic.cpp
+```
+
+### `tests/foundation/arithmetic/test_device_math.cpp`
+
+```
+TheHostFunctionsGiveTheStandardResults | rewrite | 7 | thirteen calls of different functions in one body, each a promise of its own; rows of (function, input, expected) under an expect_* helper. Medium is wrong for host-only code: small | tests/foundation/arithmetic/test_device_math.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/device_math.hpp
+IsFiniteSeparatesFiniteFromInfinityAndNaN | resize | 8 | one promise over three inputs, decided on host values only; medium is larger than the size that sees it: small | tests/foundation/arithmetic/test_device_math.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/device_math.hpp
+AbsKeepsTheTypeOfItsArgument | rewrite | 2 | the body compares values only; a double result for a float argument would pass (3.0 == 3.0f), so the type is not checked and no other test checks it | tests/foundation/arithmetic/test_device_math.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/device_math.hpp
+```
+
+### `tests/foundation/arithmetic/test_multiply_add.cpp`
+
+```
+ARealMultiplyAddRoundsOnce | rewrite | 1 | forbidden kind: a Detail:: symbol (Kernels::Detail::multiply_add); the header offers the brick only in Detail and no other test in the chunk reaches it, so the promise needs a public door (the BLAS operation that uses it, or a public name the owner decides) | tests/foundation/arithmetic/test_multiply_add.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/multiply_add.hpp
+AVectorMultiplyAddRoundsEachLaneOnce | rewrite | 1 | forbidden kind: a Detail:: symbol; also a for loop over lanes in the body; the public door as above | tests/foundation/arithmetic/test_multiply_add.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/multiply_add.hpp
+AComplexMultiplyAddAddsTheProduct | rewrite | 1 | forbidden kind: a Detail:: symbol; hand value (1+2i)(3-4i)+(5+6i) = 16+8i checks out; the public door as above | tests/foundation/arithmetic/test_multiply_add.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/multiply_add.hpp
+TheComplexOverloadMatchesTheVectorParts | rewrite | 1 | forbidden kind: Detail:: symbols on both sides of the comparison; the public door as above | tests/foundation/arithmetic/test_multiply_add.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/multiply_add.hpp
+AnIntegerMultiplyAddIsExact | rewrite | 1 | forbidden kind: a Detail:: symbol; hand value 6 * 7 - 2 = 40; the public door as above | tests/foundation/arithmetic/test_multiply_add.cpp;modules/foundation/arithmetic/include/SushiBLAS/arithmetic/multiply_add.hpp
+```
+
+### `tests/foundation/arithmetic/test_no_contraction.cpp`
+
+```
+RoundsTheProductBeforeTheSum | keep | 9 | the unfused result differs from the fused one by 2^-24; one promise | tests/foundation/arithmetic/test_no_contraction.cpp
+```
+
+### `tests/foundation/arithmetic/test_safe_math.cpp`
+
+```
+TheRealFunctionsAgreeWithTheStandardLibrary | rewrite | 7 | six different functions in one body, each a promise of its own; rows of (function, input, expected) under expect_*; the tolerances are typed products, not the repository tolerance helper | tests/foundation/arithmetic/test_safe_math.cpp
+TheComplexFunctionsAgreeWithTheStandardLibrary | rewrite | 7 | five functions in one body; rows over (function, input) | tests/foundation/arithmetic/test_safe_math.cpp
+ComplexSqrtTakesThePrincipalRootOnTheNegativeRealSide | keep | 9 | two inputs of one promise, both signs of the imaginary part | tests/foundation/arithmetic/test_safe_math.cpp
+ComplexSqrtOfZeroAndOfAnInfiniteImaginaryPart | split | 3 | the name joins zero and an infinite imaginary part with and: two promises that can break apart | tests/foundation/arithmetic/test_safe_math.cpp
+ComplexTanhSaturatesForALargeRealPart | rewrite | 1 | forbidden kind: a bare tolerance literal (1e-30) in EXPECT_NEAR; the saturation has no other test; rewrite with a derived tolerance | tests/foundation/arithmetic/test_safe_math.cpp
+ComplexLogNearTheUnitCircleKeepsItsSmallModulus | keep | 9 | the oracle is the log1p identity stated in the comment; the tolerance is a named constant times the value | tests/foundation/arithmetic/test_safe_math.cpp
+ARealImaginaryPartIsKeptExact | keep | 9 | one call; the real-part line reads the same result | tests/foundation/arithmetic/test_safe_math.cpp
+TheSignTestsReadTheRealPart | keep | 9 | five inputs, one promise (the sign tests read the real part); rows would also fit, not required | tests/foundation/arithmetic/test_safe_math.cpp
+RealPartAndMakeComplexDropAndRestoreTheImaginaryPart | split | 3 | the name joins real_part and make_complex_safe with and: two promises | tests/foundation/arithmetic/test_safe_math.cpp
+ConjMulAndDivFollowComplexArithmetic | split | 3 | the name joins conj, mul and div with and: three promises | tests/foundation/arithmetic/test_safe_math.cpp
+```
+
+### `tests/foundation/blas_test_oracle/test_blas_flags.cpp`
+
+```
+EachHelperMapsBothTruthValues | rewrite | 7 | eight calls of four helpers in one body; rows of (helper, value, enumerator) | tests/foundation/blas_test_oracle/test_blas_flags.cpp
+TheHelpersAreConstantExpressions | rewrite | 1 | forbidden kind: static_assert run as a test; the constant-expression promise has no other test, so keep it as a file-scope compile check; the is_valid run-time check becomes its own test | tests/foundation/blas_test_oracle/test_blas_flags.cpp
+```
+
+### `tests/foundation/blas_test_oracle/test_blas_structured.cpp`
+
+```
+ColumnMajorTransposesTheElementOrder | keep | 9 | two layouts of one promise: in_layout gives each layout's element order; a missing transpose fails it | tests/foundation/blas_test_oracle/test_blas_structured.cpp
+ATridiagonalBandStoresOneDiagonalPerSlot | keep | 9 | row and column layouts of one promise, hand-built storage | tests/foundation/blas_test_oracle/test_blas_structured.cpp
+ATriangleBandKeepsOneSideOfTheDiagonal | keep | 9 | upper and lower of one promise | tests/foundation/blas_test_oracle/test_blas_structured.cpp
+PackedStorageWalksTheTriangleInLayoutOrder | keep | 9 | four combinations of one promise; rows would also fit, not required | tests/foundation/blas_test_oracle/test_blas_structured.cpp
+ASpareSlotPerLineStaysPoisoned | keep | 9 | one call, one promise | tests/foundation/blas_test_oracle/test_blas_structured.cpp
+```
+
+### `tests/foundation/blas_test_oracle/test_blas_truth.cpp`
+
+```
+AnEmptySumIsZero | rewrite | 1 | forbidden kind: a default value (TruthSum{} with value zero); the empty-sum promise is an empty-extent special value the testing skill says needs its own test, and this is its only test; rewrite it as that promise over no terms, small | tests/foundation/blas_test_oracle/test_blas_truth.cpp
+KeepsATermAPlainDoubleSumRoundsAway | rewrite | 7 | the naive line checks IEEE double, not a SushiBLAS promise, so it goes; the TruthSum checks (value 1.0, magnitude 2e16) stay | tests/foundation/blas_test_oracle/test_blas_truth.cpp
+KeepsTheRoundingErrorOfAProduct | resize | 8 | exact dyadic oracle, host-only arithmetic with no device, file or thread: medium is larger than the size that sees it; small | tests/foundation/blas_test_oracle/test_blas_truth.cpp
+UnitRoundoffIsHalfTheEpsilon | rewrite | 1 | forbidden kind: a constant (three hex values written out); the roundoff is used by every bound, so the promise is real and has no other test; rewrite it through the bound's behaviour, small | tests/foundation/blas_test_oracle/test_blas_truth.cpp
+TheRoundingBoundGrowsWithTheRoundings | rewrite | 7 | three promises under one name: zero roundings give zero, the closed form, and growth with the count; split them, all host-only, small | tests/foundation/blas_test_oracle/test_blas_truth.cpp
+```
+
+### `tests/foundation/blas_test_oracle/test_dense_oracle.cpp`
+
+```
+MatvecMultipliesTheMatrixOrItsTranspose | keep | 9 | two calls of one promise, values checked by hand (6, 16 and 5, 7, 9) | tests/foundation/blas_test_oracle/test_dense_oracle.cpp
+SymmetricFromMirrorsTheChosenTriangle | keep | 9 | two triangles of one promise, values checked by hand | tests/foundation/blas_test_oracle/test_dense_oracle.cpp
+TriangleOfZeroesTheOtherSideAndCanSetAUnitDiagonal | split | 3 | the name joins zeroing the other side and setting a unit diagonal with and: two promises; the unit diagonal is set only in the first call | tests/foundation/blas_test_oracle/test_dense_oracle.cpp
+BandOfKeepsTheDiagonalsInsideTheBand | keep | 9 | one call, values checked by hand | tests/foundation/blas_test_oracle/test_dense_oracle.cpp
+TriangleUpdateAddsTheRankOneOrRankTwoTerm | keep | 9 | rank-one and rank-two terms of one update, values checked by hand | tests/foundation/blas_test_oracle/test_dense_oracle.cpp
+```
+
+### `tests/foundation/core/test_blas_types.cpp`
+
+```
+EveryEnumeratorCarriesItsCblasNumber | keep | 9 | nine enumerators, one promise: the CBLAS numbers; each failure names its enumerator | tests/foundation/core/test_blas_types.cpp
+EveryFlagIsOneByte | rewrite | 1 | forbidden kind: static_assert run as a test; the four static_asserts duplicate the EXPECT_EQ on sizeof; move them to file scope | tests/foundation/core/test_blas_types.cpp
+IsValidAcceptsEveryEnumerator | keep | 9 | nine enumerators, one promise | tests/foundation/core/test_blas_types.cpp
+IsValidRefusesAValueInitialisedFlag | keep | 9 | rows host for the refusal promise: IsValidRefusesAValueAboveEveryEnumerator and IsValidRefusesTheNumberOfAnotherFlag merge into it | tests/foundation/core/test_blas_types.cpp
+IsValidRefusesAValueAboveEveryEnumerator | merge | 4 | same promise (is_valid refuses a non-enumerator) with other inputs; merge into tests/foundation/core/test_blas_types.cpp::IsValidRefusesAValueInitialisedFlag as rows | tests/foundation/core/test_blas_types.cpp
+IsValidRefusesTheNumberOfAnotherFlag | merge | 4 | same promise with another flag's numbers as inputs; merge into tests/foundation/core/test_blas_types.cpp::IsValidRefusesAValueInitialisedFlag as rows | tests/foundation/core/test_blas_types.cpp
+IsTransposedHoldsForBothTransposes | keep | 9 | three values, one promise | tests/foundation/core/test_blas_types.cpp
+IsConjugatedHoldsForTheConjugateTransposeOnly | keep | 9 | three values, one promise | tests/foundation/core/test_blas_types.cpp
+ToStringNamesEveryEnumerator | keep | 9 | a table of names, one promise | tests/foundation/core/test_blas_types.cpp
+ToStringNamesAValueOutsideTheEnumerationUnknown | keep | 9 | the invalid-value name for the BLAS flags; the same promise for DataType is a different unit | tests/foundation/core/test_blas_types.cpp
+```
+
+### `tests/foundation/core/test_common.cpp`
+
+```
+EveryEnumeratorKeepsItsFileFormatNumber | rewrite | 1 | forbidden kind: static_assert run as a test; eight static_asserts duplicate the EXPECT_EQ table; move them to file scope and keep the run-time table | tests/foundation/core/test_common.cpp
+IsOneByte | rewrite | 1 | forbidden kind: static_assert run as a test, duplicated by EXPECT_EQ on sizeof; move the static_assert to file scope | tests/foundation/core/test_common.cpp
+ToStringNamesEveryEnumerator | keep | 9 | a table of names, one promise | tests/foundation/core/test_common.cpp
+ToStringNamesAValueOutsideTheEnumerationUnknown | keep | 9 | the invalid-value name for DataType; the BLAS flags have their own unit | tests/foundation/core/test_common.cpp
+BytesPerElementIsTheStorageSizeOfEachType | keep | 9 | a table of sizes, one promise | tests/foundation/core/test_common.cpp
+EveryComputedTypeIsExactlyOneOfRealComplexAndInteger | rewrite | 7 | a for loop over an array of inputs in the body with SCOPED_TRACE; rows replace it | tests/foundation/core/test_common.cpp
+ThePredicatesSortEachTypeIntoItsKind | keep | 9 | seven predicate calls, one promise: each type sits in its kind | tests/foundation/core/test_common.cpp
+UInt32IsNeitherRealNorComplexNorSignedInteger | keep | 9 | one type, three predicates, one promise | tests/foundation/core/test_common.cpp
+KeepsItsNumbersAndIsOneByte | rewrite | 1 | forbidden kind: static_assert run as a test (sizeof); move it to file scope; the name then states the numbers only | tests/foundation/core/test_common.cpp
+TheLargestRankIsSix | rewrite | 1 | forbidden kind: a constant (K_MAX_TENSOR_RANK == 6); the rank limit is a real promise with no other test here; rewrite through the refusal of a seventh rank where tensors are made | tests/foundation/core/test_common.cpp
+```
+
+### `tests/foundation/core/test_errors.cpp`
+
+```
+IsAFinalInvalidArgument | rewrite | 1 | forbidden kind: static_assert run as a test (base and final); move both to file scope; EXPECT_THROW stays | tests/foundation/core/test_errors.cpp
+KeepsTheMessageItWasGiven | resize | 8 | the message kept through what(); host-only throw, no device, file or thread: small, not medium | tests/foundation/core/test_errors.cpp
+DoesNotCatchAPlainInvalidArgument | rewrite | 7 | a try and catch blocks in the body (control flow); rewrite with EXPECT_THROW of the other type, or a helper that asserts; host-only, so small | tests/foundation/core/test_errors.cpp
+```
+
+### `tests/foundation/core/test_export.cpp`
+
+```
+NamesThePlatformVisibilityAttribute | rewrite | 1 | forbidden kind: a change detector; it checks the spelling of SUSHIBLAS_API, not that exported symbols are visible; rewrite against the symbols of the built library (the promise), medium | tests/foundation/core/test_export.cpp
+```
+
+### `tests/foundation/core/test_logger.cpp`
+
+```
+ARecordCarriesTheSushiBLASProjectAndItsModule | resize | 8 | installs a sink and sets the level on the process-wide logger, which is the forbidden reach; small after a logger port with an in-memory sink (seam to build) | tests/foundation/core/test_logger.cpp
+ARecordBelowTheProjectLevelIsDropped | resize | 8 | sets the process-wide project level and reads the sink; small after the same seam; the fixture restores a fixed level, not the previous one | tests/foundation/core/test_logger.cpp
+ThrowIfThrowsTheFormattedMessageAndLogsNothing | rewrite | 7 | try and FAIL in the body (control flow); rewrite with EXPECT_THROW and a message check; the logs-nothing part reaches the process-wide sink, so the seam of the resize above follows | tests/foundation/core/test_logger.cpp
+AssertWritesAFatalRecordInItsCategoryBeforeAborting | rewrite | 7 | an NDEBUG skip guard in the body; a build guard moves into the program's environment or a separate build of the death test (rewrite at question 7); it is a death test, so it keeps its own process; reaches the process-wide logger's stderr sink, medium | tests/foundation/core/test_logger.cpp
+```
+
+### `tests/foundation/core/test_sparse_types.cpp`
+
+```
+KeepsItsSparseBLASNumbersInOneByte | rewrite | 1 | forbidden kind: static_assert run as a test (sizeof); move it to file scope; the numbers EXPECT stays | tests/foundation/core/test_sparse_types.cpp
+IsValidAcceptsBothBasesAndNothingElse | keep | 9 | four inputs, one promise: both bases valid, nothing else | tests/foundation/core/test_sparse_types.cpp
+FirstIndexIsZeroOrOne | rewrite | 1 | forbidden kind: static_assert run as a test (two checks); move them to file scope; the EXPECT_EQ stays | tests/foundation/core/test_sparse_types.cpp
+ToStringNamesBothBasesAndAnUnknownValue | split | 3 | the name joins the names of the bases and of an invalid value with and: two promises that can break apart | tests/foundation/core/test_sparse_types.cpp
+```
+
+### `tests/foundation/core/test_sushiblas_log_project.cpp`
+
+```
+TheProjectIsReadFromSbLogLevel | rewrite | 1 | forbidden kind: static_assert run as a test (two checks); the name says the project is read from SB_LOG_LEVEL, which the test does not exercise; move the checks to file scope and rename to what they state | tests/foundation/core/test_sushiblas_log_project.cpp
+```
+
+### `tests/foundation/core/test_traits.cpp`
+
+```
+IsComplexHoldsForEveryStdComplex | rewrite | 1 | forbidden kind: static_assert run as a test, duplicated by EXPECT_TRUE; move the static_asserts to file scope. Q4 note: the three trait tests in this file are one promise over types and may merge into rows | tests/foundation/core/test_traits.cpp
+IsComplexIsFalseForRealAndIntegerTypes | rewrite | 1 | forbidden kind: static_assert run as a test, duplicated by EXPECT_FALSE; move to file scope | tests/foundation/core/test_traits.cpp
+IsComplexReadsThePlainTypeOnly | rewrite | 1 | forbidden kind: static_assert run as a test (const and pointer cases); move to file scope; EXPECT_FALSE on the pointer stays | tests/foundation/core/test_traits.cpp
+```
+
+### `tests/foundation/core/test_version.cpp`
+
+```
+TheStringSpellsTheThreeNumbers | delete | 1 | forbidden kind: a version string, trivial spelling. The reported version is checked against the macro in tests/engine/profiling/test_blas_environment.cpp::StatesTheVersionAndTheProfileLevelAsBuildFacts | tests/foundation/core/test_version.cpp;tests/engine/profiling/test_blas_environment.cpp
+TheEncodingGivesEachPartTwoDecimalDigits | rewrite | 1 | forbidden kind: static_assert run as a test (two checks); move to file scope; the EXPECT_EQ stays | tests/foundation/core/test_version.cpp
+TheVersionIsTheEncodingOfItsParts | keep | 9 | a consistency check between the macros, guards an edit of one of them | tests/foundation/core/test_version.cpp
+LaterReleasesEncodeLarger | keep | 9 | two comparisons of one promise: the encoding grows with the release | tests/foundation/core/test_version.cpp
+```
+
+### `tests/foundation/cost/test_composite_cost.cpp`
+
+```
+Small_CompositeCost.SoftmaxCostsMaxShiftExpSumAndDivide | merge | 4 | merge with Small_CompositeCost.ARowOfOneStillShiftsExponentiatesAndDivides: softmax rows of equal length cost 5 cols - 2 each | tests/foundation/cost/test_composite_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/composite_cost.hpp
+Small_CompositeCost.ARowOfOneStillShiftsExponentiatesAndDivides | merge | 4 | merge with Small_CompositeCost.SoftmaxCostsMaxShiftExpSumAndDivide: same softmax promise at cols 1 | tests/foundation/cost/test_composite_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/composite_cost.hpp
+Small_CompositeCost.AnEmptySoftmaxCostsNothing | keep | 9 | softmax: a row or column count below 1 costs 0 | tests/foundation/cost/test_composite_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/composite_cost.hpp
+```
+
+### `tests/foundation/cost/test_cost.cpp`
+
+```
+Small_Cost.ADefaultCostIsCostedAndEmpty | delete | 1 | forbidden kind: a default value; the promise (a costed cost states zero work) is tested by Small_CostTable.ACopyCostsNoFlopsAndIsStillCosted | tests/foundation/cost/test_cost.cpp; tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp
+Small_Cost.AnUncostedCostKeepsItsReasonAndStatesNothing | keep | 9 | cost: an uncosted cost keeps its reason and states no flops | tests/foundation/cost/test_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp
+Small_Cost.WithBytesSetsTheBytesOfACostedCostOnly | split | 3 | two promises: with_bytes sets the bytes of a costed cost; with_bytes leaves an uncosted cost at zero bytes | tests/foundation/cost/test_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp
+Small_Cost.TheClassFollowsTheDtype | rewrite | 7 | cost.real_class_of: four copied assertions over real dtypes; rewrite as one row table covering the real and complex dtypes, with the rows of AComplexTypeIsCountedInItsRealClass | tests/foundation/cost/test_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp
+Small_Cost.AComplexTypeIsCountedInItsRealClass | merge | 4 | merge with Small_Cost.TheClassFollowsTheDtype: same real_class_of promise over complex dtypes | tests/foundation/cost/test_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp
+Small_Cost.EveryReasonHasADistinctName | delete | 1 | forbidden kind: a test of trivial code (constant report strings); the known-name promise is checked by Small_CostTable.EveryRowNamesAKnownRule, and the unknown value is added as a gap | tests/foundation/cost/test_cost.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost.hpp; tests/foundation/cost/test_cost_table.cpp
+```
+
+### `tests/foundation/cost/test_cost_shape.cpp`
+
+```
+Small_CostShape.ADefaultShapeStatesNothing | delete | 1 | forbidden kind: a default value; the promise (an empty shape states nothing) is tested by Small_CostTable.ARowWithNoStatedShapeIsUncostedNoShape | tests/foundation/cost/test_cost_shape.cpp; tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_shape.hpp
+Small_CostShape.EachFamilyIsAnAlternative | delete | 1 | forbidden kind: a static_assert run as a test (a compile-time type declaration checked at run time); each family is used by a cost_of call in test_cost_table.cpp | tests/foundation/cost/test_cost_shape.cpp; tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_shape.hpp
+Small_CostShape.ADefaultGemmIsOneProductWithNoEpilogue | rewrite | 1 | forbidden kind: a default value; the only test of the GemmShape default promise; rewrite it as a gemm row of test_cost_table.cpp built from the default shape | tests/foundation/cost/test_cost_shape.cpp; tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_shape.hpp
+```
+
+### `tests/foundation/cost/test_cost_table.cpp`
+
+```
+Small_CostTable.GemmCostsTwoMNKPerBatch | split | 3 | two outcomes: the flops promise (kept) and the dtype of the cost (already stated by Small_CostTable.AHalfGemmIsJudgedInTheHalfClass, dropped) | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_table.hpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AComplexGemmCostsEightMNK | split | 3 | two promises: complex product costs 8 per multiply-add; a complex product is judged in the Float32 class through gemm (no sibling tests the gemm path for complex) | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_table.hpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.TheGemmEpilogueAddsItsCountPerElementOfC | keep | 9 | cost_table.gemm: the fused epilogue adds its count per element of C | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_table.hpp
+Small_CostTable.AHalfGemmIsJudgedInTheHalfClass | keep | 9 | cost_table.gemm: a half product is judged in the Half class | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_table.hpp
+Small_CostTable.ADenseConvolutionCostsTwoPerTapOfEveryInputChannel | merge | 4 | merge with Small_CostTable.AGroupedConvolutionSumsOverTheChannelsOfOneGroup and ADepthwiseConvolutionSumsOverTheWindowOnly into one row table of window_dot shapes | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AGroupedConvolutionSumsOverTheChannelsOfOneGroup | merge | 4 | merge with Small_CostTable.ADenseConvolutionCostsTwoPerTapOfEveryInputChannel and ADepthwiseConvolutionSumsOverTheWindowOnly: same window_dot promise, groups 2 | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ADepthwiseConvolutionSumsOverTheWindowOnly | merge | 4 | merge with Small_CostTable.ADenseConvolutionCostsTwoPerTapOfEveryInputChannel and AGroupedConvolutionSumsOverTheChannelsOfOneGroup: same window_dot promise, groups equal to channels | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AConvolutionEpilogueAddsItsCountPerOutput | keep | 9 | cost_table.window_dot: the fused epilogue adds its count per output | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AnElementwiseRowScalesWithTheCount | rewrite | 7 | cost_table.elementwise: one promise over three op ids (add, gelu, exp) written as copied assertions; rewrite as a row table of op id and per-element weight | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AReductionFoldsInputsIntoOutputs | split | 3 | several promises: the sum fold, the mean with per-output work, the asum with per-element work, each with its own row weights | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AWindowFoldsItsTapsIntoEachOutput | split | 3 | two promises: max pooling costs one combine per tap; average pooling also costs per-output work | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ThePoolAndUpsampleBackwardsCostTheirScatter | split | 3 | three promises: average pool backward, max pool backward, upsample backward scatter | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.TheWeightGradientOfAWindowCostsWhatItsForwardDoes | keep | 9 | cost_table.window_dot_weights_backward: costed, and equal to the forward cost (metamorphic) | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ATransformCostsFiveNLogNPerPowerOfTwoLine | split | 3 | two promises: a one-dimensional power-of-two line costs 5 n log2 n; a batched two-dimensional transform sums its row and column passes (1600) | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ARealEvenRowIsTransformedAsHalfALineAndUntangled | keep | 9 | cost_table.fft: a real even row costs half a line plus 5 n | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ABluesteinLineCostsThreePaddedPassesAndTheChirp | keep | 9 | cost_table.fft: a non-power-of-two line costs the Bluestein padded passes and chirp | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ACopyCostsNoFlopsAndIsStillCosted | keep | 9 | cost_table.copy: a copy is costed with zero flops | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AnUnknownIdIsUncostedNoRule | keep | 9 | cost_table.cost_of: an id with no row is uncosted with NoRule | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ARowWithNoStatedShapeIsUncostedNoShape | keep | 9 | cost_table.cost_of: an empty shape on a costed row is uncosted with NoShape | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ADeclaredUncostedRowKeepsItsReasonWhateverTheShape | keep | 9 | cost_table.cost_of: a row that declares a reason keeps it whatever the shape | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.ANegativeExtentCostsNothing | keep | 9 | cost_table.cost_of: a negative extent costs zero flops | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.AnOverflowingProductSaturates | keep | 9 | cost_table.cost_of: a product that overflows saturates | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.RowsAreSortedAndUnique | rewrite | 1 | forbidden kind: control flow (a loop over the rows in the body); rewrite as a builder-named check of the sorted property | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+Small_CostTable.EveryRowNamesAKnownRule | rewrite | 1 | forbidden kind: control flow (a loop with an if in the body); on rewrite it splits into one test per promise: every id is named, ids are unique, a row's reason is known, cost_of agrees with the row's reason | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp; modules/foundation/cost/include/SushiBLAS/cost/cost_table.hpp
+Small_CostTable.FindCostRowReturnsTheRowOfAnId | keep | 9 | cost_table.find_cost_row: one promise, the row or null, over a known and an unknown id | tests/foundation/cost/test_cost_table.cpp; modules/foundation/cost/source/cost_table.cpp
+```
+
+### `tests/foundation/geometry/test_interpolation.cpp`
+
+```
+Small_GeometryInterpolation.ScalarLerpIsLinearAndUnclamped | rewrite | 7 | geometry.lerp (scalar): four t values of one promise written as copied assertions; rewrite as rows | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.VectorLerpBlendsEachComponent | keep | 9 | geometry.lerp (vector): a blend of each component | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.NlerpReturnsTheEndsAndTheHalfwayRotation | rewrite | 7 | geometry.nlerp: three t values (0, 1, 0.5) of one promise as copied assertions; rewrite as rows | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.NlerpFlipsTheSecondRotationToTheShortArc | keep | 9 | geometry.nlerp: the short arc on the far side | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.NlerpReturnsTheIdentityWhenTheBlendHasNoLength | keep | 9 | geometry.nlerp: a zero blend gives the identity | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryInterpolation.SlerpTurnsAtAConstantRate | rewrite | 7 | geometry.slerp: four t values of one promise as copied assertions; rewrite as rows | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.SlerpFlipsTheSecondRotationToTheShortArc | keep | 9 | geometry.slerp: the short arc on the far side | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.SlerpOfEqualRotationsIsFiniteAndReturnsThem | keep | 9 | geometry.slerp: equal rotations give a finite result equal to them | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+Small_GeometryInterpolation.SlerpOfNearlyParallelRotationsIsTheHalfwayRotation | keep | 9 | geometry.slerp: nearly parallel rotations give the halfway rotation | tests/foundation/geometry/test_interpolation.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/interpolation.hpp
+```
+
+### `tests/foundation/geometry/test_matrix4.cpp`
+
+```
+Small_GeometryMatrix4.DefaultIsTheIdentity | delete | 1 | forbidden kind: control flow (nested for loops) in the body and a default value; the identity default is relied on by the mul tests in the same file, so the promise is tested elsewhere | tests/foundation/geometry/test_matrix4.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/matrix4.hpp; tests/foundation/geometry/test_transform.cpp
+Small_GeometryMatrix4.HoldsSixteenElementsAndNothingElse | delete | 1 | forbidden kind: a static_assert run as a test; matrix4.hpp states sizeof == 16 * sizeof(T) at compile time | tests/foundation/geometry/test_matrix4.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/matrix4.hpp
+Small_GeometryMatrix4.MulReadsRowsOfTheLeftAndColumnsOfTheRight | merge | 4 | merge with Small_GeometryMatrix4.MulAppliesTheRightOperandFirst: both state the order and rows-by-columns of geometry.mul | tests/foundation/geometry/test_matrix4.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/matrix4.hpp
+Small_GeometryMatrix4.MulAppliesTheRightOperandFirst | merge | 4 | merge with Small_GeometryMatrix4.MulReadsRowsOfTheLeftAndColumnsOfTheRight: the same product promise on a transform | tests/foundation/geometry/test_matrix4.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/matrix4.hpp
+```
+
+### `tests/foundation/geometry/test_quaternion.cpp`
+
+```
+Small_GeometryQuaternion.DefaultIsTheIdentityRotation | delete | 1 | forbidden kind: a default value; the identity default is used by the identity{} cases of Small_GeometryQuaternion.RotateTurnsAVectorAboutTheAxis and by test_transform.cpp, so the promise is tested elsewhere | tests/foundation/geometry/test_quaternion.cpp; tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.ComponentsLieInOrderWithoutPadding | keep | 9 | geometry layout: QuaternionT components in order without padding; static_asserts cover size and standard layout only | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.AxisAngleHoldsTheHalfAngleSineAndCosine | rewrite | 7 | geometry.quaternion_axis_angle: three angles of one promise as copied assertions; rewrite as rows | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.MulIsTheHamiltonProduct | rewrite | 7 | geometry.mul (quaternion): three products (i j, j i, a b) as copied assertions; rewrite as rows | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.ConjugateNegatesTheVectorPart | keep | 9 | geometry.conjugate: negates the vector part | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.RotateTurnsAVectorAboutTheAxis | rewrite | 7 | geometry.rotate: four rotations (identity, quarter turn on x, quarter turn on v, third turn) as copied assertions; rewrite as rows | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.NormalizeScalesToUnitLength | keep | 9 | geometry.normalize (quaternion): scales to unit length, two inputs | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.NormalizeReturnsTheIdentityForAZeroLength | rewrite | 1 | forbidden kind: control flow (range-for over {zero, tiny}) in the body; the only test of the degenerate promise; rewrite as two rows of one builder | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+Small_GeometryQuaternion.DotSumsTheFourComponentProducts | keep | 9 | geometry.dot (quaternion): sums the four component products | tests/foundation/geometry/test_quaternion.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/quaternion.hpp
+```
+
+### `tests/foundation/geometry/test_spatial_geometry.cpp`
+
+```
+Medium_SpatialGeometry.TheOrdinaryCasesMatchTheFormula | rewrite | 7 | geometry.output_extent: four extents of one formula as copied assertions; rewrite as rows; also Medium_ with no device, so Small_ on rewrite | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp; tests/foundation/geometry/README.md
+Medium_SpatialGeometry.DilationWidensTheKernelWithoutWideningTheOutput | rewrite | 7 | geometry.output_extent: three dilations of one formula as copied assertions; rewrite as rows; Small_ on rewrite | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp; tests/foundation/geometry/README.md
+Medium_SpatialGeometry.AsymmetricPaddingIsWhatHoldsYoloTinysLastPool | rewrite | 7 | geometry.output_extent: three padding placements of one formula; the name states a use case, not a promise; rewrite as rows named for the padding promise; Small_ on rewrite | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp
+Medium_SpatialGeometry.NonSquareAndAnisotropicGeometryIsExpressible | delete | 3 | no promise: the name claims an anisotropic two-axis promise, but both calls are one-axis output_extent calls, and the 1-D values repeat the formula checked by TheOrdinaryCasesMatchTheFormula | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp
+Medium_SpatialGeometry.AWindowWiderThanThePaddedInputYieldsNoOutputRatherThanANegativeOne | resize | 8 | geometry.output_extent: a window wider than the padded input gives zero, by two causes (no padding, dilation); a pure function with no device, so Small_ is the smallest size that sees it | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp; tests/foundation/geometry/README.md
+Medium_SpatialGeometry.WindowSpanDerivesItsOwnCounts | split | 3 | three promises: windows, patch_elements and column_elements are products of their extents; Small_ on split | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp
+Medium_SpatialGeometry.TheDefaultGeometryIsTheIdentityWindow | rewrite | 1 | forbidden kind: a default value (ConvGeometry defaults); the default identity window is not used by any sibling, so the test is the only one of the promise; rewrite as a row of the output_extent table, Small_ | tests/foundation/geometry/test_spatial_geometry.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp
+```
+
+### `tests/foundation/geometry/test_transform.cpp`
+
+```
+Small_GeometryTransform.TranslationWritesTheFourthColumn | keep | 9 | geometry.translation: writes the fourth column | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.ScalingWritesTheDiagonal | keep | 9 | geometry.scaling: writes the diagonal | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.PerspectiveIsReverseZAndIgnoresTheFarPlane | split | 3 | two promises joined by "and": the reverse-Z layout, and the far plane not changing the matrix (the two can break apart) | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.LookAtPlacesTheTargetOnTheNegativeZAxis | keep | 9 | geometry.look_at: places the target on the negative z axis, two eyes | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.Matrix4FromQuaternionHoldsTheRotatedAxesAsColumns | rewrite | 7 | geometry.matrix4_from_quaternion: three rotations as copied assertions; rewrite as rows | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.ComposeTransformScalesThenRotatesThenTranslates | keep | 9 | geometry.compose_transform: scales, rotates, translates | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.QuaternionFromMatrixTakesTheTraceBranchForAQuarterTurn | rewrite | 7 | geometry.quaternion_from_matrix: four matrices (three quarter turns and the identity) as copied assertions; the identity is not a quarter turn; rewrite as rows | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.QuaternionFromMatrixTakesTheXBranchWhenXIsLargest | keep | 9 | geometry.quaternion_from_matrix: the x branch | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.QuaternionFromMatrixTakesTheYBranchWhenYIsLargest | keep | 9 | geometry.quaternion_from_matrix: the y branch | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.QuaternionFromMatrixTakesTheZBranchOtherwise | keep | 9 | geometry.quaternion_from_matrix: the z branch, including a trace of zero | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.AffineInverseInvertsAShearedMatrix | keep | 9 | geometry.affine_inverse: specified inverse, and the product is the identity both ways (metamorphic) | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.AffineInverseReturnsTheIdentityForASingularMatrix | rewrite | 1 | forbidden kind: control flow (for loop over elements) in the body; the only test of the singular promise; rewrite with expect_matrix_near and K_TRANSFORM_IDENTITY | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.DecomposeTransformRecoversWhatComposeTransformTook | keep | 9 | geometry.decompose_transform: round trip of compose_transform, two inputs | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.DecomposeTransformPutsAReflectionOnTheXScale | keep | 9 | geometry.decompose_transform: a reflection on the x scale | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+Small_GeometryTransform.DecomposeTransformKeepsTheIdentityAxisOfAZeroScale | keep | 9 | geometry.decompose_transform: a zero scale keeps the identity axis | tests/foundation/geometry/test_transform.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/transform.hpp
+```
+
+### `tests/foundation/geometry/test_vector3.cpp`
+
+```
+Small_GeometryVector3.DefaultIsTheZeroVector | delete | 1 | forbidden kind: a default value; a zero-initialised aggregate states no promise beyond its zero-initialisation | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.ComponentsLieInOrderWithoutPadding | keep | 9 | geometry layout: Vector3T components in order without padding; static_asserts cover size and standard layout only | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.SumDifferenceAndScaleAreComponentwise | split | 3 | three promises: componentwise sum, difference and scale | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.DotSumsTheComponentProducts | keep | 9 | geometry.dot (vector): sums the component products | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.CrossIsRightHanded | rewrite | 7 | geometry.cross: three products (x y, y x, a b) as copied assertions; rewrite as rows | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.LengthIsTheEuclideanNorm | keep | 9 | geometry.length: the Euclidean norm, two inputs | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.NormalizeScalesToUnitLength | keep | 9 | geometry.normalize (vector): unit length, two inputs | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+Small_GeometryVector3.NormalizeReturnsAZeroLengthVectorUnchanged | keep | 9 | geometry.normalize (vector): a zero length is returned unchanged | tests/foundation/geometry/test_vector3.cpp; modules/foundation/geometry/include/SushiBLAS/geometry/vector3.hpp
+```
+
+### `tests/foundation/graph_primitives/test_combiners.cpp`
+
+```
+Medium_GraphPrimitivesCombiners.EachCombinesTwoValues | split | 3 | four promises, one per combiner (sum, product, minimum, maximum); pure and device-free, so Small_ on split | tests/foundation/graph_primitives/test_combiners.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/combiners.hpp
+Medium_GraphPrimitivesCombiners.IdentityLeavesAValueUnchanged | rewrite | 7 | the neutral identity of four combiners as copied assertions; rows over the combiner; Small_ on rewrite | tests/foundation/graph_primitives/test_combiners.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/combiners.hpp
+Medium_GraphPrimitivesCombiners.FloatingPointIdentities | rewrite | 1 | forbidden kind: a constant checked as trivial code; the identity constants have no other test, so rewrite as rows keyed by combiner and type; Small_ | tests/foundation/graph_primitives/test_combiners.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/combiners.hpp
+```
+
+### `tests/foundation/graph_primitives/test_counting_sort.cpp`
+
+```
+Medium_GraphPrimitivesCountingSort.StableAgainstHostReferenceOnDuplicateKeys | rewrite | 1 | forbidden kind: control flow (loops that copy input and check outputs) in the body; on rewrite the stable-order, bucket, count, total and sentinel promises split apart; the stable-order logic is small once a host kernel is reachable (seam) | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.StableAcrossDigitsWhenTheLowDigitTies | rewrite | 1 | forbidden kind: control flow (loops that build the keys and check the buckets) in the body; a builder replaces the loops | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.LargeRandomCaseAgainstHostReference | rewrite | 1 | forbidden kind: control flow (loops that copy and check 10^6 elements) in the body; also a size sign: the README names it one of the two slowest of the module, so the rewrite must also check its size | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.AllKeysEqualKeepsInputOrder | rewrite | 1 | forbidden kind: control flow (loops that fill the keys and check the indices) in the body; rewrite as a builder over equal keys and a check of the indices | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.OneElement | resize | 8 | one key through the sort; the promise is logic decided on values, but the test reaches it through a runtime and a graph (no host entry is called); a host-callable counting-sort seam is needed before a small test | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.ZeroElementsWritesZeroEverywhere | rewrite | 1 | forbidden kind: control flow (loops that fill canaries and check buckets) in the body; rewrite with a builder for the canaries | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.MaximumKeyOfA20BitRange | rewrite | 1 | forbidden kind: control flow (loops that copy and check) in the body; rewrite with a builder | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.DigitCountFollowsKeyRangeCapacity | rewrite | 1 | forbidden kind: a loop in the lambda that fills the keys, and a count of recorded nodes in the body; the node-count promise is a boundary (Medium) and is split out on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.LateBoundChangingCountAndKeyRangeKeepsOneCompile | rewrite | 1 | forbidden kind: control flow (the run_and_check lambda loops, with ASSERT in loops) in the body; split on rewrite: results per run, and the single compile | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.LiveKeyRangeBelowCapacityLandsInIndices | rewrite | 1 | forbidden kind: loops over key ranges and over the outputs in the body; rows over the key ranges on rewrite; the 2^24 offsets make it a size sign too | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.DigitsAboveTheLiveKeyRangeDoNotRun | rewrite | 1 | forbidden kind: a loop with EXPECT in the body; the only test of the digit-skip promise; rewrite as one check over the order of four keys | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.RegionsRecordScanAndCountingSort | rewrite | 1 | forbidden kind: control flow (loops over two live sizes, with ASSERT in loops) in the body; two primitives in one test, so it splits on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.EachRunSortsItsOwnKeys | rewrite | 1 | forbidden kind: loops over steps and over elements in the body; rewrite with a builder of the step keys | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.SharesOneNodeIndexAcrossStepsAndPasses | rewrite | 1 | forbidden kind: loops over events and steps in the body; split on rewrite: one node_index, and the passes per step | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.NodeWidthsMatchThePlan | rewrite | 1 | forbidden kind: a loop with EXPECT in the body over the expected widths; rows keyed by pass on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.RejectsMisSizedArguments | rewrite | 1 | forbidden kind: an if in a lambda in the body; six refusal cases as copied assertions; rows on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.LateBoundCountAboveCapacityFailsTheRun | resize | 8 | a live count above capacity fails the run; the decision is on values, but the test runs a graph, so the small form needs a seam that decides the refusal without a runtime | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.LateBoundKeyRangeAboveCapacityFailsTheRun | resize | 8 | a live key range above capacity fails the run; same seam as LateBoundCountAboveCapacityFailsTheRun | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesDeviceSized.CountingSortChainMatchesScheduler | rewrite | 1 | forbidden kind: a loop that builds the keys in the body; the runtimes are made by expect_chain_matches_scheduler (owner decision, as for the device-sized reduce) | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/device_sized_harness.hpp
+Medium_GraphPrimitivesCountingSort.WindowMatchesACompactBufferExactly | rewrite | 1 | forbidden kind: loops that fill the buffers and copy the keys in the body; the metamorphic promise (window equals compact) is split out on rewrite with the canary checks | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesCountingSort.WindowOrdersOnlyOverlappingWriters | rewrite | 1 | forbidden kind: a loop that fills the keys in the body; ten probe checks split on rewrite into rows over the operand regions | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/window_probe.hpp
+Medium_GraphPrimitivesCountingSort.RejectsAWindowPastItsBuffer | rewrite | 1 | forbidden kind: a loop over window cases in the body; rows keyed by operand on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp
+Medium_GraphPrimitivesCountingSort.NamedCallNamesItsNodesAndStatesTheirClass | rewrite | 1 | forbidden kind: loops that build the expected stages and check the classes in the body; split on rewrite: names and classes | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesCountingSort.UnnamedCallKeepsItsNodesUnnamed | rewrite | 1 | forbidden kind: a loop over the determinism classes in the body; split on rewrite: names and classes | tests/foundation/graph_primitives/test_counting_sort.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesCountingSort.RejectsOptionsThatNameNothing | rewrite | 1 | forbidden kind: a loop over three option sets in the body; rows on rewrite | tests/foundation/graph_primitives/test_counting_sort.cpp
+```
+
+### `tests/foundation/graph_primitives/test_element_window.cpp`
+
+```
+Small_GraphPrimitivesElementWindow.AcceptsWindowsInsideTheBuffer | rewrite | 7 | require_window: four windows of one promise as copied assertions; rows | tests/foundation/graph_primitives/test_element_window.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/element_window.hpp
+Small_GraphPrimitivesElementWindow.RefusesWindowsPastTheBuffer | rewrite | 1 | forbidden kind: control flow (a range-for over window pairs) in the body; the only test of the refusal; rewrite as rows | tests/foundation/graph_primitives/test_element_window.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/element_window.hpp
+Small_Regression_GraphPrimitivesElementWindow.MessagePrintsTheComputedEnd | keep | 9 | require_window: the refusal message prints the computed end (regression) | tests/foundation/graph_primitives/test_element_window.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/element_window.hpp
+Small_Regression_GraphPrimitivesElementWindow.MessageNamesAnEndThatWraps | keep | 9 | require_window: the refusal message names a wrapped end (regression) | tests/foundation/graph_primitives/test_element_window.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/element_window.hpp
+Medium_GraphPrimitivesElementWindow.AccessOfNarrowsSpansAndKeepsRegions | split | 3 | two promises: a span narrows the key to its bytes (logic, Small once a region can be built without a runtime: a missing seam, resize first), and the span's buffer stays watched (a runtime boundary, Medium) | tests/foundation/graph_primitives/test_element_window.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/element_window.hpp
+```
+
+### `tests/foundation/graph_primitives/test_fixed_order_fold.cpp`
+
+```
+Medium_GraphPrimitivesFixedOrderFold.EmptyAndSingleCounts | split | 3 | two promises: an empty fold returns the identity; one element returns itself; each in both forms; Small_ on split | tests/foundation/graph_primitives/test_fixed_order_fold.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_fold.hpp
+Medium_GraphPrimitivesFixedOrderFold.OneTileFoldsLeftToRight | rewrite | 1 | forbidden kind: a loop that builds the expected fold in the body; rewrite with a builder named for the left fold; Small_ | tests/foundation/graph_primitives/test_fixed_order_fold.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_fold.hpp
+Medium_GraphPrimitivesFixedOrderFold.ASecondTileIsFoldedOnItsOwn | rewrite | 1 | forbidden kind: a loop that builds the flat fold in the body; rewrite with a builder; Small_ | tests/foundation/graph_primitives/test_fixed_order_fold.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_fold.hpp
+Medium_GraphPrimitivesFixedOrderFold.BothFormsAgreeAcrossLevelBoundaries | rewrite | 1 | forbidden kind: a loop over counts in the body; rows over the level-boundary counts; Small_ | tests/foundation/graph_primitives/test_fixed_order_fold.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_fold.hpp
+Medium_GraphPrimitivesFixedOrderFold.ThreeLevelsMatchTheTreeWrittenOut | rewrite | 1 | forbidden kind: a loop that builds the first level in the body; rewrite with a builder named for the tree; Small_ | tests/foundation/graph_primitives/test_fixed_order_fold.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_fold.hpp
+```
+
+### `tests/foundation/graph_primitives/test_fixed_order_reduce.cpp`
+
+```
+Medium_GraphPrimitivesFixedOrderLevels.PlanLayoutIsPureAndDisjoint | rewrite | 1 | forbidden kind: a loop in the body; several promises (empty plan, single level, exact tile, three-level chain, scratch count), so it splits on rewrite; Small_ | tests/foundation/graph_primitives/test_fixed_order_reduce.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_reduce.hpp
+Medium_GraphPrimitivesFixedOrderLevels.FoldTileCombinesLeftToRight | resize | 8 | fold_tile: one promise over two inputs, and a pure fold with no device; the Medium label is wrong, so Small_ | tests/foundation/graph_primitives/test_fixed_order_reduce.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_reduce.hpp
+Medium_GraphPrimitivesFixedOrderLevels.IndexedTileStopsAtTheLiveCount | rewrite | 7 | fold_indexed_tile: three tiles of one promise as copied assertions; rows over the tile index; Small_ on rewrite | tests/foundation/graph_primitives/test_fixed_order_reduce.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_reduce.hpp
+```
+
+### `tests/foundation/graph_primitives/test_fixed_order_scan.cpp`
+
+```
+Medium_GraphPrimitivesFixedOrderLevels.LevelCountsAtTileBoundaries | rewrite | 7 | plan_tiled_levels: eight counts of one promise as copied assertions; rows; Small_ on rewrite | tests/foundation/graph_primitives/test_fixed_order_scan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_scan.hpp
+Medium_GraphPrimitivesFixedOrderLevels.LiveCountBelowCapacityMatchesThatCount | rewrite | 1 | forbidden kind: nested loops in the body; rewrite as rows; Small_ | tests/foundation/graph_primitives/test_fixed_order_scan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_scan.hpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_reduce.hpp
+Medium_GraphPrimitivesFixedOrderLevels.LiveCountZeroFoldsNothing | rewrite | 1 | forbidden kind: a loop in the body; rewrite as a row; Small_ | tests/foundation/graph_primitives/test_fixed_order_scan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_scan.hpp
+Medium_GraphPrimitivesFixedOrderLevels.LiveLevelWordsMatchTheLiveLevels | rewrite | 1 | forbidden kind: loops in the body; rewrite with a builder over the words; Small_ | tests/foundation/graph_primitives/test_fixed_order_scan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/fixed_order_scan.hpp
+```
+
+### `tests/foundation/graph_primitives/test_invalid_graph.cpp`
+
+```
+Medium_GraphPrimitivesInvalidGraph.CarriesTheInvalidGraphCodeAndTheMessage | resize | 8 | invalid_graph is a pure error constructor that needs no runtime; the Medium label is wrong, so Small_ | tests/foundation/graph_primitives/test_invalid_graph.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/invalid_graph.hpp
+Medium_GraphPrimitivesInvalidGraph.AFreshRecorderHasNothingToReport | resize | 8 | recording_outcome of a fresh recorder: the test makes a Runtime and a graph, which a medium test may not do per the Medium row; the seam is a recorder that can be made without a runtime, to build first; the promise is small | tests/foundation/graph_primitives/test_invalid_graph.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/invalid_graph.hpp; tests/foundation/graph_primitives/README.md
+```
+
+### `tests/foundation/graph_primitives/test_node_stamper.cpp`
+
+```
+Small_GraphPrimitivesNodeStamper.AnUnnamedCallStatesTheWidthAndTheOperationOnly | keep | 9 | node_stamper: an unnamed call states its width and operation, with no name and no class | tests/foundation/graph_primitives/test_node_stamper.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/node_stamper.hpp
+Small_GraphPrimitivesNodeStamper.EveryNodeCarriesTheHashOfItsLabelAsItsOperation | rewrite | 7 | every node's operation is the hash of its label, as three copied assertions (stage, bare node, named node); the hash lengths repeat the label as literals; rows keyed by label | tests/foundation/graph_primitives/test_node_stamper.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/node_stamper.hpp
+Small_GraphPrimitivesNodeStamper.ANodeCarriesTheBareNameAndTheClass | keep | 9 | node_stamper: a named call states its name and its class | tests/foundation/graph_primitives/test_node_stamper.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/node_stamper.hpp
+Small_GraphPrimitivesNodeStamper.AStageIsAppendedAfterADot | keep | 9 | node_stamper: a stage is appended after a dot, two stages of one promise | tests/foundation/graph_primitives/test_node_stamper.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/node_stamper.hpp
+```
+
+### `tests/foundation/graph_primitives/test_prefix_scan.cpp`
+
+```
+Medium_GraphPrimitivesPrefixScan.AgreesWithTheHostScanAtTileEdges | rewrite | 1 | forbidden kind: a loop over sizes that builds and checks in the body, with a runtime made per size; rows keyed by size on rewrite | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.OffsetsAtLiveCountEqualsTotal | rewrite | 1 | forbidden kind: a loop that builds the counts in the body; a builder replaces it | tests/foundation/graph_primitives/test_prefix_scan.cpp
+Medium_GraphPrimitivesPrefixScan.LateBoundChangingCountKeepsOneCompile | rewrite | 1 | forbidden kind: a loop that fills the counts in the body; split on rewrite: the results per run, and the single compile | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.EachRunScansItsOwnCounts | rewrite | 1 | forbidden kind: loops over steps and elements in the body; rewrite with a builder of the step counts | tests/foundation/graph_primitives/test_prefix_scan.cpp
+Medium_GraphPrimitivesPrefixScan.SharesOneNodeIndexAcrossStepsAndPasses | rewrite | 1 | forbidden kind: loops that fill the counts and check the events in the body; split on rewrite | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.NodeWidthsMatchTheLevelPlan | rewrite | 1 | forbidden kind: loops that fill the counts and check the widths in the body; rows keyed by pass on rewrite | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.ZeroCapacityWritesZeroTotal | resize | 8 | a zero capacity writes a zero total and a zero offsets[0]; the decision is on values, but the test runs a graph; the small form needs the seam named for counting_sort | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.RejectsMisSizedArguments | rewrite | 1 | forbidden kind: an if in a lambda in the body; three refusals as copied assertions; rows on rewrite; the refusals are decided on values, so the rewrite is small | tests/foundation/graph_primitives/test_prefix_scan.cpp
+Medium_GraphPrimitivesPrefixScan.LateBoundAboveCapacityFailsTheRun | resize | 8 | a live count above capacity fails the run; same seam question as the counting sort | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesDeviceSized.PrefixScanChainMatchesScheduler | rewrite | 1 | forbidden kind: a loop that fills the counts and offsets in the body; the runtimes are made by expect_chain_matches_scheduler (owner decision) | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/device_sized_harness.hpp
+Medium_GraphPrimitivesDeviceSized.DeviceCountOverCapacityFailsAChainedRun | split | 3 | two promises: a device count over capacity fails the chained run; a later graph on the same runtime runs clean | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesPrefixScan.WindowMatchesACompactBufferExactly | rewrite | 1 | forbidden kind: loops that fill and copy the buffers in the body; split on rewrite: the metamorphic result, and the canaries outside the window | tests/foundation/graph_primitives/test_prefix_scan.cpp
+Medium_GraphPrimitivesPrefixScan.WindowOrdersOnlyOverlappingWriters | resize | 8 | a writer waits only where it overlaps the window; no loop in the body; the decision is on regions (values), but the test records a graph to read the dependency; the small form needs a region-dependency seam | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/window_probe.hpp
+Medium_GraphPrimitivesPrefixScan.RejectsAWindowPastItsBuffer | rewrite | 1 | forbidden kind: a loop over window cases in the body; rows keyed by operand on rewrite | tests/foundation/graph_primitives/test_prefix_scan.cpp
+Medium_GraphPrimitivesPrefixScan.NamedCallNamesItsNodesAndStatesTheirClass | rewrite | 1 | forbidden kind: a loop over the determinism classes in the body; split on rewrite: names and classes | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesPrefixScan.UnnamedCallKeepsItsNodesUnnamed | rewrite | 1 | forbidden kind: a loop over the determinism classes in the body; split on rewrite: names and classes | tests/foundation/graph_primitives/test_prefix_scan.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesPrefixScan.RejectsOptionsThatNameNothing | rewrite | 1 | forbidden kind: a loop over three option sets in the body; rows on rewrite | tests/foundation/graph_primitives/test_prefix_scan.cpp
+```
+
+### `tests/foundation/graph_primitives/test_primitive_options.cpp`
+
+```
+Small_GraphPrimitivesPrimitiveOptions.NoOptionsPass | keep | 9 | require_options: no options pass | tests/foundation/graph_primitives/test_primitive_options.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/primitive_options.hpp
+Small_GraphPrimitivesPrimitiveOptions.ANamedClassPasses | rewrite | 1 | forbidden kind: control flow (a for loop over the four classes) in the body; the only test of the class promise; rewrite as rows | tests/foundation/graph_primitives/test_primitive_options.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/primitive_options.hpp
+Small_GraphPrimitivesPrimitiveOptions.ANullOrEmptyNameIsRefused | rewrite | 1 | forbidden kind: control flow (a for loop over the null and the empty name) in the body; rewrite as rows | tests/foundation/graph_primitives/test_primitive_options.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/primitive_options.hpp
+Small_GraphPrimitivesPrimitiveOptions.AClassOutsideTheEnumerationIsRefused | keep | 9 | require_options: a class outside the enumeration is refused | tests/foundation/graph_primitives/test_primitive_options.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/primitive_options.hpp
+```
+
+### `tests/foundation/graph_primitives/test_radix_plan.cpp`
+
+```
+Medium_GraphPrimitivesRadixPlan.DigitCountAtByteBoundaries | rewrite | 7 | radix_digit_count: eight key ranges as copied assertions; rows; pure and device-free, so Small_ on rewrite | tests/foundation/graph_primitives/test_radix_plan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/radix_plan.hpp
+Medium_GraphPrimitivesRadixPlan.DigitIsTheByteAtItsShift | rewrite | 7 | radix_digit: four shifts as copied assertions; rows; Small_ on rewrite | tests/foundation/graph_primitives/test_radix_plan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/radix_plan.hpp
+Medium_GraphPrimitivesRadixPlan.PlanSkipsDigitsAboveTheLiveKeyRange | rewrite | 1 | forbidden kind: nested loops and a loop-driven lambda in the body; the only test of the plan's live-digit promise; rewrite as rows over the live digit counts; Small_ | tests/foundation/graph_primitives/test_radix_plan.cpp; modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/radix_plan.hpp
+```
+
+### `tests/foundation/graph_primitives/test_reduce/test_device_sized_reduce.cpp`
+
+```
+Medium_GraphPrimitivesDeviceSized.ReduceChainMatchesSchedulerAsTheCountChanges | rewrite | 1 | forbidden kind: a loop that builds the input in the body; rewrite with a builder named for the values. Owner decision, not a verdict: expect_chain_matches_scheduler (device_sized_harness.hpp, lines 195-200) makes both runtimes in a helper, which testing SKILL "Running fast" rule 3 forbids; the README argues the two runtimes are needed | tests/foundation/graph_primitives/test_reduce/test_device_sized_reduce.cpp; tests/foundation/graph_primitives/device_sized_harness.hpp; tests/foundation/graph_primitives/README.md
+```
+
+### `tests/foundation/graph_primitives/test_reduce/test_reduce.cpp`
+
+```
+Medium_GraphPrimitivesReduce.SumMatchesTheFixedOrderReferenceExactly | rewrite | 1 | forbidden kind: control flow (loops that copy the input and fold the naive sum) in the body; the test also reads a sanity check on its own input; split on rewrite if needed | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.ResultIsStableAcrossSchedules | rewrite | 1 | forbidden kind: control flow (a round loop and a copy loop) in the body; split on rewrite: repeated runs, and the rebalancer run | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.EdgeCounts | rewrite | 1 | forbidden kind: loops over counts and over the input in the body; rows keyed by count on rewrite; the zero count is a separate promise | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.MinimumAndMaximum | rewrite | 1 | forbidden kind: loops that fill the input and scan for the extremes with ifs in the body; split on rewrite: minimum and maximum | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.ConsumerSeesTheFinishedResult | rewrite | 1 | forbidden kind: a loop that fills the input in the body; the ordering promise is a boundary and stays Medium | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.RejectsMisSizedArguments | rewrite | 7 | four refused argument shapes as copied assertions; rows over the shape on rewrite; no control flow in the body, so question 7 applies; the size is answered at question 8 once the recording seam exists | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.LateBoundMatchesFixedCountExactly | rewrite | 1 | forbidden kind: loops over counts and over the input in the body; rows keyed by live count on rewrite | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.LateBoundChangingCountKeepsOneCompile | rewrite | 1 | forbidden kind: a loop that fills the input in the body; split on rewrite: results per live count, and the single compile | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.LateBoundAboveCapacityFailsTheRun | resize | 8 | a live count above capacity fails the run; the decision is on values, but the test runs a graph; the small form needs the same seam as the counting-sort and prefix-scan cases | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.DeviceCountIsReadAfterItsProducer | split | 3 | two promises: a late-bound reduce folds the count its producer wrote in the same run (a boundary, medium); the single compile, also tested in LateBoundChangingCountKeepsOneCompile, is a separate promise and is dropped here | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.LevelWidthsMatchTheLevelPlan | rewrite | 1 | forbidden kind: loops that fill the input and check the widths in the body; split on rewrite: widths and total | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.ZeroCountStampsWidthOne | split | 3 | two promises: a fixed count of zero records one node of width one (boundary, medium); a zero count writes the identity (logic, small); the name states only the first | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.WindowMatchesACompactBufferExactly | rewrite | 1 | forbidden kind: loops and a branch on late in the body; split on rewrite: the metamorphic result, and the untouched elements | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesReduce.WindowOrdersOnlyOverlappingWriters | rewrite | 1 | forbidden kind: a loop over the late flag in the body, with six probe checks; rows over the probed regions on rewrite | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/window_probe.hpp
+Medium_GraphPrimitivesReduce.RejectsAWindowPastItsBuffer | rewrite | 1 | forbidden kind: a branch in a lambda in the body; four refusals; rows keyed by operand on rewrite | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+Medium_GraphPrimitivesReduce.NamedCallNamesItsNodesAndStatesTheirClass | rewrite | 1 | forbidden kind: loops over determinism classes in the body; split on rewrite: names by stage, and classes; three graph shapes | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesReduce.UnnamedCallKeepsItsNodesUnnamed | rewrite | 1 | forbidden kind: a loop over the late flag and a loop over names in the body; split on rewrite: names, and classes | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesReduce.RejectsOptionsThatNameNothing | rewrite | 1 | forbidden kind: loops over option sets and a branch in the body; rows keyed by option on rewrite | tests/foundation/graph_primitives/test_reduce/test_reduce.cpp
+```
+
+### `tests/foundation/graph_primitives/test_segmented_reduce.cpp`
+
+```
+Medium_GraphPrimitivesSegmentedReduce.FoldsRaggedSegmentsLeftToRight | rewrite | 1 | forbidden kind: loops that fill, copy and check the segments in the body; the empty-segment zero is part of the promise and stays in the rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.LateBoundCountFoldsOnlyTheLiveSegments | rewrite | 1 | forbidden kind: loops over live counts and segments in the body; the README names the fill-before-run as its point; rows keyed by live count on rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.RejectsMisSizedArguments | rewrite | 1 | forbidden kind: a loop over the late flag and a branch in a lambda in the body; rows on rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp
+Medium_GraphPrimitivesSegmentedReduce.FixedCountWidthIsTheSegmentCount | rewrite | 1 | forbidden kind: loops that build the offsets and values and check the output in the body; a builder replaces them; the width promise stays | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.LateBoundWidthsAreOneAndTheCapacity | rewrite | 1 | forbidden kind: loops that build the offsets and values and check the widths in the body; a builder replaces them | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.SegmentedReduceChainMatchesScheduler | rewrite | 1 | forbidden kind: loops that build the offsets, values and output in the body; the runtimes are made by expect_chain_matches_scheduler (owner decision, as for the other device-sized cases) | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/device_sized_harness.hpp
+Medium_GraphPrimitivesSegmentedReduce.WindowMatchesACompactBufferExactly | rewrite | 1 | forbidden kind: loops over the late flag and over segments in the body, with checks in the loops; split on rewrite: the metamorphic result, and the untouched elements | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.WindowOrdersOnlyOverlappingWriters | rewrite | 1 | forbidden kind: a loop over the late flag in the body; rows over the probed regions on rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/window_probe.hpp
+Medium_GraphPrimitivesSegmentedReduce.RejectsAWindowPastItsBuffer | rewrite | 1 | forbidden kind: loops over the late flag and over the window cases in the body; rows keyed by operand on rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+Medium_GraphPrimitivesSegmentedReduce.NamedCallNamesItsNodesAndStatesTheirClass | split | 3 | two promises: the node names by stage, and the node classes; both are checked for two graph shapes | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesSegmentedReduce.UnnamedCallKeepsItsNodesUnnamed | rewrite | 1 | forbidden kind: a loop over graphs and classes in the body; split on rewrite: names and classes | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/plan_labels.hpp
+Medium_GraphPrimitivesSegmentedReduce.RejectsOptionsThatNameNothing | rewrite | 1 | forbidden kind: loops over option sets and over the two recorded calls, with checks in the loops; rows keyed by option on rewrite | tests/foundation/graph_primitives/test_segmented_reduce.cpp; tests/foundation/graph_primitives/README.md
+```
+
+### `tests/foundation/host_device/test_host_device_test.cpp`
+
+```
+Medium_HostDeviceTest.GivesTheHostQueueToTheTest | delete | 1 | trivial getter; first assertion holds by construction (queue() is *host_queue()); is_cpu repeats test_host_queue.cpp::Medium_HostQueueOnDevice | tests/foundation/host_device/test_host_device_test.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_queue.hpp; tests/foundation/host_device/test_host_queue.cpp
+```
+
+### `tests/foundation/host_device/test_host_queue.cpp`
+
+```
+Medium_HostQueueOnDevice.ReturnsTheSameInOrderQueueOnACPUDevice | rewrite | 7 | GTEST_SKIP guard in body; brief rules it into the fixture; row: host_queue is the same in-order queue on the CPU device | tests/foundation/host_device/test_host_queue.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_queue.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_HostQueue.IsNullExactlyWhenSYCLReportsNoCPUDevice | resize | 8 | row: host_queue is null exactly when SYCL lists no CPU device; reaches the process-wide static and SYCL's device list; the empty-list branch is logic and needs a device-list seam in Detail::make_host_queue | tests/foundation/host_device/test_host_queue.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_queue.hpp
+```
+
+### `tests/foundation/host_device/test_shared_array.cpp`
+
+```
+Medium_SharedArray.StartsValueInitialisedAndAligned | split | 3 | name joins two promises: value-initialised size (logic, small through an allocator seam) and 128-byte alignment (allocator boundary, medium) | tests/foundation/host_device/test_shared_array.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_SharedArray.HoldsTheValuesItWasGiven | resize | 8 | row: SharedArray holds the values it was given; the copy is host logic and the device is reached only for the allocation; seam: allocator port in SharedArray | tests/foundation/host_device/test_shared_array.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_SharedArray.AKernelWritesWhatTheHostReads | keep | 9 | row: a kernel's writes are visible to the host; boundary of shared USM; expected 2i by hand | tests/foundation/host_device/test_shared_array.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_SharedArray.AnEmptyArrayHasNoElements | resize | 8 | row: a zero-count SharedArray has no elements; count-zero path allocates one element and reports zero; logic through the device allocation; seam: allocator port | tests/foundation/host_device/test_shared_array.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+```
+
+### `tests/foundation/launch/test_device_policy.cpp`
+
+```
+Medium_DevicePolicy.CacheBlockingScalesWithTheCache | resize | 8 | row: cache_blocking_for budgets of cache/4, cache/2, cache; pure function of one value; no device; the Medium label is wrong | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.TheDefaultBlockingIsTheBlockingOfTheAssumedCache | resize | 8 | row: a default CacheBlocking matches cache_blocking_for(K_ASSUMED_CACHE_BYTES); pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.AGPUGroupIsAWholeNumberOfSubGroupsUnderItsTarget | resize | 8 | row: work_group_size clamps to target and whole sub-groups; pure; three inputs in one body, rows once it is Small | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.ACPUGroupGivesEachUnitItsShareAboveTheFloor | resize | 8 | row: flat_work_group_size on a CPU gives each unit its share, clamped; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.AGPUFlatGroupIgnoresTheElementCount | resize | 8 | row: flat_work_group_size on a GPU ignores n; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.AGridCoversTheElementsInWholeGroups | resize | 8 | row: plan_1d covers n in whole groups; pure; the stride() equals global_size line is a getter check and is dropped in the Small rewrite | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.AGPUGridStopsAtTheResidentGroups | resize | 8 | row: plan_1d on a GPU caps groups at compute units times K_WAVES_PER_COMPUTE_UNIT; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.UnrollingDividesTheGroupsAGridNeeds | resize | 8 | row: plan_1d unroll divides the groups; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.TheGridNdRangeMatchesItsSizes | resize | 8 | row: Grid1D::nd_range carries its sizes; sycl::nd_range is built on the host; no device | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.VectorWidthFillsOneTransactionOnAGPUOnly | resize | 8 | row: vector_width is one transaction on a GPU and 1 on a CPU; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.ALocalTileFitsWhenMemoryAndGroupBothSuffice | merge | 4 | same promise as tests/foundation/launch/test_launch_1d.cpp::Medium_LaunchShapes.ALocalTileFitsOnlyWhereBothLimitsHold; this file is the unit's own module test file, so it stays and takes that test's four cases as rows; then resize to Small (pure) | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; tests/foundation/launch/test_launch_1d.cpp
+Medium_DevicePolicy.ProfileForProbesADeviceOnceAndKeepsWhatItSaw | split | 3 | name joins two promises: profile_for returns one cached profile per device (process-wide cache; seam: probe source; small) and the probed fields agree with the device (medium) | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_DevicePolicy.OnlyACUDADeviceOffersTheHalfMatrix | rewrite | 1 | two if statements in body; only test of the negative promise (non-CUDA devices offer no HALF matrix); the Large test covers the CUDA side only; rewrite as one row per backend | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Large_DevicePolicy.ACUDADeviceOffersTheHalfMatrixOfSixteen | rewrite | 7 | GTEST_SKIP guard in body; brief moves the guard into the fixture or environment; row: CUDA offers HALF x HALF -> FLOAT32 at 16 x 16 x 16; Large size kept | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DevicePolicy.ALocalMemoryTableEntryReplacesWhatTheDeviceReports | rewrite | 6 | expected numbers are the table's own constants with no source named; rewrite cites the vendor per-SM local-memory figure beside each value; row: local_mem_per_compute_unit_of table entries | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DevicePolicy.AnUnknownArchitectureKeepsTheReportedLocalMemory | keep | 9 | row: local_mem_per_compute_unit_of passes the reported value for an unknown architecture; oracle is the stated pass-through rule | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DevicePolicy.AnArchitectureNameIsItsEnumeratorName | delete | 1 | constant pin of to_string literals; the header names a GEMM tile table as the reader of these spellings, and grep finds no such table under modules/ (NvidiaSm86 appears only in device_policy.hpp there) | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DevicePolicy.AProfileStartsWithoutAVendorOrAnArchitecture | delete | 1 | default value of a struct; no stated promise | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DevicePolicy.EveryDeviceReportsAConsistentVendorAndArchitecture | rewrite | 1 | for loop and two if statements in body; only test of the consistency promise; rewrite as one row per device index; the first check recomputes the probe's own local-memory value and needs a named oracle | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_DevicePolicy.ASm86CUDADeviceIsReadAsNvidiaSm86 | rewrite | 1 | loop with continue and if, a compile-time #if, and a GTEST_SKIP guard in body; only test of the sm_86 mapping; rewrite as one row per device filter with the skip moved to the environment | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Small_DeviceProbeFallbacks.ADeviceListingNoSubGroupGetsWidthOneAndIsMarkedAssumed | keep | 9 | row: resolve_sub_group_size gives 1 and assumed for an empty or zero listing; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DeviceProbeFallbacks.ADeviceListingSubGroupsKeepsTheWidestAndAssumesNothing | keep | 9 | row: resolve_sub_group_size keeps the widest and is not assumed; the And joins two fields of one result | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Small_DeviceProbeFallbacks.ADeviceReportingNoCacheGetsTheAssumedSizeAndIsMarkedAssumed | keep | 9 | row: resolve_cache_bytes gives the assumed size for 0 and the reported size otherwise; pure | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_DeviceProbeLog.AProbeStatesTheProfileOfTheDeviceOnce | resize | 8 | row: probe logs one INFO line naming the device; reaches a device and installs LogCapture on the process-wide logger; seam: probe takes a device-info reader and an in-memory log sink | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+Medium_DeviceProbeLog.AFallbackWarnsOncePerDeviceAndNamesIt | rewrite | 6 | the oracle recomputes the fallback decisions with resolve_sub_group_size and resolve_cache_bytes, which are the code under test; rewrite with a device-side oracle (empty or zero list, zero cache); the name says once per device but the test calls probe once | tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+```
+
+### `tests/foundation/launch/test_gemm_tile_pin.cpp`
+
+```
+Small_GemmTilePin.AnUnsetVariableGivesAnEmptyPin | keep | 9 | row: gemm_tile_pin_from(nullptr) is empty | tests/foundation/launch/test_gemm_tile_pin.cpp; modules/foundation/launch/include/SushiBLAS/launch/gemm_tile_pin.hpp
+Small_GemmTilePin.ASetVariableKeepsItsValueUnchanged | keep | 9 | row: gemm_tile_pin_from keeps a set value | tests/foundation/launch/test_gemm_tile_pin.cpp; modules/foundation/launch/include/SushiBLAS/launch/gemm_tile_pin.hpp
+Small_GemmTilePin.AnEmptyValueGivesAnEmptyPin | keep | 9 | row: gemm_tile_pin_from maps "" to empty; a distinct input from nullptr | tests/foundation/launch/test_gemm_tile_pin.cpp; modules/foundation/launch/include/SushiBLAS/launch/gemm_tile_pin.hpp
+Small_GemmTilePin.TheVariableIsNamedSbGemmTile | delete | 1 | constant pin of a name; the only effect is a string read once through a process-wide static, so the test pins no behaviour | tests/foundation/launch/test_gemm_tile_pin.cpp; modules/foundation/launch/include/SushiBLAS/launch/gemm_tile_pin.hpp
+Small_GemmTilePin.TheProcessPinIsReadOnce | delete | 1 | a value compared with itself: two calls to a function-static reference; cannot fail | tests/foundation/launch/test_gemm_tile_pin.cpp; modules/foundation/launch/include/SushiBLAS/launch/gemm_tile_pin.hpp
+```
+
+### `tests/foundation/launch/test_kernel_variant.cpp`
+
+```
+Small_KernelVariant.ANoteWithNoObserverDoesNothing | resize | 8 | row: a kernel variant note with no observer does nothing; reaches the process-wide observer slot; seam: note takes the slot | tests/foundation/launch/test_kernel_variant.cpp; modules/foundation/launch/include/SushiBLAS/launch/kernel_variant.hpp
+Small_KernelVariant.ANoteReachesTheObserverWithItsVariant | resize | 8 | row: a note reaches the observer with its variant; process-wide slot; seam: note takes the slot | tests/foundation/launch/test_kernel_variant.cpp; modules/foundation/launch/include/SushiBLAS/launch/kernel_variant.hpp
+Small_KernelVariant.ARemovedObserverStopsReceivingNotes | resize | 8 | row: a removed observer receives no notes; process-wide slot; seam: note takes the slot | tests/foundation/launch/test_kernel_variant.cpp; modules/foundation/launch/include/SushiBLAS/launch/kernel_variant.hpp
+```
+
+### `tests/foundation/launch/test_launch_1d.cpp`
+
+```
+Medium_LaunchShapes.TheWidePassAndItsTailCoverEveryElement | rewrite | 1 | for loops build the input and check the output in body, and a loop runs n; a builder replaces the loops; only test of map coverage; its SharedArray is a copy of host_device's, so use SharedArray from shared_array.hpp | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_LaunchShapes.TheGridStrideLoopVisitsEveryElementOnce | rewrite | 1 | loops in body build the input and expected values; builder replaces them; row: map updates each element once in a grid-stride shape | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_LaunchShapes.AFusedUpdateTakesTheWidePass | rewrite | 1 | loops in body build the input; also asserts vector_steps, a planner internal, beside the result; keep only result checks; row: zip_inplace fused update over the wide pass | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_LaunchShapes.IndexedCoversEveryIndexInAGridStrideShape | rewrite | 1 | loops in body build the expected values; builder replaces them; row: indexed covers every index once in a grid-stride shape | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_LaunchShapes.AWidthOneTypeIgnoresAWidePass | rewrite | 1 | loops in body build the input; the test forces vector_steps, which only tests a planner internal in a kernel; row: a width-one type ignores a requested wide pass; builder replaces loops | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_LaunchShapes.TheQueueFormMatchesTheShapeItPlans | rewrite | 1 | loops in body build the inputs; a builder replaces them; the bitwise comparison of the two forms is a valid metamorphic oracle; row: queue-form map writes the shape-form bits | tests/foundation/launch/test_launch_1d.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_LaunchShapes.ALocalTileFitsOnlyWhereBothLimitsHold | delete | 4 | same promise as tests/foundation/launch/test_device_policy.cpp::Medium_DevicePolicy.ALocalTileFitsWhenMemoryAndGroupBothSuffice, which is in the unit's own module test file and stays with these four cases as rows | tests/foundation/launch/test_launch_1d.cpp; tests/foundation/launch/test_device_policy.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+```
+
+### `tests/foundation/launch/test_launch_log_category.cpp`
+
+```
+Small_LaunchLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | two static_asserts and no runtime assertion; a log category is a trivial constant | tests/foundation/launch/test_launch_log_category.cpp; modules/foundation/launch/include/SushiBLAS/launch/launch_log_category.hpp
+```
+
+### `tests/foundation/launch/test_submitted_events.cpp`
+
+```
+Small_SubmittedEvents.ADefaultValueHoldsNoEvent | delete | 1 | default value of a class; no promise beyond the default state, which the conversion tests exercise | tests/foundation/launch/test_submitted_events.cpp; modules/foundation/launch/include/SushiBLAS/launch/submitted_events.hpp
+Small_SubmittedEvents.AnEventConvertsToAValueHoldingOneEvent | keep | 9 | row: a SubmittedEvents built from one event holds one event | tests/foundation/launch/test_submitted_events.cpp; modules/foundation/launch/include/SushiBLAS/launch/submitted_events.hpp
+Small_SubmittedEvents.AppendKeepsSubmissionOrder | rewrite | 2 | checks the count only; a mutant that reverses the order passes; rewrite to check the event identities in order | tests/foundation/launch/test_submitted_events.cpp; modules/foundation/launch/include/SushiBLAS/launch/submitted_events.hpp
+Small_SubmittedEvents.AValueConvertsToTheLastEventOrToAnEmptyOne | rewrite | 1 | EXPECT_NO_THROW around waits that cannot throw; the conversion to the last event is not checked; only test of that promise | tests/foundation/launch/test_submitted_events.cpp; modules/foundation/launch/include/SushiBLAS/launch/submitted_events.hpp
+Small_SubmittedEvents.WaitOnAnEmptyValueReturns | delete | 1 | EXPECT_NO_THROW around a wait that cannot throw; no stated promise; a hang is caught by the runner's timeout | tests/foundation/launch/test_submitted_events.cpp; modules/foundation/launch/include/SushiBLAS/launch/submitted_events.hpp
+```
+
+### `tests/foundation/orthonormal/test_orthonormal_sweep.cpp`
+
+```
+Small_OrthonormalSweep.AVectorSetStartsEmpty | delete | 1 | default value of a struct | tests/foundation/orthonormal/test_orthonormal_sweep.cpp; modules/foundation/orthonormal/include/SushiBLAS/orthonormal/orthonormal_sweep.hpp
+Small_OrthonormalSweep.TheSweepRunsTwice | delete | 1 | static_assert plus a constant pin; the orthonormal result is checked by the sibling RowsBecomeOrthonormalAtTheGain in tests/kernels/random_kernels/reference/test_orthonormalize.cpp | tests/foundation/orthonormal/test_orthonormal_sweep.cpp; modules/foundation/orthonormal/include/SushiBLAS/orthonormal/orthonormal_sweep.hpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp; tests/kernels/random_kernels/reference/test_orthonormalize.cpp
+Small_OrthonormalSweep.TheTinyNormIsTheSquareOfOneEMinusTwelve | delete | 1 | constant pin plus a static_assert on the type; the guard it feeds (norm_sq > tiny_norm_sq) is covered by AZeroVectorStaysZero in tests/kernels/random_kernels/reference/test_orthonormalize.cpp | tests/foundation/orthonormal/test_orthonormal_sweep.cpp; modules/foundation/orthonormal/include/SushiBLAS/orthonormal/orthonormal_sweep.hpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp; tests/kernels/random_kernels/reference/test_orthonormalize.cpp
+```
+
+### `tests/foundation/profile/test_profile.cpp`
+
+```
+Small_Profile.EveryMacroIsUsableInOneScope | delete | 1 | EXPECT_NO_THROW around a lambda that cannot throw; macro use is compiled by profile_off.cpp and profile_level_one.cpp | tests/foundation/profile/test_profile.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile.hpp; tests/foundation/profile/profile_off.cpp; tests/foundation/profile/profile_level_one.cpp
+Small_Profile.AValueOnlyAMacroReadsIsNotUnused | delete | 1 | EXPECT_NO_THROW around code that cannot throw; the promise is a compiler-warning check that no run-time assertion can see | tests/foundation/profile/test_profile.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile.hpp
+```
+
+### `tests/foundation/profile/test_profile_gate.cpp`
+
+```
+Small_ProfileOff.ATranslationUnitCompilesEveryMacroAndCompilesNothingIn | keep | 9 | row: a translation unit built with the profiler off compiles nothing; pure value of K_COMPILED_LEVEL | tests/foundation/profile/test_profile_gate.cpp; tests/foundation/profile/profile_off.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_gate.hpp
+Small_ProfileGate.AZoneAtTheCompiledLevelWritesOneEvent | resize | 8 | row: a zone at the compiled level writes one event; drains the process-wide SushiProfiler collector; seam: collector port with an in-memory adapter | tests/foundation/profile/test_profile_gate.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_gate.hpp; modules/foundation/profile/include/SushiBLAS/profile/profile.hpp; tests/foundation/profile/profile_level_one.cpp
+Small_ProfileGate.AZoneAboveTheCompiledLevelWritesNothing | resize | 8 | row: a zone above the compiled level writes nothing; process-wide collector; seam: collector port | tests/foundation/profile/test_profile_gate.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_gate.hpp; modules/foundation/profile/include/SushiBLAS/profile/profile.hpp; tests/foundation/profile/profile_level_one.cpp
+Small_ProfileGate.TheDefaultLevelCompilesFineZonesIn | resize | 8 | row: a default build compiles fine zones in; process-wide collector; seam: collector port; the static_assert on K_COMPILED_LEVEL == 2 is a configuration precondition and stays | tests/foundation/profile/test_profile_gate.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_gate.hpp; modules/foundation/profile/include/SushiBLAS/profile/profile.hpp
+Small_ProfileOff.WithoutTheProfilerEveryLevelIsZero | delete | 1 | static_assert only, no run-time assertion; the same promise is checked at run time by ATranslationUnitCompilesEveryMacroAndCompilesNothingIn | tests/foundation/profile/test_profile_gate.cpp; tests/foundation/profile/profile_off.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_gate.hpp
+```
+
+### `tests/foundation/profile/test_profile_keys.cpp`
+
+```
+Small_ProfileKeys.EveryKeyIsListedOnce | rewrite | 1 | loop with EXPECT in body; move it into an expect_* helper; row: no key of K_ALL_KEYS repeats | tests/foundation/profile/test_profile_keys.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_keys.hpp
+Small_ProfileKeys.EveryFactOfTheLibraryStartsWithItsName | rewrite | 1 | loop and if in body; move into an expect_* helper; row: library keys sit under the sushiblas. prefix; the convention is not stated in profile_keys.hpp | tests/foundation/profile/test_profile_keys.cpp; modules/foundation/profile/include/SushiBLAS/profile/profile_keys.hpp
+```
+
+### `tests/foundation/reduction/test_reduce_1d.cpp`
+
+```
+Medium_Reduce1D.FloorPow2RoundsDownToAPowerOfTwo | resize | 8 | row: floor_pow2 rounds down to a power of two, never zero; pure; static_asserts stay | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.ACPUFoldsSmallInputsInOneTask | resize | 8 | row: planned_partials and plan give the single pass for small CPU inputs; pure | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_Reduce1D.APlanStaysWithinTheScratchAndTheGroupCap | resize | 8 | row: plan stays within the scratch capacity and K_MAX_GROUPS; pure | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_Reduce1D.CompensatedSumKeepsTheSmallTermsOfALargeSum | rewrite | 1 | loop of 1000 adds in body builds the input; a builder replaces it; row: CompensatedSum keeps small terms; only test of that promise | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.CompensatedSumOfAnInfinityIsThatInfinity | resize | 8 | row: CompensatedSum of an infinite term is infinity; pure | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.ScaledSumOfSquaresNeitherOverflowsNorUnderflows | rewrite | 1 | bare tolerance literal 1e-6f in EXPECT_NEAR; rewrite with the tolerance helper; only test of the no-overflow promise | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.ProductExactSumAndComplexSumFoldTheirTerms | rewrite | 1 | loop in body builds the terms; the name joins three accumulators, which split on rewrite; rows: RunningProduct, ExactSum, CompensatedComplexSum | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.MaxAndMinPropagateNaNAndPreferPositiveZero | split | 3 | name joins two promises: max (NaN propagation, signed zero, identity) and min (the same rules) | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.ArgMaxKeepsTheFirstIndexOfATie | resize | 8 | row: RunningArgMax keeps the first index on a tie; pure | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1D.ArgMinTakesTheSmallestValue | resize | 8 | row: RunningArgMin takes the smallest value; pure | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Reduce1DOnDevice.TheStagedAndTheSequentialSumGiveTheExactSum | rewrite | 1 | loop of 50000 in body builds the input; a builder replaces it; the device boundary is kept; row: staged and sequential reductions give the exact sum | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; tests/foundation/host_device/test_host_device_test.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_Reduce1DOnDevice.FinalizeReceivesTheElementCount | keep | 9 | row: the device reduction passes the element count to finalize; expected 5.0 by hand; a kernel-launch boundary, so medium is the right size | tests/foundation/reduction/test_reduce_1d.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+```
+
+### `tests/foundation/reduction/test_reduce_axis.cpp`
+
+```
+Medium_ReduceAxis.TotalSegmentsMultipliesBothSegmentCounts | resize | 8 | row: AxisSpan::total_segments multiplies the segment counts; pure | tests/foundation/reduction/test_reduce_axis.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_ReduceAxis.ManySegmentsOrAShortAxisFoldOneSegmentPerItem | resize | 8 | row: plan_axis is cooperative only for many segments on a long axis; pure planner | tests/foundation/reduction/test_reduce_axis.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_ReduceAxisOnDevice.OneItemPerSegmentGivesTheExactRowSums | keep | 9 | row: reduce_axis with one item per segment gives exact row sums; kernel boundary against hand sums | tests/foundation/reduction/test_reduce_axis.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_ReduceAxisOnDevice.ACooperativeGroupGivesTheExactRowSums | keep | 9 | row: reduce_axis with a cooperative group gives exact row sums; a different plan from the test above | tests/foundation/reduction/test_reduce_axis.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_ReduceAxisOnDevice.AStridedAxisFoldsTheColumns | keep | 9 | row: reduce_axis folds a strided axis to hand values | tests/foundation/reduction/test_reduce_axis.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+```
+
+### `tests/foundation/reference/test_reference_accumulator.cpp`
+
+```
+Medium_ReferenceAccumulator.RealTypesAccumulateInDouble | delete | 1 | static_asserts only; behaviour is checked by the tests of the same file | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.ComplexTypesAccumulateInComplexDouble | delete | 1 | static_asserts only; behaviour is checked by the tests of the same file | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.OnlyTheDoubleTypesAreCompensated | delete | 1 | constant pin of K_IS_COMPENSATED; compensation is checked by ADoubleSumKeepsWhatAnAdditionRoundsOff and AComplexSumCompensatesEachPartOnItsOwn in the same file | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AnEmptySumIsZero | delete | 1 | default value of the accumulators | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AFloatSumHoldsAnIntegerFloatCannot | rewrite | 1 | loop of 2^24 + 1 adds in body; the EXPECT_NE checks the test's own float arithmetic, not the unit; rewrite keeps the ReferenceSum check with a builder | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.ADoubleSumKeepsWhatAnAdditionRoundsOff | resize | 8 | row: ReferenceSum<double> keeps the term an addition rounds off; pure; the EXPECT_EQ(plain, 0.0) line checks the test's own arithmetic and goes | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AFloatSumOfDoublesIsNotCompensated | rewrite | 6 | the expected 0.0 is the lossy result pasted from the code's behaviour; the exact sum of the three terms is 1.0; rewrite names a plain float sum of the same terms as the oracle, or characterizes with a backlog entry | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AnInfiniteTermGivesThatInfinityInBothForms | resize | 8 | row: an infinite term gives that infinity in both sums; the two-value row table is allowed; pure | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.ANanTermGivesNanInBothForms | resize | 8 | row: a NaN term gives NaN in both sums; pure | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.OpposedInfinitiesGiveNanInBothForms | resize | 8 | row: opposed infinities give NaN in both sums; pure | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AComplexSumCompensatesEachPartOnItsOwn | resize | 8 | row: a complex sum compensates each part; pure | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AComplexFloatSumAddsEachPartInDouble | resize | 8 | row: a complex<float> sum adds each part in double; pure; the expected real 0.0 depends on double rounding of 1e16 + 1, which no comment derives | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_ReferenceAccumulator.AnInfinitePartOfAComplexSumLeavesTheOtherPartFinite | resize | 8 | row: an infinite real part leaves the imaginary part finite; pure | tests/foundation/reference/test_reference_accumulator.cpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+```
+
+### `tests/foundation/reference/test_serial_1d.cpp`
+
+```
+Medium_Serial1DOnDevice.MapWritesTheBitsTheLaunchedMapWrites | keep | 9 | row: Serial::map writes the bits Launch::map writes; the device is the subject of the comparison | tests/foundation/reference/test_serial_1d.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_Serial1DOnDevice.ZipLeavesTheBitsTheLaunchedZipLeaves | keep | 9 | row: Serial::zip_inplace leaves the bits Launch::zip_inplace leaves | tests/foundation/reference/test_serial_1d.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp; modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+Medium_Serial1D.IndexedVisitsEveryIndexInOrder | rewrite | 1 | for loop with EXPECT_EQ in body; move into an expect_* helper; row: Serial::indexed visits 0 to n-1 in order; only test | tests/foundation/reference/test_serial_1d.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp
+Medium_Serial1D.AMapOfNothingWritesNothing | resize | 8 | row: Serial::map over zero elements writes nothing; pure host | tests/foundation/reference/test_serial_1d.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp
+```
+
+### `tests/foundation/reference/test_serial_reduce.cpp`
+
+```
+Medium_SerialLoops.ASumOfHalfIsFormedInDouble | resize | 8 | row: a host sum of HALF terms is formed in double (2050); the host fold runs over device USM from a local SharedArray copy where a std::vector would do | tests/foundation/reference/test_serial_reduce.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_reduce.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_SerialLoops.AnOrderedFoldKeepsTheAccumulatorsRule | split | 3 | name and body hold three promises: NaN propagation in NaNPropagatingMax, the signed-zero rule, and the first index on an argmax tie; host data also sits in device USM | tests/foundation/reference/test_serial_reduce.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_reduce.hpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_SerialLoops.AFoldOfNothingFinalizesTheIdentity | resize | 8 | row: a fold of nothing finalizes its identity (0 for sum, 1 for product); pure host | tests/foundation/reference/test_serial_reduce.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_reduce.hpp
+Medium_SerialLoops.AxisFoldMatchesOneFoldPerSegment | rewrite | 1 | loops in body and a column-building loop; rewrite with rows and builders; the one-fold-per-segment relation is a valid metamorphic oracle; host data also sits in device USM | tests/foundation/reference/test_serial_reduce.cpp; modules/foundation/reference/include/SushiBLAS/reference/serial_reduce.hpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+```
+
+### `tests/foundation/serial_reductions/test_serial_reductions.cpp`
+
+```
+Small_SerialReductions.SumMeanAndProductOfFiveValues | split | 3 | name joins three promises: sum, mean and product | tests/foundation/serial_reductions/test_serial_reductions.cpp; modules/foundation/serial_reductions/include/SushiBLAS/serial_reductions/serial_reductions.hpp
+Small_SerialReductions.ExtremesAndTheFirstPositionOfEach | split | 3 | name joins four promises: max, min, argmax, argmin | tests/foundation/serial_reductions/test_serial_reductions.cpp; modules/foundation/serial_reductions/include/SushiBLAS/serial_reductions/serial_reductions.hpp
+Small_SerialReductions.SpreadAndNorms | split | 3 | name joins four promises: var, std_dev, asum, nrm2; the 1e-12 absolute tolerance is a named typed constant, not derived by the tolerance helper | tests/foundation/serial_reductions/test_serial_reductions.cpp; modules/foundation/serial_reductions/include/SushiBLAS/serial_reductions/serial_reductions.hpp
+Small_SerialReductions.LogSumExpShiftsByTheMaximum | keep | 9 | row: logsumexp shifts by the maximum; hand value 1000 + log 2 with the named absolute tolerance noted under SpreadAndNorms | tests/foundation/serial_reductions/test_serial_reductions.cpp; modules/foundation/serial_reductions/include/SushiBLAS/serial_reductions/serial_reductions.hpp
+Small_SerialReductions.AnEmptyInputGivesEachIdentity | keep | 9 | row: empty input gives each identity; hand values | tests/foundation/serial_reductions/test_serial_reductions.cpp; modules/foundation/serial_reductions/include/SushiBLAS/serial_reductions/serial_reductions.hpp
+```
+
+### `tests/foundation/small_integers/test_small_integers.cpp`
+
+```
+Small_SmallIntegers.EveryValueIsAnIntegerFromMinusThreeToThree | rewrite | 1 | loop with EXPECT in body; move into an expect_* helper; row: small_integers values are integers in [-3, 3] | tests/foundation/small_integers/test_small_integers.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp
+Small_SmallIntegers.OneSeedGivesOneSequenceAndAnotherSeedAnother | split | 3 | name joins two promises: a seed repeats its sequence, and another seed gives another sequence | tests/foundation/small_integers/test_small_integers.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp
+Small_SmallIntegers.TheUnitDiagonalMatrixHasOnesOnItsDiagonal | rewrite | 1 | loop with EXPECT in body; move into an expect_* helper; row: unit_diagonal_matrix has ones on the diagonal | tests/foundation/small_integers/test_small_integers.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp
+```
+
+### `tests/foundation/sparse_assembly/test_sparse_assembly.cpp`
+
+```
+Medium_SparseAssembly.TheSampleTripletsGiveTheSampleArraysUnderBothBases | resize | 8 | row: assemble_csr of the sample triplets equals the sample CSR arrays in both bases and both index widths; host-only; the loop over K_BOTH_BASES is a row table | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp; modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp
+Medium_SparseAssembly.AnEntryGivenInPartsIsAddedWhereverThePartsArrive | rewrite | 1 | for loop over shifts in body; rewrite as rows over the shift; row: repeated pairs add wherever their parts arrive | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Medium_SparseAssembly.ARepeatedPairInFloat32IsSummedInDouble | resize | 8 | row: a repeated float32 pair is summed in double; expected 1 derived in the comment; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_SparseAssembly.ARepeatedPairInFloat64IsSummedWithItsRoundingErrors | resize | 8 | row: a repeated float64 pair is summed with compensation (1e16, 1, -1e16 gives 1); host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp
+Medium_SparseAssembly.APairThatCancelsStaysAStoredZero | resize | 8 | row: a cancelling pair stays a stored zero; hand row offsets; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.APairGivenOnceKeepsANaNAndItsBits | resize | 8 | row: a NaN payload survives assembly bit for bit; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.AMatrixWithoutTripletsHasEqualOffsets | resize | 8 | row: a matrix with no triplets has equal offsets in both bases; host-only; the K_BOTH_BASES loop is a row table | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Medium_SparseAssembly.AMatrixWithoutRowsHasOneOffset | resize | 8 | row: a matrix with no rows has one offset in both bases; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Medium_SparseAssembly.EveryRowAscendsStrictlyAndHoldsTheSumOfItsTriplets | rewrite | 1 | loops and ifs in body; also two promises joined by And (ascending columns; sums equal the dense image) that split on rewrite | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Medium_SparseAssembly.ANegativeExtentThrows | resize | 8 | row: a negative extent throws; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.TripletArraysOfDifferentLengthsThrow | resize | 8 | row: triplet arrays of different lengths throw; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.ATripletOutsideTheMatrixThrows | resize | 8 | row: a triplet outside the matrix throws; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.AColumnCountPastTheIndexTypeThrows | resize | 8 | row: a column count past the index type throws; the check runs before any allocation; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.DistinctPositionsInsideTheVectorAreAccepted | resize | 8 | row: require_distinct_positions accepts distinct in-range positions; EXPECT_NO_THROW is legitimate here; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.ARepeatedPositionThrows | resize | 8 | row: a repeated position throws; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+Medium_SparseAssembly.APositionOutsideTheVectorThrows | resize | 8 | row: a position outside the vector throws; host-only | tests/foundation/sparse_assembly/test_sparse_assembly.cpp; modules/foundation/sparse_assembly/include/SushiBLAS/sparse_assembly/sparse_assembly.hpp
+```
+
+### `tests/foundation/sparse_fixtures/test_integer_csr.cpp`
+
+```
+Small_IntegerCsr.TheArraysFormAValidCSRMatrix | rewrite | 1 | loops and ifs in body; move into an expect_* helper; row: integer_csr is a valid CSR matrix; only check of the fixture's structure | tests/foundation/sparse_fixtures/test_integer_csr.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+Small_IntegerCsr.AStoredDiagonalHoldsOnes | rewrite | 1 | loop in body; move into an expect_* helper; row: integer_csr with the diagonal stored holds ones | tests/foundation/sparse_fixtures/test_integer_csr.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+Small_IntegerCsr.TheDenseTwinHoldsEveryStoredValue | rewrite | 1 | loops in body; the stored-sum oracle is partly dense(), the code under test; rewrite with a named oracle | tests/foundation/sparse_fixtures/test_integer_csr.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+Small_IntegerCsr.OneSeedGivesOneMatrix | rewrite | 2 | compares columns only; a seed-dependent change to the values alone passes; rewrite compares offsets, columns and values | tests/foundation/sparse_fixtures/test_integer_csr.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+```
+
+### `tests/foundation/sparse_fixtures/test_sparse_samples.cpp`
+
+```
+Small_SparseSamples.TheSampleMatrixHoldsSevenEntriesInsideItsShape | rewrite | 1 | loop in body; move into an expect_* helper; row: sample_matrix has seven entries inside its shape, as its header documents | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseSamples.AComplexSampleCarriesImaginaryParts | keep | 9 | row: the complex sample carries the imaginary parts its header documents | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseSamples.TheSampleCSRArraysAgree | rewrite | 2 | checks two sizes only; a mutant changing sample_columns values passes; rewrite compares the CSR arrays with the sample_matrix triplets | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseSamples.StoredIndicesAddTheFirstIndexOfTheBase | keep | 9 | row: stored_indices adds the first index of the base; hand values | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp; modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp
+Small_SparseSamples.CountingAndWideningRoundTripExactValues | split | 3 | name joins two promises: counting gives integers, and narrowing then widening round-trips exactly | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseSamples.AnIntegerMatrixHasItsRowsAndIsRepeatableForASeed | rewrite | 1 | loop in body checks the range; move into an expect_* helper; the name also joins rows and repeatability, which split on rewrite | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseSamples.TheHostProductAppliesEachTransposeAndTheScalars | split | 3 | name joins three promises: NoTrans with alpha and beta, Trans, and ConjTrans | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp; modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp
+Small_SparseSamples.BothBasesAreListed | delete | 1 | constant pin of K_BOTH_BASES; the sparse_assembly tests iterate both bases and check results | tests/foundation/sparse_fixtures/test_sparse_samples.cpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+```
+
+### `tests/foundation/substitution/test_running_solution.cpp`
+
+```
+Medium_RunningSolution.OnlyHalfNeedsAWorkspace | delete | 1 | static_assert run as a test plus EXPECT on a constant trait (forbidden kinds); its effects are checked by FloatIgnoresTheWorkspaceItIsGiven, ComplexSetThenGetGoesThroughTheBoundArray and HalfKeepsTheWideCopyAtTheWorkspaceOffset in the same file | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.HalfIsCarriedInFloat | delete | 1 | only static_asserts, no runtime check (forbidden kind); the type alias is trivial code; the float carry is exercised by HalfGetReturnsTheUnroundedFloat and HalfKeepsTheWideCopyAtTheWorkspaceOffset | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.FloatSetWritesTheBoundArray | merge | 4 | merge with Medium_RunningSolution.FloatIgnoresTheWorkspaceItIsGiven (same file): same set promise at another index; the neighbour check moves into the merged rows | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.FloatGetReadsTheBoundArray | merge | 4 | merge with Medium_RunningSolution.FloatIgnoresTheWorkspaceItIsGiven (same file): same get promise, with the live-view check (get after a write to the bound array) kept as a row | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.FloatIgnoresTheWorkspaceItIsGiven | rewrite | 7 | the body asserts set's effect on the bound array, get's result and the untouched workspace, which are different results of different calls; rewrite to the promise in the name (float never writes the workspace) and absorb the merged set and get rows; host-only code, so Small_ and not Medium_ | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.ComplexSetThenGetGoesThroughTheBoundArray | merge | 4 | merge with Medium_RunningSolution.FloatIgnoresTheWorkspaceItIsGiven (same file): same set-then-get promise for complex<double>, which needs no workspace; one typed row over float, complex<float> and complex<double> | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.HalfGetReturnsTheUnroundedFloat | rewrite | 7 | the EXPECT_NE on rounded[1] checks the rounding, which is the promise of HalfSetStoresTheRoundingInTheBoundArray; keep only "get returns 0.1f for HALF"; host-only, so Small_ | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.HalfSetStoresTheRoundingInTheBoundArray | rewrite | 6 | the oracle static_cast<sycl::half>(K_INEXACT_IN_HALF) is the same conversion running_solution.hpp line 74 performs, so the oracle is the code under test; name the value instead: the binary16 value nearest 0.1 is 0.0999755859375 (bits 0x2E66); host-only, so Small_ | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+Medium_RunningSolution.HalfKeepsTheWideCopyAtTheWorkspaceOffset | rewrite | 1 | forbidden kind: a for loop with a conditional expectation in the test body; no other test checks the wide copy at the workspace offset; rewrite as one EXPECT_EQ per workspace element, Small_ since host-only | tests/foundation/substitution/test_running_solution.cpp; modules/foundation/substitution/include/SushiBLAS/substitution/running_solution.hpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/accumulator.hpp; tests/foundation/substitution/README.md
+```
+
+### `tests/foundation/test_runner/test_log_capture.cpp`
+
+```
+Medium_LogCapture.KeepsEveryRecordWithItsLevelModuleAndMessage | rewrite | 1 | forbidden kind: LogCapture is a stand-in recorder for SushiLog's process-wide sink, a sibling library's port; SushiLog ships no in-memory capture sink (no match in ../sushilog/modules), so the rewrite waits on that adapter, which is missing; the test is the only one of this promise | tests/foundation/test_runner/test_log_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp; modules/foundation/test_runner/README.md; tests/foundation/test_runner/README.md; modules/foundation/test_runner/source/test_main.cpp; build/package/prefix/include/SushiLog/log/log_calls.hpp; ../sushilog/modules (grep, no capture sink)
+Medium_LogCapture.CountsTheRecordsOfOneLevelThatContainAText | rewrite | 1 | forbidden kind: the stand-in recorder for SushiLog's sink (as KeepsEveryRecord...); the only test of count(), which needs the same missing in-memory sink | tests/foundation/test_runner/test_log_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp; modules/foundation/test_runner/README.md; tests/foundation/test_runner/README.md; modules/foundation/test_runner/source/test_main.cpp; build/package/prefix/include/SushiLog/log/log_calls.hpp; ../sushilog/modules (grep, no capture sink)
+Medium_LogCapture.ARecordAfterItEndsIsNotKept | rewrite | 1 | forbidden kind: the stand-in recorder for SushiLog's sink; the only test of the end of a capture, and the level restoration it names is not checked | tests/foundation/test_runner/test_log_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp; modules/foundation/test_runner/README.md; tests/foundation/test_runner/README.md; modules/foundation/test_runner/source/test_main.cpp; build/package/prefix/include/SushiLog/log/log_calls.hpp; ../sushilog/modules (grep, no capture sink)
+```
+
+### `tests/foundation/test_runner/test_run_observer_capture.cpp`
+
+```
+Medium_RunObserverCapture.KeepsOneRecordPerDispatch | merge | 4 | merge with Medium_RunObserverCapture.RecordsArriveInTheRunsOrderAndClearForgetsThem (same file): both check the record count after runs, one run against two; one row set over the run count | tests/foundation/test_runner/test_run_observer_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/run_observer_capture.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; tests/foundation/test_runner/README.md; ../sushiruntime/modules/foundation/report/include/SushiRuntime/report/run_observer.hpp
+Medium_RunObserverCapture.RecordsArriveInTheRunsOrderAndClearForgetsThem | split | 3 | the name joins two promises with "and": records accumulate over runs (the test does not assert their order) and clear() forgets runs and records; split: the clear() part becomes its own test, the accumulation part merges into KeepsOneRecordPerDispatch | tests/foundation/test_runner/test_run_observer_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/run_observer_capture.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; tests/foundation/test_runner/README.md; ../sushiruntime/modules/foundation/report/include/SushiRuntime/report/run_observer.hpp
+Medium_RunObserverCapture.ARunAfterTheCaptureIsGoneIsNotKept | rewrite | 2 | would still pass if the observer stayed registered: the only check is that a later run does not throw, so the promise is unchecked; no other test covers it; the public code that removes the observer is the destructor of RunObserverCapture (handle_) and RunObserverHandle::reset in run_observer.hpp; rewrite: after the run, a fresh capture reports run_count 0 | tests/foundation/test_runner/test_run_observer_capture.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/run_observer_capture.hpp; ../sushiruntime/modules/foundation/report/include/SushiRuntime/report/run_observer.hpp; tests/foundation/test_runner/README.md
+```
+
+### `tests/foundation/test_runner/test_test_environment.cpp`
+
+```
+Medium_TestEnvironment.HandsOutTheSameRuntimeEveryTime | rewrite | 1 | forbidden kind: a test of a trivial getter (runtime() returns the static's content); the promise of one shared runtime, stated in test_environment.hpp, has no other test; rewrite: a run through one runtime() call is observed by a capture made through a later call | tests/foundation/test_runner/test_test_environment.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/foundation/test_runner/README.md
+Medium_TestEnvironment.ReportsAtLeastOneDeviceAndItsQueue | rewrite | 1 | forbidden kind: a default value (queue() equals queue(0), the default argument); the ASSERT_GE on device_count() is a precondition and stays; rewrite to check queue(i) for each device i below device_count(), which is the add row below | tests/foundation/test_runner/test_test_environment.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/foundation/test_runner/README.md
+Medium_TestEnvironment.CountsALiveAllocationUntilItIsFreed | resize | 8 | the count is SushiRuntime's memory().live_count(), bookkeeping on values, reached through the shared device runtime and a real device allocation; SushiRuntime's source has no in-memory memory port (grep of ../sushiruntime/modules for in-memory adapters: no match), so the seam to build is that port in SushiRuntime, an owner decision in another repository; until then the test stays Medium_; question 4: other test files use the counter as the oracle for their own units, not for this promise | tests/foundation/test_runner/test_test_environment.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; ../sushiruntime/modules/surface/api/source/advanced_controls.cpp; ../sushiruntime/modules/surface/api/include/SushiRuntime/api/runtime/advanced_controls.hpp
+```
+
+### `tests/foundation/test_runner/test_test_runner_log_category.cpp`
+
+```
+Small_TestRunnerLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | static_assert run as a test, with no runtime assertion, on a log category constant (forbidden kinds); the constant states no behaviour beyond its name | tests/foundation/test_runner/test_test_runner_log_category.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_runner_log_category.hpp
+```
+
+### `tests/foundation/typed_suite_naming/test_default_type_names.cpp`
+
+```
+Small_DefaultTypeNames.NamesATypeByItsIndex | merge | 4 | merge with Small_TypedSuiteNaming.EachTypeGetsItsOwnSuite (same file): both check the index text of the names; the direct GetName rows absorb the typed test's index check, and the typed test keeps only the macro wiring | tests/foundation/typed_suite_naming/test_default_type_names.cpp; modules/foundation/typed_suite_naming/include/SushiBLAS/typed_suite_naming/default_type_names.hpp; tests/foundation/typed_suite_naming/README.md
+Small_TypedSuiteNaming.EachTypeGetsItsOwnSuite | resize | 8 | reads ::testing::UnitTest::GetInstance(), gtest's process-wide state; the macro offers no seam, so the size is Medium_; the name says each type gets its own suite, but the body only checks that each name is one of two literals, so distinctness is not checked and the name overstates the body | tests/foundation/typed_suite_naming/test_default_type_names.cpp; modules/foundation/typed_suite_naming/include/SushiBLAS/typed_suite_naming/default_type_names.hpp; tests/foundation/typed_suite_naming/README.md
+```
+
+### `tests/kernels/blas_kernels/reference/level1/test_level1.cpp`
+
+```
+Small_ReferenceLevel1.AxpyCopyScalAndSwapFollowTheirStrides | split | 3 | reason: four functions, rows axpy, scal, copy and swap | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.RotTurnsEachPairByCosineAndSine | keep | 9 | rot: with cosine c and sine s, each pair becomes x' = c x + s y and y' = c y - s x | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.AsumAddsMagnitudesAndBothPartsOfAComplex | split | 3 | reason: real and complex asum, rows asum real and asum complex | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.Nrm2IsTheEuclideanNormWithoutOverflow | split | 3 | reason: plain norm of doubles, and float norm where squares overflow, rows nrm2 Euclidean and nrm2 overflow | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.DotSumsTheProductsAndConjugatesWhenAsked | split | 3 | reason: plain dot and conjugated dot, rows dot and dot with the conjugation flag | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.IamaxReturnsTheFirstLargestMagnitude | split | 3 | reason: real and complex iamax, the complex one uses abs1 magnitude, rows iamax real and iamax complex | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+Small_ReferenceLevel1.AbsOneAddsTheMagnitudesOfBothParts | split | 3 | reason: complex abs1 and real abs1, rows abs1 complex and abs1 real | tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level1/test_rotg.cpp`
+
+```
+Small_ReferenceRotg.TheThreeFourFiveTriangleRotatesToFive | keep | 9 | rotg: for (3, 4) the rotation gives r = 5, c = 0.6, s = 0.8 and z = 1/c when | a
+Small_ReferenceRotg.ALargerFirstComponentStoresTheSine | keep | 9 | rotg: when | a
+Small_ReferenceRotg.AZeroComponentGivesTheIdentityOrTheSwap | split | 3 | reason: two calls with different inputs, rows rotg with b zero and rotg with a zero | tests/kernels/blas_kernels/reference/level1/test_rotg.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotg.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level1/test_rotm.cpp`
+
+```
+Small_ReferenceRotm.FlagMinusOneAppliesTheFullMatrix | keep | 9 | rotm: flag -1 applies the full matrix H | tests/kernels/blas_kernels/reference/level1/test_rotm.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotm.hpp
+Small_ReferenceRotm.FlagZeroKeepsUnitDiagonals | keep | 9 | rotm: flag 0 keeps unit diagonals and reads only the off-diagonal entries | tests/kernels/blas_kernels/reference/level1/test_rotm.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotm.hpp
+Small_ReferenceRotm.FlagOneKeepsTheUnitAndMinusOneOffDiagonals | keep | 9 | rotm: flag 1 keeps unit off-diagonal entries of -1 and 1 and reads only the diagonal | tests/kernels/blas_kernels/reference/level1/test_rotm.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotm.hpp
+Small_ReferenceRotm.FlagMinusTwoLeavesBothVectors | keep | 9 | rotm: flag -2 leaves both vectors unchanged | tests/kernels/blas_kernels/reference/level1/test_rotm.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotm.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level1/test_rotmg.cpp`
+
+```
+Small_ReferenceRotmg.TheTransformationZeroesTheSecondComponent | rewrite | 1 | rotmg: the transformation it builds zeroes the second component for any y1; the y1 loop in the body is control flow, the only test of this promise, and K_TOLERANCE is a typed tolerance (tests/support/tolerance.hpp is absent from this repository); rewrite as rows over y1 | tests/kernels/blas_kernels/reference/level1/test_rotmg.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotmg.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotm.hpp
+Small_ReferenceRotmg.AZeroSecondComponentNeedsNoTransformation | keep | 9 | rotmg: a zero second component needs no transformation (flag -2, x1 unchanged) | tests/kernels/blas_kernels/reference/level1/test_rotmg.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotmg.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_gbmv.cpp`
+
+```
+Small_ReferenceGbmv.MatchesADenseLoopOverTheBand | rewrite | 1 | reason: nested loops over layout and transpose in the body (control flow), the only reference test of gbmv (the SYCL test compares device output with the reference, it does not test the reference); rows over layout and transpose; promise: gbmv: alpha op(A) x + beta y over a band matrix reads only the band, in both layouts and transposes | tests/kernels/blas_kernels/reference/level2/test_gbmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_gbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_gemv.cpp`
+
+```
+Small_ReferenceGemv.MatchesADenseLoopInEveryLayoutAndTranspose | rewrite | 1 | reason: nested loops over layout and transpose in the body, the only reference test of gemv's dense promise; rows over layout and transpose; promise: gemv: alpha op(A) x + beta y matches a dense product in both layouts and transposes | tests/kernels/blas_kernels/reference/level2/test_gemv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/gemv.hpp; tests/kernels/blas_kernels/sycl/level2/test_gemv.cpp
+Small_ReferenceGemv.AZeroBetaIgnoresANaNInY | keep | 9 | gemv: with beta zero, NaN in y does not reach the result | tests/kernels/blas_kernels/reference/level2/test_gemv.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/gemv.hpp
+Small_ReferenceGemv.StridesSkipTheElementsBetween | keep | 9 | gemv: strided x and y skip the elements between them | tests/kernels/blas_kernels/reference/level2/test_gemv.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/gemv.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_ger.cpp`
+
+```
+Small_ReferenceGer.AddsTheOuterProductInEitherLayout | rewrite | 1 | reason: layout loop and nested loops that build the expected value in the body (control flow), the only reference test of ger's outer product; a named builder for the expected matrix and rows over layout; promise: ger: A gets alpha x y^T added, in either layout | tests/kernels/blas_kernels/reference/level2/test_ger.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/ger.hpp; tests/kernels/blas_kernels/sycl/level2/test_ger.cpp
+Small_ReferenceGer.TheConjugatedFormConjugatesY | keep | 9 | ger: the conjugated form conjugates y | tests/kernels/blas_kernels/reference/level2/test_ger.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/ger.hpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_sbmv.cpp`
+
+```
+Small_ReferenceSbmv.MatchesADenseLoopOverTheBandTriangle | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of sbmv; rows over layout and triangle; promise: sbmv: the symmetric band product reads only the named band triangle, in both layouts | tests/kernels/blas_kernels/reference/level2/test_sbmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_sbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_spmv.cpp`
+
+```
+Small_ReferenceSpmv.MatchesADenseLoopOverThePackedTriangle | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of spmv; rows over layout and triangle; promise: spmv: the symmetric packed product reads only the named packed triangle, in both layouts | tests/kernels/blas_kernels/reference/level2/test_spmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_spmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_spr.cpp`
+
+```
+Small_ReferenceSpr.UpdatesThePackedTriangle | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of spr; rows over layout and triangle; promise: spr: the named packed triangle gets alpha x x^T added and the other entries stay unchanged | tests/kernels/blas_kernels/reference/level2/test_spr.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_spr.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_spr2.cpp`
+
+```
+Small_ReferenceSpr2.UpdatesThePackedTriangle | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of spr2; rows over layout and triangle; promise: spr2: the named packed triangle gets alpha (x y^T + y x^T) added | tests/kernels/blas_kernels/reference/level2/test_spr2.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_spr2.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_symmetric_product.cpp`
+
+```
+Small_ReferenceSymmetricProduct.APackedAccessReadsTheWholeSymmetricMatrix | delete | 1 | reason: calls Kernels::Reference::Detail::symmetric_product (a Detail symbol, forbidden), and the public promises it serves are held by spmv (packed) and symv; no public promise row | tests/kernels/blas_kernels/reference/level2/test_symmetric_product.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/symmetric_product.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/spmv.hpp; tests/kernels/blas_kernels/reference/level2/test_spmv.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp
+Small_ReferenceSymmetricProduct.ABandAccessReadsOnlyTheBand | delete | 1 | reason: calls Kernels::Reference::Detail::symmetric_product (a Detail symbol, forbidden), and the band promise is held by sbmv, row sbmv: the symmetric band product reads only the named band triangle | tests/kernels/blas_kernels/reference/level2/test_symmetric_product.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/symmetric_product.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/sbmv.hpp; tests/kernels/blas_kernels/reference/level2/test_sbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_symv.cpp`
+
+```
+Small_ReferenceSymv.ReadsOneTriangleAndMirrorsIt | rewrite | 1 | reason: loops and an if that poison the unnamed triangle, in the body (control flow), the only reference test of symv; a named poisoning builder and rows over layout and triangle; promise: symv: reads only the named triangle and mirrors it, in both layouts | tests/kernels/blas_kernels/reference/level2/test_symv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_symv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_syr.cpp`
+
+```
+Small_ReferenceSyr.UpdatesTheNamedTriangleOnly | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of syr; rows over layout and triangle; promise: syr: only the named triangle gets alpha x x^T added | tests/kernels/blas_kernels/reference/level2/test_syr.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_syr.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_syr2.cpp`
+
+```
+Small_ReferenceSyr2.UpdatesTheNamedTriangleOnly | rewrite | 1 | reason: nested loops over layout and triangle in the body (control flow), the only reference test of syr2; rows over layout and triangle; promise: syr2: only the named triangle gets alpha (x y^T + y x^T) added | tests/kernels/blas_kernels/reference/level2/test_syr2.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_syr2.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_tbmv.cpp`
+
+```
+Small_ReferenceTbmv.MatchesADenseProductForEveryFlag | rewrite | 1 | reason: four nested loops over layout, triangle, transpose and diagonal in the body (control flow), the only reference test of tbmv; rows over the flags; promise: tbmv: op(T) x over a band triangle matches a dense product for every flag, in both layouts | tests/kernels/blas_kernels/reference/level2/test_tbmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_tbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_tbsv.cpp`
+
+```
+Small_ReferenceTbsv.RecoversTheVectorAProductMade | rewrite | 1 | reason: four nested loops over the flags in the body (control flow), the only reference test of tbsv; rows over the flags; promise: tbsv: x is recovered from op(T) x over a band triangle for every flag | tests/kernels/blas_kernels/reference/level2/test_tbsv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_tbsv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_tpmv.cpp`
+
+```
+Small_ReferenceTpmv.MatchesADenseProductForEveryFlag | rewrite | 1 | reason: four nested loops over the flags in the body (control flow), the only reference test of tpmv; rows over the flags; promise: tpmv: op(T) x over a packed triangle matches a dense product for every flag, in both layouts | tests/kernels/blas_kernels/reference/level2/test_tpmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_tpmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_tpsv.cpp`
+
+```
+Small_ReferenceTpsv.RecoversTheVectorAProductMade | rewrite | 1 | reason: four nested loops over the flags in the body (control flow), the only reference test of tpsv; rows over the flags; promise: tpsv: x is recovered from op(T) x over a packed triangle for every flag | tests/kernels/blas_kernels/reference/level2/test_tpsv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_tpsv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_triangular_product.cpp`
+
+```
+Small_ReferenceTriangularProduct.MatchesADenseProductThroughAPackedAccess | delete | 1 | reason: calls Kernels::Reference::Detail::triangular_product (a Detail symbol, forbidden) and loops in the body; the packed promise for every flag is held by tpmv, row tpmv: op(T) x over a packed triangle matches a dense product for every flag | tests/kernels/blas_kernels/reference/level2/test_triangular_product.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/triangular_product.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/tpmv.hpp; tests/kernels/blas_kernels/reference/level2/test_tpmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_triangular_solve.cpp`
+
+```
+Small_ReferenceTriangularSolve.UndoesADenseProductThroughAPackedAccess | delete | 1 | reason: calls Kernels::Reference::Detail::triangular_solve (a Detail symbol, forbidden) and a loop-free body over two flags; the packed solve promise is held by tpsv, row tpsv: x is recovered from op(T) x over a packed triangle for every flag | tests/kernels/blas_kernels/reference/level2/test_triangular_solve.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/triangular_solve.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2/tpsv.hpp; tests/kernels/blas_kernels/reference/level2/test_tpsv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level2/test_trmv.cpp`
+
+```
+Small_ReferenceTrmv.MatchesADenseProductForEveryFlag | rewrite | 1 | reason: four nested loops over the flags in the body (control flow), the only reference test of trmv; rows over the flags; promise: trmv: op(T) x over a full triangle matches a dense product for every flag, in both layouts | tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level2/test_trmv.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level3/test_syr2k.cpp`
+
+```
+Small_ReferenceSyr2k.MatchesADenseUpdateOnEachTriangle | rewrite | 1 | reason: nested loops with continue and an if build the expected matrix in the body (control flow), the only reference test of the single syr2k; a named dense builder and rows over the triangle; promise: syr2k: C = alpha (A B^T + B A^T) + beta C on the named triangle matches a dense update | tests/kernels/blas_kernels/reference/level3/test_syr2k.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_syr2k.cpp
+Small_ReferenceSyr2k.TheBatchedFormUpdatesEachMatrixOfTheBatch | rewrite | 1 | reason: loop over the batch in the body (control flow), and the oracle is the single-call syr2k, the code under test (question 6); rewrite with a dense oracle per matrix; promise: syr2k: each matrix of a strided batch is updated as a single call would update it | tests/kernels/blas_kernels/reference/level3/test_syr2k.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_syr2k.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level3/test_syrk.cpp`
+
+```
+Small_ReferenceSyrk.MatchesADenseUpdateForEveryLayoutTriangleAndTranspose | rewrite | 1 | reason: nested loops over layout, triangle and transpose, an if that copies the transpose, in the body (control flow), the only reference test of syrk; rows over the flags, the rank_k builder kept as the oracle; promise: syrk: C = alpha op(A) op(A)^T + beta C on the named triangle matches a dense update for every layout, triangle and transpose | tests/kernels/blas_kernels/reference/level3/test_syrk.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Small_ReferenceSyrk.TheBatchedFormUpdatesEachMatrixOfTheBatch | rewrite | 1 | reason: loop over the batch in the body (control flow), and the oracle is the single-call syrk, the code under test (question 6); rewrite with a dense oracle per matrix; promise: syrk: each matrix of a strided batch is updated as a single call would update it | tests/kernels/blas_kernels/reference/level3/test_syrk.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+```
+
+### `tests/kernels/blas_kernels/reference/level3/test_trsm.cpp`
+
+```
+Small_ReferenceTrsm.RecoversXForEverySideTriangleAndTranspose | rewrite | 1 | reason: loops over layout, side, triangle and transpose with an if in the body (control flow), the only reference test of trsm's recovery promise; rows over the flags, the product and transpose builders kept; promise: trsm: X is recovered from op(A) X or X op(A) for every side, triangle, transpose and layout | tests/kernels/blas_kernels/reference/level3/test_trsm.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_structured.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Small_ReferenceTrsm.AlphaScalesTheRightHandSide | keep | 9 | trsm: alpha scales the right-hand side | tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Small_ReferenceTrsm.TheBatchedFormSolvesEachSystemOfTheBatch | rewrite | 1 | reason: loop over the batch in the body (control flow), and the oracle is the single-call trsm, the code under test (question 6); rewrite with a round trip per system; promise: trsm: each system of a batch is solved as a single call would solve it, with A shared by stride zero | tests/kernels/blas_kernels/reference/level3/test_trsm.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level1/test_level1.cpp`
+
+```
+Medium_SYCLLevel1.TheElementwiseKernelsMatchTheReference | split | 3 | axpy, scal and rot each match the reference: three promises, one test per kernel | tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+Medium_SYCLLevel1.CopyAndSwapMoveEveryOtherElement | rewrite | 2 | copy row holds; the swap half cannot fail, because the check reads device_y only, which equals expected whether or not swap ran, so a no-op swap passes; rewrite the swap check against both vectors (see add row); the name's "And" is a sign | tests/kernels/blas_kernels/sycl/level1/test_level1.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level1/level1.hpp
+Medium_SYCLLevel1.TheReductionsMatchTheReferenceExactly | split | 3 | asum, dot and iamax each match the reference: three promises, one test per kernel | tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+Medium_SYCLLevel1.Nrm2StaysWithinTheBoundOfAScaledSum | rewrite | 9 | nrm2 row holds (fails if nrm2 returns a wrong value), but the bound is hand-derived (expected * K_LENGTH * epsilon) and not taken through the repository's tolerance helper, which the testing skill requires for a non-exact float comparison; REVIEWING.md has no question for this, so the verdict is a judgement at 9 | tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+Medium_SYCLLevel1.AnEmptyVectorSumsToZero | keep | 9 | asum row, empty extent: result starts at 7.0 and must read 0.0; specified oracle; device write is the boundary, so medium is the right size; no other blas_kernels test of an empty asum was found by grep | tests/kernels/blas_kernels/sycl/level1/test_level1.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; tests/kernels/blas_kernels/test_blas.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level1/test_rotg.cpp`
+
+```
+Medium_SYCLRotg.MatchesTheReferenceBitForBit | rewrite | 1 | a for loop over five pairs with SCOPED_TRACE in the body; the pairs become rows; the rotg row holds | tests/kernels/blas_kernels/sycl/level1/test_rotg.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level1/test_rotm.cpp`
+
+```
+Medium_SYCLRotm.MatchesTheReferenceUnderEveryFlag | rewrite | 1 | a for loop over the four flags in the body; the flag becomes a row; the rotm row holds | tests/kernels/blas_kernels/sycl/level1/test_rotm.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level1/test_rotmg.cpp`
+
+```
+Medium_SYCLRotmg.MatchesTheReferenceBitForBit | rewrite | 1 | a for loop over five inputs in the body; the inputs become rows; the rotmg row holds | tests/kernels/blas_kernels/sycl/level1/test_rotmg.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_gbmv.cpp`
+
+```
+Medium_SYCLGbmv.MatchesTheReferenceInEveryLayoutAndTranspose | rewrite | 1 | nested loops over layout and transpose in the body; rows over (layout, transposed) replace them; the gbmv row holds | tests/kernels/blas_kernels/sycl/level2/test_gbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_gemv.cpp`
+
+```
+Medium_SYCLGemv.MatchesTheReferenceInEveryLayoutAndTranspose | rewrite | 1 | nested loops in the body; rows over (layout, transposed) replace them; the gemv row holds | tests/kernels/blas_kernels/sycl/level2/test_gemv.cpp
+Medium_SYCLGemv.FloatMatchesTheReferenceToo | merge | 4 | same gemv row as MatchesTheReferenceInEveryLayoutAndTranspose, with float data in one layout; merge into the row table over element type of Medium_SYCLGemv.MatchesTheReferenceInEveryLayoutAndTranspose | tests/kernels/blas_kernels/sycl/level2/test_gemv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_ger.cpp`
+
+```
+Medium_SYCLGer.MatchesTheReferenceInEitherLayout | rewrite | 1 | a for loop over the layouts in the body; the layouts become rows; the ger row holds | tests/kernels/blas_kernels/sycl/level2/test_ger.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp`
+
+```
+Medium_RowReduction.ARowShorterThanTheStagedThresholdIsNotSplit | rewrite | 1 | the namespace alias Rows = Kernels::SYCL::Detail reaches row_reduction_width, a Detail symbol; the body is pure logic on a Device::Profile value, so the rewrite is also a resize to a Small_ suite; the threshold itself is not tested at its boundary (see add row) | tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp
+Medium_RowReduction.TheWindowsCoverAWholeRowOrOneTriangle | rewrite | 1 | Detail symbols (RowWindow, WholeRow, TriangleRow) through the Rows alias; three promises (whole row, upper triangle row, lower triangle row) to split when rewritten; pure logic, so the rewrite is also a resize to Small_ | tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp
+Medium_RowReductionOnDevice.AGroupFoldsEveryRowToItsSum | rewrite | 1 | Detail symbol reduce_rows_by_group through the Rows alias, and a loop in the body building the expected sums; the fold is reached through the public gemv, gbmv and symv kernels, which call it (gemv.hpp:83, gbmv.hpp:83, symv.hpp:84); rewrite through those with rows | tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/gemv.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/gbmv.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/symv.hpp
+Medium_RowReductionOnDevice.AGroupFoldGivesTheBitsOfItsHalvingTree | rewrite | 1 | Detail symbol and nested loops in the body; the oracle rebuilds the kernel's halving tree, so the test pins how the fold adds (a change detector, question 5); the promise to keep is the fixed order, and the expected bits depend on the sub-group shuffle floor in row_reduction.hpp, so they depend on the device | tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp
+Medium_RowReductionOnDevice.ATriangleWindowFoldsOnlyItsColumns | rewrite | 1 | Detail symbol reduce_row_windows_by_group through the Rows alias, and a loop in the body that checks each row; no public kernel in this chunk is shown to reach a triangle window, so the rewrite names a public kernel that does, chosen after reading it | tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_sbmv.cpp`
+
+```
+Medium_SYCLSbmv.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; the name's "And" is a sign; rows replace the loops; the sbmv row holds | tests/kernels/blas_kernels/sycl/level2/test_sbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_spmv.cpp`
+
+```
+Medium_SYCLSpmv.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the spmv row holds | tests/kernels/blas_kernels/sycl/level2/test_spmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_spr.cpp`
+
+```
+Medium_SYCLSpr.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the spr row holds | tests/kernels/blas_kernels/sycl/level2/test_spr.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_spr2.cpp`
+
+```
+Medium_SYCLSpr2.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the spr2 row holds | tests/kernels/blas_kernels/sycl/level2/test_spr2.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_symmetric_product.cpp`
+
+```
+Medium_SYCLSymmetricProduct.MatchesTheReferenceForBothTriangles | delete | 1 | Detail symbols on both sides (Kernels::SYCL::Detail::symmetric_product and Kernels::Reference::Detail::symmetric_product) and a loop over the triangle in the body; the promise is reached through the public spmv and sbmv kernels, which call Detail::symmetric_product, and the spmv test in this chunk covers packed triangles in both layouts | tests/kernels/blas_kernels/sycl/level2/test_symmetric_product.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/spmv.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/sbmv.hpp; tests/kernels/blas_kernels/sycl/level2/test_spmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_symv.cpp`
+
+```
+Medium_SYCLSymv.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the symv row holds | tests/kernels/blas_kernels/sycl/level2/test_symv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_syr.cpp`
+
+```
+Medium_SYCLSyr.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the syr row holds | tests/kernels/blas_kernels/sycl/level2/test_syr.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_syr2.cpp`
+
+```
+Medium_SYCLSyr2.MatchesTheReferenceForBothTrianglesAndLayouts | rewrite | 1 | nested loops over layout and triangle in the body; rows replace them; the syr2 row holds | tests/kernels/blas_kernels/sycl/level2/test_syr2.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_tbmv.cpp`
+
+```
+Medium_SYCLTbmv.MatchesTheReferenceForEveryFlag | rewrite | 1 | four nested loops (layout, triangle, transpose, diagonal) in the body; the flags become rows; the tbmv row holds | tests/kernels/blas_kernels/sycl/level2/test_tbmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_tbsv.cpp`
+
+```
+Medium_SYCLTbsv.MatchesTheReferenceForEveryFlag | rewrite | 1 | nested loops in the body; rows replace them. unit_diagonal_matrix sets every diagonal entry to one, so NonUnit and Unit give the same substitution and the Unit flag is never distinguished (see add row) | tests/kernels/blas_kernels/sycl/level2/test_tbsv.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_tpmv.cpp`
+
+```
+Medium_SYCLTpmv.MatchesTheReferenceForEveryFlag | rewrite | 1 | four nested loops in the body; the flags become rows; the tpmv row holds | tests/kernels/blas_kernels/sycl/level2/test_tpmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_tpsv.cpp`
+
+```
+Medium_SYCLTpsv.MatchesTheReferenceForEveryFlag | rewrite | 1 | nested loops in the body; rows replace them. The same unit diagonal as tbsv means the Unit flag is never distinguished (see add row) | tests/kernels/blas_kernels/sycl/level2/test_tpsv.cpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_triangular_product.cpp`
+
+```
+Medium_SYCLTriangularProduct.MatchesTheReferenceForEveryFlag | delete | 1 | Detail symbols on both sides (SYCL::Detail::triangular_product and Reference::Detail::triangular_product) and nested loops in the body; the promise is reached through the public tpmv and tbmv kernels, which call Detail::triangular_product, and the tpmv test covers every flag in both layouts at n = 39 | tests/kernels/blas_kernels/sycl/level2/test_triangular_product.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/tpmv.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/tbmv.hpp; tests/kernels/blas_kernels/sycl/level2/test_tpmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_triangular_solve.cpp`
+
+```
+Medium_SYCLTriangularSolve.RecoversTheSolutionTheReferenceRecovers | rewrite | 1 | Detail symbols on both sides and nested loops in the body; the block widths 1, 16 and n are a TriangularSolvePlan passed to the kernel; the public tpsv overload that takes a plan (tpsv.hpp:55) reaches the same solve without Detail, so the rewrite goes there | tests/kernels/blas_kernels/sycl/level2/test_triangular_solve.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/tpsv.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_trmv.cpp`
+
+```
+Medium_SYCLTrmv.MatchesTheReferenceForEveryFlag | rewrite | 1 | four nested loops in the body; the flags become rows; the trmv row holds | tests/kernels/blas_kernels/sycl/level2/test_trmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level2/test_vector_snapshot.cpp`
+
+```
+Medium_VectorSnapshot.CopiesEveryIncxthElementOnTheHost | delete | 1 | Detail symbol VectorSnapshot and a loop in the body; the copy promise is reached through the public trmv kernel, which builds the snapshot with incx (trmv.hpp:136) and test_trmv.cpp uses incx 2; the small-size gap is recorded as an add row | tests/kernels/blas_kernels/sycl/level2/test_vector_snapshot.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/trmv.hpp; tests/kernels/blas_kernels/sycl/level2/test_trmv.cpp
+Medium_VectorSnapshotOnDevice.AKernelCopiesTheStridedElements | delete | 1 | Detail symbol VectorSnapshot and loops in the body (fill and check); the same copy promise is reached through the trmv path at incx 2 | tests/kernels/blas_kernels/sycl/level2/test_vector_snapshot.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/trmv.hpp; tests/kernels/blas_kernels/sycl/level2/test_trmv.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level3/test_syr2k.cpp`
+
+```
+Medium_SYCLSyr2k.MatchesTheReferenceForEveryFlag | rewrite | 1 | nested loops over layout, triangle and transpose in the body; rows replace them; the syr2k row holds | tests/kernels/blas_kernels/sycl/level3/test_syr2k.cpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp`
+
+```
+Medium_SYCLSyrk.BothPathsMatchTheReferenceForEveryFlag | rewrite | 1 | Control flow in the test body: four nested loops over scratch, layout, triangle and transpose (forbidden kind, straight line). The promise rows "syrk (SYCL) ... reference result" are its only kernel-level test in the unit's own module; the operations test reaches syrk only through the operation, and no other test calls Kernels::SYCL::syrk (searched). Rewrite as one row table of the 16 flag rows, asserting which path ran through packed_product_is_ready or plan.selected, since the test now shows neither path was taken. Oracle and small-integer operands are sound; the SCOPED_TRACE integer is unreadable | tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_flags.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp`
+
+```
+Medium_TriangularPlan.ACPUBlocksOnlyWhereItPays | rewrite | 7 | Two expect_planned_blocks calls with different expectations (more than one action), plus a constant check at line 118 (trivial constant, forbidden kind). The promise is one biconditional sentence: a CPU blocks exactly when order exceeds break-even for the streams. Rewrite as one row table of (order, streams, expected block) under the rule at triangular_plan.hpp:116, delete line 118, and derive the boundary values 546 and 547 in a comment (checked by hand: 546*15 = 8190 <= 8192 and 547*15 = 8205 > 8192). The rewrite is Small_, since the planner is host code | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_TriangularPlan.OneComputeUnitNeverBlocks | resize | 8 | promise row "triangular_plan: one compute unit plans every order whole". Q2 yes, Q3 one sentence, Q4 no other test calls plan_triangular_solve (searched: only this file calls the planner), Q5 and Q6 no, Q7 no sign. The body reaches no device, file, thread or clock: a logic test labelled Medium_. Resize to Small_, no seam needed | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_TriangularPlan.AGPUBlocksAtItsOwnWidth | rewrite | 7 | Two expect_planned_blocks calls (more than one action) and a constant check at line 144 (trivial constant). Promise: a GPU blocks exactly when order exceeds break-even for the streams, one sentence. Rewrite as one row table of GPU rows (the boundary rows 256/257 agree with the rule at a 163840-slot profile: 256*163839 <= 2*128*163840 < 257*163838), delete line 144, and make it Small_ | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_TriangularPlan.AVectorSolveBlocksByItsReach | split | 3 | Several promises: (a) "triangular_plan (vector): the plan blocks at the device block only when the reach is wider than that block" (rows 8192/8192, 8192/257 blocked); (b) "a reach of zero, or a block at or over the reach, plans the whole order; an empty system plans one step" (rows 8192/256, 8192/0, 256/256, 0/0). Each part is Small_ | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp
+Medium_TriangularPlan.ResidentWorkItemsFollowTheProfile | resize | 8 | promise row "triangular_plan: resident_work_items is the compute units on a CPU and the units times K_WAVES times the work-group size on a GPU". Q2 to Q7 no verdict; the body reaches no device, file or clock, so the Medium_ label is wrong. Resize to Small_. The GPU expectation restates the formula at triangular_plan.hpp:94-95 with the work-group size that device_policy.hpp:504-511 returns for max 1024 and sub-group 32 | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp
+Medium_TriangularPlan.ABlockIsClampedToTheSystem | split | 3 | Two promises: (a) "triangular_plan: block_width keeps the block within [1, order]"; (b) "triangular_plan: block_count covers the order and is at least one". Each is a row table, and each part is Small_ | tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level3/test_triangular_system.cpp`
+
+```
+Medium_TriangularSystem.EverySideAndFlagDecodesToItsLoop | rewrite | 1 | Control flow in the test body: nested loops over s, t and v, and ternaries in the EXPECT arguments (forbidden kind). It is the only test that calls triangular_system directly (searched: only trsm.hpp uses it). The promise carries several sentences (decoding of order, vectors, forward and unit_diag; coefficient addressing; unknown addressing), so the rewrite splits them as rows. Its expected formulas repeat triangular_system.hpp:67-76, so they must be taken from DESIGN_BLAS_L3 section 7.4, which the glob of the tree did not find, and this review did not read it through the design command. Pure host code: Small_, not Medium_ | tests/kernels/blas_kernels/sycl/level3/test_triangular_system.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp
+Medium_TriangularSystem.ConjTransConjugatesTheCoefficientAndNotTheUnknown | rewrite | 1 | Control flow in the test body: nested loops over layout and side (forbidden kind). It is the only test of "triangular_system: ConjTrans conjugates the coefficient and never the unknown" (searched). Rewrite as a row table over (layout, side), Small_ | tests/kernels/blas_kernels/sycl/level3/test_triangular_system.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp
+```
+
+### `tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp`
+
+```
+Medium_SYCLTrsm.MatchesTheReferenceForEveryFlagAndBlockWidth | rewrite | 1 | Control flow in the test body: nested loops over block width, side, triangle and transpose (forbidden kind). Operations test_triangular_parallel.cpp runs the SYCL trsm through the operation at several widths (searched), but the ruling on two tests of one promise keeps the one in the unit's own module, so this file stays and is rewritten as a row table of the 24 flag and width rows. Delete line 120, EXPECT_EQ(b, x), which repeats reference/level3/test_trsm.cpp:74 RecoversXForEverySideTriangleAndTranspose. The gaps in the add lines belong to this unit | tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/trsm.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp (searched)
+```
+
+### `tests/kernels/blas_kernels/test_blas.cpp`
+
+```
+Medium_BlasKernels.TheReferenceKernelsOfEachLevelAreReachable | split | 3 | Several promises: (a) "blas.hpp includes the reference and SYCL kernels of each BLAS level", which the file checks only by compiling, and the name says each level while no level 3 kernel is called; (b) the axpy values at lines 45-52, which repeat reference/level1/test_level1.cpp:41 AxpyCopyScalAndSwapFollowTheirStrides (Q4, delete); (c) the gemv value at line 49-52, which repeats reference/level2/test_gemv.cpp:50 MatchesADenseLoopInEveryLayoutAndTranspose (Q4, delete). Part (a) needs an assertion of its own; the reference part is Small_ | tests/kernels/blas_kernels/test_blas.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas.hpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; tests/kernels/blas_kernels/reference/level2/test_gemv.cpp
+Medium_BlasKernelsOnDevice.ASYCLKernelIsReachable | delete | 4 | Promise row "SYCL axpy: y becomes y + alpha*x" is tested by the own-module file, tests/kernels/blas_kernels/sycl/level1/test_level1.cpp:63 TheElementwiseKernelsMatchTheReference, which calls Kernels::SYCL::axpy at line 71 against the reference; that copy stays | tests/kernels/blas_kernels/test_blas.cpp; tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+```
+
+### `tests/kernels/blas_kernels/test_blas_kernels_log_category.cpp`
+
+```
+Small_BlasKernelsLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | Forbidden kinds: "a static_assert run as a test" (no runtime assertion, the body is two static_assert lines) and "a test of trivial code: a log category". The constant has no promise row and needs none | tests/kernels/blas_kernels/test_blas_kernels_log_category.cpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas_kernels_log_category.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_channel_bias_epilogue.cpp`
+
+```
+Small_ChannelBiasEpilogue.AColumnChannelAddsTheBiasOfTheColumn | keep | 9 | channel_bias_epilogue: adds the bias element the stride pair names; hand values agree with the header formula | tests/kernels/blas_seam_kernels/level3/test_channel_bias_epilogue.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp
+Small_ChannelBiasEpilogue.ARowChannelAddsTheBiasOfTheRow | keep | 9 | channel_bias_epilogue: adds the bias element the stride pair names | tests/kernels/blas_seam_kernels/level3/test_channel_bias_epilogue.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp
+Small_ChannelBiasEpilogue.BothStridesAddressATwoDimensionalBias | keep | 9 | channel_bias_epilogue: adds the bias element the stride pair names | tests/kernels/blas_seam_kernels/level3/test_channel_bias_epilogue.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_gemm_epilogue.cpp`
+
+```
+Small_GemmEpilogue.TheIdentityReturnsItsValueAtEveryPosition | keep | 9 | gemm_epilogue: identity returns the element unchanged | tests/kernels/blas_seam_kernels/level3/test_gemm_epilogue.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp`
+
+```
+Small_GemmTileCatalog.BalancedKeepsTheFloat32GeometryOfTheSingleShapeKernel | keep | 9 | gemm_tile_catalog: Balanced geometry; values re-derived from GemmTileShape<float,8,8,256,16> (block 64, A ld 17, B ld 66, local bytes) | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+Small_GemmTileCatalog.WideDoublesTheRowsAndTheDepthOfBalanced | keep | 9 | gemm_tile_catalog: Wide geometry, re-derived from GemmTileShape<float,16,8,256,32> | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+Small_GemmTileCatalog.CompactHalvesTheBalancedBlockForEveryDtype | keep | 9 | gemm_tile_catalog: Compact halves Balanced; the register-block values re-derive from register_block_dim for float, double and complex double | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+Small_GemmTileCatalog.EveryRoleNameReadsBackToItsRole | rewrite | 1 | control flow in body: range-for over K_GEMM_TILE_ROLES; rewrite as rows over the three roles | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp
+Small_GemmTileCatalog.ANameOutsideTheCatalogNamesNoRole | keep | 9 | gemm_tile_catalog: a name outside the catalog names no role; three literals of distinct kinds in one call set | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp
+Small_GemmTileCatalog.TraitsFollowTheRoleOrder | rewrite | 1 | control flow in body: loop over traits checking order; rewrite as rows or a named builder, with the block checks split out | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_catalog.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp`
+
+```
+Small_GemmTileChoice.ALargeProductTakesTheDensestShapeOnEveryGPU | rewrite | 1 | control flow in body: range-for over four profiles; rewrite as rows over the profiles | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial: lines 95-110, 122-128, 192-249 by grep)
+Small_GemmTileChoice.ASmallProductTakesTheShapeThatSpreadsItWidest | rewrite | 1 | control flow in body: range-for over four profiles; rewrite as rows | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AProductOnlyBalancedFillsTakesBalanced | keep | 9 | gemm_tile_choice: balanced-fill product takes Balanced; the comment derives 80 and 40 tiles against 80 units | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.TheSizeClassCountsBalancedTiles | keep | 9 | gemm_tile_choice: size class is Small at 512 and Large at 1024, the two sides of one boundary; the rule is gemm_size_class | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.ACPUDeviceGetsNoTiledShape | keep | 9 | gemm_tile_choice: admits_gemm_tile fails without dedicated local memory | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AShapePastAHardLimitIsNeverReturned | rewrite | 1 | control flow in body: range-for over two profiles; rewrite as rows merged with LocalMemoryPerComputeUnitIsAHardLimit, and add a local-bytes row (merge partner is the next line) | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial: admits_gemm_tile lines 95-110)
+Small_GemmTileChoice.AWorkGroupOfPartialSubGroupsIsNeverReturned | rewrite | 3 | name and body state opposite promises: the name says partial sub-groups are never returned, the body asserts Wide, the one shape the rule admits for this product; rename to the positive promise or check the negative across products | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial: admits_gemm_tile lines 95-110)
+Small_GemmTileChoice.LocalMemoryPerComputeUnitIsAHardLimit | merge | 4 | merge with tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp::Small_GemmTileChoice.AShapePastAHardLimitIsNeverReturned: same promise (hard limits), other inputs | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial: lines 95-110)
+Small_GemmTileChoice.APinInTheCatalogIsApplied | keep | 9 | gemm_tile_choice: catalog pin applied; status and role from one call | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AnUnknownPinIsReportedAndTheModelChooses | split | 3 | name joins two results that can break apart: the pin status report and the model's role; split into a status test and a fallback test | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.APinPastAHardLimitIsRefusedAndTheModelChooses | split | 3 | same as the unknown-pin test: refusal status and fallback role are two results | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AMeasuredEntryWinsOverTheModel | keep | 9 | gemm_tile_choice: a matching measured entry is taken over the model | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AnEntryOfAnotherArchitectureDtypeOrClassIsIgnored | keep | 9 | gemm_tile_choice: entries differing in one key field are ignored; injected table | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+Small_GemmTileChoice.AnEntryPastAHardLimitFallsBackToTheModel | keep | 9 | gemm_tile_choice: a measured entry past a hard limit is refused and the model chooses | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_choice.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp (partial)
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_gemm_tile_shape.cpp`
+
+```
+Small_GemmTileShape.TheRegisterBlockIsTheLargestSquareThatFitsTheBudget | keep | 9 | gemm_tile_shape: register_block_dim values re-derived from the doubling loop | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_shape.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+Small_GemmTileShape.HALFTakesTheRegisterBlockOfItsFloat32Accumulator | keep | 9 | gemm_tile_shape: sycl::half uses the float accumulator block (Accumulator maps HALF to float) and 2-byte local bytes | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_shape.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+Small_GemmTileShape.BlocksAndPaddingFollowTheWorkGroupAndTheDepth | keep | 9 | gemm_tile_shape: derived blocks, padding and local bytes for <double,4,16,128,8>, re-derived | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_shape.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_shape.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_gemm_tile_table.cpp`
+
+```
+Small_GemmTileTable.NoEntryNamesAnUnknownArchitecture | rewrite | 2 | the shipped K_GEMM_TILE_TABLE is std::array<GemmTileEntry, 0> (gemm_tile_table.hpp line 73), so the loop never runs and the test cannot fail; also control flow in body; rewrite over an injected table fixture, and state the promise the name claims | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_table.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_table.hpp (partial: line 73)
+Small_GemmTileTable.NoTwoEntriesShareAKey | rewrite | 2 | the shipped table is empty (gemm_tile_table.hpp line 73), so the nested loops never run and the test cannot fail; also control flow in body; rewrite over an injected table fixture | tests/kernels/blas_seam_kernels/level3/test_gemm_tile_table.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/gemm_tile_table.hpp (partial: line 73)
+```
+
+### `tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp`
+
+```
+Medium_PackedProductPlan.TheRegisterBlockFollowsTheAccumulationType | rewrite | 1 | static_assert run as a test, the only test of the register-block shape; rewrite as runtime checks with the design values as oracle, or move the asserts into packed_product_plan.hpp | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial: lines 44-67 by grep)
+Medium_PackedProductPlan.TheDefaultBlockingComesFromTheReportedCache | resize | 8 | pure value logic (cache_blocking_for is constexpr, device_policy.hpp line 105-106); size small; name overstates: the test passes a constant, not the device-reported cache path (resolve_cache_bytes, device_policy.hpp line 391) | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp (partial: lines 50-106 by grep)
+Medium_PackedProductPlan.TheDocumentedPlansHold | rewrite | 1 | control flow in body: loop over extents for the HALF-against-FLOAT check; also two promises (the design table, and HALF equals FLOAT): split once rewritten | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.EveryPlanCoversTheMatrixOnce | resize | 8 | pure value logic; the grid sweep sits in expect_every_plan_covers (named as an assertion helper), so no loop in the body; size small; check the time limit, the grid is about 6000 expectations per type | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.AnEmptyProductPlansNothing | rewrite | 1 | control flow in body: range-for over three shapes; rewrite as rows | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.ABudgetAboveEveryMatrixGivesOneBlock | resize | 8 | pure value logic; size small | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.TheSplitStopsAtTheRegisterBlock | resize | 8 | pure value logic; size small | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.SelectionNeedsACPUASpanAndEnoughBytes | split | 3 | name and body join three conditions (CPU, span, bytes), each checked with its own call; split into three tests, then resize each to small | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial: lines 211-249 by grep)
+Medium_PackedProductPlan.ASaturatedBudgetDoesNotOverflow | resize | 8 | pure value logic; size small; the oracle is positivity only, a weak check of no overflow; an exact expected plan would state the promise | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial)
+Medium_PackedProductPlan.APlanIsReadyOnlyWithItsScratch | resize | 8 | pure value logic; the four calls are refusal cases of one predicate, kept as one test; size small | tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp (partial: lines 246-249 by grep)
+```
+
+### `tests/kernels/blas_seam_kernels/reference/level3/test_gemm.cpp`
+
+```
+Small_ReferenceGemm.MatchesADenseLoopInEveryLayoutAndTranspose | rewrite | 1 | control flow in body: nested loops over layout and transpose; rewrite as rows over the eight combinations | tests/kernels/blas_seam_kernels/reference/level3/test_gemm.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp (read for the epilogue used at line 137)
+Small_ReferenceGemm.AnEpilogueSeesEachElementAfterAlphaAndBeta | rewrite | 1 | control flow in body: loop that builds the expected bias-added matrix; rewrite with a named builder for the bias-added oracle | tests/kernels/blas_seam_kernels/reference/level3/test_gemm.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp
+Small_ReferenceGemm.TheBatchedAndTheAccessedFormsAgreeWithTheSingleCall | rewrite | 1 | control flow in body: loop of single calls builds the oracle; rewrite with a builder, then split at question 3 into the batched and the accessed promise (name joins two results) | tests/kernels/blas_seam_kernels/reference/level3/test_gemm.cpp
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp`
+
+```
+Medium_SYCLGemm.MatchesTheReferenceInEveryLayoutTransposeAndBatch | rewrite | 1 | control flow in body: nested loops over layout and transpose; rewrite as rows; the device-to-reference boundary is correctly medium | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (partial: expected() calls Reference::gemm, lines 291-295)
+Medium_SYCLGemm.FloatAndAZeroBetaMatchTheReference | keep | 9 | sycl_gemm: float with beta zero matches the host reference bit for bit with poisoned padding; the name joins two inputs, not two results | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (partial)
+Medium_GemmFallbackLog.WarnsOncePerDeviceAndTile | resize | 8 | installs LogCapture, a sink on the process-wide logger (log_capture.hpp line 17-31); a small test needs an injected sink through a seam; the Profile objects are values | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+Medium_GemmFallbackLog.AnAppliedPinIsStatedOncePerProcess | rewrite | 2 | the assertion is EXPECT_LE(count, 1): it passes when nothing is stated, so it cannot fail if the statement is lost; the promise has no check; rewrite to EXPECT_EQ(count, 1) through the seam, with the once-per-process state injected | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+Medium_GemmFallbackLog.APinThatWasNotAppliedStatesNothing | resize | 8 | installs LogCapture, a process-wide sink; the seam is needed to make it small | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_accessed_packed.cpp`
+
+```
+Medium_SYCLGemmAccessedPacked.BothPathsMatchTheReference | rewrite | 1 | control flow in body: loop over scratch sizes {0, scratch}; rewrite as rows over the two scratch sizes | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_accessed_packed.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_joint_matrix.cpp`
+
+```
+Small_GemmJointMatrix.TheFitCheckRefusesWhatAFragmentLoadCannotRead | keep | 9 | joint_matrix_fits: one accept case and six refusal cases of one predicate, called on value profiles and fake addresses (no dereference) | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_joint_matrix.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp (partial: fit check lines 111-123 by grep)
+Large_GemmJointMatrix.MatchesTheLocalTiledKernelBitForBit | rewrite | 1 | forbidden kinds: skip guard in body (GTEST_SKIP, move to the fixture), loop over six cases, ASSERT loop over elements; the oracle is the other device kernel gemm_local_tiled, not the host reference | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_joint_matrix.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp (not read beyond the include)
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_packed.cpp`
+
+```
+Medium_SYCLGemmPacked.EveryBlockingMatchesTheReference | rewrite | 1 | control flow in body: nested loops over layout, transpose and blocking; rewrite as rows | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_packed.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (partial)
+Medium_SYCLGemmPacked.TheEntryPointWithScratchMatchesTheReference | keep | 9 | packed gemm entry point with scratch matches Reference::gemm on exact integers; the gemm.hpp entry was not read, so the keep rests on the test body | tests/kernels/blas_seam_kernels/sycl/level3/test_gemm_packed.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp`
+
+```
+Medium_PackedMicroKernel.TheTileGainsTheOuterProducts<all typed instances> | rewrite | 1 | control flow in body: fill loops and compare loop; rewrite with a builder for the slices and rows for the sums | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp
+Medium_PackedMicroKernel.TheTermsAreAddedInAscendingOrder<all typed instances> | rewrite | 1 | control flow in body: if constexpr branch and loops; rewrite with rows for the cancelling case and a named builder for the bit-exact case, which is two promises (split) | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp
+Medium_PackedMicroKernel.EachTermIsAddedByTheFusedMultiplyAdd<all typed instances> | resize | 8 | packed_micro_kernel is inline and host-callable (sycl::vec on the host, no queue); the test calls it on the host; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp
+Medium_PackedMicroKernel.ADepthOfZeroLeavesTheTile<all typed instances> | resize | 8 | host-callable micro-kernel, no device; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp
+Medium_PackedMicroKernel.NothingIsWrittenPastTheTile<all typed instances> | resize | 8 | host-callable micro-kernel, no device; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_micro_kernel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp`
+
+```
+Medium_PackedPanel.LinesAreGroupedAndTermsAreSlices<all typed instances> | resize | 8 | pack_panel is an inline host function (packed_panel.hpp lines 115-116), no queue; body straight, expect_common_panel is an expect_ helper; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial: lines 115-116 by grep)
+Medium_PackedPanel.BothStorageOrdersGiveTheSamePanel<all typed instances> | resize | 8 | pure value logic on host; body straight; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.ColumnLinesReadTheSecondFactor<all typed instances> | rewrite | 1 | control flow in body: range-for over both storage orders; rewrite as rows over the storage orders | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.ABrickWithOnlyAtIsPacked<all typed instances> | resize | 8 | pack_panel reads through at only; host logic; size small | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial); modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Medium_PackedPanel.AConjugatedAccessNegatesTheImaginaryPlane<all typed instances> | rewrite | 1 | control flow in body: loops over storage orders and over the panel, ternary check; rewrite with rows and a named builder | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.ComplexPartsAreStoredInPlanes<all typed instances> | rewrite | 1 | control flow in body: four nested loops with EXPECT; rewrite with a builder for the expected plane layout | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.HalfIsPackedAsFloat<all typed instances> | rewrite | 1 | static_assert and a loop in body; rewrite with the static_assert moved to the header and rows for the lanes | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.NothingIsWrittenPastThePanel<all typed instances> | rewrite | 1 | control flow in body: loops over storage orders and counts; rewrite as rows | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+Medium_PackedPanel.ACountOrADepthOfZeroWritesNothing<all typed instances> | rewrite | 1 | control flow in body: loop over storage orders; rewrite as rows | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_panel.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp (partial)
+```
+
+### `tests/kernels/blas_seam_kernels/sycl/level3/test_packed_product.cpp`
+
+```
+Medium_SYCLPackedProduct.StoresEverySumOfCOnce | rewrite | 1 | forbidden kind: CountingStore is a spy written by the test for the store policy of PackedProductKernel (packed_product.hpp lines 56-60, wants and operator()), a repository-owned interface; no in-memory store adapter exists in the module (grep found none); rewrite needs that shared in-memory store adapter in the module, and the wants-false path must be covered too | tests/kernels/blas_seam_kernels/sycl/level3/test_packed_product.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp (partial: lines 50-60, 112-124, 159-182 by grep)
+```
+
+### `tests/kernels/blas_seam_kernels/test_band_access.cpp`
+
+```
+Small_BandAccess.TheMappingIsTheCblasFormula | rewrite | 1 | static_assert run as a test, the only check of the CBLAS band formula over shapes; rewrite as a runtime test with the formula as oracle | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.TheWorkedMatrixReadsBack | rewrite | 1 | control flow in body: loops over layouts and the grid with continue and ASSERT; rewrite as rows over layouts with a builder for the grid | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.ATransposedAccessAddressesTheMirror | rewrite | 1 | control flow in body: nested loops; also two promises (band widths swap, mirror addressing): split once rewritten | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.AtConjugatesOnlyUnderConjTrans | rewrite | 1 | control flow in body: loops, continue and ASSERT in loop; rewrite as rows over layouts and a builder for the complex storage | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.TheColumnRangeEqualsAScan | rewrite | 1 | control flow in body: loops over layouts and bands; the scan lives in expect_column_ranges_match_a_scan; rewrite as rows over the bands | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.ARowCursorReachesTheOffsetOfEveryColumn | rewrite | 1 | control flow in body: nested loops and continue; rewrite as rows over layout and transpose | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.ATriangleBandPutsTheDiagonalOnItsLine | rewrite | 1 | control flow in body: loops over lines and diagonal; rewrite as rows over the four lines | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.SpareSlotsAreNeverAddressed | rewrite | 1 | control flow in body: nested loops, continue, EXPECT per slot; rewrite as rows over layouts | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+Small_BandAccess.ADiagonalMatrixIsStoredAsItsDiagonal | rewrite | 1 | control flow in body: layout and diagonal loops; rewrite as rows over layouts | tests/kernels/blas_seam_kernels/test_band_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_blas_seam_kernels_log_category.cpp`
+
+```
+Small_BlasSeamKernelsLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | forbidden kinds: static_assert run as a test, and a test of a log category (trivial constant, named in the doctrine table); the module name is a constant with no behaviour | tests/kernels/blas_seam_kernels/test_blas_seam_kernels_log_category.cpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_conjugation.cpp`
+
+```
+Small_Conjugation.UnconjugatedLeavesEveryValue | keep | 9 | conjugation: Unconjugated returns its input for apply and diagonal (conjugation.hpp lines 1-25) | tests/kernels/blas_seam_kernels/test_conjugation.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp
+Small_Conjugation.ConjugatedFlipsTheImaginaryPartAndRealisesTheDiagonal | split | 3 | name joins two results that can break apart: apply conjugates, diagonal is real; split into two tests | tests/kernels/blas_seam_kernels/test_conjugation.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp
+Small_Conjugation.ARealTypeNeverConjugates | rewrite | 1 | static_assert run as a test; the only check of ConjugationFor for real types in this file; rewrite as a runtime EXPECT_TRUE on std::is_same_v, or move the assert to the header | tests/kernels/blas_seam_kernels/test_conjugation.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp
+Small_Conjugation.AHermitianUpdateTakesARealScalar | rewrite | 1 | static_assert run as a test; the only check of RankUpdateScalar; rewrite as a runtime EXPECT_TRUE on std::is_same_v | tests/kernels/blas_seam_kernels/test_conjugation.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_givens.cpp`
+
+```
+Small_Givens.TheSafeScalingBoundsArePowersOfTwo<all typed instances> | delete | 1 | forbidden kinds: static_assert run as a test, and a constant check of Detail::SafeScaling bounds; the behaviour is covered by RealPairsOutsideTheSquareRangeStayFinite and ComplexPairsOutsideTheSquareRangeStayFinite in the same file | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Small_Givens.RealPairsMatchTheTable<all typed instances> | rewrite | 1 | control flow in body: loop over the table with a switch; rewrite as rows (one row per table line) | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Small_Givens.ComplexPairsMatchTheTable<all typed instances> | rewrite | 1 | control flow in body: loop over the complex table; rewrite as rows | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Small_Givens.RandomComplexPairsKeepTheIdentities<all typed instances> | rewrite | 1 | control flow in body: 200-pair loop; the fixed seed and bounded count are the right property shape, but the loop belongs in a named property helper | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Small_Givens.RealPairsOutsideTheSquareRangeStayFinite<all typed instances> | keep | 9 | givens: real rotation stays finite and satisfies the identities at 1e30 and 1e-30 (scale clamp, givens.hpp Detail::safe_scale) | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Small_Givens.ComplexPairsOutsideTheSquareRangeStayFinite<all typed instances> | keep | 9 | givens: complex rotation stays finite at both extremes and at 30 orders of magnitude between operands; the "or" joins two categories of one promise (finite result), so one test | tests/kernels/blas_seam_kernels/test_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_modified_givens.cpp`
+
+```
+Small_ModifiedGivens.TheHandValuesHoldAtCompileTime<all typed instances> | delete | 4 | forbidden kind: static_assert run as a test; its four hand outcomes are checked at run time by EachOutcomeStoresOnlyWhatItsFlagDoesNotImply in the same file | tests/kernels/blas_seam_kernels/test_modified_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp
+Small_ModifiedGivens.EachOutcomeStoresOnlyWhatItsFlagDoesNotImply<all typed instances> | rewrite | 1 | control flow in body: loop over four outcomes, with inner loops for the parameter array; rewrite as rows (one per outcome) | tests/kernels/blas_seam_kernels/test_modified_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp
+Small_ModifiedGivens.LargeFactorsAreRescaledDown<all typed instances> | keep | 9 | modified_givens: 2^26 factors rescale by gamma 4096 and gamma squared, values re-derived by hand (modified_givens.hpp rescale_first_factor) | tests/kernels/blas_seam_kernels/test_modified_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp
+Small_ModifiedGivens.SmallFactorsAreRescaledUp<all typed instances> | keep | 9 | modified_givens: 2^-30 factors rescale up, values re-derived by hand | tests/kernels/blas_seam_kernels/test_modified_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp
+Small_ModifiedGivens.AnInfiniteFactorReturns<all typed instances> | rewrite | 3 | name does not state the promise: the body shows the rescale loop ends at its pass limit (K_ROTMG_RESCALE_LIMIT 128, modified_givens.hpp) with d1 still infinite; rename to state that, and check the stop rule; x1 and h11 are not asserted | tests/kernels/blas_seam_kernels/test_modified_givens.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_operand_access.cpp`
+
+```
+Small_OperandAccess.RowMajorUntransposedStepsARowByTheLeadingDimension | merge | 4 | same promise (stride table of operand_access) with other inputs: merge with RowMajorTransposedStepsAColumnByTheLeadingDimension, ColumnMajorUntransposedStepsAColumnByTheLeadingDimension and ColumnMajorTransposedStepsARowByTheLeadingDimension into one row table | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.RowMajorTransposedStepsAColumnByTheLeadingDimension | merge | 4 | same as RowMajorUntransposed..., merge into the one row table | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.ColumnMajorUntransposedStepsAColumnByTheLeadingDimension | merge | 4 | same as RowMajorUntransposed..., merge into the one row table | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.ColumnMajorTransposedStepsARowByTheLeadingDimension | merge | 4 | same as RowMajorUntransposed..., merge into the one row table | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.ConjugateTransposeHasTheStridesOfTransposeAndConjugates | rewrite | 1 | control flow in body: loop over layouts; rewrite as rows over layouts | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.UntransposedAccessDoesNotConjugate | rewrite | 1 | control flow in body: loop over layouts; rewrite as rows over layouts; the promise has no other test | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.IndexCombinesBothStrides | keep | 9 | operand_access: index is r*row + c*col, transposed swaps the strides | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.AtReadsTheSameElementFromBothLayouts | rewrite | 1 | control flow in body: nested loops over the stored matrix; rewrite as rows over layouts with a builder | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.AtReadsTheTransposeFromBothLayouts | rewrite | 1 | control flow in body: nested loops; rewrite as above | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.AtConjugatesAComplexElement | keep | 9 | operand_access: at conjugates a complex element under a conjugating access | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.AtLeavesARealElementUnderAConjugatingAccess | keep | 9 | operand_access: a real element is unchanged under a conjugating access | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.TransposedSwapsTheStridesAndKeepsTheConjugation | keep | 9 | operand_access: transposed swaps strides and keeps conjugation | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+Small_OperandAccess.ResolvesAtCompileTime | delete | 1 | forbidden kind: static_assert run as a test; its values (row, col, conjugation, index) are checked at run time by the stride, conjugation and index tests in the same file | tests/kernels/blas_seam_kernels/test_operand_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/operand_access.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_packed_access.cpp`
+
+```
+Medium_PackedAccess.TheMappingIsTheCblasOrder | rewrite | 1 | static_assert run as a test, the only check of the CBLAS packed order; rewrite as a runtime test with the walk as oracle, small size | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.AWalkInCblasOrderCountsWithoutAGap | rewrite | 1 | control flow in body: loops over storages, orders, lines and columns with continue; rewrite as rows; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.TheWorkedTrianglesReadBack | rewrite | 1 | control flow in body: loops and continue, ASSERT in loop; rewrite as rows over storages; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.ATransposedAccessAddressesTheMirror | rewrite | 1 | control flow in body: nested loops; rewrite as rows; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.ARowCursorReachesTheOffsetOfEveryColumn | rewrite | 1 | control flow in body: loops over storages, transposes and orders; rewrite as rows; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.TheColumnRangeFollowsTheTriangle | rewrite | 1 | control flow in body: loops over storages, transposes and rows; rewrite as rows; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.AtConjugatesOnlyUnderConjTrans | rewrite | 1 | control flow in body: loops over storages and the grid with continue and ASSERT; rewrite as rows; size small (host-only) | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Medium_PackedAccess.AnOrderOfZeroHoldsNoElement | rewrite | 1 | control flow in body: loops over storages and transposes, with the zero-trip loop; rewrite as a straight check of order and holds; size small | tests/kernels/blas_seam_kernels/test_packed_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_row_cursor.cpp`
+
+```
+Small_RowCursor.AFlatCursorStepsByAConstantStride | keep | 9 | row_cursor: advance adds step and grows it by slope (row_cursor.hpp), values re-derived | tests/kernels/blas_seam_kernels/test_row_cursor.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/row_cursor.hpp
+Small_RowCursor.ASlopeGrowsTheStepAtEachColumn | keep | 9 | row_cursor: step grows by slope per column, values re-derived | tests/kernels/blas_seam_kernels/test_row_cursor.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/row_cursor.hpp
+Small_RowCursor.RetreatUndoesAdvance | keep | 9 | row_cursor: retreat reverses advance, values re-derived | tests/kernels/blas_seam_kernels/test_row_cursor.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/row_cursor.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_symmetric_access.cpp`
+
+```
+Small_SymmetricAccess.ReadsTheStoredTriangleOnly | rewrite | 1 | control flow in body: loops over layouts, triangles and the grid; rewrite as rows over layouts and triangles | tests/kernels/blas_seam_kernels/test_symmetric_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_access.hpp
+Small_SymmetricAccess.AHermitianMirrorIsConjugated | rewrite | 1 | control flow in body: loops over layouts, triangles and the grid with continue; rewrite as rows | tests/kernels/blas_seam_kernels/test_symmetric_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_access.hpp
+Small_SymmetricAccess.AHermitianDiagonalIsReadAsItsRealPart | rewrite | 1 | control flow in body: loops over layouts, triangles and diagonal; rewrite as rows; the test also holds two promises (Hermitian diagonal real, symmetric diagonal keeps its imaginary part): split once rewritten | tests/kernels/blas_seam_kernels/test_symmetric_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_access.hpp
+Small_SymmetricAccess.ARealElementIgnoresThePolicy | rewrite | 1 | static_assert run as a test; the SymmetricAccess half of the real-type rule is checked nowhere else (test_conjugation.cpp checks ConjugationFor only); rewrite as a runtime type check | tests/kernels/blas_seam_kernels/test_symmetric_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_access.hpp
+Small_SymmetricAccess.IsAConstantExpression | delete | 1 | forbidden kind: static_assert run as a test; its four values are duplicated in kind by ReadsTheStoredTriangleOnly at run time; a constant-expression promise is checked by the code that needs it | tests/kernels/blas_seam_kernels/test_symmetric_access.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_access.hpp
+```
+
+### `tests/kernels/blas_seam_kernels/test_symmetric_row.cpp`
+
+```
+Small_SymmetricRow.APackedRowIsVisitedInColumnOrder | rewrite | 1 | control flow in body: loops over layouts, uplos, orders; rewrite as rows; the band variant is a different storage, so no merge | tests/kernels/blas_seam_kernels/test_symmetric_row.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_row.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp
+Small_SymmetricRow.ABandRowIsVisitedInColumnOrder | rewrite | 1 | control flow in body: loops over layouts, uplos, orders and bands; rewrite as rows | tests/kernels/blas_seam_kernels/test_symmetric_row.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/symmetric_row.hpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/band_access.hpp
+```
+
+### `tests/kernels/blend_kernels/reference/test_blend_transforms.cpp`
+
+```
+Small_ReferenceBlendTransforms.ATranslationMovesAPositionThroughItsFourthColumn | keep | 9 | blend_reference: translation column | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp
+Small_ReferenceBlendTransforms.AHomogeneousDirectionIgnoresTheTranslation | keep | 9 | blend_reference: w = 0 ignores translation | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp
+Small_ReferenceBlendTransforms.AFourByFourTransformScalesW | keep | 9 | blend_reference: 4x4 scales w | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp
+Small_ReferenceBlendTransforms.AFourByFourTransformOfAPositionDoesNotDivideByW | keep | 9 | blend_reference: no divide by w | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp
+Small_ReferenceBlendTransforms.TwoInfluencesAverageTheirResults | keep | 9 | blend_reference: weighted sum over influences | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp
+Small_ReferenceBlendTransforms.AnIndexOutsideTheTransformsAddsNoTerm | keep | 9 | blend_reference: out-of-range index adds nothing; the copy in tests/operations/blend is another module, so it is not an elsewhere for question 4 | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; tests/operations/blend/test_blend/test_blend_transforms.cpp (grep)
+Small_ReferenceBlendTransforms.MatchesADirectLoopOnSmallIntegers | rewrite | 1 | control flow in the body (three nested loops, a continue, a loop that builds the indices), the forbidden kind "control flow in a test body, outside a row table"; the general formula is tested nowhere else in the module; rewrite as rows over components and rows with a named builder for the expected value | tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; tests/kernels/blend_kernels/sycl/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/reference/blend_transforms.hpp (grep)
+```
+
+### `tests/kernels/blend_kernels/sycl/test_blend_transforms.cpp`
+
+```
+Medium_SYCLBlendTransforms.MatchesTheReferenceInEveryShapeAndIndexType | rewrite | 1 | control flow in the body (loops over components and rows); the only test of blend_sycl over shapes; rewrite as rows, the host reference stays the oracle | tests/kernels/blend_kernels/sycl/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/sycl/blend_transforms.hpp (grep); modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_SYCLBlendTransforms.MatchesTheReferenceWithOneInfluenceAndOnePoint | merge | 4 | blend_sycl: device equals reference; same promise as MatchesTheReferenceInEveryShapeAndIndexType (same file) at one shape; merge into it as a row | tests/kernels/blend_kernels/sycl/test_blend_transforms.cpp
+```
+
+### `tests/kernels/blend_kernels/test_blend.cpp`
+
+```
+Small_BlendKernels.AReferenceKernelIsReachable | rewrite | 7 | the name states existence, not a promise (sign: names a feature); the value check repeats the translation of Small_ReferenceBlendTransforms.ATranslationMovesAPositionThroughItsFourthColumn; rewrite to the blend_h promise | tests/kernels/blend_kernels/test_blend.cpp; tests/kernels/blend_kernels/reference/test_blend_transforms.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/blend.hpp
+Medium_BlendKernelsOnDevice.ASYCLKernelIsReachable | rewrite | 7 | same sign as AReferenceKernelIsReachable, device form; medium is the right size | tests/kernels/blend_kernels/test_blend.cpp; modules/kernels/blend_kernels/include/SushiBLAS/blend_kernels/blend.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/linalg_kernels/reference/test_gmres.cpp`
+
+```
+Small_ReferenceGmres.ConvergesToTheDirectSolution | rewrite | 1 | bare tolerance literals in EXPECT_NEAR (1e-10) and EXPECT_LE (1e-12) and an element loop in the body (forbidden kinds); the only test of convergence to the direct solution; rewrite with the TestSupport helpers of tools/testing/support/tolerance.hpp | tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/gmres_workspace.hpp; tools/testing/support/tolerance.hpp
+Small_ReferenceGmres.RestartsAndBlocksStillConverge | rewrite | 1 | bare tolerance literals (1e-10, 1e-14); the name is joined by "and" (split due after the rewrite); the only test of restart and block convergence | tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp; tools/testing/support/tolerance.hpp
+Small_ReferenceGmres.ReportsTheTrueResidualWhenTheCapStopsIt | rewrite | 1 | bare tolerance literal (1e-14) in EXPECT_NEAR; the only test of the capped residual; rewrite with the tolerance helper | tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp; tools/testing/support/tolerance.hpp
+Small_ReferenceGmres.AnExactWarmStartTakesNoIteration | rewrite | 1 | bare literal 1e-6 in EXPECT_LE compares the residual with the tolerance; read settings.relative_tolerance instead; the warm-start promise itself holds, so the test is kept in substance | tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp
+Small_ReferenceGmres.AZeroRightHandSideGivesZero | keep | 9 | gmres_reference: zero right-hand side (early return in gmres.hpp) | tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp
+```
+
+### `tests/kernels/linalg_kernels/reference/test_lu.cpp`
+
+```
+Small_ReferenceLU.PLUReconstructsEveryMatrixOfTheBatch | rewrite | 1 | control flow in the body (loops over sizes, batch and elements); the bound 64 * n * eps is typed, not from the helper; the only test of the reconstruction | tests/kernels/linalg_kernels/reference/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/lu.hpp (@brief grep); tools/testing/support/tolerance.hpp
+Small_ReferenceLU.PivotsOnTheLargestMagnitudeAndTheLowestRowOnATie | split | 3 | two rules joined by "and" that can break apart: the largest magnitude and the lowest row on a tie | tests/kernels/linalg_kernels/reference/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/lu.hpp (@brief grep)
+Small_ReferenceLU.FlagsASingularMatrixAndLeavesTheOthers | split | 3 | two results that can break apart: the singular flag of matrix 0 and the untouched identity pivots of matrix 1 | tests/kernels/linalg_kernels/reference/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/lu.hpp (@brief grep)
+Small_ReferenceLU.FlagsTheZeroMatrix | split | 3 | two results: the singular flag, and identity pivots on zero, which repeats the tie rule of PivotsOnTheLargestMagnitudeAndTheLowestRowOnATie | tests/kernels/linalg_kernels/reference/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/lu.hpp (@brief grep)
+Small_ReferenceLU.SolveGivesTheHandWorkedSolution | merge | 4 | lu_reference solve; same promise as SolveLeavesASmallResidualOnABatch (same file) at another size and with other inputs; merge into it | tests/kernels/linalg_kernels/reference/test_lu.cpp
+Small_ReferenceLU.SolveLeavesASmallResidualOnABatch | rewrite | 1 | control flow in the body (loops that build the dominant diagonal and loops that check the residual); the only test of the batch solve; merge target of SolveGivesTheHandWorkedSolution | tests/kernels/linalg_kernels/reference/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/lu.hpp (@brief grep)
+```
+
+### `tests/kernels/linalg_kernels/sycl/test_gmres.cpp`
+
+```
+Medium_SYCLGmres.EqualsTheReferenceWithRestartsAndBlocks | rewrite | 1 | control flow in the body (loop that builds the diagonal); bare literal 1e-11 in EXPECT_LE; the only test of device equals reference with restarts; rewrite with the dominant-matrix builder | tests/kernels/linalg_kernels/sycl/test_gmres.cpp; tests/kernels/linalg_kernels/reference/test_gmres.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/reference/gmres.hpp (via the include); modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_SYCLGmres.TwoRunsAgreeBitForBit | rewrite | 1 | control flow in the body (loop that builds the diagonal); the only test of device determinism for gmres; rewrite with the builder | tests/kernels/linalg_kernels/sycl/test_gmres.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+Medium_SYCLGmres.AZeroRightHandSideGivesZero | delete | 1 | control flow in the body (loop that builds the diagonal), a forbidden kind; the zero right-hand side promise is tested by tests/kernels/linalg_kernels/reference/test_gmres.cpp::Small_ReferenceGmres.AZeroRightHandSideGivesZero; the device case goes into the gmres device contract (see Adds) | tests/kernels/linalg_kernels/sycl/test_gmres.cpp; tests/kernels/linalg_kernels/reference/test_gmres.cpp
+```
+
+### `tests/kernels/linalg_kernels/sycl/test_lu.cpp`
+
+```
+Medium_SYCLLU.FactorEqualsTheReferenceWithASingularMatrixInTheBatch | rewrite | 1 | control flow in the body (size loop, an if, a loop that copies row 0 into row 2); the only test of device factor equals reference; rewrite with rows over size and a named builder | tests/kernels/linalg_kernels/sycl/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/sycl/lu.hpp (@brief grep)
+Medium_SYCLLU.SolveEqualsTheReference | rewrite | 1 | control flow in the body (loops that build the dominant diagonal); the only test of device solve equals reference | tests/kernels/linalg_kernels/sycl/test_lu.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/sycl/lu.hpp (@brief grep)
+```
+
+### `tests/kernels/linalg_kernels/test_chunked_dot.cpp`
+
+```
+Small_ChunkedDot.CountsTheChunksOfALength | keep | 9 | chunked_dot: dot_chunks count | tests/kernels/linalg_kernels/test_chunked_dot.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/chunked_dot.hpp (@brief grep)
+Small_ChunkedDot.AddsTheChunkSumsRatherThanOneRunningSum | keep | 9 | chunked_dot: chunk order; the running-sum assertion is the control the promise rules out, so both assertions are one promise | tests/kernels/linalg_kernels/test_chunked_dot.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/chunked_dot.hpp (@brief grep)
+Small_ChunkedDot.GivesTheExactDotOfSmallIntegers | rewrite | 1 | control flow in the body (loop that builds a, b and the expected value); the only test of the exact dot across chunks; rewrite with a builder | tests/kernels/linalg_kernels/test_chunked_dot.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/chunked_dot.hpp (@brief grep)
+```
+
+### `tests/kernels/linalg_kernels/test_gmres_workspace.cpp`
+
+```
+Small_GmresLayout.PlacesTheArraysBackToBack | keep | 9 | gmres_workspace: the struct documents where each array starts, so the offsets are its public contract; the offsets match the constructor | tests/kernels/linalg_kernels/test_gmres_workspace.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/gmres_workspace.hpp
+Small_GmresLayout.CountsThePivotsAfterTheScalars | keep | 9 | gmres_workspace: bytes() is the workspace size | tests/kernels/linalg_kernels/test_gmres_workspace.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/gmres_workspace.hpp
+Small_GmresSettings.DefaultsMatchTheEngineContract | rewrite | 1 | a default-value test, a forbidden kind; its promise (the stopping defaults) is tested nowhere else in tests/kernels; rewrite as a solve with default settings that converges to the default tolerance | tests/kernels/linalg_kernels/test_gmres_workspace.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/gmres_workspace.hpp; tests/operations/experimental/lapack/test_linalg.cpp (grep: sets its own options, no default check)
+```
+
+### `tests/kernels/linalg_kernels/test_linalg.cpp`
+
+```
+Small_LinalgKernels.AReferenceKernelIsReachable | rewrite | 7 | the name states existence, not a promise; rewrite to the linalg_h promise | tests/kernels/linalg_kernels/test_linalg.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/linalg.hpp (@brief grep)
+Medium_LinalgKernelsOnDevice.ASYCLKernelIsReachable | rewrite | 7 | same sign, device form; medium is the right size | tests/kernels/linalg_kernels/test_linalg.cpp; modules/kernels/linalg_kernels/include/SushiBLAS/linalg_kernels/linalg.hpp (@brief grep); modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/packed_product_harness/test_packed_product_harness.cpp`
+
+```
+Medium_PackedProductHarness.PatternedElementsAreSmallIntegers | rewrite | 1 | control flow in the body (nested loops); the EXPECT_NE on the salt is a second promise, so a split is due too; host-only logic, so the size is small, not medium | tests/kernels/packed_product_harness/test_packed_product_harness.cpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (@brief grep)
+Medium_PackedProductHarness.PoisonIsNaNAndCountsAsAMismatch | split | 3 | two promises: poison is NaN, and the mismatch count counts differing bits; host-only, so each part is small | tests/kernels/packed_product_harness/test_packed_product_harness.cpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (@brief grep)
+Medium_PackedProductHarness.TheBlockingsSpanTheExtremes | resize | 8 | the blockings are host values with no device, so medium is not the smallest size that sees the promise; move to small | tests/kernels/packed_product_harness/test_packed_product_harness.cpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (@brief grep)
+Medium_PackedProductHarnessOnDevice.TheProblemsKernelsAgreeWithItsExpectation | keep | 9 | harness: unpacked and packed GEMM agree with the problem expectation; a device is needed, so medium is right | tests/kernels/packed_product_harness/test_packed_product_harness.cpp; modules/kernels/packed_product_harness/include/SushiBLAS/packed_product_harness/packed_product_harness.hpp (@brief grep); modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/random_kernels/reference/test_orthonormalize.cpp`
+
+```
+Small_ReferenceOrthonormalize.RowsBecomeOrthonormalAtTheGain | rewrite | 1 | control flow in the body (nested loops over the Gram matrix); the only test of the orthonormal property at a gain with this stride; rewrite as rows over strides and gains, with ColumnsOfAColumnMajorMatrixWorkThroughTheStrides as a row | tests/kernels/random_kernels/reference/test_orthonormalize.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp (@brief grep)
+Small_ReferenceOrthonormalize.ColumnsOfAColumnMajorMatrixWorkThroughTheStrides | delete | 1 | control flow in the body; the same orthonormal promise as RowsBecomeOrthonormalAtTheGain at other strides; the strides become a row of that test | tests/kernels/random_kernels/reference/test_orthonormalize.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp (@brief grep)
+Small_ReferenceOrthonormalize.AZeroVectorStaysZero | keep | 9 | orthonormalize_reference: zero vector | tests/kernels/random_kernels/reference/test_orthonormalize.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp (@brief grep)
+```
+
+### `tests/kernels/random_kernels/sycl/test_orthonormalize.cpp`
+
+```
+Medium_SYCLOrthonormalizeOnDevice.MatchesTheReferenceWithinItsSummationOrder | rewrite | 1 | control flow in the body (loop that builds the diagonal, element loop that asserts); bare tolerance literal 1e-12 in EXPECT_NEAR; the only test of device sweep equals reference; rewrite with TestSupport::measure_sum_error | tests/kernels/random_kernels/sycl/test_orthonormalize.cpp; tools/testing/support/tolerance.hpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/orthonormalize.hpp (@brief grep)
+Medium_SYCLOrthonormalize.TheGroupIsAPowerOfTwoTheDeviceAccepts | rewrite | 7 | a skip guard in the body (control flow, moved into the fixture; the brief rules it rewrite at question 7); the check is weaker than the header, which promises the largest power of two at most the maximum (see Adds); the device query needs a seam to be small | tests/kernels/random_kernels/sycl/test_orthonormalize.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/orthonormalize.hpp (@brief grep)
+```
+
+### `tests/kernels/random_kernels/sycl/test_philox.cpp`
+
+```
+Medium_Philox.MatchesTheKnownAnswersOfRandom123 | resize | 8 | known answers of host-only code at medium; the zero-block answer repeats test_random.cpp, but this is the philox unit's own test file, so it stays; move to small | tests/kernels/random_kernels/sycl/test_philox.cpp; tests/kernels/random_kernels/test_random.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_Philox.UniformDrawsLieInTheirHalfOpenRange | rewrite | 1 | control flow in the body (nested loops over blocks and draws); the only test of the uniform bounds; rewrite as rows | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_Philox.ABlockGivesFourFloatsOrTwoDoubles | split | 3 | two promises: four floats (a static_assert at compile time, not a run test) and two doubles (run by EXPECT_EQ); split | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_Philox.TheDrawIsAFunctionOfSeedOffsetAndBlock | resize | 8 | promise: the draw is a function of seed, offset and block; host-only, so small | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_Philox.AnIndexStaysBelowItsBound | rewrite | 1 | control flow in the body (loop over 200 indices); the only test of draw_index bounds; rewrite as rows or a property with a fixed seed | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_Philox.NormalDrawsAreFinite | rewrite | 1 | control flow in the body (nested loops); the only test of normal finiteness; rewrite with a builder | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp (@brief grep)
+Medium_PhiloxOnDevice.AKernelDrawsTheBitsTheHostDraws | rewrite | 1 | control flow in the body (host loops, element loop); bare tolerance literal 1e-5f in EXPECT_NEAR; the only test of device equals host draws; rewrite with the tolerance helper | tests/kernels/random_kernels/sycl/test_philox.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; tools/testing/support/tolerance.hpp
+```
+
+### `tests/kernels/random_kernels/sycl/test_poisson.cpp`
+
+```
+Medium_Poisson.SmallLambdaKeepsOnlyKnuthsConstant | resize | 8 | promise: below lambda 10 the parameters are Knuth's; host-only, so small | tests/kernels/random_kernels/sycl/test_poisson.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp (@brief grep)
+Medium_Poisson.LargeLambdaFillsTheHatOfPTRS | resize | 8 | promise: above lambda 10 the PTRS constants; host-only, so small; the EXPECT_GT on v_r is weak | tests/kernels/random_kernels/sycl/test_poisson.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp (@brief grep)
+Medium_Poisson.BothMethodsDrawCountsWithTheRightMean | rewrite | 1 | control flow in the body (loops over lambda and draws, ASSERT in the loop); the only test of the mean; rewrite as rows over lambda with the statistical bound | tests/kernels/random_kernels/sycl/test_poisson.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp (@brief grep)
+Medium_PoissonOnDevice.AKernelDrawsTheCountsTheHostDraws | rewrite | 1 | control flow in the body (loops over lambda and elements); the only test of device equals host draws; rewrite as rows | tests/kernels/random_kernels/sycl/test_poisson.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/random_kernels/sycl/test_truncated_normal.cpp`
+
+```
+Medium_TruncatedNormal.TheDistributionFunctionHasItsKnownValues | rewrite | 1 | bare tolerance literals (1e-15, 1e-16) in EXPECT_NEAR; the only test of standard_normal_cdf in tests/kernels (grep); host-only, so small; rewrite with the tolerance helper | tests/kernels/random_kernels/sycl/test_truncated_normal.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/truncated_normal.hpp (@brief grep); tools/testing/support/tolerance.hpp
+Medium_TruncatedNormal.EveryDrawLiesInsideItsBounds | rewrite | 1 | control flow in the body (nested loops); the only test of the bounds; rewrite as rows; absorbs the narrow window of ANarrowWindowDrawsNearItsCentre | tests/kernels/random_kernels/sycl/test_truncated_normal.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/truncated_normal.hpp (@brief grep)
+Medium_TruncatedNormal.ANarrowWindowDrawsNearItsCentre | delete | 1 | control flow in the body and bare literal 0.01f in EXPECT_NEAR (forbidden kinds); its promise (draws inside bounds) is EveryDrawLiesInsideItsBounds with another window, which becomes a row of that test | tests/kernels/random_kernels/sycl/test_truncated_normal.cpp
+Medium_TruncatedNormalOnDevice.AKernelDrawsWithinTheBoundsTheHostUses | rewrite | 1 | control flow in the body and bare tolerance literal 1e-12; the name claims bounds but the body checks device equals host; the only test of that promise; rewrite with the tolerance helper and a name that states it | tests/kernels/random_kernels/sycl/test_truncated_normal.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; tools/testing/support/tolerance.hpp
+```
+
+### `tests/kernels/random_kernels/test_random.cpp`
+
+```
+Medium_RandomKernels.TheDrawsAndTheReferenceSweepAreReachable | split | 3 | three promises: the sweep gain (0.6, 0.8) is kept by tests/kernels/random_kernels/reference/test_orthonormalize.cpp; the Philox known answer is kept by tests/kernels/random_kernels/sycl/test_philox.cpp; the Poisson exp(-lambda) is kept by tests/kernels/random_kernels/sycl/test_poisson.cpp; the name states reachability; host-only, so small | tests/kernels/random_kernels/test_random.cpp; tests/kernels/random_kernels/reference/test_orthonormalize.cpp; tests/kernels/random_kernels/sycl/test_philox.cpp; tests/kernels/random_kernels/sycl/test_poisson.cpp; modules/kernels/random_kernels/include/SushiBLAS/random_kernels/random.hpp (@brief grep)
+```
+
+### `tests/kernels/signal_kernels/reference/test_convolve_1d.cpp`
+
+```
+Small_ReferenceConvolve1D.AppliesTheTapsInReverseOverTheSignal | merge | 4 | convolve_reference: taps reversed; same promise as MatchesADirectLoopOnSmallIntegers (same file) with other inputs; merge into it | tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/convolve_1d.hpp (@brief grep)
+Small_ReferenceConvolve1D.ConvolvesEachRowOnItsOwn | keep | 9 | convolve_reference: rows are independent | tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/convolve_1d.hpp (@brief grep)
+Small_ReferenceConvolve1D.OneTapScalesTheRow | keep | 9 | convolve_reference: one tap scales the row | tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/convolve_1d.hpp (@brief grep)
+Small_ReferenceConvolve1D.TapsAsLongAsTheRowGiveOneSamplePerRow | keep | 9 | convolve_reference: taps as long as the row | tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/convolve_1d.hpp (@brief grep)
+Small_ReferenceConvolve1D.MatchesADirectLoopOnSmallIntegers | rewrite | 1 | control flow in the body (three nested loops, a loop that builds the input); the only test of the general formula on random integers; rewrite with a named builder; absorbs AppliesTheTapsInReverseOverTheSignal as a row | tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/convolve_1d.hpp (@brief grep)
+```
+
+### `tests/kernels/signal_kernels/reference/test_fft.cpp`
+
+```
+Small_ReferenceFft.ComplexForwardMatchesTheDirectDFT | rewrite | 1 | control flow in the body (loop over cases(), not a parametrised row); a local tolerance formula, not the helper; the only test of the forward transform against the DFT | tests/kernels/signal_kernels/reference/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/fft.hpp (@brief grep); tools/testing/support/tolerance.hpp
+Small_ReferenceFft.ComplexInverseUndoesTheForwardScaledByTheSize | rewrite | 1 | control flow in the body (loop over cases()); two promises, inverse against the DFT and the round trip, split after the rewrite | tests/kernels/signal_kernels/reference/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/fft.hpp (@brief grep)
+Small_ReferenceFft.RealForwardMatchesTheHalfOfTheDirectDFT | rewrite | 1 | control flow in the body (loop over cases(), nested loops over lines and bins); the only test of the real forward transform | tests/kernels/signal_kernels/reference/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/fft.hpp (@brief grep)
+Small_ReferenceFft.RealInverseRecoversTheSamples | rewrite | 1 | control flow in the body (loop over cases()); the only test of the real round trip | tests/kernels/signal_kernels/reference/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/reference/fft.hpp (@brief grep)
+Small_ReferenceFftHand.AnImpulseHasAFlatSpectrum | delete | 1 | control flow in the body and bare literals 1e-14 in EXPECT_NEAR (forbidden kinds); the forward promise is tested by Small_ReferenceFft.ComplexForwardMatchesTheDirectDFT on random inputs with a DFT oracle; the impulse becomes a row of that test | tests/kernels/signal_kernels/reference/test_fft.cpp
+```
+
+### `tests/kernels/signal_kernels/sycl/test_convolve_1d.cpp`
+
+```
+Medium_SYCLConvolve1D.MatchesTheReferenceOnBatchedRows | merge | 4 | convolve_sycl: device equals reference; same promise as MatchesTheReferenceWithOneTapAndWithTapsAsLongAsTheRow (same file) at other tap counts; merge into it | tests/kernels/signal_kernels/sycl/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/sycl/convolve_1d.hpp (@brief grep)
+Medium_SYCLConvolve1D.MatchesTheReferenceWithOneTapAndWithTapsAsLongAsTheRow | delete | 1 | control flow in the body (loop over tap counts); the promise is tested by MatchesTheReferenceOnBatchedRows in the same file; its taps of 1 and of the row length become rows of that test | tests/kernels/signal_kernels/sycl/test_convolve_1d.cpp
+```
+
+### `tests/kernels/signal_kernels/sycl/test_fft.cpp`
+
+```
+Medium_SYCLFft.ForwardEqualsTheReferenceBitForBit | rewrite | 1 | control flow in the body (loop over cases()); the only test of device forward equals reference; rewrite as rows | tests/kernels/signal_kernels/sycl/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/sycl/fft.hpp (@brief grep); modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+Medium_SYCLFft.InverseEqualsTheReferenceBitForBit | rewrite | 1 | control flow in the body (loop over cases()); bound 64 * eps * size typed, not from the helper; two promises (equals reference; round trip), split after the rewrite | tests/kernels/signal_kernels/sycl/test_fft.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/sycl/fft.hpp (@brief grep)
+Medium_SYCLFft.TwoRunsAgreeBitForBit | keep | 9 | fft_sycl: determinism; no loop in the body; a device is needed, so medium is right | tests/kernels/signal_kernels/sycl/test_fft.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/signal_kernels/test_fft_plan.cpp`
+
+```
+Small_FftPlan.CooksTheBitReversalOfAPowerOfTwoLine | keep | 9 | fft_plan: bit-reversal table | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+Small_FftPlan.CooksTheTwiddlesAsUnitRoots | rewrite | 1 | control flow in the body (loop over k); bare tolerance literals 1e-15 in EXPECT_NEAR (two); the only test of the twiddles; rewrite with the tolerance helper and rows | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep); tools/testing/support/tolerance.hpp
+Small_FftPlan.PadsANonPowerOfTwoLineForBluestein | keep | 9 | fft_plan: Bluestein padding | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+Small_FftPlan.PacksAnEvenRealRowIntoAHalfLine | keep | 9 | fft_plan: even rows pack, odd rows do not | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+Small_FftPlan.CountsTheScalarsOfEachSide | keep | 9 | fft_plan: scalar counts; the line_scalars formula is restated without a derivation comment (noted, not a verdict change) | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+Small_FftPlan.GivesOneRowNoColumnLine | keep | 9 | fft_plan: one row has no column line; the multi-row case is an add | tests/kernels/signal_kernels/test_fft_plan.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/fft_plan.hpp (@brief grep)
+```
+
+### `tests/kernels/signal_kernels/test_signal.cpp`
+
+```
+Small_SignalKernels.AReferenceKernelIsReachable | rewrite | 7 | the name states existence, not a promise; rewrite to the signal_h promise; its value repeats AppliesTheTapsInReverseOverTheSignal | tests/kernels/signal_kernels/test_signal.cpp; tests/kernels/signal_kernels/reference/test_convolve_1d.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/signal.hpp (@brief grep)
+Medium_SignalKernelsOnDevice.ASYCLKernelIsReachable | rewrite | 7 | same sign, device form; medium is the right size | tests/kernels/signal_kernels/test_signal.cpp; modules/kernels/signal_kernels/include/SushiBLAS/signal_kernels/signal.hpp (@brief grep); modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/reference/test_level1.cpp`
+
+```
+Small_ReferenceSparseLevel1.AxpyiAddsIntoTheNamedPositions | keep | 9 | reference level1 axpyi. One action, hand-computed oracle (14, 10, 10, 12, 16 checked by hand against x = 1, 2, 3 and alpha = 2). The derivation is not written in a comment; the oracle is still a specified value | tests/kernels/sparse_kernels/reference/test_level1.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/level1.hpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+Small_ReferenceSparseLevel1.DotiSumsTheProductsAndConjugatesWhenAsked | split | 3 | reference level1 doti, plain sum and conjugated sum: two results that can break apart (the name's "and"). Split into one test for the plain sum and one for the conjugated sum | tests/kernels/sparse_kernels/reference/test_level1.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/level1.hpp
+Small_ReferenceSparseLevel1.GatherScatterAndGatherWithZero | split | 3 | three promises in one test with four actions in sequence: gthr, gthrz (also zeroes y), sctr. Split into one test per kernel | tests/kernels/sparse_kernels/reference/test_level1.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/level1.hpp
+Small_ReferenceSparseLevel1.RotiRotatesTheStoredPairs | rewrite | 2 | reference level1 roti. With c = 0 and s = 1 the c term vanishes, so a defect that drops or swaps the c term survives; no test in the chunk uses c other than 0 (sycl/test_level1.cpp also uses c = 0). Rewrite with c and s both non-zero (c = 1, s = 1 detects a dropped c term) and keep the hand-computed oracle. The operations copy at tests/operations/sparse/test_sparse/test_sparse_level1.cpp:383 uses c = 0.25, s = 0.5 and is deleted by its own review under the unit-module ruling | tests/kernels/sparse_kernels/reference/test_level1.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/level1.hpp; tests/operations/sparse/test_sparse/test_sparse_level1.cpp (grep only)
+```
+
+### `tests/kernels/sparse_kernels/reference/test_spmm.cpp`
+
+```
+Small_ReferenceSpmm.EachColumnOfCIsAProductOfTheMatrixWithAColumnOfB | rewrite | 7 | reference spmm row: each column of C = alpha op(A) B-column + beta C-column, both layouts, both forms. Nested loops over layout, transposed, j and i in the body, and loops that build the expected values. Rewrite as one row per (layout, form). The brief line of the file says "against the reference spmv" but the body checks against dense_matvec; that line is stale | tests/kernels/sparse_kernels/reference/test_spmm.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+```
+
+### `tests/kernels/sparse_kernels/reference/test_spmv.cpp`
+
+```
+Small_ReferenceSpmv.MatchesADenseProductPlainAndTransposed | rewrite | 7 | reference spmv row (dense oracle, plain and transposed). A loop over transposed in the body. Rewrite as two rows. Beta-zero and stride rows are added (see Adds) | tests/kernels/sparse_kernels/reference/test_spmv.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/spmv.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+```
+
+### `tests/kernels/sparse_kernels/reference/test_spsymv.cpp`
+
+```
+Small_ReferenceSpsymv.ReadsOneTriangleAndSkipsTheOther | rewrite | 7 | reference spsymv row (dense oracle, either triangle). A loop over upper in the body. Rewrite as two rows | tests/kernels/sparse_kernels/reference/test_spsymv.cpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+```
+
+### `tests/kernels/sparse_kernels/reference/test_sptrsv.cpp`
+
+```
+Small_ReferenceSptrsv.RecoversTheVectorAProductMade | rewrite | 7 | reference sptrsv row (solves op(T) x = b for triangle, transposition and diagonal flag). Three nested loops in the body. Rewrite as one row per flag set (8 rows) | tests/kernels/sparse_kernels/reference/test_sptrsv.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/sptrsv.hpp; modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/dense_oracle.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+```
+
+### `tests/kernels/sparse_kernels/reference/test_structure.cpp`
+
+```
+Small_SparseStructure.TheSampleKeepsEveryRule | rewrite | 7 | find_defect(CsrPattern) None on the sample, one row per base and index type. Loop over K_BOTH_BASES in the body | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/sparse_samples.hpp
+Small_SparseStructure.AFirstOffsetOtherThanTheBaseIsReported | keep | 9 | find_defect(CsrPattern): FirstOffset on {1,2,2,5,7} with base zero; the rule is checked first in structure.hpp | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.ARowThatEndsBeforeItStartsIsReported | keep | 9 | find_defect(CsrPattern): DecreasingOffset on {0,3,2,5,7} (row 1 begins at 3 and ends at 2) | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.ALastOffsetOtherThanTheEntryCountIsReported | keep | 9 | find_defect(CsrPattern): LastOffset on {0,2,2,5,6} with nnz 7 | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.AColumnPastTheLastIsReported | merge | 4 | find_defect(CsrPattern): IndexOutOfRange for a column at or past cols. Same promise and same unit as AColumnBelowTheBaseIsReported in this file; merge both into rows over the base and the column range | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.AColumnBelowTheBaseIsReported | merge | 4 | find_defect(CsrPattern): IndexOutOfRange for a column below the base. Merge with AColumnPastTheLastIsReported (same file) | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.UnsortedColumnsAreNotADefect | merge | 4 | find_defect(CsrPattern): unsorted columns are not a defect. Same promise as ARepeatedPairIsNotADefect in this file; merge into rows | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.ARepeatedPairIsNotADefect | merge | 4 | find_defect(CsrPattern): a repeated column within a row is not a defect. Same promise as UnsortedColumnsAreNotADefect in this file; merge into rows | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp
+Small_SparseStructure.DistinctPositionsInsideTheVectorKeepEveryRule | keep | 9 | find_defect(IndexList): None for distinct in-range positions in both bases and for an empty list. Three calls, one result, no loop | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+Small_SparseStructure.APositionOutsideTheVectorIsReported | keep | 9 | find_defect(IndexList): IndexOutOfRange at both bases. Vector promise, a different unit from the matrix merges above | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+Small_SparseStructure.APositionStoredTwiceIsReported | keep | 9 | find_defect(IndexList): RepeatedIndex for a position stored twice | tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_level1.cpp`
+
+```
+Medium_SYCLSparseLevel1.TheUpdatesMatchTheReference | split | 3 | sycl level1 promise rows (axpyi, roti, gthrz, sctr): four kernels in sequence, one promise each. Split into one test per kernel. The roti step uses c = 0, s = 1 (see the reference roti row); the split test uses c and s non-zero. The positions() fixture is a builder named for what it builds, so its loop is allowed | tests/kernels/sparse_kernels/sycl/test_level1.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/level1.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_queue.hpp
+Medium_SYCLSparseLevel1.GatherAndDotMatchTheReference | split | 3 | sycl level1 promise rows (gthr, doti): two kernels, one promise each. Split | tests/kernels/sparse_kernels/sycl/test_level1.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp`
+
+```
+Medium_RowBlocks.TheBlockCountIsCappedByUnitsEntriesAndTheMaximum | rewrite | 7 | scatter_blocks row. Four calls with different results (0, 1, 8, a bound): the sign table names this as several promises in one test. The test reaches no device (Device::Profile is a plain value), so the rewrite is small, with rows over (outputs, entries, units, maximum). The EXPECT_LE repeats the call of the EQ 8 line. The maximum never binds in these inputs, so the K_MAX cap is untested (see Adds). Size is small, not medium: a decision on values is seen small | tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/row_blocks.hpp; modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp; tests/operations/sparse/test_sparse/test_sparse_spmv.cpp:675 (grep only; its TheBlockCountFollowsTheProfileAndTheDensity repeats this promise and is deleted by its own review)
+Medium_RowBlocks.TheBlocksCoverTheRowsInOrder | rewrite | 7 | block_first_row, block_end_row row. A loop over blocks in the body (a non-size sign, so question 7 applies before question 8). Rewrite as straight-line checks, or rows over blocks, at small size. Pure host arithmetic on an integer_csr pattern, so the size is small | tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/row_blocks.hpp; modules/foundation/sparse_fixtures/include/SushiBLAS/sparse_fixtures/integer_csr.hpp
+Medium_RowBlocksOnDevice.TheFoldAddsEverySliceThenScales | resize | 8 | fold_blocks row. The arithmetic (sum of partials, alpha and beta scaling, the beta-zero rule) is logic decided on values, and it runs inside a SYCL launch with no host-callable function. A medium test is the wrong size for it. Seam first: a host-callable function that folds one output, covered by a small test; the launch stays in one medium test that compares with that function. The expected values (225, 447, 669, 891) are hand-computed and their derivation is not commented | tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/row_blocks.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_spmm.cpp`
+
+```
+Medium_SYCLSpmm.MatchesTheReferenceForEveryLayoutAndForm | rewrite | 7 | sycl spmm row (device equals reference, both layouts and forms). Nested loops over layout and transposed in the body. Rewrite as one row per (layout, form) | tests/kernels/sparse_kernels/sycl/test_spmm.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_spmv.cpp`
+
+```
+Medium_SYCLSparseSpmv.MatchesTheReferencePlainAndTransposed | rewrite | 7 | sycl spmv row (device equals reference, plain and transposed). Loop over transposed in the body. Rewrite as two rows | tests/kernels/sparse_kernels/sycl/test_spmv.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/row_blocks.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_spsymv.cpp`
+
+```
+Medium_SYCLSpsymv.MatchesTheReferenceForEitherTriangle | rewrite | 7 | sycl spsymv row (device equals reference, either triangle). Loop over upper in the body. Rewrite as two rows | tests/kernels/sparse_kernels/sycl/test_spsymv.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/sycl/test_sptrsv.cpp`
+
+```
+Medium_SYCLSptrsv.MatchesTheReferenceForEveryFlag | rewrite | 7 | sycl sptrsv row (device equals reference, every flag). Three nested loops in the body. The second EXPECT (b equals solution) repeats the reference sptrsv promise, which the unit-module copy owns; drop it in the rewrite | tests/kernels/sparse_kernels/sycl/test_sptrsv.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/sptrsv.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/kernels/sparse_kernels/test_csr_pattern.cpp`
+
+```
+Small_CsrPattern.AZeroBasedPatternReadsItsArraysAsStored | merge | 4 | csr_pattern base promise; same promise and same file as Small_CsrPattern.AOneBasedPatternSubtractsItsBase; merge both into one test over the base and the index type. The copy at tests/operations/sparse/test_accumulator_size.cpp:175 (ACsrPatternSubtractsItsFirstIndex, found by grep) is the one the unit-module ruling deletes | tests/kernels/sparse_kernels/test_csr_pattern.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/csr_pattern.hpp; tests/operations/sparse/test_accumulator_size.cpp (grep only)
+Small_CsrPattern.AOneBasedPatternSubtractsItsBase | merge | 4 | csr_pattern base promise; merge with Small_CsrPattern.AZeroBasedPatternReadsItsArraysAsStored (same file) into one test over the base | tests/kernels/sparse_kernels/test_csr_pattern.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/csr_pattern.hpp
+```
+
+### `tests/kernels/sparse_kernels/test_index_list.cpp`
+
+```
+Small_IndexList.ReadsEachPositionLessTheBase | rewrite | 7 | index_list promise (at subtracts first_index); a for loop over entries in the body. The check one.extent == 8 reads a constructor field and adds no promise. Rewrite as straight-line checks or rows over (base, entry) | tests/kernels/sparse_kernels/test_index_list.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+```
+
+### `tests/kernels/sparse_kernels/test_sparse.cpp`
+
+```
+Small_SparseKernels.TheStructureCheckAndAReferenceKernelAreReachable | delete | 1 | forbidden kind: the same promise again in another file. Its spmv value check repeats reference spmv (tests/kernels/sparse_kernels/reference/test_spmv.cpp) and its find_defect None check repeats reference structure (tests/kernels/sparse_kernels/reference/test_structure.cpp). Its reach promise is compiled by modules/operations/sparse/source/spmv.cpp, which includes sparse.hpp and calls both Kernels::Reference::spmv and Kernels::SYCL::spmv. Caveat: if a header self-containment check is wanted, a compile-only test replaces this one | tests/kernels/sparse_kernels/test_sparse.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse.hpp; tests/kernels/sparse_kernels/reference/test_spmv.cpp; tests/kernels/sparse_kernels/reference/test_structure.cpp; modules/operations/sparse/source/spmv.cpp
+```
+
+### `tests/kernels/sparse_kernels/test_sparse_kernels_log_category.cpp`
+
+```
+Small_SparseKernelsLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | forbidden kinds: a test of trivial code (a log category), and static_assert run as a test with no runtime assertion. Sibling log category tests in other modules share this shape (grep over tests/**/test_*_log_category.cpp), so the same ruling applies to each | tests/kernels/sparse_kernels/test_sparse_kernels_log_category.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_broadcast.cpp`
+
+```
+Small_ReferenceBroadcast.ChannelAffineScalesAndShiftsEachChannel | keep | 9 | channel_affine (reference), specified value 11, 199, 31, 399 by hand | tests/kernels/spatial_kernels/reference/test_broadcast.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp
+Small_ReferenceBroadcast.BroadcastSpatialFillsEveryPixelWithItsChannelValue | keep | 9 | broadcast_spatial (reference), specified value 6, 10, 6, 10 | tests/kernels/spatial_kernels/reference/test_broadcast.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp
+Small_ReferenceBroadcast.LayoutConvertMovesNHWCToNCHW | keep | 9 | layout_convert (reference), specified value 1, 4, 2, 5, 3, 6 | tests/kernels/spatial_kernels/reference/test_broadcast.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_channels.cpp`
+
+```
+Small_ReferenceChannels.CopiesTheRangeIntoItsOffsetAtEveryPixel | keep | 9 | copy_channel_range (reference), specified value per pixel | tests/kernels/spatial_kernels/reference/test_channels.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/channels.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_col2im.cpp`
+
+```
+Small_ReferenceCol2Im.IsTheAdjointOfIm2Col | rewrite | 1 | forbidden kind: a typed tolerance literal (K_ADJOINT_TOLERANCE = 1e-12) in EXPECT_NEAR. Only test of the col2im adjoint promise in the module. Rewrite as exact by construction: on small integers both sides are exact in double, so EXPECT_EQ on lhs and rhs | tests/kernels/spatial_kernels/reference/test_col2im.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/im2col.hpp
+Small_ReferenceCol2Im.OnesFoldIntoTheOverlapCountOfEachPixel | keep | 9 | col2im sums overlaps (reference), specified value 1, 2, 1, 2, 4, 2, 1, 2, 1 | tests/kernels/spatial_kernels/reference/test_col2im.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_im2col.cpp`
+
+```
+Small_ReferenceIm2Col.AOneTapWindowCopiesTheInput | keep | 9 | im2col one-tap window copies the input, specified value | tests/kernels/spatial_kernels/reference/test_im2col.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/im2col.hpp
+Small_ReferenceIm2Col.APaddedWindowReadsZerosOutsideTheImage | keep | 9 | im2col padded taps read zero, specified value (hand windows checked) | tests/kernels/spatial_kernels/reference/test_im2col.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/im2col.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_pool_avg.cpp`
+
+```
+Small_ReferencePoolAvg.AveragesEachWindowOverItsFullArea | keep | 9 | pool_avg averages over the kernel area, specified value 3.5, 5.5 | tests/kernels/spatial_kernels/reference/test_pool_avg.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_avg.hpp
+Small_ReferencePoolAvg.TheBackwardIsTheAdjoint | rewrite | 1 | forbidden kind: a bare tolerance literal (1e-9) in EXPECT_NEAR. Only adjoint test of pool_avg_backward in the module. Rewrite with the sum-of-products bound n * u * sum | a_i b_i
+```
+
+### `tests/kernels/spatial_kernels/reference/test_pool_max.cpp`
+
+```
+Small_ReferencePoolMax.KeepsTheLargestTapAndItsFlatPosition | split | 3 | the name joins two results that can break apart: the output value (out holds each window maximum) and the recorded flat index (indices holds that maximum position). Split into two tests, one per promise | tests/kernels/spatial_kernels/reference/test_pool_max.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_max.hpp
+Small_ReferencePoolMax.TheBackwardSendsEachGradientToItsArgmax | keep | 9 | pool_max_backward routes each gradient to its argmax, specified value; dx pre-filled with -1 so the kernel must write every element | tests/kernels/spatial_kernels/reference/test_pool_max.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_max.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_upsample.cpp`
+
+```
+Small_ReferenceUpsample.RepeatsEachPixelOverItsBlock | keep | 9 | upsample_nearest repeats each pixel over its block, specified value | tests/kernels/spatial_kernels/reference/test_upsample.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/upsample.hpp
+Small_ReferenceUpsample.TheBackwardIsTheAdjoint | rewrite | 1 | forbidden kind: a typed tolerance literal (K_ADJOINT_TOLERANCE) in EXPECT_NEAR. Only adjoint test of upsample_nearest_backward in the module. Rewrite as EXPECT_EQ, since the values are small integers and the adjoint sums are exact | tests/kernels/spatial_kernels/reference/test_upsample.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/upsample.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_window_dot.cpp`
+
+```
+Small_ReferenceWindowDot.WeighsEachTapOfOneChannel | keep | 9 | window_dot weights each tap, specified value 210, 320 | tests/kernels/spatial_kernels/reference/test_window_dot.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot.hpp
+Small_ReferenceWindowDot.TheBackwardIsTheAdjoint | rewrite | 1 | forbidden kind: a typed tolerance literal (K_ADJOINT_TOLERANCE) in EXPECT_NEAR. Only adjoint test of window_dot_backward in the module. Rewrite as EXPECT_EQ on small integers | tests/kernels/spatial_kernels/reference/test_window_dot.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot.hpp
+```
+
+### `tests/kernels/spatial_kernels/reference/test_window_dot_weights.cpp`
+
+```
+Small_ReferenceWindowDotWeights.PairsWithTheWindowProduct | rewrite | 1 | forbidden kind: a typed tolerance literal (K_ADJOINT_TOLERANCE) in EXPECT_NEAR. The bilinear pairing of the weight gradient is tested nowhere else in the module. Rewrite as EXPECT_EQ on small integers | tests/kernels/spatial_kernels/reference/test_window_dot_weights.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot_weights.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot.hpp
+Small_ReferenceWindowDotWeights.AOneTapWindowGivesTheChannelDotProduct | keep | 9 | one-tap weight gradient is the channel dot product, specified value 31 (5*2 + 7*3) | tests/kernels/spatial_kernels/reference/test_window_dot_weights.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot_weights.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_broadcast.cpp`
+
+```
+Medium_SYCLBroadcast.MatchesTheReference | split | 3 | three kernels in one body: channel_affine, broadcast_spatial and layout_convert each match the host reference. Split into three tests, one per kernel, medium boundary kept | tests/kernels/spatial_kernels/sycl/test_broadcast.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_channels.cpp`
+
+```
+Medium_SYCLChannels.MatchesTheReference | keep | 9 | copy_channel_range (SYCL) matches the host reference on small integers, one kernel, medium boundary | tests/kernels/spatial_kernels/sycl/test_channels.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/channels.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_col2im.cpp`
+
+```
+Medium_SYCLCol2im.MatchesTheReference | keep | 9 | col2im (SYCL) matches the host reference on small integers, one kernel, medium boundary | tests/kernels/spatial_kernels/sycl/test_col2im.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_im2col.cpp`
+
+```
+Medium_SYCLIm2col.MatchesTheReference | keep | 9 | im2col (SYCL) matches the host reference on small integers, one kernel, uneven geometry with stride and dilation, medium boundary | tests/kernels/spatial_kernels/sycl/test_im2col.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/im2col.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_pool_avg.cpp`
+
+```
+Medium_SYCLPoolAvg.MatchesTheReference | split | 3 | two promises in one body: the forward pool_avg and the backward pool_avg_backward. The comment says both compute without rounding, which is wrong: the averages divide by the window area 6. Equality holds because reference and SYCL run the same loop order (reference/pool_avg.hpp lines 95-140, sycl/pool_avg.hpp lines 145-200), and each split test must state that or use the tolerance helper | tests/kernels/spatial_kernels/sycl/test_pool_avg.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_avg.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/sycl/pool_avg.hpp; tools/testing/support/tolerance.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_pool_max.cpp`
+
+```
+Medium_SYCLPoolMax.MatchesTheReference | split | 3 | three results in one body: the forward value, the recorded index and the backward. Split into three tests, one per promise | tests/kernels/spatial_kernels/sycl/test_pool_max.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_max.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_upsample.cpp`
+
+```
+Medium_SYCLUpsample.MatchesTheReference | split | 3 | two promises in one body: the forward upsample_nearest and its backward. Split into two tests, one per promise | tests/kernels/spatial_kernels/sycl/test_upsample.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/upsample.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_window_dot.cpp`
+
+```
+Medium_SYCLWindowDot.MatchesTheReference | split | 3 | two promises in one body: the forward window_dot and its backward. Split into two tests, one per promise | tests/kernels/spatial_kernels/sycl/test_window_dot.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot.hpp
+```
+
+### `tests/kernels/spatial_kernels/sycl/test_window_dot_weights.cpp`
+
+```
+Medium_SYCLWindowDotWeights.MatchesTheReference | rewrite | 7 | a loop over the launch shapes local 1 and local 16 sits in the body, which the straight-line rule and the rows rule forbid. Rewrite as a parametrised test over the local size, one row per shape | tests/kernels/spatial_kernels/sycl/test_window_dot_weights.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp; modules/foundation/small_integers/include/SushiBLAS/small_integers/small_integers.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/window_dot_weights.hpp
+```
+
+### `tests/kernels/spatial_kernels/test_spatial.cpp`
+
+```
+Medium_SpatialKernels.AReferenceKernelIsReachable | delete | 1 | forbidden kind: the same promise again in another file. Its value check is pool_avg averaging, checked by reference/test_pool_avg.cpp at a larger size. The umbrella reach is compile-time (see Adds). The suite is labelled Medium_ but opens no device | tests/kernels/spatial_kernels/test_spatial.cpp; tests/kernels/spatial_kernels/reference/test_pool_avg.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_avg.hpp
+Medium_SpatialKernelsOnDevice.ASYCLKernelIsReachable | delete | 1 | forbidden kind: the same promise again in another file. sycl/test_pool_avg.cpp checks SYCL pool_avg against the reference at a larger size. The umbrella reach is compile-time (see Adds) | tests/kernels/spatial_kernels/test_spatial.cpp; tests/kernels/spatial_kernels/sycl/test_pool_avg.cpp; tests/kernels/spatial_kernels/nhwc_span.hpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/shared_array.hpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_dependency_stress.cpp`
+
+```
+Medium_DependencyStressTest.ManyReadersOneWriter | delete | 1 | Loops build 5000 tensors and submit 5000 reads in the body; the read-after-write edge is tested at small or medium size elsewhere, and 5000 readers is the same promise at a larger size | tests/library/umbrella/test_SushiBLAS/test_dependency_stress.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md;tests/engine/graph_probe/test_graph_probe.cpp;tests/engine/functor_map/test_write_binding.cpp
+Medium_DependencyStressTest.ShardCollisionStress | rewrite | 1 | Loops build 9000 tensors and submit 3000 GEMMs in the body; rows or a builder replace them; no sibling found by name for shard collisions | tests/library/umbrella/test_SushiBLAS/test_dependency_stress.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp`
+
+```
+Medium_DispatchComplexTest.BinaryArithmeticOnComplex32 | rewrite | 1 | Bare tolerance literal 1e-4 in four SB_ASSERT_TENSOR_NEAR calls; tests/support/tolerance.hpp is missing; four operations in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.UnaryArithmeticOnComplex32 | rewrite | 1 | Bare tolerance literal 1e-4 in three calls; tests/support/tolerance.hpp is missing; three operations in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.TranscendentalsOnComplex32 | rewrite | 1 | Bare tolerance literal 1e-4 in four calls; tests/support/tolerance.hpp is missing; four operations in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.EqualityAndConnectivesOnComplex32 | rewrite | 1 | Bare tolerance literal 1e-4 on exact 0 and 1 results; tests/support/tolerance.hpp is missing; three operations in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.WhereSelectsOnComplex32 | rewrite | 1 | Bare tolerance literal 1e-4; tests/support/tolerance.hpp is missing | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.OrderingComparisonsRejectComplex32 | rewrite | 7 | Four refusals of one promise are rows, not four calls; no tolerance; the duplicate in test_integer_dtypes.cpp is deleted in favour of this file | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp
+Medium_DispatchComplexTest.OrderDependentElementwiseOpsRejectComplex32 | rewrite | 7 | Four refusals of one promise are rows; the refusal is decided on dtype, so the row table can be small | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.RoundingAndClampRejectComplex32 | rewrite | 7 | Four refusals of one promise are rows | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.RemainingRealOnlyOpsRejectComplex32 | rewrite | 7 | Four refusals of one promise are rows; the body says complex trig and pow are unimplemented, and the test checks only the refusal | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_DispatchComplexTest.RealDtypesAreUnaffected | rewrite | 1 | expect_tensor called without tolerance uses the typed default 1e-4 of tensor_comparison.hpp; the values are exact; max and min in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp`
+
+```
+Medium_DispatchSeamTest.FusesAConsumerFunctorIntoOneBinaryKernel | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; the one-task claim in the name is never asserted, so the fusion promise has no check | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.FusesAConsumerFunctorIntoOneUnaryKernel | rewrite | 1 | Bare tolerance literal 1e-4; the one-task claim is never asserted; expected values are pasted to six digits | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ConsumerFunctorCanOptIntoComplex | rewrite | 1 | Bare tolerance literal 1e-4 in SB_ASSERT_TENSOR_NEAR | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ConsumerCanDriveTheLogicAndReductionSeamsToo | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; logic and reduction seams in one body | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.RealOnlyDomainRejectsComplexAtRecordTime | resize | 8 | Record-time domain check is decided on the dtype value; the test reaches the fixture runtime and recorder; seam: a dtype-level domain check callable without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.FusesAFiveTensorAdamWUpdateIntoOneKernel | rewrite | 1 | Bare tolerance literal 1e-6 in four SB_ASSERT_TENSOR_NEAR calls; tests/support/tolerance.hpp is missing; about 90 lines mixing fused and step-by-step checks | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.FusedInPlaceUpdateIsRepeatableToTheByte | rewrite | 1 | Loops fill inputs and compare outputs in the body; the second run is a valid metamorphic oracle and belongs in a helper | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.FusedInPlaceUpdateRejectsDisagreeingOperands | rewrite | 7 | Four refusals of one promise are rows; the refusal is decided on values | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.RNGMetadataSlotsAreInRangeAndRoundTrip | delete | 4 | Same set-and-read-back promise in another file with seed 42 and offset 7; the 64-bit seed case is absent there and belongs as a row in that file | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/random/test_dispatch.cpp
+Medium_DispatchSeamTest.DistributionParamsDoNotCollideWithTheRNGSlots | rewrite | 1 | Loop over parameters in the body; the promise is not tested elsewhere by name | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.TooManyTaskParamsThrowsInsteadOfDroppingThem | resize | 8 | Record-time count check is decided on values; the test reaches the fixture runtime; seam: a parameter-count check callable without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ScalarOperationsMatchTheirHostFormula | rewrite | 1 | Named typed tolerances 1e-4 and 1.5625e-2 in the expect helpers; eight template calls in one body; tests/support/tolerance.hpp is missing | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ABoundFunctorWorksInAFusedUpdate | rewrite | 1 | Typed tolerance constant 1e-4 in two expect_tensor calls | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ATypedTaskReportsTheFamilyItsCallerDeclared | rewrite | 1 | try and catch with FAIL in the body; the family-string promise is tested nowhere else by name; EXPECT_THROW with a message matcher carries it | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_DispatchSeamTest.ADeclaredReadIsOrderedBehindItsWriter | split | 3 | Two claims: a declared read waits for its writer (dependency counts 0 and 1) and a captured pointer gets no edge (0 and 0); the first duplicates the write-binding test, the second pins a hazard rather than a promise | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/functor_map/test_write_binding.cpp;tests/engine/graph_probe/test_graph_probe.cpp
+Medium_DispatchSeamTest.ADeclaredReadIsKeptAllocated | delete | 4 | Same keep-alive promise as test_operand_lifetime.cpp ATaskKeepsItsInputAllocatedUntilItHasRun in another file; the declared-read path through bind_reads needs a row in that file | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp
+Medium_DispatchSeamTest.ADeclaredReadOfAnotherTypeArrivesTyped | delete | 1 | Loop builds the expected values in the body; the typed-read promise is tested in another file by AnElementReadTakesTheOperationsType | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/functor_map/test_read_binding/test_read_binding.cpp
+Medium_DispatchSeamTest.ADeclaredReadWorksOnEverySeam | rewrite | 7 | Six seams in one body; one row per seam; expected values exact, but the test mixes six families | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/functor_map/test_read_binding/test_read_binding.cpp
+Medium_DispatchSeamTest.ADeclaredReadMayNotBeAnOutput | delete | 4 | Same refusal promise as test_read_binding.cpp AReadMayNotOverlapAWrittenRegion in another file; the message check for "read 0" should move there | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/functor_map/test_read_binding/test_read_binding.cpp
+Medium_DispatchSeamTest.ADeviceOnlyReadIsRefusedUnderForceReference | rewrite | 7 | Skip guard for absent device USM in the body moves into the fixture; the refusal half duplicates ADeviceOnlyOperandIsRefusedInEveryFamily; the ForceSYCL-records half is unique here | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp
+Medium_DispatchSeamTest.ADeclaredReadReachesTheHostPath | keep | 9 | Promise: the host path hands a functor the same declared reads as the SYCL path, bit for bit; a boundary check that needs the device; the premise check on the update is kept | tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp`
+
+```
+Medium_EmptyTensorTest.AddOfEmptyTensorsIsANoOp | delete | 4 | Same promise as test_dispatch.cpp AnEmptyTensorRecordsNothingInEitherMode in another file, in both modes | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_EmptyTensorTest.ExpOfAnEmptyTensorIsANoOp | resize | 8 | Record-time empty check is decided on the shape value; the test reaches the fixture runtime; seam: an empty-shape check callable without a recorder (missing); the sibling covers add only | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_EmptyTensorTest.ReLUOfAnEmptyTensorIsANoOp | resize | 8 | Same as the exp case; no sibling by name for the nonlinear family | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_EmptyTensorTest.LogicOfEmptyTensorsIsANoOp | resize | 8 | Same as the exp case; logical_and and equal in one body, two rows | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_EmptyTensorTest.AllOfAnEmptyTensorWritesOne | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; the identity of all is in no sibling by name | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_EmptyTensorTest.AnyOfAnEmptyTensorWritesZero | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; the identity of any is in no sibling by name | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_EmptyTensorTest.ConvertOfEmptyTensorsIsANoOp | resize | 8 | Record-time empty check decided on values; seam: empty-shape check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_elementwise/test_convert.cpp
+Medium_EmptyTensorTest.EmptyOperandsMustStillAgreeInShape | resize | 8 | Shape agreement is decided on values; the test reaches the fixture runtime; seam: shape check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_operand_check.cpp
+Medium_EmptyTensorTest.IdentityReductionsOfNothingWriteTheirIdentity | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; sum and prod duplicate test_reductions.cpp EmptyOperandsBehaveAlikeInBothModes; asum, nrm2 and count_nonfinite are not in it | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_EmptyTensorTest.OrderedReductionsOfNothingAreRefused | rewrite | 7 | Eleven refusals of one promise are rows; mean and max duplicate test_reductions.cpp; var is merged here from VarRejectsEmptyTensor | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_EmptyTensorTest.SumAlongOfAnEmptyAxisWritesZeros | rewrite | 1 | expect_tensor without tolerance uses the typed default 1e-4; two parts (zero-length axis, zero-length result) in one body; test_axis_reductions.cpp EmptySpansTakeTheCheapShape checks plan shape only | tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/reductions/test_reductions/test_axis_reductions.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_framework_sim.cpp`
+
+```
+Medium_FrameworkSimTest.DeepForwardPass | rewrite | 1 | Loops build weights, layers and the expected array in the body; the tolerance is magnitude times a bare 1e-3 literal | tests/library/umbrella/test_SushiBLAS/test_framework_sim.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+Medium_FrameworkSimTest.ParallelBatchedInference | rewrite | 1 | Loop over 24 models in the body; the comment says the scheduler spreads tasks across workers, which the test does not assert | tests/library/umbrella/test_SushiBLAS/test_framework_sim.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp`
+
+```
+Medium_IntegerDTypeTest.ElementWidthsAndNamesAreDeclared | delete | 1 | Trivial table of widths, names and predicates; the name strings are covered by test_common.cpp ToStringNamesEveryEnumerator | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/foundation/core/test_common.cpp
+Medium_IntegerDTypeTest.ConstantFillsAnIntegerTensorExactly | delete | 4 | Same promise as test_constant.cpp Int32OddSize and Int64OddSize in another file | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/random/test_random/test_constant.cpp
+Medium_IntegerDTypeTest.CopyMovesIntegerElements | keep | 9 | Promise: copy moves INT64 elements exactly; exact integer comparison; no sibling found by name | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.ComparisonsWorkOnIntegerTensors | rewrite | 7 | Three comparison calls of one promise are rows | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.BooleanOpsAndWhereWorkOnIntegerTensors | split | 3 | The boolean family and where are two promises | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.AllAndAnyReduceIntegerTruthVectors | split | 3 | all and any are separate results that can break apart | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.ArgmaxSearchesAnIntegerTensor | split | 3 | argmax and argmin are separate results | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.ArgmaxIsExactPastTheFloatMantissa | resize | 8 | Index exactness is decided on values; the 16,777,218-element device tensor is the only reason for medium; seam: a host-array argmax over the same index (existence not checked) | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_IntegerDTypeTest.UnsupportedOpsRejectIntegerOperandsByName | rewrite | 7 | Ten refusals of one promise are rows; the name in the message is claimed but never asserted, only the exception type | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/blas/test_blas_task.cpp;tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_IntegerDTypeTest.OrderingComparisonsStillRejectComplex | delete | 4 | Ordering refusal and equality-still-works are both in test_dispatch_complex.cpp (OrderingComparisonsRejectComplex32, EqualityAndConnectivesOnComplex32), in another file | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_dispatch_complex.cpp
+Medium_IntegerDTypeTest.AUInt32TensorHoldsItsValues | split | 3 | The 4-byte element width is trivial; the round trip of UINT32 values through IO is the promise; the split keeps the round trip | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/io/test_io/test_host_transfer.cpp
+Medium_IntegerDTypeTest.OperationsRefuseAUInt32Operand | delete | 4 | The domain-level refusal is tested in another file by NoDomainAdmitsUInt32; the per-operation sweep belongs as rows in the operation tests, not verified there | tests/library/umbrella/test_SushiBLAS/test_integer_dtypes.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_dispatch.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp`
+
+```
+Medium_MathValidationTest.AddRejectsMismatchedShapes | resize | 8 | Refusal is decided on shape values; the test reaches the fixture runtime; seam: a shape check on descriptors (missing) | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_operand_check.cpp
+Medium_MathValidationTest.AddRejectsTransposedView | resize | 8 | Refusal is decided on stride values; the test reaches the fixture runtime; seam: a stride check on descriptors (missing) | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.AddRejectsTensorWithoutStorage | merge | 4 | Same storage-less refusal as UnaryInPlaceRejectsTensorWithoutStorage and SumRejectsTensorWithoutStorage in the same file; merge into one row table | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp
+Medium_MathValidationTest.UnaryInPlaceRejectsTensorWithoutStorage | merge | 4 | Same promise as AddRejectsTensorWithoutStorage with another operation; merge into one row table with it | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.SumRejectsTensorWithoutStorage | merge | 4 | Same promise as AddRejectsTensorWithoutStorage with a reduction; merge into one row table with it | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.VarRejectsEmptyTensor | merge | 4 | Same promise as test_empty_tensors.cpp OrderedReductionsOfNothingAreRefused, which refuses var on an empty tensor; merge there | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_empty_tensors.cpp
+Medium_MathValidationTest.SoftplusOfLargeInputIsFinite | rewrite | 1 | Typed tolerance constant 1e-4f in EXPECT_NEAR; test_softplus.cpp checks only values from -1 to 2, not large inputs | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/nonlinear/test_nonlinear/test_softplus.cpp
+Medium_MathValidationTest.SoftplusOfLargeNegativeInputIsTinyAndNonNegative | keep | 9 | Promise: softplus of -100 is finite, non-negative and at most 1e-30; the bound is a bound, not a tolerance; no sibling covers large negative inputs | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/operations/nonlinear/test_nonlinear/test_softplus.cpp
+Medium_MathValidationTest.ReLURejectsComplexTensor | resize | 8 | Refusal is decided on dtype; the test reaches the fixture runtime; seam: a dtype-level check (missing); no sibling by name for ReLU complex refusal | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.ADeviceOnlyOperandIsRefusedInEveryFamily | rewrite | 1 | Loops over record cases and a skip guard in the body; the refusal half duplicates ADeviceOnlyReadIsRefusedUnderForceReference; the family sweep is a row table | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp
+Medium_MathValidationTest.OperandErrorsDoNotDependOnTheMode | rewrite | 1 | Loop over three modes in the body; mode independence of the message is not tested elsewhere by name | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.AMismatchedDtypeNamesTheOperand | resize | 8 | Refusal and naming are decided on dtype values; the test reaches the fixture runtime; seam: a dtype-level check that returns its message (missing) | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_MathValidationTest.SumWithPositiveInfinityIsPositiveInfinity | delete | 4 | Same promise as test_reduce_1d.cpp CompensatedSumOfAnInfinityIsThatInfinity and test_reference_accumulator.cpp AnInfiniteTermGivesThatInfinityInBothForms, in the reduction and foundation modules | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/foundation/reduction/test_reduce_1d.cpp;tests/foundation/reference/test_reference_accumulator.cpp
+Medium_MathValidationTest.SumOfOppositeInfinitiesIsNaN | resize | 8 | IEEE result on values; no sibling by name covers opposite infinities; seam: the host reference accumulator | tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/foundation/reference/test_reference_accumulator.cpp;tests/foundation/reduction/test_reduce_1d.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp`
+
+```
+Medium_OperandLifetime.ATaskKeepsItsInputAllocatedUntilItHasRun | rewrite | 1 | Tolerance literal 1e-5 in EXPECT_TENSOR_NEAR; the expected values are exact integers, so an exact comparison fits | tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_OperandLifetime.AnEpilogueOperandIsKept | rewrite | 1 | Tolerance literal 1e-5 in EXPECT_TENSOR_NEAR; expected values are exact | tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_OperandLifetime.AScratchReturnsToThePoolWithItsTask | delete | 1 | Tolerance literal 1e-3; scratch reuse is the same promise as test_scratch_pool.cpp AReturnedBlockIsReusedForTheSameSize and test_scratch_shelf.cpp AReturnedBlockIsLentAgain | tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_scratch_pool.cpp;tests/engine/engine/test_scratch_shelf.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_pack_ordered_sum.cpp`
+
+```
+Medium_PackOrderedSum.SumsTheSameSegmentOfThreePacksIntoAFourth | rewrite | 1 | Skip guard, loops building inputs, and its own Runtime in a medium test (medium forbids making a runtime); the ordered-sum arithmetic is covered by test_ordered_sum.cpp; only the pack-segment composition is left | tests/library/umbrella/test_SushiBLAS/test_pack_ordered_sum.cpp;tests/library/umbrella/README.md;tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp;tests/engine/cluster/test_tensor_pack.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_regression.cpp`
+
+```
+Medium_Sentinel.SyrkAcceptsHalfDtype | rewrite | 6 | Asserts only that the call does not throw; no value oracle for HALF SYRK | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_Sentinel.GemmColumnMajorOperandsUseColumnStrides | rewrite | 1 | Tolerance literal 1e-5 in EXPECT_TENSOR_NEAR; loop over two modes in the body; the hand-computed oracle is good and is kept | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_Sentinel.SetSeedRewindsTheRNGStream | delete | 4 | Same promise as test_rng_stream.cpp ReseedRewindsTheOffset in another file | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_rng_stream.cpp
+Medium_Sentinel.Fp64Level1ScalarsAreNotNarrowedToFloat | split | 3 | axpy and scal are two entry points with their own results | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_Sentinel.BatchedGemmAdvancesEveryBatchSlice | rewrite | 1 | Tolerance literal 1e-4; loops over cases and modes in the body; the oracle is hand-computed | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md
+Medium_Sentinel.AccumulatingOpsDeclareTheirAccumulatorRead | split | 3 | GER accumulator read, GEMV beta nonzero read, and GEMV beta zero pure write are three declarations | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/graph_probe/test_graph_probe.cpp
+Medium_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation | rewrite | 1 | Tolerance literal 1e-5 in EXPECT_TENSOR_NEAR; a structural edge check and a behavioural check in one body (split candidate) | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/graph_probe/test_graph_probe.cpp
+Medium_Sentinel.Nrm2DoesNotOverflowNearTheFloatMaximum | delete | 1 | Tolerance literal 1e-5f; the same promise is in test_reduce_1d.cpp ScaledSumOfSquaresNeitherOverflowsNorUnderflows, test_level1.cpp (reference) Nrm2IsTheEuclideanNormWithoutOverflow and test_level1.cpp (SYCL) Nrm2StaysWithinTheBoundOfAScaledSum | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/foundation/reduction/test_reduce_1d.cpp;tests/kernels/blas_kernels/reference/level1/test_level1.cpp;tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+Medium_Sentinel.Nrm2DoesNotUnderflowOnDenormalInput | delete | 1 | Tolerance literal 1e-2f; the underflow half of the same promise is in test_reduce_1d.cpp ScaledSumOfSquaresNeitherOverflowsNorUnderflows | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/foundation/reduction/test_reduce_1d.cpp
+Medium_Sentinel.Nrm2UsesTheModulusOfAComplexElement | rewrite | 1 | Tolerance literal 1e-4f; the complex modulus is not found by name in the sibling level-one tests (only complex asum is) | tests/library/umbrella/test_SushiBLAS/test_regression.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp`
+
+```
+Medium_SpatialRandomIOValidationTest.GeometryWithZeroStrideIsRefused | resize | 8 | Refusal is decided on a stride value; the test reaches the fixture runtime; seam: geometry validation without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.PoolingWindowMadeOnlyOfPaddingIsRefused | resize | 8 | Refusal is decided on padding values; seam: geometry validation without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.PoolMaxRefusesAStridedIndexTensor | resize | 8 | Refusal is decided on the stride of the index tensor; seam: index-tensor check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialRandomIOValidationTest.PoolMaxPropagatesANaNTap | keep | 9 | Promise: a device pool_max propagates a NaN tap and records its index; a boundary against the device kernel; no sibling by name | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.UniformNeverReturnsItsUpperBound | delete | 1 | Loop with ASSERT over 100000 draws in the body; the same range promise is in test_philox.cpp UniformDrawsLieInTheirHalfOpenRange | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/kernels/random_kernels/sycl/test_philox.cpp
+Medium_SpatialRandomIOValidationTest.PoissonRefusesALambdaAboveTheCap | resize | 8 | Refusal is decided on the lambda value; the test reaches the fixture runtime; seam: lambda check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.PoissonRefusesANegativeLambda | resize | 8 | Refusal is decided on the lambda value; seam: lambda check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.PoolMaxBackwardRefusesATransposedOutputGradient | resize | 8 | Refusal is decided on the stride of the gradient; seam: geometry and stride check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialRandomIOValidationTest.PoolMaxOfAnAllNegativeInfinityWindowIsNegativeInfinity | keep | 9 | Promise: a device pool_max over all -inf taps yields -inf and index 0; a boundary against the device kernel | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.BernoulliWithZeroProbabilityFillsZeros | rewrite | 1 | Loop with ASSERT_EQ over 100000 draws in the body; test_distributions.cpp Bernoulli checks only values in 0..1 at p 0.5, so p 0 is not covered elsewhere; a helper that checks all elements replaces the loop | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/operations/random/test_random/test_distributions.cpp
+Medium_SpatialRandomIOValidationTest.BernoulliWithUnitProbabilityFillsOnes | rewrite | 1 | Loop with ASSERT_EQ over 100000 draws; p 1 is not covered elsewhere; a helper replaces the loop | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/operations/random/test_random/test_distributions.cpp
+Medium_SpatialRandomIOValidationTest.UniformRefusesBoundsOutOfOrder | resize | 8 | Refusal is decided on bound values; seam: bound check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.UniformRefusesANonFiniteBound | resize | 8 | Refusal is decided on bound values; seam: bound check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.UniformRefusesAWidthThatOverflowsTheDtype | resize | 8 | Refusal is decided on bound values and dtype; seam: width check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.UniformWithEqualBoundsFillsThatBound | rewrite | 1 | Loop with ASSERT_EQ over elements in the body; the degenerate-bounds promise is not tested elsewhere by name; a helper replaces the loop | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.DiscreteUniformIntoFloat32RefusesBoundsPastTwoToTheTwentyFour | resize | 8 | Bound check is decided on values; the EXPECT_NO_THROW at the limit is a boundary row; seam: bound check without a recorder (missing) | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.IntegerValuedFillsRefuseAComplexTensor | rewrite | 7 | Three refusals (poisson, discrete_uniform, bernoulli) of one promise are rows | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+Medium_SpatialRandomIOValidationTest.ToStringReadsATransposedViewThroughItsStrides | keep | 9 | Promise: to_string prints a transposed view by its strides; the oracle is the row-major layout stated in the test; no sibling by name for transposed to_string | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md;tests/operations/io/test_io/test_host_transfer.cpp
+Medium_SpatialRandomIOValidationTest.SaveThenLoadReturnsTheOriginalValues | keep | 9 | Promise: a saved tensor loads back with the same values; the boundary is the file bytes; a per-test temporary folder is medium-legal; no sibling by name | tests/library/umbrella/test_SushiBLAS/test_spatial_random_io_validation.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp`
+
+```
+Medium_StorageOffsetTest.Level1AxpyHonoursOffset | rewrite | 1 | Tolerance literal 1e-5; the padding check is the promise and is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.Level1ScalHonoursOffset | rewrite | 1 | Tolerance literal 1e-5; the padding check is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.Level1CopyHonoursOffset | rewrite | 1 | Tolerance literal 1e-5; the padding check is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.Level2GemvHonoursOffset | rewrite | 1 | Tolerance literal 1e-4; the padding check is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.Level2GerHonoursOffset | rewrite | 1 | Tolerance literal 1e-4; the padding check is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.Level3GemmHonoursOffset | rewrite | 1 | Tolerance literal 1e-4; the padding check is kept | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.ElementwiseHonoursOffset | rewrite | 1 | Tolerance literal 1e-5; add and neg in one body (split candidate) | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.NonlinearHonoursOffset | rewrite | 1 | Tolerance literal 1e-5 | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.NonlinearBackwardHonoursOffset | rewrite | 1 | Tolerance literal 1e-5 | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.LogicHonoursOffset | rewrite | 1 | Tolerance literal 1e-5 on exact 0 and 1 results | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.ReductionHonoursOffset | rewrite | 1 | Tolerance literal 1e-5; the axis reduction offset test covers a different operation | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md;tests/operations/reductions/test_reductions/test_axis_reductions.cpp
+Medium_StorageOffsetTest.RandomHonoursOffset | rewrite | 1 | Tolerance literal 1e-6; loop over host values in the body; constant and uniform in one body; the uniform range is a distribution promise owned by test_philox.cpp | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md;tests/kernels/random_kernels/sycl/test_philox.cpp
+Medium_StorageOffsetTest.OffsetIsCountedInElementsNotBytes | split | 3 | Pointer arithmetic in elements and the region description are two results | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.DisjointViewsOfOneAllocationDoNotAlias | resize | 8 | Region overlap is decided on base, offset and length values; the test reaches the fixture runtime to create storage; seam: a region built without storage (missing) | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md;tests/engine/engine/test_engine/test_tensor_view.cpp
+Medium_StorageOffsetTest.TheAllocationBaseIsAlignedForEveryResidency | rewrite | 1 | Loops over residencies and counts in the body; one promise; a helper or rows replace the loops | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.TheAllocatedSizeIsAMultipleOfTheAlignment | resize | 8 | Size rounding is decided on byte counts; the test reaches the fixture runtime; seam: a rounding function on bytes (missing) | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.AViewOffTheBaseReportsItsOwnAlignment | resize | 8 | Alignment is decided on the offset value; the test reaches the fixture runtime; seam: alignment of an offset without storage (missing) | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+Medium_StorageOffsetTest.GetDeviceAnswersWithoutTheRegistry | rewrite | 1 | Trivial getter test; the name describes an implementation path, not a promise; restate it as the device the storage was made on | tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/library/umbrella/README.md
+```
+
+### `tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp`
+
+```
+Medium_TaskDependencies.ARecordedTaskComputesItsResult | rewrite | 1 | Tolerance literals 1e-5 and 1e-6 in seven EXPECT_TENSOR_NEAR calls; seven seams in one body; each seam module test is the place for its result | tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp;tests/library/umbrella/README.md;tests/engine/graph_probe/test_graph_probe.cpp
+```
+
+### `tests/operations/benchmark_harness/test_benchmark_harness.cpp`
+
+```
+Medium_BenchmarkHarness.SizesComeFromTheArgumentsOrTheDefaults | resize | 8 | Pure parse function with no device; labelled medium; resize to small, no seam needed | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp
+Medium_BenchmarkHarness.NamesCoverTheModesTheLayoutsAndTheDtypes | rewrite | 1 | Trivial name tables; keep only the refusal of dtype_name for INT32 as the promise | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp
+Medium_BenchmarkHarness.DeviceSupportFollowsTheAspectsOfTheProfile | rewrite | 6 | The oracle is profile.supports_fp16 and supports_fp64, the same fields device_supports returns; a named oracle from the known aspects of the device is needed | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp
+Medium_BenchmarkHarness.TimingRunsTheWarmUpAndTheTimedIterations | split | 3 | Call count, min not above median, and the statistic are separate claims; time_iterations reads steady_clock directly, so no small test is possible without a clock seam | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp
+Medium_BenchmarkHarness.TheGuardTurnsAThrowIntoAFailureCode | resize | 8 | Exit code is decided on the exception; run_guarded writes to stderr, a process stream; seam: an injected error sink (missing) | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp
+Medium_BenchmarkHarness.MeasureRecordsAndRunsOneTaskPerIterationOnTheGraphItIsGiven | split | 3 | One task per iteration, min not above median, and the graph left empty are three claims | tests/operations/benchmark_harness/test_benchmark_harness.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/benchmark_harness.hpp;tests/engine/graph_probe/test_graph_probe.cpp
+```
+
+### `tests/operations/benchmark_harness/test_environment_value.cpp`
+
+```
+Small_EnvironmentValue.ReturnsTheValueOfASetVariable | resize | 8 | Reads the process environment, a process-wide reach answered here at question 8; seam: an injected lookup in environment_value (missing) | tests/operations/benchmark_harness/test_environment_value.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/environment_value.hpp
+Small_EnvironmentValue.ReturnsEmptyForAnUnsetVariable | resize | 8 | Process-wide environment reach; seam: an injected lookup (missing) | tests/operations/benchmark_harness/test_environment_value.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/environment_value.hpp
+Small_EnvironmentValue.ReturnsEmptyForAnEmptyVariable | resize | 8 | Process-wide environment reach; seam: an injected lookup (missing) | tests/operations/benchmark_harness/test_environment_value.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/environment_value.hpp
+Small_EnvironmentValue.KeepsASpaceInsideTheValue | resize | 8 | Process-wide environment reach; seam: an injected lookup (missing) | tests/operations/benchmark_harness/test_environment_value.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/environment_value.hpp
+Small_EnvironmentValue.ReflectsTheLatestValueOnEveryCall | resize | 8 | Process-wide environment reach; seam: an injected lookup (missing) | tests/operations/benchmark_harness/test_environment_value.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/environment_value.hpp
+```
+
+### `tests/operations/benchmark_harness/test_profile_session.cpp`
+
+```
+Medium_ProfileSession.WithoutTheFolderVariableNoSessionStarts | rewrite | 7 | Skip guard in the body when the variable is set; the skip moves to the fixture; the promise is a decision on the variable value and may resize to small later with a seam | tests/operations/benchmark_harness/test_profile_session.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/profile_session.hpp
+Medium_ProfileSession.MarkingAnIterationWithNoSessionDoesNothing | resize | 8 | Reads the process-wide current session; seam: a session passed as an argument (missing) | tests/operations/benchmark_harness/test_profile_session.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/profile_session.hpp
+Medium_ProfileSession.TheIterationTimelineIsNamedAfterTheScenario | rewrite | 1 | Trivial constants; keep only if a reader consumes the timeline name, which was not checked | tests/operations/benchmark_harness/test_profile_session.cpp;modules/operations/benchmark_harness/include/SushiBLAS/benchmark_harness/profile_session.hpp
+```
+
+### `tests/operations/blas/test_band_operand.cpp`
+
+```
+Medium_BandOperand.AColumnMajorTensorStoresOneLinePerColumn | merge | 4 | a band operand's lines and leading dimension per layout; the same promise as ARowMajorTensorStoresOneLinePerRow; merged into rows over the layouts | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BandOperand.ARowMajorTensorStoresOneLinePerRow | resize | 8 | a row-major band operand gives its rows as lines; describe_band_operand decides on extents and layout; the fixture's make_storage reaches TestEnvironment::runtime(), a process-wide instance; the seam is describe_band_operand over extents rather than a tensor with storage | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BandOperand.SpareSlotsPerLineAreAccepted | resize | 8 | a line may hold more slots than the band needs; a check on extents; seam as ARowMajorTensorStoresOneLinePerRow | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.AWidthBeyondTheMatrixIsAccepted | resize | 8 | a band width beyond the matrix's diagonals is accepted; a check on extents; seam as above | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.AnEmptyTensorHasNoLine | resize | 8 | a tensor of no line is accepted with its line length; a check on extents; seam as above | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.ATriangleBandPutsItsWidthOnOneSide | rewrite | 7 | the same promise for Upper and Lower in one body; rows over uplo | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.ANegativeWidthIsRefusedByName | rewrite | 7 | a loop over uplo in the body, two refusals (band and triangle) and a message check in one test; split the band and triangle refusals, rows over uplo | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.ATensorThatIsNoDenseMatrixIsRefused | rewrite | 7 | three shapes (rank 1, rank 3, transposed) in one body; rows over the shapes | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+Medium_BandOperand.ABandWiderThanALineIsRefused | rewrite | 7 | a loop over layouts in the body with nine accept and refuse checks; rows over layouts and widths | tests/operations/blas/test_band_operand.cpp; tests/operations/blas/structured_operand_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_asum.cpp`
+
+```
+Medium_ASUMTest.SimpleASUM | delete | 1 | same promise as the reference kernel test AsumAddsMagnitudesAndBothPartsOfAComplex, a kernel-owned test of the same arithmetic; forbidden kind "the same promise again in another file" | tests/operations/blas/test_blas/test_asum.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_axpy.cpp`
+
+```
+Medium_AXPYTest.SimpleAXPY | delete | 1 | same promise as the reference kernel test AxpyCopyScalAndSwapFollowTheirStrides; forbidden kind "SimpleAxpy beside the reference axpy test" | tests/operations/blas/test_blas/test_axpy.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_band.cpp`
+
+```
+Medium_BlasBand.GbmvMatchesTheWorkedMatrix | rewrite | 7 | for_each_engine loops over layout and kernel mode in the body; the worked-matrix values are an exact oracle, kept; rows over layout and mode; typed over the five element types | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.GbmvScalesAndAccumulates | rewrite | 7 | for_each_engine loops in the body; exact values kept; rows over layout and mode | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.GbmvTransposed | rewrite | 7 | for_each_engine loops in the body; exact values kept; rows over layout and mode | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.GbmvIgnoresSpareSlots | rewrite | 7 | for_each_engine loops in the body; exact values kept; rows over layout and mode | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.GbmvEdgeShapes | rewrite | 7 | for_each_engine loop and a loop over edge shapes with a host loop as the oracle, both in the body; rows over layout and shape | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.GbmvOfNoColumnsScalesY | rewrite | 7 | for_each_engine loops in the body; rows over layout | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.SbmvMatchesTheTridiagonal | rewrite | 7 | for_each_engine and a triangle loop in the body; rows over layout and triangle | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.TbmvMatchesByHand | rewrite | 7 | for_each_engine and a loop over the hand rows in the body; rows over layout and the design rows | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.TbsvInvertsTbmv | rewrite | 7 | for_each_engine and a loop over the hand rows in the body; rows | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.TbsvTakesAStridedVector | rewrite | 7 | for_each_engine loop in the body; the strided view is one promise; rows over layout | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.AFullBandEqualsTheDenseSibling | rewrite | 7 | for_each_engine, transpose and triangle loops in the body; the equal-to-gemv relation is kept; rows over layout, transpose and triangle | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.AFullTriangleBandEqualsTheDenseSibling | rewrite | 7 | for_each_engine and three nested loops in the body; rows over layout, triangle, transpose and diagonal | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBand.BothModesAgree | rewrite | 1 | typed tolerances ModeTolerance K_VALUE (2^-9, 1e-4, 1e-11) in expect_near; tests/support/tolerance.hpp absent; rewrite with the helper, rows over layout, k and element type | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandComplex.GbmvConjTransposed | rewrite | 7 | for_each_engine and a form loop in the body; rows over layout and transpose | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandComplex.HbmvConjugatesTheMirror | rewrite | 7 | for_each_engine and a triangle loop in the body; rows over layout and triangle | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandHalf.HalfSumsInFloat | rewrite | 7 | for_each_engine loop in the body; the HALF band sums in FLOAT32 are kept with exact values; rows over layout | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandHalf.HalfSolveCarriesTheSolutionInFloat | rewrite | 7 | for_each_engine loop in the body; exact values kept; rows over layout | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandLarge.AFullBandEqualsTheDenseSiblingLarge | rewrite | 7 | a loop over kernel modes and a for_each_engine loop in the body; the equal-to-gemv and equal-to-symv relations at order 2048 are kept; rows over mode and layout | tests/operations/blas/test_blas/test_blas_band.cpp
+Medium_BlasBandLarge.RepeatsToTheBit | rewrite | 7 | loops over layouts in the body; the repeat-to-the-bit relation at order 2048 is kept; rows over layout | tests/operations/blas/test_blas/test_blas_band.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_complex.cpp`
+
+```
+Medium_BlasComplex.DotuSumsTheUnconjugatedProducts | delete | 1 | typed tolerance K_HAND_TOLERANCE (1e-5) in expect_near; the unconjugated complex dot is checked bitwise against the host sum in tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp::DotEqualsTheHostSum for complex<double> and complex<float>, a sibling in the module | tests/operations/blas/test_blas/test_blas_complex.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasComplex.DotcConjugatesTheFirstVector | delete | 1 | typed tolerance K_HAND_TOLERANCE; the conjugated dot is in Small_ReferenceLevel1.DotSumsTheProductsAndConjugatesWhenAsked, tests/kernels/blas_kernels/reference/level1/test_level1.cpp (complex dot with Conjugated), an owner test | tests/operations/blas/test_blas/test_blas_complex.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_BlasComplex.GeruAddsTheUnconjugatedOuterProduct | delete | 1 | typed tolerance K_HAND_TOLERANCE; the complex rank-1 update is checked bitwise against the host loop for geru in test_blas_symmetric_bits.cpp::GerEqualsTheHostUpdate | tests/operations/blas/test_blas/test_blas_complex.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasComplex.GercConjugatesTheSecondVector | delete | 1 | typed tolerance K_HAND_TOLERANCE; the conjugated rank-1 form is in Small_ReferenceGer.TheConjugatedFormConjugatesY, tests/kernels/blas_kernels/reference/level2/test_ger.cpp | tests/operations/blas/test_blas/test_blas_complex.cpp; tests/kernels/blas_kernels/reference/level2/test_ger.cpp
+Medium_BlasComplex.HemvReadsOneTriangleAndNoImaginaryDiagonal | rewrite | 1 | typed tolerance K_HAND_TOLERANCE in expect_near; tests/support/tolerance.hpp absent; the Hermitian product's read of one triangle and its real diagonal is in no other test (symmetric_bits covers symv, not hemv); rewrite with exact values through the helper; loops over layout and triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HemvScalesAndAccumulates | rewrite | 1 | typed tolerance K_HAND_TOLERANCE; tests/support/tolerance.hpp absent; the Hermitian accumulate is in no other test; loops over layout and triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HerUpdatesOneTriangleAndLeavesARealDiagonal | rewrite | 1 | typed tolerance K_HAND_TOLERANCE; tests/support/tolerance.hpp absent; the Hermitian rank-1 update's real diagonal is in no other test; loops over layout and triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.Her2UpdatesOneTriangleAndLeavesARealDiagonal | rewrite | 1 | typed tolerance K_HAND_TOLERANCE; tests/support/tolerance.hpp absent; the Hermitian rank-2 update is in no other test; loops over layout and triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HerkUpdatesOneTriangleUntransposed | rewrite | 1 | typed tolerance K_HAND_TOLERANCE; tests/support/tolerance.hpp absent; the hand pin of HERK is in no other test (test_packed_syrk compares HERK to the reference, not to values); loops over layout and triangle | tests/operations/blas/test_blas/test_blas_complex.cpp; tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_BlasComplex.HerkUpdatesOneTriangleConjugateTransposed | rewrite | 1 | typed tolerance K_HAND_TOLERANCE; as HerkUpdatesOneTriangleUntransposed, for ConjTrans | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.GemmConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances (1e-4, 1e-11) in expect_near through expect_calls_agree; tests/support/tolerance.hpp absent; the metamorphic relation (ConjTrans equals Trans on a conjugated copy) is kept; loops over pairs in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.BatchedGemmConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances through expect_calls_agree; tests/support/tolerance.hpp absent; the metamorphic relation kept | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.GemvConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances through expect_calls_agree; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrmvConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances through expect_calls_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrsvConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances through expect_calls_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrsmConjTransEqualsTransOnAConjugatedCopy | rewrite | 1 | typed parity tolerances through expect_calls_agree; tests/support/tolerance.hpp absent; loops over side and triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.DotuAndDotcMatchAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; the cross-mode agreement of the complex dot is in no other test | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.GeruAndGercMatchAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HemvMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HerMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.Her2MatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.HerkMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loops over triangle and transpose in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.GemmConjTransMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; three calls in one body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.GemvConjTransMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrmvConjTransMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrsvConjTransMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loop over triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasComplex.TrsmConjTransMatchesAcrossModes | rewrite | 1 | typed parity tolerances through expect_modes_agree; tests/support/tolerance.hpp absent; loops over side and triangle in the body | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.HemvGivesTheBitsOfSymv | rewrite | 7 | a loop over triangles in the body; the bit-equality forward of hemv on a real tensor to symv is kept; rows over triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.HerGivesTheBitsOfSyr | rewrite | 7 | a loop over triangles in the body; rows over triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.Her2GivesTheBitsOfSyr2 | rewrite | 7 | a loop over triangles in the body; rows over triangle | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.HerkGivesTheBitsOfSyrk | rewrite | 7 | loops over triangle and transpose in the body; rows | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.HerkUnderConjTransGivesTheBitsOfSyrkUnderTrans | rewrite | 7 | a loop over triangles in the body; rows | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.DotuAndDotcGiveTheBitsOfDot | rewrite | 7 | two forward relations in one body; split, rows | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.GeruAndGercGiveTheBitsOfGer | rewrite | 7 | two forward relations in one body; split, rows | tests/operations/blas/test_blas/test_blas_complex.cpp
+Medium_BlasRealForwards.GemmUnderConjTransGivesTheBitsOfGemmUnderTrans | rewrite | 7 | three forward relations in one body; split, rows | tests/operations/blas/test_blas/test_blas_complex.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_half_accumulation.cpp`
+
+```
+Medium_BlasHalfAccumulationTest.GemmSumsEveryTermOfALongReduction | rewrite | 1 | expect_full_sum checks each element within K_HALF_ROUNDING_AT_SUM, a typed tolerance literal (2.0) in EXPECT_NEAR; tests/support/tolerance.hpp is absent; the exact value 4096 is representable, so an exact comparison fits; the HALF gemm at length 4133 in test_gemm.cpp DeepProduct is only a differential with a loose tolerance | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp; tests/operations/blas/test_blas/test_gemm.cpp
+Medium_BlasHalfAccumulationTest.SyrkSumsEveryTermOfALongReduction | rewrite | 1 | typed tolerance literal 2.0 in expect_full_sum; tests/support/tolerance.hpp absent; the exact value is representable | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.GemvSumsEveryTermOfALongReduction | rewrite | 1 | typed tolerance literal 2.0 in expect_full_sum; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.DotSumsEveryTermOfALongReduction | rewrite | 1 | typed tolerance literal 2.0 in EXPECT_NEAR; tests/support/tolerance.hpp absent; the HALF dot at length 4096 is in no other test | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.AsumSumsEveryTermOfALongReduction | rewrite | 1 | typed tolerance literal 2.0 in EXPECT_NEAR; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.Nrm2SumsEverySquareOfALongReduction | rewrite | 1 | typed tolerance literal 0.03125 in EXPECT_NEAR; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.HalfTrsmCarriesTheSolutionInFloat | rewrite | 7 | a loop over the two sides in the body; rows over side | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_BlasHalfAccumulationTest.HalfTrsvCarriesTheSolutionInFloat | keep | 9 | a HALF trsv matches the host substitution bit for bit on both kernels and the float-carried solution differs from the HALF-carried one; the bitwise device-against-host check is the boundary, medium is the right size; the host substitution is an independent recomputation | tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_packed.cpp`
+
+```
+Medium_BlasPacked.SpmvMatchesByHand | rewrite | 7 | for_each_engine and a triangle loop in the body; the hand values are an exact oracle, kept; rows over layout and triangle; typed over the five element types | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.TpmvMatchesByHand | rewrite | 7 | for_each_engine and a loop over the hand rows in the body; rows over layout and the design rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.TpsvInvertsTpmv | rewrite | 7 | for_each_engine and a loop over the hand rows in the body; rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.SprWritesTheStoredTriangle | rewrite | 7 | for_each_engine and a triangle loop in the body; rows over layout and triangle | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.Spr2MatchesByHand | rewrite | 7 | for_each_engine and a triangle loop in the body; rows over layout and triangle | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.APackedTriangleEqualsTheDenseSibling | rewrite | 7 | for_each_engine and triangle loops in the body; four routines and their dense siblings in one test; split per routine, rows over layout and triangle | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.APackedTriangularMatrixEqualsTheDenseSibling | rewrite | 7 | for_each_engine and three nested loops in the body; rows over layout, triangle, transpose and diagonal | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.EdgeOrders | rewrite | 7 | for_each_engine loop, a triangle loop and a loop over edge rows in the body, with eight routines in one test; split per routine, rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPacked.BothModesAgree | rewrite | 1 | typed tolerances ModeTolerance K_VALUE (2^-9, 1e-4, 1e-11) in expect_near; tests/support/tolerance.hpp absent; loops over layout and triangle in the body; rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedComplex.HpmvConjugatesTheMirror | rewrite | 7 | for_each_engine and a triangle loop in the body; rows over layout and triangle | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedComplex.HprKeepsTheDiagonalReal | rewrite | 7 | for_each_engine and a triangle loop in the body; rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedComplex.Hpr2ConjugatesAlpha | rewrite | 7 | for_each_engine and a triangle loop in the body; rows | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedHalf.HalfSumsInFloat | rewrite | 7 | for_each_engine loop in the body; the HALF packed sums in FLOAT32 are kept with exact values; rows over layout | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedHalf.HalfSolveCarriesTheSolutionInFloat | rewrite | 7 | for_each_engine loop in the body; exact values kept; rows over layout | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedLarge.APackedTriangleEqualsTheDenseSiblingLarge | rewrite | 7 | for_each_engine loop in the body; the spmv-equals-symv relation at order 2048 is kept; rows over layout | tests/operations/blas/test_blas/test_blas_packed.cpp
+Medium_BlasPackedLarge.RepeatsToTheBit | rewrite | 7 | loop over layouts in the body; the repeat-to-the-bit relation at order 2048 is kept; rows over layout | tests/operations/blas/test_blas/test_blas_packed.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_structured_validation.cpp`
+
+```
+Medium_BlasStructuredValidation.EveryRoutineAcceptsTheOperandsARefusalStartsFrom | rewrite | 7 | all thirteen routines and rotg, rotm, rotmg are recorded in one body under each layout and mode; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasStructuredValidation.AMatrixWithoutStorageIsRefused | rewrite | 7 | the for_each_engine loop over layouts and kernel modes in the body, and the routine loop inside expect_refusals; rows over layouts, modes and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AnIntegerDtypeIsRefused | rewrite | 7 | for_each_engine loop in the body; the operands of INT32 refused by the band, packed and rotation routines; rows over layouts, modes and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.ANonContiguousVectorOfRankTwoIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AVectorIncrementOfZeroIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AFlagThatIsNoEnumeratorIsRefused | rewrite | 7 | for_each_engine loop in the body and three flag loops; rows over flags, layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AnImaginaryScalarOnARealTensorIsRefused | rewrite | 7 | for_each_engine loop in the body; alpha and beta in one test; split alpha from beta, rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AVectorOfAnotherDtypeIsRefused | rewrite | 7 | for_each_engine loop in the body; x and y in one test; split x from y, rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AVectorOfTheWrongLengthIsRefused | rewrite | 7 | for_each_engine loop in the body; x, y and the storage-dependent extent in one test; split, rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.ANegativeBandWidthIsRefused | rewrite | 7 | for_each_engine loop in the body; kl, k and ku in one test; split, rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.ABandMatrixOfAnotherRankIsRefused | rewrite | 7 | for_each_engine loop in the body; rank 1 and rank 3 in one test; split, rows over layouts | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AStridedBandMatrixIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.ABandNarrowerThanItsWidthsIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.APackedMatrixOfAnotherRankIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.AStridedPackedMatrixIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.APackedCountThatIsNoTriangleIsRefused | rewrite | 7 | for_each_engine loop in the body; rows over layouts and routines | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.RotgRefusesItsOperands | rewrite | 7 | for_each_engine loop in the body and eleven refusals in one test; split by operand and dtype, rows over layouts | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.RotmRefusesItsOperands | rewrite | 7 | for_each_engine loop in the body and eight refusals in one test; split by operand, rows over layouts | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.RotmgRefusesItsOperands | rewrite | 7 | for_each_engine loop in the body, a dtype loop and eleven refusals in one test; split, rows | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.HbmvOnARealTensorGivesTheBitsOfSbmv | rewrite | 7 | for_each_engine and a uplo loop in the body; the oracle is the sibling routine sbmv on the same device, a forwarding check rather than a value oracle; rows over uplo and layouts | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.HpmvOnARealTensorGivesTheBitsOfSpmv | rewrite | 7 | for_each_engine and a uplo loop in the body; the oracle is spmv on the same device; rows over uplo and layouts | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_BlasStructuredValidation.HprAndHpr2OnARealTensorGiveTheBitsOfSprAndSpr2 | rewrite | 7 | for_each_engine and a uplo loop in the body; two forwards in one test; split, rows over uplo | tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp`
+
+```
+Medium_BlasSymmetricBits.DotEqualsTheHostSum | rewrite | 7 | loops over layouts in the test body, and the input is built by a helper loop; rows over layouts through one builder, small through the reference kernel on host pointers | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.GerEqualsTheHostUpdate | rewrite | 7 | loop over layouts in the body; rows over layouts through one builder; the host oracle re-implements the reference accumulation (ReferenceSum) rather than an independent value, to be checked in the rewrite | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.SymvEqualsTheHostSum | rewrite | 7 | loops over layouts, triangles and beta in the body; rows over those inputs | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.SyrEqualsTheHostUpdate | rewrite | 7 | loops over layouts and triangles in the body; rows over those inputs | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.Syr2EqualsTheHostUpdate | rewrite | 7 | loops over layouts and triangles in the body; rows over those inputs | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.SyrkEqualsTheHostSum | rewrite | 7 | loops over layouts, triangles, transposes and beta in the body; rows over those inputs | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_BlasSymmetricBits.TrsmEqualsTheHostSubstitution | rewrite | 7 | five nested loops in the body (layout, side, triangle, transpose, diagonal); rows over those inputs | tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+```
+
+### `tests/operations/blas/test_blas/test_blas_validation.cpp`
+
+```
+Medium_BlasValidationTest.GemmRejectsInnerDimensionMismatch | resize | 8 | gemm refuses an inner dimension mismatch with std::invalid_argument; a record-time shape check decided on extents; the test reaches the process-wide runtime through SushiBLASTest, so the seam to build is the shape check taking extents and no engine | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmRejectsMixedLayouts | resize | 8 | gemm refuses operands of mixed layouts; a record-time check on layouts; seam as GemmRejectsInnerDimensionMismatch | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmRejectsBatchCountMismatch | resize | 8 | gemm refuses batch counts that differ; a record-time check on extents; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmRejectsTransposedView | resize | 8 | gemm refuses a transposed view as an operand; a record-time check on the view's strides; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmBroadcastsRankTwoBOverBatchedA | merge | 4 | a rank-2 B broadcast over a batched A, with the values of the result checked; the same promise as GemmBroadcastsOperandHoldingOneMatrix in this file; merged into its rows | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.SyrkRejectsNonSquareC | resize | 8 | syrk refuses a non-square C; a record-time shape check; seam as GemmRejectsInnerDimensionMismatch | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.TrsmRejectsNonSquareA | resize | 8 | trsm refuses a non-square A; a record-time shape check; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.DotRejectsResultOfWrongDtype | resize | 8 | dot refuses a HALF result; a record-time dtype check; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.ScalarResultsRejectMoreThanOneElement | rewrite | 7 | four routines (dot, asum, nrm2, iamax) in one body; more than one action under test; rows over the routines through one table | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmRejectsBatchAxesThatDifferWithEqualProduct | resize | 8 | gemm refuses batch axes that differ with an equal product; a record-time shape check; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.SyrkAndTrsmRejectBatchAxesThatDiffer | rewrite | 7 | two routines (syrk, trsm) in one body; split by routine, or rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.GemmBroadcastsOperandHoldingOneMatrix | resize | 8 | gemm broadcasts a B holding one matrix over a batched A and the values are checked; the arithmetic is decided on values; the survivor of the merge with GemmBroadcastsRankTwoBOverBatchedA; the seam to build is a host-callable batched gemm reference, not read in this review | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.Level2RejectsMatrixAboveRankTwo | rewrite | 7 | seven level 2 routines in one body, each refused for a rank-3 matrix; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.TensorCreationRejectsNegativeDimension | resize | 8 | tensor creation refuses a negative extent; the promise belongs to the tensor module, and the blas folder holds its only copy (grep for negative extents in tests/data found none); a shape check on values; the seam is the tensor's shape check, to build | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.TensorCreationRejectsOverflowingSize | resize | 8 | tensor creation refuses a size that overflows; as TensorCreationRejectsNegativeDimension; placement in the blas folder is a repository-layout question for the owner | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.ScalRejectsVectorOfStrideZero | resize | 8 | scal refuses a vector of stride zero; a record-time check on the stride; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.Level1RejectsOperandsOfDifferentDtypes | rewrite | 7 | five level 1 routines in one body; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.Level1RejectsOperandsOfDifferentLengths | rewrite | 7 | five level 1 routines in one body, a length promise; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.ScalRejectsNonContiguousVectorOfRankTwo | resize | 8 | scal refuses a non-contiguous vector of rank 2; a record-time check on strides; seam as above | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.Level2RejectsMatrixBelowRankTwo | merge | 4 | seven level 2 routines refused for a rank-1 matrix; the same promise as Level2RejectsMatrixAboveRankTwo (rank must be two); merged into its rows | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.SquareLevel2RoutinesRejectNonSquareA | rewrite | 7 | five level 2 routines in one body; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.Level2RejectsVectorOfWrongLength | rewrite | 7 | seven level 2 routines in one body; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.TrsvRejectsStridedB | resize | 8 | trsv refuses a strided right-hand side; a record-time check on the stride; no host-callable dense TRSV exists to test it small, so the seam must be built first | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.FlagsRejectValueThatIsNoEnumerator | rewrite | 7 | four routines and three flags in one body; more than one action; rows over the routines and flags | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.RealTensorsRejectScalarWithImaginaryPart | rewrite | 7 | six routines in one body with a complex scalar on a real tensor; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.DotAndGerRejectComplexTensors | rewrite | 7 | two routines in one body; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.SyrkAndHerkRejectTheOtherTransposeOnComplexTensors | rewrite | 7 | two routines in one body; more than one action; rows over the routines | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlasValidationTest.ExecuteGemmUnderTheRealDomainRejectsComplexTensors | resize | 8 | the real-domain dispatch refuses a complex operand; a record-time domain check; seam to build, the domain check taking dtypes | tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_copy.cpp`
+
+```
+Medium_COPYTest.SimpleCOPY | delete | 1 | same promise as AxpyCopyScalAndSwapFollowTheirStrides in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_copy.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_dot.cpp`
+
+```
+Medium_DOTTest.SimpleDOT | delete | 1 | same promise as DotSumsTheProductsAndConjugatesWhenAsked in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_dot.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_gemm.cpp`
+
+```
+Medium_GEMMTest.SmallMatrix | rewrite | 1 | typed tolerance (1e-4, or 1e-2 scaled by k for HALF) in SB_ASSERT_TENSOR_NEAR through tolerance_for; tests/support/tolerance.hpp is absent; the device GEMM against the reference is a boundary, kept in rewrite; typed over float, double, HALF and the two complex types | tests/operations/blas/test_blas/test_gemm.cpp; tests/operations/blas/README.md
+Medium_GEMMTest.SmallMatrixColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent; the column-major differential is kept | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.Rectangular | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.RectangularColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.RaggedOnEveryAxis | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.RaggedOnEveryAxisColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.KShorterThanOneTile | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProduct | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent; the deep-K promise is in no other test | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProductTransposeB | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProductTransposeBothColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProductColumnLanes | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProductColumnLanesTransposeA | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.DeepProductBatched | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.SingleElement | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TallSkinny | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.ShortWide | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.NoTransposeScaled | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeA | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeB | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeBoth | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeBothColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeAColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.TransposeBColMajor | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.BetaZeroNeverReadsC | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent; the NaN-poisoned C (beta zero) promise is in no other test of the chunk | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.Batched | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMTest.BatchedRagged | rewrite | 1 | typed tolerance through tolerance_for; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.RowMajorMatchesHandComputedResult | rewrite | 1 | bare tolerance literal 1e-5 in EXPECT_TENSOR_NEAR; tests/support/tolerance.hpp absent; the hand-computed row-major device GEMM is in no other test (the kernels tree has no reference GEMM test) | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.ColumnMajorMatchesHandComputedResult | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.ColumnMajorReferenceMatchesHandComputedResult | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent; no reference GEMM test exists in tests/kernels/blas_kernels/reference, so the reference path's pin is here alone | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.TransposedAMatchesHandComputedResult | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.EpilogueFusesBiasAndReLUIntoTheStore | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent; the fused epilogue store is in no other test | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.NoLocalVariantMatchesReferenceOnRaggedShape | rewrite | 1 | names Kernels::SYCL::Detail::gemm_no_local, a Detail:: symbol (a forbidden kind), and a bare tolerance literal 1e-4; tests/support/tolerance.hpp absent | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.LocalTiledVariantMatchesReferenceOnRaggedShape | rewrite | 1 | names Kernels::SYCL::Detail::gemm_local_tiled (Detail:: symbol) and a bare tolerance literal 1e-4; the SKIP guard sits in the body | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.LocalTiledVariantHandlesColumnMajorAndTransposes | rewrite | 1 | names Kernels::SYCL::Detail::gemm_local_tiled (Detail:: symbol) and a bare tolerance literal 1e-4; a SKIP guard in the body | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.LocalTiledVariantMatchesReferenceOnWholeAndEdgeTiles | rewrite | 1 | names Kernels::SYCL::Detail::gemm_local_tiled (Detail:: symbol); typed tolerances 1e-5, 1e-12 and 2e-2; a skip guard and loops over cases in the body | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.EveryTileShapeGivesTheBitsOfBalanced | rewrite | 1 | names Kernels::SYCL::Detail::gemm_local_tiled<T, Shape> (Detail:: symbol), a skip guard and loops over layouts, transposes and cases in the body; the bitwise shape-independence promise is kept in rows | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMKernelTest.StrideTableMatchesTheStandardIdentity | rewrite | 5 | the test asserts the row and column fields of Kernels::operand_access, which change with the inside of the stride table; the promise (a transpose equals a flipped layout) is checked on values through a GEMM instead | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.ExecuteGemmFusesBiasBroadcastAndReLUOnTheSYCLPath | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent; the fused epilogue on the SYCL path is in no other test | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath | rewrite | 1 | bare tolerance literal 1e-5; tests/support/tolerance.hpp absent; the reference leg of the same epilogue promise, kept beside the SYCL leg | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.ExecuteGemmWithTheIdentityEpilogueIsPlainGemm | rewrite | 1 | typed tolerance 1e-6 in SB_ASSERT_TENSOR_NEAR; tests/support/tolerance.hpp absent; the metamorphic relation (identity epilogue equals plain gemm) is kept | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.ADeclaredEpilogueReadIsOrderedBehindItsProducer | resize | 8 | the graph-ordering promise (the declared read gives a dependency edge) is a decision on the recorded graph, which needs no device; the test reaches the process-wide runtime through the fixture and create_initialized_tensor; the seam to build is a tensor without device storage in GraphProbe | tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_GEMMSeamTest.AnUndeclaredEpilogueOperandGetsNoEdgeAtAll | resize | 8 | the no-edge promise on the recorded graph; as ADeclaredEpilogueReadIsOrderedBehindItsProducer, the fixture reaches the runtime | tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_GEMMSeamTest.DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation | resize | 8 | the region-keyed dependency promise on the recorded graph; the test makes storage on TestEnvironment::runtime(), a process-wide instance; the seam is a tensor region over a host storage value | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm | resize | 8 | the declared-write ordering on the recorded graph; the fixture reaches the runtime; seam as above | tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_GEMMSeamTest.AnUndeclaredEpilogueWriteGetsNoEdgeAtAll | resize | 8 | the no-edge promise for an undeclared write on the recorded graph; seam as above | tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_GEMMSeamTest.DeclaringOperandsChangesNoArithmetic | rewrite | 1 | bare tolerance literals 1e-5 and 0.0 (the second through SB_ASSERT_TENSOR_NEAR); tests/support/tolerance.hpp absent; the bit-equality of declared and bare epilogues is kept with an exact comparison | tests/operations/blas/test_blas/test_gemm.cpp
+Medium_GEMMSeamTest.DeclaringAnOperandWithNoStorageIsRefused | resize | 8 | refusing a region with no storage needs no device (Tensor nothing; default-constructed); the fixture's SetUp reaches the process-wide runtime; the seam is the region check with no fixture | tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_gemv.cpp`
+
+```
+Medium_GEMVTest.SimpleGEMV | delete | 1 | same promise as MatchesADenseLoopInEveryLayoutAndTranspose in tests/kernels/blas_kernels/reference/level2/test_gemv.cpp | tests/operations/blas/test_blas/test_gemv.cpp; tests/kernels/blas_kernels/reference/level2/test_gemv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_GEMVTest.FewLongStridedRows | delete | 1 | the transposed gemv promise again at a larger size (20000 rows) than MatchesADenseLoopInEveryLayoutAndTranspose; forbidden kind "the same promise again at a larger size"; the long-row device path has no other test in this chunk, noted as a coverage gap in the report | tests/operations/blas/test_blas/test_gemv.cpp; tests/kernels/blas_kernels/reference/level2/test_gemv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_ger.cpp`
+
+```
+Medium_GERTest.SimpleGER | delete | 1 | same promise as AddsTheOuterProductInEitherLayout in tests/kernels/blas_kernels/reference/level2/test_ger.cpp | tests/operations/blas/test_blas/test_ger.cpp; tests/kernels/blas_kernels/reference/level2/test_ger.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_iamax.cpp`
+
+```
+Medium_IAMAXTest.SimpleIAMAX | delete | 1 | same promise as IamaxReturnsTheFirstLargestMagnitude in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_iamax.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IAMAXTest.TiesGoToTheLowestIndex | delete | 1 | the tie case {-7, 7} at indices 1 and 2 is in IamaxReturnsTheFirstLargestMagnitude, tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_iamax.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IAMAXTest.RejectsAResultTensorTooNarrowToHoldTheIndex | rewrite | 7 | iamax refuses a non-INT64 result with std::invalid_argument; the record-time promise is in no other test (tests/operations/blas/test_blas/test_blas_validation.cpp refuses a wrong-shape INT64 result, a different promise); the dtype loop sits in the test body and is a row table's job; rows over the four dtypes, small, through a record-time check | tests/operations/blas/test_blas/test_iamax.cpp; tests/operations/blas/test_blas/test_blas_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp`
+
+```
+Medium_Level1ParallelReductions.DotMatchesTheHostSum | rewrite | 1 | bare zero tolerance K_EXACT_TOLERANCE in EXPECT_NEAR and a loop over lengths in the body; the SYCL dot at 100003 elements is in no other test; rewrite as rows with an exact comparison (EXPECT_EQ, exact by construction) | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Level1ParallelReductions.AsumMatchesTheHostSum | rewrite | 1 | bare zero tolerance K_EXACT_TOLERANCE and a loop over lengths in the body; the SYCL asum at large length is in no other test; rewrite as rows, exact comparison | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Level1ParallelReductions.Nrm2MatchesTheHostNorm | rewrite | 1 | typed tolerance K_NRM2_RELATIVE_TOLERANCE, a literal expression, and a loop over lengths in the body; the SYCL nrm2 at large length is in no other test; rewrite with the tolerance helper, rows over lengths | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp
+Medium_Level1ParallelReductions.IamaxMatchesTheSerialScan | rewrite | 7 | a loop over lengths in the body, and the input is built inside it; rows over lengths through one builder | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp
+Medium_Level1ParallelReductions.DotRepeatsToTheBit | rewrite | 7 | a loop in the body builds both input vectors; a builder replaces it; the repeat-to-the-bit relation itself is kept | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp
+Medium_Level1ParallelReductions.IamaxTieAcrossWorkGroupsTakesTheLowerIndex | rewrite | 5 | the expected index is derived from the internal plan (Reduce::plan and group_width, tests/...reduce_1d.hpp) and Device::profile_for, so an internal change to the group count breaks the test while the promise (lower index on a tie) holds; rewrite against the public promise, with the stride left to the fixture | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_Level1ParallelReductions.HalfMeanAccumulatesInFloat | resize | 8 | a HALF mean is decided on values; the device path is the only one that reaches it; the seam to build is a host-callable accumulation check through Kernels::ReferenceSum (modules/.../reference_accumulator.hpp); no other test found for HALF mean in tests/operations/reductions | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Level1ParallelReductions.HalfSumRoundsOnceIntoTheHalfResult | resize | 8 | as HalfMeanAccumulatesInFloat, for the sum that rounds once to infinity | tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_level1_reference.cpp`
+
+```
+Medium_Level1ReferenceTest.AsumSumsAbsoluteValues | delete | 1 | typed tolerance K_TOLERANCE = 1e-5 in EXPECT_TENSOR_NEAR; tests/support/tolerance.hpp is absent; the promise is tested in the kernel-owned test AsumAddsMagnitudesAndBothPartsOfAComplex | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.AxpyAddsScaledX | delete | 1 | typed tolerance K_TOLERANCE; same promise in AxpyCopyScalAndSwapFollowTheirStrides, tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.CopyOverwritesEveryElement | delete | 1 | typed tolerance K_TOLERANCE; same promise in AxpyCopyScalAndSwapFollowTheirStrides | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.DotSumsElementwiseProducts | delete | 1 | typed tolerance K_TOLERANCE; same promise in DotSumsTheProductsAndConjugatesWhenAsked | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.IamaxReturnsTheFirstIndexOfATie | delete | 1 | bare tolerance literal 0.0 in EXPECT_TENSOR_NEAR; same promise in IamaxReturnsTheFirstLargestMagnitude | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.IamaxFindsANegativeMaximumAtTheEnd | delete | 1 | bare tolerance literal 0.0; the largest-magnitude index promise is in IamaxReturnsTheFirstLargestMagnitude | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.Nrm2ReturnsTheEuclideanNorm | delete | 1 | typed tolerance K_TOLERANCE; same promise in Nrm2IsTheEuclideanNormWithoutOverflow | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.RotAppliesThePlaneRotation | rewrite | 1 | typed tolerance K_TOLERANCE; the general (c, s) = (0.6, 0.8) rotation is in no other test (RotTurnsEachPairByCosineAndSine uses c = 0, s = 1); rewrite as a Small_ reference-kernel test with exact-by-construction values, using the tolerance helper, or an exact comparison | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.ScalMultipliesEveryElement | delete | 1 | typed tolerance K_TOLERANCE; same promise in AxpyCopyScalAndSwapFollowTheirStrides | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+Medium_Level1ReferenceTest.SwapExchangesBothVectors | delete | 1 | typed tolerance K_TOLERANCE; same promise in AxpyCopyScalAndSwapFollowTheirStrides | tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp
+```
+
+### `tests/operations/blas/test_blas/test_level2_reference.cpp`
+
+```
+Medium_Level2ReferenceTest.GemvScalesAndAccumulates | delete | 1 | typed tolerance K_TOLERANCE; alpha and beta are exercised in MatchesADenseLoopInEveryLayoutAndTranspose, tests/kernels/blas_kernels/reference/level2/test_gemv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_gemv.cpp
+Medium_Level2ReferenceTest.GemvTransposed | delete | 1 | typed tolerance K_TOLERANCE; the transposed gemv is in MatchesADenseLoopInEveryLayoutAndTranspose, tests/kernels/blas_kernels/reference/level2/test_gemv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_gemv.cpp
+Medium_Level2ReferenceTest.GerAddsTheScaledOuterProduct | delete | 1 | typed tolerance K_TOLERANCE; same promise in AddsTheOuterProductInEitherLayout, tests/kernels/blas_kernels/reference/level2/test_ger.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_ger.cpp
+Medium_Level2ReferenceTest.SymvReadsOnlyTheUpperTriangle | delete | 1 | typed tolerance K_TOLERANCE; same promise in ReadsOneTriangleAndMirrorsIt, tests/kernels/blas_kernels/reference/level2/test_symv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp
+Medium_Level2ReferenceTest.SymvReadsOnlyTheLowerTriangleAndAccumulates | delete | 1 | typed tolerance K_TOLERANCE; the accumulating symv for both triangles is in ReadsOneTriangleAndMirrorsIt (beta = 3), tests/kernels/blas_kernels/reference/level2/test_symv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp
+Medium_Level2ReferenceTest.SyrWritesOnlyTheUpperTriangle | delete | 1 | typed tolerance K_TOLERANCE; same promise in UpdatesTheNamedTriangleOnly, tests/kernels/blas_kernels/reference/level2/test_syr.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_syr.cpp
+Medium_Level2ReferenceTest.SyrWritesOnlyTheLowerTriangle | delete | 1 | typed tolerance K_TOLERANCE; same promise in UpdatesTheNamedTriangleOnly, tests/kernels/blas_kernels/reference/level2/test_syr.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_syr.cpp
+Medium_Level2ReferenceTest.Syr2WritesOnlyTheUpperTriangle | delete | 1 | typed tolerance K_TOLERANCE; same promise in UpdatesTheNamedTriangleOnly, tests/kernels/blas_kernels/reference/level2/test_syr2.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_syr2.cpp
+Medium_Level2ReferenceTest.Syr2WritesOnlyTheLowerTriangle | delete | 1 | typed tolerance K_TOLERANCE; same promise in UpdatesTheNamedTriangleOnly, tests/kernels/blas_kernels/reference/level2/test_syr2.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_syr2.cpp
+Medium_Level2ReferenceTest.TrmvUpperNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrmvUpperTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrmvUpperUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; same promise, Diag::Unit, in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrmvLowerNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrmvLowerTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrmvLowerTransposedUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; same promise, Diag::Unit, in MatchesADenseProductForEveryFlag, tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp
+Medium_Level2ReferenceTest.TrsvUpperNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in the facade trsv poisoned case Medium_TRSVPoisonTest.UpperNoTranspose, tests/operations/blas/test_blas/test_trsv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+Medium_Level2ReferenceTest.TrsvUpperTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in Medium_TRSVPoisonTest.UpperTranspose, tests/operations/blas/test_blas/test_trsv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+Medium_Level2ReferenceTest.TrsvUpperUnitDiagonal | rewrite | 1 | typed tolerance K_TOLERANCE; the dense unit-diagonal TRSV is in no other test of the chunk; rewrite as a small test on a host-callable dense TRSV (seam to build, see SimpleTRSV) with an exact comparison | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+Medium_Level2ReferenceTest.TrsvLowerNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in Medium_TRSVPoisonTest.LowerNoTranspose, tests/operations/blas/test_blas/test_trsv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+Medium_Level2ReferenceTest.TrsvLowerTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in Medium_TRSVPoisonTest.LowerTranspose, tests/operations/blas/test_blas/test_trsv.cpp | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+Medium_Level2ReferenceTest.TrsvLowerTransposedUnitDiagonal | rewrite | 1 | typed tolerance K_TOLERANCE; the dense unit-diagonal TRSV is in no other test of the chunk; rewrite as in TrsvUpperUnitDiagonal | tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_trsv.cpp
+```
+
+### `tests/operations/blas/test_blas/test_level2_sycl_parity.cpp`
+
+```
+Medium_Level2SyclParityTest.GemvIsWithinItsBoundOfTheTruthSmall | keep | 9 | gemv (SYCL): within the rounding bound of a double-precision truth; the bound is derived by rounding_bound and unit_roundoff from blas_test_oracle, no typed literal; the device leg makes it a boundary test, medium is the right size; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.GemvIsWithinItsBoundOfTheTruthLarge | keep | 9 | gemv (SYCL) at 4096: boundary of the kernel against its truth, derived bound; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.GemvIsWithinItsBoundOfTheTruthWide | keep | 9 | gemv (SYCL) at 4 by 16384: the wide case, two-stage reduction boundary, derived bound; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.SymvIsWithinItsBoundOfTheTruthSmall | keep | 9 | symv (SYCL) at order 100 for both triangles against the truth, derived bound; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.SymvIsWithinItsBoundOfTheTruthLarge | keep | 9 | symv (SYCL) at order 4096 against the truth, derived bound; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.GemvIsExactOnSmallIntegersLarge | keep | 9 | gemv (SYCL) exact by construction on small integers at 4096, boundary; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.GemvIsExactOnSmallIntegersWide | keep | 9 | gemv (SYCL) exact on small integers at 4 by 16384, boundary; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.SymvIsExactOnSmallIntegersLarge | keep | 9 | symv (SYCL) exact on small integers at 4096, boundary; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.GemvRepeatsToTheBit | keep | 9 | gemv (SYCL) repeat runs give identical bits, metamorphic relation; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest.SymvRepeatsToTheBit | keep | 9 | symv (SYCL) repeat runs give identical bits, metamorphic relation; typed over float and double | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvIsWithinItsBoundOfTheTruthSmall | merge | 4 | blas.gemv device within bound of double truth; the same promise with other shapes in GemvIsWithinItsBoundOfTheTruthLarge and GemvIsWithinItsBoundOfTheTruthWide, one row table over shapes | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvIsWithinItsBoundOfTheTruthLarge | merge | 4 | merge with GemvIsWithinItsBoundOfTheTruthSmall and GemvIsWithinItsBoundOfTheTruthWide; the 4096 order is the costly row, to be checked against the medium limit | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvIsWithinItsBoundOfTheTruthWide | merge | 4 | merge with GemvIsWithinItsBoundOfTheTruthSmall and GemvIsWithinItsBoundOfTheTruthLarge; keeps the two-stage reduction shape as a row | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.SymvIsWithinItsBoundOfTheTruthSmall | merge | 4 | blas.symv device within bound of double truth, both triangles; merge with SymvIsWithinItsBoundOfTheTruthLarge as shape rows | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.SymvIsWithinItsBoundOfTheTruthLarge | merge | 4 | merge with SymvIsWithinItsBoundOfTheTruthSmall as shape rows | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvIsExactOnSmallIntegersLarge | merge | 4 | blas.gemv exact on small integers; merge with GemvIsExactOnSmallIntegersWide as shape rows | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvIsExactOnSmallIntegersWide | merge | 4 | merge with GemvIsExactOnSmallIntegersLarge as shape rows | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.SymvIsExactOnSmallIntegersLarge | keep | 9 | blas.symv device exact on small integers, both triangles, both modes; no other test checks this exact-integer promise on the device symv | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.GemvRepeatsToTheBit | keep | 9 | blas.gemv device repeats to the bit; oracle is the relation between two equal runs, not a pasted value, answered as a metamorphic property | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+Medium_Level2SyclParityTest/*.SymvRepeatsToTheBit | keep | 9 | blas.symv device repeats to the bit; same relation as GemvRepeatsToTheBit | tests/operations/blas/test_blas/test_level2_sycl_parity.cpp
+```
+
+### `tests/operations/blas/test_blas/test_nrm2.cpp`
+
+```
+Medium_NRM2Test.SimpleNRM2 | delete | 1 | same promise as Nrm2IsTheEuclideanNormWithoutOverflow in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_nrm2.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_NRM2Test.SimpleNRM2 | delete | 4 | blas.nrm2 Euclidean norm; sibling tests/operations/blas/test_blas/test_level1_reference.cpp::Medium_Level1ReferenceTest.Nrm2ReturnsTheEuclideanNorm checks the same promise in another file; device path also in tests/kernels/blas_kernels/sycl/level1/test_level1.cpp | tests/operations/blas/test_blas/test_nrm2.cpp; tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/sycl/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_blas/test_packed_symm.cpp`
+
+```
+Medium_PackedSymm.BothSidesEqualTheReferenceOnExactData | rewrite | 7 | expect_packed_equals_reference loops over layout, side, triangle and blocking; the bit-for-bit packed-against-reference boundary is kept; rows over layout, side, triangle and blocking | tests/operations/blas/test_blas/test_packed_symm.cpp
+Medium_PackedSymm.HemmReadsTheMirrorConjugatedAndTheDiagonalReal | rewrite | 7 | a compile-time branch in the body with a GTEST_SKIP for the real types; the skip belongs to the element-type list, so complex types only | tests/operations/blas/test_blas/test_packed_symm.cpp
+Medium_PackedSymm.TheSeamLeasesScratchForASymmetricProduct | rewrite | 7 | loops over routines and sides in the body and a skip guard for the profile in the body; the skip moves to the fixture; rows over routine and side | tests/operations/blas/test_blas/test_packed_symm.cpp
+Medium_PackedSymm/*.BothSidesEqualTheReferenceOnExactData | rewrite | 1 | blas.symm packed brick equals the reference bit for bit, both sides and triangles and three blockings; forbidden: Kernels::SYCL::Detail::packed_gemm reached from the helper (Detail symbol), and the layout x side x triangle x blocking loops in the helper expect_packed_equals_reference | tests/operations/blas/test_blas/test_packed_symm.cpp
+Medium_PackedSymm/*.HemmReadsTheMirrorConjugatedAndTheDiagonalReal | rewrite | 1 | blas.hemm packed brick reads the conjugated mirror and a real diagonal; forbidden: an if constexpr and a GTEST_SKIP in the body, plus the Detail::packed_gemm reach through expect_packed_equals_reference; the real types skip, which belongs in a complex-only suite | tests/operations/blas/test_blas/test_packed_symm.cpp
+Medium_PackedSymm/*.TheSeamLeasesScratchForASymmetricProduct | rewrite | 1 | blas.symm and blas.hemm lease scratch on SYCL alone and keep parity; forbidden: a GTEST_SKIP guard and loops over routines and sides in the body; the live allocation count is a process-wide reach (TestEnvironment), which question 8 must resize once the body is straight line | tests/operations/blas/test_blas/test_packed_symm.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+```
+
+### `tests/operations/blas/test_blas/test_packed_syrk.cpp`
+
+```
+Medium_PackedSyrk.BothTrianglesEqualTheReferenceOnExactData | rewrite | 7 | three nested loops in the body (layout, triangle, transpose); rows over those inputs | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk.HerkConjugatesTheSecondFactor | rewrite | 7 | a compile-time skip branch and three nested loops in the body; complex types only, rows over layout, triangle and transpose | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk.AStoreWantsOnlyBlocksThatTouchItsTriangle | rewrite | 1 | the test names Kernels::SYCL::Detail::SyrkStore, a Detail:: symbol of a kernel's private namespace, a forbidden kind; the row table is a good shape: rewrite against the public SYRK, or move the table to a host-callable store | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk.TheKernelPacksWhenTheProfileSelectsIt | rewrite | 7 | loops over uplo in the body; a skip guard for the profile in the body; the skip moves to the fixture; rows over uplo | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk/*.BothTrianglesEqualTheReferenceOnExactData | rewrite | 1 | blas.syrk packed update equals the reference on exact data for both layouts, triangles and transposes, and leaves the other triangle untouched; forbidden: layout x triangle x transpose loops in the body, and the SyrkProblem helper calls Kernels::SYCL::Detail::packed_product | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk/*.HerkConjugatesTheSecondFactor | rewrite | 1 | blas.herk packed update conjugates the second factor and keeps a real diagonal; forbidden: if constexpr, GTEST_SKIP, loops in the body and the Detail::packed_product reach | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk/*.AStoreWantsOnlyBlocksThatTouchItsTriangle | delete | 1 | forbidden: reaches Kernels::SYCL::Detail::SyrkStore::wants, an internal store; the promise it would hold (elements outside the triangle are left alone) is public and tested in BothTrianglesEqualTheReferenceOnExactData of the same file (changed_outside check) | tests/operations/blas/test_blas/test_packed_syrk.cpp
+Medium_PackedSyrk/*.TheKernelPacksWhenTheProfileSelectsIt | rewrite | 1 | blas.syrk and blas.herk through the engine pack at the order the profile selects; forbidden: a GTEST_SKIP and a loop over triangles in the body; the seam helper reads TestEnvironment::live_allocation_count, a process-wide reach for question 8 after the rewrite | tests/operations/blas/test_blas/test_packed_syrk.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+```
+
+### `tests/operations/blas/test_blas/test_rot.cpp`
+
+```
+Medium_ROTTest.SimpleROT | delete | 1 | same promise, same c = 0 and s = 1, as RotTurnsEachPairByCosineAndSine in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_rot.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ROTTest.SimpleROT | delete | 4 | blas.rot plane rotation; sibling test_level1_reference.cpp::Medium_Level1ReferenceTest.RotAppliesThePlaneRotation checks it in another file; device path in tests/kernels/blas_kernels/sycl/level1/test_level1.cpp::TheElementwiseKernelsMatchTheReference | tests/operations/blas/test_blas/test_rot.cpp; tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+```
+
+### `tests/operations/blas/test_blas/test_rotg.cpp`
+
+```
+Medium_RotgReal.RealPairsMatchTheTable | rewrite | 7 | loops over layouts and kernel modes in the body; the design table's rows are checked in one test per layout and mode; the reference table test Small_ReferenceRotg in tests/kernels/blas_kernels/reference/level1/test_rotg.cpp covers only three of the seven rows, so the rest of the table is not in another test | tests/operations/blas/test_blas/test_rotg.cpp; tests/kernels/blas_kernels/reference/level1/test_rotg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_RotgReal.AnInputWrittenByAnEarlierTaskIsRead | rewrite | 7 | loops over layouts and kernel modes in the body; the graph-ordering promise (rotg reads an earlier task's write) is kept, in rows over layout and mode | tests/operations/blas/test_blas/test_rotg.cpp
+Medium_RotgComplex.ComplexPairsMatchTheTable | rewrite | 1 | typed tolerance K_TABLE_TOLERANCE = 8 * epsilon in EXPECT_LE; tests/support/tolerance.hpp is absent; loops over layouts and modes in the body; rewrite with the tolerance helper or an exact comparison of the table's exact rows, rows over layout and mode | tests/operations/blas/test_blas/test_rotg.cpp
+Medium_Rotg.BothModesAgree | rewrite | 1 | typed tolerance K_MODE_ULPS = 4.0 in expect_within_ulps; tests/support/tolerance.hpp is absent; the bitwise SYCL test MatchesTheReferenceBitForBit in tests/kernels/blas_kernels/sycl/level1/test_rotg.cpp covers double only, so float, half and complex are checked here alone; rewrite with the helper and rows over the element types | tests/operations/blas/test_blas/test_rotg.cpp; tests/kernels/blas_kernels/sycl/level1/test_rotg.cpp
+Medium_RotgHalf.AHalfRotationIsComputedInFloat | rewrite | 7 | loops over layouts in the body; the host rotation Kernels::givens_rotation (modules/kernels/blas_kernels or blas_seam_kernels/givens.hpp, named by the test's own include) is host-callable, so the small seam already exists; rows over layout | tests/operations/blas/test_blas/test_rotg.cpp; tests/kernels/blas_kernels/sycl/level1/test_rotg.cpp
+Medium_RotgReal.RealPairsMatchTheTable | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotg real table of design section 10.2, exact; loops over layouts and modes in the body, to be rows or a builder; the table logic is a host function (Kernels::givens_rotation, modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp:132), so the logic part belongs in a small test (question 8, after the rewrite) | tests/operations/blas/test_blas/test_rotg.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Medium_RotgReal.AnInputWrittenByAnEarlierTaskIsRead | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotg reads an operand a dot in the same graph wrote; loops over layouts and modes in the body; the graph-ordering promise itself needs a graph run, so it stays medium | tests/operations/blas/test_blas/test_rotg.cpp
+Medium_RotgComplex.ComplexPairsMatchTheTable | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotg complex table of design section 10.2 within 8 units of epsilon (K_TABLE_TOLERANCE, not the tolerance helper); loops over layouts and modes in the body; logic seam is the complex givens_rotation overload (givens.hpp:253) | tests/operations/blas/test_blas/test_rotg.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp
+Medium_Rotg.BothModesAgree | rewrite | 1 | blas.rotg device agrees with reference; forbidden typed literal K_MODE_ULPS = 4.0 used as the comparison tolerance, tests/support/tolerance.hpp missing; also loops over layouts in the body | tests/operations/blas/test_blas/test_rotg.cpp
+Medium_RotgHalf.AHalfRotationIsComputedInFloat | rewrite | 6 | blas.rotg HALF rounds a FLOAT32 rotation once; oracle is Kernels::givens_rotation, the function the reference rotg calls (modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotg.hpp:69), so the oracle is the code under test; loops in the body | tests/operations/blas/test_blas/test_rotg.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp; modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/rotg.hpp
+```
+
+### `tests/operations/blas/test_blas/test_rotm.cpp`
+
+```
+Medium_Rotm.EachFlagAppliesOnlyTheEntriesItDoesNotImply | rewrite | 7 | loops over layouts, kernel modes and the design rows in the body; the reference kernel tests in tests/kernels/blas_kernels/reference/level1/test_rotm.cpp cover four flags on the reference kernel only, so the SYCL leg is checked here alone; rows over layout, mode and flag | tests/operations/blas/test_blas/test_rotm.cpp; tests/kernels/blas_kernels/reference/level1/test_rotm.cpp
+Medium_Rotm.TheIdentityFlagLeavesAnInfinityAlone | rewrite | 7 | loops over layouts and kernel modes in the body; rows over layout and mode | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm.StridedVectorsLeaveTheSkippedElementsAlone | rewrite | 7 | loops over layouts and kernel modes in the body; rows over layout and mode | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm.AnEmptyPairRecordsAndRuns | rewrite | 7 | loops over layouts and kernel modes in the body; rows over layout and mode | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm.BothModesAgreeElementForElement | rewrite | 7 | loops over layouts, element comparison in a loop and a size of 100000 in the body; the comparison of two modes is the boundary promise, kept in rows over layout | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_RotmChained.AParamWrittenByRotmgIsRead | rewrite | 7 | loops over layouts and kernel modes in the body; the graph-ordering promise (rotm reads the param rotmg writes) is kept in rows | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm/*.EachFlagAppliesOnlyTheEntriesItDoesNotImply | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm each flag of table section 10.3; K_ROWS is already a row table, but the layout and mode loops wrap it in the body, so the matrix goes to rows | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm/*.TheIdentityFlagLeavesAnInfinityAlone | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm flag -2 writes nothing and an infinity makes no NaN; layout and mode loops in the body | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm/*.StridedVectorsLeaveTheSkippedElementsAlone | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm on a stride-2 view leaves the skipped elements; layout and mode loops in the body | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm/*.AnEmptyPairRecordsAndRuns | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm on empty vectors records, runs and leaves the parameter; layout and mode loops in the body; EXPECT_NO_THROW around the record is weak, the run check carries the promise | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_Rotm/*.BothModesAgreeElementForElement | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm device equals reference element for element on 100000 pairs under a full H; loops over layouts, modes, vectors and elements in the body and a hand-written mismatch counter; the comparison goes to a helper, the layout matrix to rows; the device run is a kernel boundary and stays medium | tests/operations/blas/test_blas/test_rotm.cpp
+Medium_RotmChained/*.AParamWrittenByRotmgIsRead | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotm reads the parameter a rotmg earlier in the same graph wrote; expected H = [1, 0.5; -0.5, 1] maps (4, 2) to (5, 0); layout and mode loops in the body; the graph-ordering promise needs a graph run and stays medium | tests/operations/blas/test_blas/test_rotm.cpp
+```
+
+### `tests/operations/blas/test_blas/test_rotmg.cpp`
+
+```
+Medium_Rotmg.EachOutcomeStoresOnlyWhatItsFlagDoesNotImply | rewrite | 7 | loops over layouts and kernel modes in the body; the four outcomes are a row table already, so the loops over layout and mode are the only sign; rows over layout and mode | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg.LargeFactorsAreRescaledDown | rewrite | 7 | expect_rescaled loops over layouts and kernel modes; rows over layout and mode | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg.SmallFactorsAreRescaledUp | rewrite | 7 | expect_rescaled loops over layouts and kernel modes; rows over layout and mode | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg.BothModesAgree | rewrite | 1 | typed tolerance K_MODE_ULPS = 2.0 in expect_within_ulps; tests/support/tolerance.hpp is absent; loops over layouts in the body; rewrite with the helper and rows over layout | tests/operations/blas/test_blas/test_rotmg.cpp; tests/kernels/blas_kernels/sycl/level1/test_rotmg.cpp
+Medium_Rotmg/*.EachOutcomeStoresOnlyWhatItsFlagDoesNotImply | rewrite | 1 | control flow in the test body, a forbidden kind: blas.rotmg four outcomes of table 10.3 and which slots each writes; K_OUTCOMES is a row table; layout and mode loops in the body | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg/*.LargeFactorsAreRescaledDown | rewrite | 7 | blas.rotmg divides factors above the window back in; the expected values are hand-derived from K_GAMMA; the layout and mode matrix loops in the helper expect_rescaled, which is the same sign as a body loop, so it goes to rows | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg/*.SmallFactorsAreRescaledUp | rewrite | 7 | blas.rotmg multiplies factors below the window back in; same hand-derived oracle and the same matrix loops in expect_rescaled as LargeFactorsAreRescaledDown | tests/operations/blas/test_blas/test_rotmg.cpp
+Medium_Rotmg/*.BothModesAgree | rewrite | 1 | blas.rotmg device agrees with reference on 100 positive quadruples; forbidden typed literal K_MODE_ULPS = 2.0 used as the comparison tolerance (tests/support/tolerance.hpp missing); layout loop in the body | tests/operations/blas/test_blas/test_rotmg.cpp
+```
+
+### `tests/operations/blas/test_blas/test_scal.cpp`
+
+```
+Medium_SCALTest.SimpleSCAL | delete | 1 | same promise as AxpyCopyScalAndSwapFollowTheirStrides in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_scal.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SCALTest.SimpleSCAL | delete | 4 | blas.scal; sibling test_level1_reference.cpp::Medium_Level1ReferenceTest.ScalMultipliesEveryElement in another file; device path in tests/kernels/blas_kernels/sycl/level1/test_level1.cpp::TheElementwiseKernelsMatchTheReference | tests/operations/blas/test_blas/test_scal.cpp; tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+```
+
+### `tests/operations/blas/test_blas/test_swap.cpp`
+
+```
+Medium_SWAPTest.SimpleSWAP | delete | 1 | same promise as AxpyCopyScalAndSwapFollowTheirStrides in tests/kernels/blas_kernels/reference/level1/test_level1.cpp | tests/operations/blas/test_blas/test_swap.cpp; tests/kernels/blas_kernels/reference/level1/test_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SWAPTest.SimpleSWAP | delete | 4 | blas.swap; sibling test_level1_reference.cpp::Medium_Level1ReferenceTest.SwapExchangesBothVectors in another file; device path in tests/kernels/blas_kernels/sycl/level1/test_level1.cpp::CopyAndSwapMoveEveryOtherElement | tests/operations/blas/test_blas/test_swap.cpp; tests/operations/blas/test_blas/test_level1_reference.cpp; tests/kernels/blas_kernels/sycl/level1/test_level1.cpp
+```
+
+### `tests/operations/blas/test_blas/test_symm.cpp`
+
+```
+Medium_Symm.LeftSideMatchesAHandComputedProduct | rewrite | 7 | loop over the two modes in the body; the hand-computed left-side product is a good exact oracle, kept in rows over mode; typed over float, double and the two complex types | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm.RightSideMatchesAHandComputedProduct | rewrite | 7 | loop over the two modes in the body; kept in rows over mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm.EqualsGemmOnTheFullMatrixToTheBit | rewrite | 7 | loops over side, triangle and mode in the helper and the test; the bytes-equal-gemm relation is a metamorphic oracle and is kept; rows over side, triangle and mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm.ABatchIsMultipliedMatrixByMatrix | rewrite | 7 | loops over side, batch shape and mode in the body; rows over side, shape and mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm.AZeroBetaDoesNotReadC | rewrite | 7 | loops over side and mode in the body; the poisoned C is the oracle, kept; rows over side and mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm.AnEmptyProductRecordsAndRuns | rewrite | 7 | loops over shape, side and mode in the body; rows over shape, side and mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Hemm.EqualsGemmOnTheFullHermitianMatrixToTheBit | rewrite | 7 | loops over side, triangle and mode in the helper; the bytes-equal-gemm relation is kept; rows over side, triangle and mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Hemm.MatchesAHandComputedProduct | rewrite | 7 | loop over the two modes in the body; kept in rows over mode | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.HemmOnARealTensorIsSymm | rewrite | 7 | loop over the two modes in the body; a forwarding check of hemm on a real tensor against symm, comparing bytes; rows over mode | tests/operations/blas/test_blas/test_symm.cpp; tests/operations/blas/test_blas/test_blas_structured_validation.cpp
+Medium_SymmHemmEdges.HalfSumsInFloat | rewrite | 7 | loop over the two modes and a skip guard in the body; the skip moves to the fixture; the HALF accumulation in FLOAT32 is kept in rows over mode; the rounding check uses exact values, no tolerance | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.EveryRefusalIsAnInvalidArgument | rewrite | 7 | eleven refusals in one body; more than one action; split by refusal, rows | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.ForceReferenceRefusesADeviceOnlyOperand | rewrite | 7 | try and catch and a skip guard in the body; the test expects std::invalid_argument, while tests/operations/blas/README.md says a device-only operand under ForceReference is UnsupportedExecution; resolve which the code raises (whether UnsupportedExecution derives from invalid_argument) before rewriting | tests/operations/blas/test_blas/test_symm.cpp; tests/operations/blas/README.md
+Medium_Symm/*.LeftSideMatchesAHandComputedProduct | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm left side, upper triangle, equals the hand product {22 28, 39 50, 48 62} scaled to {43 55 77 99 95 123} (checked by hand here); the mode loop wraps the body and the two modes go to rows | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm/*.RightSideMatchesAHandComputedProduct | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm right side, lower triangle, beta zero over a poisoned C, hand product {5 8, 11 18, 17 28} (checked by hand here); mode loop in the body | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm/*.EqualsGemmOnTheFullMatrixToTheBit | rewrite | 7 | blas.symm equals gemm on the mirrored full matrix to the bit (metamorphic, gemm is the oracle); helper expect_product_equals_gemm loops over sides, triangles and modes, a configuration matrix that goes to rows or a builder | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm/*.ABatchIsMultipliedMatrixByMatrix | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm on a batch equals each matrix run alone (metamorphic); loops over sides, batched or rank-2 A, and modes in the body | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm/*.AZeroBetaDoesNotReadC | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm with beta zero does not read a poisoned C; the check is only that no element is NaN, so a wrong value would pass; loops over sides and modes in the body | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Symm/*.AnEmptyProductRecordsAndRuns | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm on an empty product records and runs; loops over shapes, sides and modes in the body; the EXPECT_NO_THROW plus run check carries the promise | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Hemm/*.EqualsGemmOnTheFullHermitianMatrixToTheBit | rewrite | 7 | blas.hemm equals gemm on the mirrored Hermitian matrix to the bit; the shared helper expect_product_equals_gemm loops over configurations, as for the symm case | tests/operations/blas/test_blas/test_symm.cpp
+Medium_Hemm/*.MatchesAHandComputedProduct | rewrite | 1 | control flow in the test body, a forbidden kind: blas.hemm left side, upper triangle, equals {1+i, 1+2i} (checked by hand here: row 0 is 2 + (1+i)i, row 1 is (1-i) + 3i); mode loop in the body | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.HemmOnARealTensorIsSymm | rewrite | 1 | control flow in the test body, a forbidden kind: blas.hemm on a real tensor equals symm to the bit (metamorphic, symm is the oracle); mode loop in the body | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.HalfSumsInFloat | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm HALF row sums accumulate in FLOAT32 (2048 + 1 - 2048 gives 1, not 0); the body holds a GTEST_SKIP guard for the fp16 aspect and a mode loop, both to move to the fixture or rows | tests/operations/blas/test_blas/test_symm.cpp
+Medium_SymmHemmEdges.EveryRefusalIsAnInvalidArgument | rewrite | 7 | blas.symm refuses thirteen bad inputs with std::invalid_argument and records no task; thirteen inputs in one body are rows, not repeated cases; the refusal checks read no device, so the size is a resize candidate after the rows are built (question 8) | tests/operations/blas/test_blas/test_symm.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_SymmHemmEdges.ForceReferenceRefusesADeviceOnlyOperand | rewrite | 1 | control flow in the test body, a forbidden kind: blas.symm ForceReference refuses a device-only operand and names blas.lvl3.symm; the body holds a skip guard, a try and a catch, which are control flow outside rows and move to the fixture | tests/operations/blas/test_blas/test_symm.cpp
+```
+
+### `tests/operations/blas/test_blas/test_symv.cpp`
+
+```
+Medium_SYMVTest.SimpleSYMV | delete | 1 | same promise as ReadsOneTriangleAndMirrorsIt in tests/kernels/blas_kernels/reference/level2/test_symv.cpp | tests/operations/blas/test_blas/test_symv.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SYMVTest.LowerIgnoresAPoisonedUpperTriangle | delete | 1 | same promise as ReadsOneTriangleAndMirrorsIt, which poisons the unnamed triangle for both uplo values, in tests/kernels/blas_kernels/reference/level2/test_symv.cpp | tests/operations/blas/test_blas/test_symv.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SYMVTest.UpperIgnoresAPoisonedLowerTriangle | delete | 1 | same as LowerIgnoresAPoisonedUpperTriangle, the upper leg, in tests/kernels/blas_kernels/reference/level2/test_symv.cpp | tests/operations/blas/test_blas/test_symv.cpp; tests/kernels/blas_kernels/reference/level2/test_symv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SYMVTest.SimpleSYMV | delete | 4 | blas.symv on a full symmetric A reading the lower triangle; sibling test_level2_reference.cpp::Medium_Level2ReferenceTest.SymvReadsOnlyTheLowerTriangleAndAccumulates in another file | tests/operations/blas/test_blas/test_symv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_SYMVTest.LowerIgnoresAPoisonedUpperTriangle | delete | 4 | blas.symv reads only the lower triangle; sibling test_level2_reference.cpp::SymvReadsOnlyTheLowerTriangleAndAccumulates checks the same poisoned-upper promise in another file | tests/operations/blas/test_blas/test_symv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_SYMVTest.UpperIgnoresAPoisonedLowerTriangle | delete | 4 | blas.symv reads only the upper triangle; sibling test_level2_reference.cpp::SymvReadsOnlyTheUpperTriangle checks it in another file | tests/operations/blas/test_blas/test_symv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+```
+
+### `tests/operations/blas/test_blas/test_syr.cpp`
+
+```
+Medium_SYRTest.SimpleSYR | delete | 1 | same promise as UpdatesTheNamedTriangleOnly in tests/kernels/blas_kernels/reference/level2/test_syr.cpp | tests/operations/blas/test_blas/test_syr.cpp; tests/kernels/blas_kernels/reference/level2/test_syr.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SYRTest.SimpleSYR | delete | 4 | blas.syr lower triangle only; sibling test_level2_reference.cpp::Medium_Level2ReferenceTest.SyrWritesOnlyTheLowerTriangle in another file; test_blas_symmetric_bits.cpp runs BLASOps syr on the engine against a host loop, bitwise | tests/operations/blas/test_blas/test_syr.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+```
+
+### `tests/operations/blas/test_blas/test_syr2.cpp`
+
+```
+Medium_SYR2Test.SimpleSYR2 | delete | 1 | same promise as UpdatesTheNamedTriangleOnly in tests/kernels/blas_kernels/reference/level2/test_syr2.cpp | tests/operations/blas/test_blas/test_syr2.cpp; tests/kernels/blas_kernels/reference/level2/test_syr2.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SYR2Test.SimpleSYR2 | delete | 4 | blas.syr2 lower triangle only; sibling test_level2_reference.cpp::Medium_Level2ReferenceTest.Syr2WritesOnlyTheLowerTriangle in another file; test_blas_symmetric_bits.cpp runs BLASOps syr2 against a host loop | tests/operations/blas/test_blas/test_syr2.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+```
+
+### `tests/operations/blas/test_blas/test_syr2k.cpp`
+
+```
+Medium_Syr2k.MatchesAHandComputedUpdate | rewrite | 7 | loops over layout, transpose and mode in the body; the hand-computed exact oracle is kept; rows over layout, transpose and mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2k.IsExactOnSmallIntegers | rewrite | 7 | expect_exact_on_integers loops over layout, triangle, transpose and mode; the exact integer oracle is kept; rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2k.ABatchIsUpdatedMatrixByMatrix | rewrite | 7 | loops over batched-A, triangle, batch and mode in the body; rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kBound.IsWithinItsBoundOfTheTruth | rewrite | 7 | loops over transpose, triangle and mode in the body; the bound is derived from the truth and the roundings (no typed tolerance), kept; rows over transpose, triangle and mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.HalfSumsInFloat | rewrite | 7 | loop over the two modes and a skip guard in the body; the skip moves to the fixture; rows over mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.WaitsForItsDependencies | keep | 9 | the kernel's event waits for the event it was given, a graph-ordering boundary on the device; the gate is a host task, no sleep; kept | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.TheTileFitsTheTestDevice | rewrite | 5 | the static_asserts pin the tile's internal geometry (register block, group edge, local memory bytes), which changes with the inside of the kernel; the only promise is that the tile fits the test device, kept as one check against the public demand; rewrite | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Her2k.MatchesAHandComputedUpdate | rewrite | 7 | loops over layout and mode in the body; the hand-computed exact oracle is kept; rows over layout and mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Her2k.IsExactOnGaussianIntegers | rewrite | 7 | expect_exact_on_integers loops over layout, triangle, transpose and mode; rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Her2k.ConjTransEqualsNoTransOnTheConjugateTransposes | rewrite | 7 | loops over triangle and mode in the body; the metamorphic relation is kept; rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.Her2kOnARealTensorIsSyr2k | rewrite | 7 | loop over the two modes in the body; a forwarding check comparing bytes; rows over mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.ConjTransOnARealTensorIsTrans | rewrite | 7 | loop over the two modes in the body; a forwarding check; rows over mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.EveryRefusalIsAnInvalidArgument | rewrite | 7 | fifteen refusals in one body; more than one action; split by refusal, rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.AnEmptyUpdateRecordsAndRuns | rewrite | 7 | loop over the two modes in the body and two empty shapes in one test; split by shape, rows over mode | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kTile.TheRecordedDemandIsTheTileOfTheDtype | delete | 4 | the local tile demand per dtype is the promise of local_tile.hpp; the blas README (tests/operations/blas/README.md, table) names tests/operations/blas/test_local_tile.cpp as "tests the local tile demand per dtype and the record-time check", the file of that unit's own module, which keeps it; this copy is the other one | tests/operations/blas/test_blas/test_syr2k.cpp; tests/operations/blas/README.md
+Medium_Syr2k/*.MatchesAHandComputedUpdate | rewrite | 1 | blas.syr2k hand-computed update {-9 -6, 20 51} upper and {-9 10, -16 51} lower (checked by hand here); forbidden: layout x transpose x mode loops in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2k/*.IsExactOnSmallIntegers | rewrite | 7 | blas.syr2k exact on small integers against a host Wide loop (an independent oracle); the layout, transpose, triangle and mode matrix loops live in the helper expect_exact_on_integers, to be rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2k/*.ABatchIsUpdatedMatrixByMatrix | rewrite | 1 | blas.syr2k on a batch equals each matrix alone against a host loop; forbidden: batch, triangle and mode loops in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kBound/*.IsWithinItsBoundOfTheTruth | rewrite | 1 | blas.syr2k within its rounding bound of a double-precision truth, bound derived by rounding_bound (no literal tolerance); forbidden: transpose, triangle, mode, i and j loops in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.HalfSumsInFloat | rewrite | 1 | blas.syr2k HALF sums accumulate in FLOAT32 (2048 + 1 - 2048 per product, total 2, checked by hand); forbidden: GTEST_SKIP guard and mode loop in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.WaitsForItsDependencies | keep | 9 | blas.syr2k kernel waits for the event it was given: the status is not complete while a host task holds the gate, then the result {-9 -6 20 51} is checked; no sleep, the gate is the clock; the device and queue are the boundary, so medium is the right size | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kFixedType.TheTileFitsTheTestDevice | delete | 1 | forbidden: static_assert run as a test and a change detector on the tile geometry (K_ITEM_ROWS, K_BLOCK_M, local bytes); the hosting promise is tested in tests/operations/blas/test_local_tile.cpp::TheDemandFollowsTheElementTypeAndIsZeroForIntegers and ATileTheDeviceCannotHostIsRefusedUnlessTheReferenceRuns | tests/operations/blas/test_blas/test_syr2k.cpp; tests/operations/blas/test_local_tile.cpp
+Medium_Her2k/*.MatchesAHandComputedUpdate | rewrite | 1 | blas.her2k hand-computed update, diagonal real (checked by hand here: C(0,0) = 6 + 2 * (1 + 5i) with the imaginary part dropped, real part 8); forbidden: layout and mode loops in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Her2k/*.IsExactOnGaussianIntegers | rewrite | 7 | blas.her2k exact on Gaussian integers against a host Wide loop; the matrix loops live in the helper expect_exact_on_integers, to be rows | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Her2k/*.ConjTransEqualsNoTransOnTheConjugateTransposes | rewrite | 1 | blas.her2k with ConjTrans equals NoTrans on the conjugate transposes (metamorphic); forbidden: triangle and mode loops in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.Her2kOnARealTensorIsSyr2k | rewrite | 1 | blas.her2k on a real tensor is syr2k to the bit (metamorphic); forbidden: mode loop in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.ConjTransOnARealTensorIsTrans | rewrite | 1 | blas.syr2k with ConjTrans on a real tensor is Trans to the bit (metamorphic); forbidden: mode loop in the body | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kHer2kEdges.EveryRefusalIsAnInvalidArgument | rewrite | 7 | blas.syr2k and blas.her2k refuse fifteen bad inputs with std::invalid_argument and record no task; fifteen inputs in one body are rows; refusal checks read no device, a resize candidate after the rows (question 8) | tests/operations/blas/test_blas/test_syr2k.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_Syr2kHer2kEdges.AnEmptyUpdateRecordsAndRuns | rewrite | 1 | blas.syr2k on empty operands records and runs and leaves C unchanged; forbidden: mode loop in the body; EXPECT_NO_THROW around the record is weak, the run and the byte check carry the promise | tests/operations/blas/test_blas/test_syr2k.cpp
+Medium_Syr2kTile.TheRecordedDemandIsTheTileOfTheDtype | delete | 4 | the demand of the syr2k tile per dtype, zero for integers; the same promise is checked in tests/operations/blas/test_local_tile.cpp::TheDemandFollowsTheElementTypeAndIsZeroForIntegers (another file); uses Internal::local_tile_demand, the internal namespace, which the test reaches | tests/operations/blas/test_blas/test_syr2k.cpp; tests/operations/blas/test_local_tile.cpp
+```
+
+### `tests/operations/blas/test_blas/test_syrk.cpp`
+
+```
+Medium_SYRKTest.SmallMatrixLowerNoTrans | delete | 1 | typed tolerance (1e-2 or 1e-4) in SB_ASSERT_TENSOR_NEAR; same promise in tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp::SyrkLowerNoTranspose and bitwise in TYPED test SyrkEqualsTheHostSum of test_blas_symmetric_bits.cpp; typed over four element types | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest.SmallMatrixUpperNoTrans | delete | 1 | typed tolerance; same promise in test_syrk_trsm_parity.cpp::SyrkUpperNoTranspose and test_blas_symmetric_bits.cpp::SyrkEqualsTheHostSum | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest.SmallMatrixLowerTrans | delete | 1 | typed tolerance; same promise in test_syrk_trsm_parity.cpp::SyrkLowerTransposed and test_blas_symmetric_bits.cpp::SyrkEqualsTheHostSum | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest.SmallMatrixUpperTrans | delete | 1 | typed tolerance; same promise in test_syrk_trsm_parity.cpp::SyrkUpperTransposed and test_blas_symmetric_bits.cpp::SyrkEqualsTheHostSum | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest.SmallMatrixColMajor | delete | 1 | typed tolerance; column-major in test_blas_symmetric_bits.cpp::SyrkEqualsTheHostSum, which runs both layouts | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest.Rectangular | delete | 1 | typed tolerance; the same promise at other sizes in test_syrk_trsm_parity.cpp and test_blas_symmetric_bits.cpp; forbidden kind "the same promise again at another size" | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_SYRKTest/*.SmallMatrixLowerNoTrans | rewrite | 1 | blas.syrk device equals reference; forbidden typed tolerance double tol = 1e-4 (1e-2 for HALF) passed to SB_ASSERT_TENSOR_NEAR; tests/support/tolerance.hpp is missing, the derived tolerance must come from tools/testing/support/tolerance.hpp; float and double instances duplicate test_syrk_trsm_parity.cpp::SyrkLowerNoTranspose, complex instances are tested nowhere else | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTest/*.SmallMatrixUpperNoTrans | rewrite | 1 | blas.syrk device equals reference, upper; forbidden typed tolerance literal (missing tests/support/tolerance.hpp); float and double duplicate test_syrk_trsm_parity.cpp::SyrkUpperNoTranspose; complex instances only here | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp
+Medium_SYRKTest/*.SmallMatrixLowerTrans | rewrite | 1 | blas.syrk device equals reference, lower transposed; forbidden typed tolerance literal (missing tests/support/tolerance.hpp); float and double duplicate test_syrk_trsm_parity.cpp::SyrkLowerTransposed; complex instances only here | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp
+Medium_SYRKTest/*.SmallMatrixUpperTrans | rewrite | 1 | blas.syrk device equals reference, upper transposed; forbidden typed tolerance literal (missing tests/support/tolerance.hpp); float and double duplicate test_syrk_trsm_parity.cpp::SyrkUpperTransposed; complex instances only here | tests/operations/blas/test_blas/test_syrk.cpp; tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp
+Medium_SYRKTest/*.SmallMatrixColMajor | rewrite | 1 | blas.syrk device equals reference, column-major; forbidden typed tolerance literal (missing tests/support/tolerance.hpp); float and double covered exactly by tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp for ColumnMajor; complex instances only here | tests/operations/blas/test_blas/test_syrk.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTest/*.Rectangular | rewrite | 1 | blas.syrk device equals reference, 8 by 16 rectangular A; forbidden typed tolerance literal (missing tests/support/tolerance.hpp); the promise is not in the parity or kernel files for these extents, so this is the only test of it | tests/operations/blas/test_blas/test_syrk.cpp
+```
+
+### `tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp`
+
+```
+Medium_SYRKTRSMParityTest.SyrkLowerNoTranspose | delete | 1 | typed tolerance K_TOLERANCE = 1e-4 in SB_ASSERT_TENSOR_NEAR (tests/support/tolerance.hpp is absent); the SYCL syrk against the reference for every flag is in BothPathsMatchTheReferenceForEveryFlag, tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest.SyrkUpperNoTranspose | delete | 1 | typed tolerance; same as SyrkLowerNoTranspose, in BothPathsMatchTheReferenceForEveryFlag | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest.SyrkLowerTransposed | delete | 1 | typed tolerance; same as SyrkLowerNoTranspose, transposed leg, in BothPathsMatchTheReferenceForEveryFlag | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest.SyrkUpperTransposed | delete | 1 | typed tolerance; same as SyrkLowerNoTranspose, transposed upper leg, in BothPathsMatchTheReferenceForEveryFlag | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest.TrsmLeftLowerNoTranspose | delete | 1 | typed tolerance; the SYCL trsm against the reference for every flag and block width is in MatchesTheReferenceForEveryFlagAndBlockWidth, tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest.TrsmLeftUpperTransposed | delete | 1 | typed tolerance; same as TrsmLeftLowerNoTranspose, in MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest.TrsmLeftUpperUnitDiagonal | delete | 1 | typed tolerance; same, unit diagonal, in MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest.TrsmRightUpperNoTranspose | delete | 1 | typed tolerance; same, right side, in MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest.TrsmRightLowerTransposed | delete | 1 | typed tolerance; same, right side, in MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest.TrsmRightLowerUnitDiagonal | delete | 1 | typed tolerance; same, right side, unit diagonal, in MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.SyrkLowerNoTranspose | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested elsewhere: tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp::BothPathsMatchTheReferenceForEveryFlag, exact on integers, every flag, tiled and packed | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest/*.SyrkUpperNoTranspose | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp::BothPathsMatchTheReferenceForEveryFlag | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest/*.SyrkLowerTransposed | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest/*.SyrkUpperTransposed | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_syrk.cpp
+Medium_SYRKTRSMParityTest/*.TrsmLeftLowerNoTranspose | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth, every flag and block width | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.TrsmLeftUpperTransposed | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.TrsmLeftUpperUnitDiagonal | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.TrsmRightUpperNoTranspose | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.TrsmRightLowerTransposed | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+Medium_SYRKTRSMParityTest/*.TrsmRightLowerUnitDiagonal | delete | 1 | forbidden typed tolerance K_TOLERANCE = 1e-4 (tests/support/tolerance.hpp missing); promise tested exactly in tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp::MatchesTheReferenceForEveryFlagAndBlockWidth | tests/operations/blas/test_blas/test_syrk_trsm_parity.cpp; tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp
+```
+
+### `tests/operations/blas/test_blas/test_triangular_parallel.cpp`
+
+```
+Medium_TriangularParallel.EveryBlockWidthGivesTheSameBits | rewrite | 7 | loops over flags and block widths in the body; the bit-identity across block widths is a metamorphic relation, kept; rows over flags and width; typed over float, double and both complex types | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.ABlockedSolveIsExactOnIntegerSystems | rewrite | 7 | loops over flags, widths and modes in the body; the exact integer oracle is kept; rows | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.ABatchIsSolvedMatrixByMatrix | rewrite | 7 | loops over side, A sharing and matrix index in the body; rows over side and sharing | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.ABlockedSolveWaitsForItsDependencies | keep | 9 | the solve's last event waits for the event it was given, a device ordering boundary checked with a gate, not a sleep; medium is the right size | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.AnEmptySystemReturnsAnEvent | resize | 8 | an empty solve writes nothing; the decision on a zero extent is host logic (the launch plan), but the test launches on the device; the seam to build is the plan of an empty system, host-callable | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.TrmvIsExactOnSmallIntegers | rewrite | 7 | loops over order, flags, increment, mode and group width in the body; the exact integer oracle is kept; rows | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.TrmvRepeatsToTheBit | keep | 9 | two SYCL runs of one TRMV give identical bits at order 1500, a metamorphic relation on a device boundary; medium is the right size | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.TrmvReturnsItsSnapshotToThePool | rewrite | 8 | the test counts allocations of the shared runtime (TestEnvironment::live_allocation_count) and the engine's scratch pool before and after a product, so it depends on the state of the shared runtime; rewrite against a pool that the test owns, or as a medium test with a per-test pool | tests/operations/blas/test_blas/test_triangular_parallel.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TriangularParallel.TrmvWaitsForItsDependencies | keep | 9 | the product's last event waits for its dependency, a device ordering boundary with a gate; medium is the right size | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.AVectorSolveGivesTheSameBitsAtEveryBlockWidth | rewrite | 7 | loops over flags, widths and band widths in the body; rows | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.ABlockedVectorSolveIsExactOnIntegerSystems | rewrite | 7 | loops over flags, increments, widths and band widths in the body; rows | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.ABlockedVectorSolveWaitsForItsDependencies | keep | 9 | the packed solve's last event waits for its dependency, a device ordering boundary with a gate | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel.AnEmptyVectorSolveReturnsAnEvent | resize | 8 | as AnEmptySystemReturnsAnEvent, for packed and band empty solves; seam to build is the host plan of an empty system | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal.ThePlannedVectorPathIsExactAtALargeOrder | rewrite | 7 | loop over triangles in the body and an order of 1100 that only the device plan selects; the path choice is internal, so the test depends on the device's plan; rows over triangle, the public promise (exact at a large order) kept | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal.ThePlannedPathIsExactAtALargeOrder | rewrite | 7 | loop over triangles in the body; order 1100 selected by the device plan; rows over triangle | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal.TheResidualIsWithinItsBound | rewrite | 7 | loops over flags and modes in the body; the residual bound is derived (no typed tolerance), kept; rows over flags and mode | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal.TrmvIsWithinItsBoundOfTheTruth | rewrite | 7 | loops over triangle, transpose and mode in the body; the derived bound is kept; rows | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelHalf.ABlockedHalfSolveCarriesTheSolutionInFloat | rewrite | 7 | loops over side and width in the body; the HALF trsm carried in FLOAT32 is the same promise as HalfTrsmCarriesTheSolutionInFloat in tests/operations/blas/test_blas/test_blas_half_accumulation.cpp, which uses the same host substitution; kept at the blocked widths, rows over side and width, and the two copies are a merge candidate for the owner | tests/operations/blas/test_blas/test_triangular_parallel.cpp; tests/operations/blas/test_blas/test_blas_half_accumulation.cpp
+Medium_TriangularParallelHalf.ABlockedHalfVectorSolveCarriesTheSolutionInFloat | rewrite | 7 | a loop over block widths in the body; rows over width | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelHalf.HalfTrmvSumsInFloat | rewrite | 7 | a loop over the two modes in the body; the HALF row sum in FLOAT32 is kept with exact values; rows over mode | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.EveryBlockWidthGivesTheSameBits | rewrite | 1 | blas.trsv/trsm blocked solve gives the same bits at every block width (metamorphic, whole-width solve is the oracle); forbidden: flag, side and width loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.ABlockedSolveIsExactOnIntegerSystems | rewrite | 1 | blas.trsm blocked solve exact on integer systems against the known solution (exact by construction); forbidden: flag and width loops in the body and a second mode call under a SCOPED_TRACE | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.ABatchIsSolvedMatrixByMatrix | rewrite | 1 | blas.trsm batch solved in blocks equals each matrix alone (metamorphic); forbidden: side, shares-A and batch loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.ABlockedSolveWaitsForItsDependencies | keep | 9 | blas.trsm kernel waits for the event it was given: the last event is not complete while a host task holds the gate, then the solution is exact; no sleep, the gate is the clock; the queue is the boundary | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.AnEmptySystemReturnsAnEvent | rewrite | 7 | blas.trsm with no steps or no vectors finishes and writes nothing; two inputs of one promise in one body are rows, not repeated cases | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.TrmvIsExactOnSmallIntegers | rewrite | 1 | blas.trmv exact on small integers against the host product, both modes and both row shapes; forbidden: order, flag, increment, mode and group-width loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.TrmvRepeatsToTheBit | keep | 9 | blas.trmv kernel repeats to the bit on a 1500 order system; metamorphic relation between two equal runs, as the GEMV repeat case in test_level2_sycl_parity.cpp; the device is the boundary | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.TrmvReturnsItsSnapshotToThePool | keep | 9 | blas.trmv returns its snapshot to the engine pool and reuses it (allocation lifecycle of the runtime); needs the runtime's allocation count, so the real runtime is the smallest seam; the reach is noted, not a verdict change | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.TrmvWaitsForItsDependencies | keep | 9 | blas.trmv kernel waits for the event it was given, then the exact product; gate is the clock; queue is the boundary | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.AVectorSolveGivesTheSameBitsAtEveryBlockWidth | rewrite | 1 | blas.tpsv and blas.tbsv give the same bits at every block width (metamorphic); forbidden: flag, width and band loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.ABlockedVectorSolveIsExactOnIntegerSystems | rewrite | 1 | blas.tpsv and blas.tbsv exact on integer systems with the gap between elements of x untouched; forbidden: flag, increment, band and width loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.ABlockedVectorSolveWaitsForItsDependencies | keep | 9 | blas.tpsv kernel waits for the event it was given, the last event incomplete while the gate is held, then the exact solution; gate is the clock | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallel/*.AnEmptyVectorSolveReturnsAnEvent | split | 3 | blas.tpsv and blas.tbsv with no rows finish and return nothing; the packed and the band solve are two kernels, two promises in one test; split | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal/*.ThePlannedVectorPathIsExactAtALargeOrder | rewrite | 1 | blas.tpsv and blas.tbsv exact at order 1100 on the planned path; forbidden: uplo loop in the body; the order makes this the costliest case, to be checked against the medium limit | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal/*.ThePlannedPathIsExactAtALargeOrder | rewrite | 1 | blas.trsv and blas.trsm exact at order 1100 on the planned path; forbidden: uplo loop in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal/*.TheResidualIsWithinItsBound | rewrite | 1 | blas.trsm residual of every step within the bound of DESIGN_BLAS_L3 section 7.6 (truth-based, derived bound); forbidden: flag and mode loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelReal/*.TrmvIsWithinItsBoundOfTheTruth | rewrite | 1 | blas.trmv within its rounding bound of a double-precision truth at order 1500; forbidden: uplo, trans and mode loops in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+Medium_TriangularParallelHalf.ABlockedHalfSolveCarriesTheSolutionInFloat | delete | 4 | blas.trsm HALF solution carried in FLOAT32 at every width; forbidden: side and width loops in the body; the promise is tested in tests/operations/blas/test_blas/test_blas_half_accumulation.cpp (run_trsm, README row 'HALF TRSM and TRSV carry their solution in FLOAT32') | tests/operations/blas/test_blas/test_triangular_parallel.cpp; tests/operations/blas/test_blas/test_blas_half_accumulation.cpp; tests/operations/blas/README.md
+Medium_TriangularParallelHalf.ABlockedHalfVectorSolveCarriesTheSolutionInFloat | rewrite | 1 | blas.tpsv HALF solution carried in FLOAT32 at every width (tpsv is not in the half-accumulation README row); forbidden: width loop in the body | tests/operations/blas/test_blas/test_triangular_parallel.cpp; tests/operations/blas/README.md
+Medium_TriangularParallelHalf.HalfTrmvSumsInFloat | rewrite | 1 | blas.trmv HALF row sums in FLOAT32, 2048 + 1 - 2048 gives 1 (checked by hand here, the HALF sum would give 0); forbidden: mode loop in the body and the fixture skip guard, which belongs in the fixture | tests/operations/blas/test_blas/test_triangular_parallel.cpp
+```
+
+### `tests/operations/blas/test_blas/test_trmv.cpp`
+
+```
+Medium_TRMVTest.SimpleTRMV | delete | 1 | same promise as MatchesADenseProductForEveryFlag in tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_trmv.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRMVPoisonTest.LowerNoTranspose | delete | 1 | same promise as MatchesADenseProductForEveryFlag, which covers every triangle, transpose and diagonal flag, in tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_trmv.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRMVPoisonTest.LowerTranspose | delete | 1 | same as LowerNoTranspose, the transposed leg, in tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_trmv.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRMVPoisonTest.UpperNoTranspose | delete | 1 | same as LowerNoTranspose, the upper leg, in tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_trmv.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRMVPoisonTest.UpperTranspose | delete | 1 | same as LowerNoTranspose, the upper transposed leg, in tests/kernels/blas_kernels/reference/level2/test_trmv.cpp | tests/operations/blas/test_blas/test_trmv.cpp; tests/kernels/blas_kernels/reference/level2/test_trmv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRMVTest.SimpleTRMV | delete | 4 | blas.trmv lower NoTrans; sibling test_level2_reference.cpp::Medium_Level2ReferenceTest.TrmvLowerNoTranspose checks it in another file | tests/operations/blas/test_blas/test_trmv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRMVPoisonTest.LowerNoTranspose | delete | 4 | blas.trmv reads only the lower triangle; sibling test_level2_reference.cpp::TrmvLowerNoTranspose in another file | tests/operations/blas/test_blas/test_trmv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRMVPoisonTest.LowerTranspose | delete | 4 | blas.trmv reads only the lower triangle, transposed; sibling test_level2_reference.cpp::TrmvLowerTransposed in another file | tests/operations/blas/test_blas/test_trmv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRMVPoisonTest.UpperNoTranspose | delete | 4 | blas.trmv reads only the upper triangle; sibling test_level2_reference.cpp::TrmvUpperNoTranspose in another file | tests/operations/blas/test_blas/test_trmv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRMVPoisonTest.UpperTranspose | delete | 4 | blas.trmv reads only the upper triangle, transposed; sibling test_level2_reference.cpp::TrmvUpperTransposed in another file | tests/operations/blas/test_blas/test_trmv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+```
+
+### `tests/operations/blas/test_blas/test_trsm.cpp`
+
+```
+Medium_TRSMTest.SimpleTRSM | delete | 1 | same promise as RecoversXForEverySideTriangleAndTranspose in tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSMTest.SimpleTRSMColumnMajor | delete | 1 | same promise, column-major layout, as RecoversXForEverySideTriangleAndTranspose in tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSMTest.SimpleTRSM | delete | 4 | blas.trsm left lower NoTrans; sibling test_trsm_reference.cpp::Medium_TRSMReferenceTest.LeftLowerNoTranspose in another file | tests/operations/blas/test_blas/test_trsm.cpp; tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMTest.SimpleTRSMColumnMajor | delete | 4 | blas.trsm column-major; test_blas_symmetric_bits.cpp::TrsmEqualsTheHostSubstitution runs both layouts against a host substitution in another file; kernel tests/kernels/blas_kernels/reference/level3/test_trsm.cpp loops both layouts | tests/operations/blas/test_blas/test_trsm.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+```
+
+### `tests/operations/blas/test_blas/test_trsm_reference.cpp`
+
+```
+Medium_TRSMReferenceTest.LeftUpperNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in Small_ReferenceTrsm.RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftUpperNoTransposeScaledByAlpha | delete | 1 | typed tolerance K_TOLERANCE; alpha scaling in Small_ReferenceTrsm.AlphaScalesTheRightHandSide, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftUpperTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftUpperUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; unit diagonal on the left in AlphaScalesTheRightHandSide and TheBatchedFormSolvesEachSystemOfTheBatch, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftLowerNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftLowerTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.LeftLowerTransposedUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; unit diagonal, left side, in tests/kernels/blas_kernels/reference/level3/test_trsm.cpp (AlphaScalesTheRightHandSide) and in bitwise TrsmEqualsTheHostSubstitution, tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_TRSMReferenceTest.RightUpperNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.RightUpperTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.RightUpperUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; right side with unit diagonal in TrsmEqualsTheHostSubstitution, tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_TRSMReferenceTest.RightLowerNoTranspose | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.RightLowerTransposed | delete | 1 | typed tolerance K_TOLERANCE; same promise in RecoversXForEverySideTriangleAndTranspose, tests/kernels/blas_kernels/reference/level3/test_trsm.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/kernels/blas_kernels/reference/level3/test_trsm.cpp
+Medium_TRSMReferenceTest.RightLowerTransposedUnitDiagonal | delete | 1 | typed tolerance K_TOLERANCE; right side with unit diagonal in TrsmEqualsTheHostSubstitution, tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp | tests/operations/blas/test_blas/test_trsm_reference.cpp; tests/operations/blas/test_blas/test_blas_symmetric_bits.cpp
+Medium_TRSMReferenceTest.LeftUpperNoTranspose | rewrite | 1 | blas.trsm reference, left upper NoTrans, hand solution X = [[1,2],[1,0],[2,-1]] (checked by hand here: U X gives B); forbidden: typed tolerance K_TOLERANCE = 1e-5 in EXPECT_TENSOR_NEAR (tests/support/tolerance.hpp missing); merge into one row table with the other twelve flag cases once the tolerance is derived | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftUpperNoTransposeScaledByAlpha | rewrite | 1 | blas.trsm reference, alpha 2 scales the right side before the solve; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftUpperTransposed | rewrite | 1 | blas.trsm reference, left upper Trans; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftUpperUnitDiagonal | rewrite | 1 | blas.trsm reference, left upper Unit diagonal, the diagonal read as one; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftLowerNoTranspose | rewrite | 1 | blas.trsm reference, left lower NoTrans, poisoned upper part not read; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftLowerTransposed | rewrite | 1 | blas.trsm reference, left lower Trans, poisoned upper part not read; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.LeftLowerTransposedUnitDiagonal | rewrite | 1 | blas.trsm reference, left lower Trans Unit diagonal; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightUpperNoTranspose | rewrite | 1 | blas.trsm reference, right upper NoTrans, hand solution X = [[1,1,2],[2,0,-1]]; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightUpperTransposed | rewrite | 1 | blas.trsm reference, right upper Trans; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightUpperUnitDiagonal | rewrite | 1 | blas.trsm reference, right upper Unit diagonal; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightLowerNoTranspose | rewrite | 1 | blas.trsm reference, right lower NoTrans; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightLowerTransposed | rewrite | 1 | blas.trsm reference, right lower Trans; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+Medium_TRSMReferenceTest.RightLowerTransposedUnitDiagonal | rewrite | 1 | blas.trsm reference, right lower Trans Unit diagonal; forbidden: typed tolerance K_TOLERANCE = 1e-5 (tests/support/tolerance.hpp missing); row of the flag table | tests/operations/blas/test_blas/test_trsm_reference.cpp
+```
+
+### `tests/operations/blas/test_blas/test_trsv.cpp`
+
+```
+Medium_TRSVTest.SimpleTRSV | merge | 4 | trsv: solves op(A) x = b reading only the stored triangle, for each triangle and transpose; merge with Medium_TRSVPoisonTest.LowerNoTranspose into one row table, the rows carrying the matrix, the right-hand side and the expected solution | tests/operations/blas/test_blas/test_trsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSVPoisonTest.LowerNoTranspose | resize | 8 | trsv (see SimpleTRSV) is decided on values, but no host-callable dense TRSV kernel exists: no trsv in modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level2 (grep); the seam to build is a host-callable dense TRSV reference, then a Small_ test; the test reaches the process-wide runtime through SushiBLASTest | tests/operations/blas/test_blas/test_trsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSVPoisonTest.LowerTranspose | merge | 4 | same promise as LowerNoTranspose, the transposed leg; merged into its rows | tests/operations/blas/test_blas/test_trsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSVPoisonTest.UpperNoTranspose | merge | 4 | same promise as LowerNoTranspose, the upper leg; merged into its rows | tests/operations/blas/test_blas/test_trsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSVPoisonTest.UpperTranspose | merge | 4 | same promise as LowerNoTranspose, the upper transposed leg; merged into its rows | tests/operations/blas/test_blas/test_trsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_TRSVTest.SimpleTRSV | delete | 4 | blas.trsv lower NoTrans; sibling test_level2_reference.cpp::TrsvLowerNoTranspose in another file | tests/operations/blas/test_blas/test_trsv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRSVPoisonTest.LowerNoTranspose | delete | 4 | blas.trsv reads only the lower triangle; sibling test_level2_reference.cpp::TrsvLowerNoTranspose in another file | tests/operations/blas/test_blas/test_trsv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRSVPoisonTest.LowerTranspose | delete | 4 | blas.trsv reads only the lower triangle, transposed; sibling test_level2_reference.cpp::TrsvLowerTransposed in another file | tests/operations/blas/test_blas/test_trsv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRSVPoisonTest.UpperNoTranspose | delete | 4 | blas.trsv reads only the upper triangle; sibling test_level2_reference.cpp::TrsvUpperNoTranspose in another file | tests/operations/blas/test_blas/test_trsv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+Medium_TRSVPoisonTest.UpperTranspose | delete | 4 | blas.trsv reads only the upper triangle, transposed; sibling test_level2_reference.cpp::TrsvUpperTransposed in another file | tests/operations/blas/test_blas/test_trsv.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp
+```
+
+### `tests/operations/blas/test_blas_task.cpp`
+
+```
+Medium_BLASTask.RecordsOneTaskForARealOrAComplexDtype | resize | 8 | blas.task records one task per real or complex dtype; GraphProbe header holds no queue or device, so the count needs no device: small, label corrected | tests/operations/blas/test_blas_task.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_BLASTask.RefusesAnIntegerDtypeAndRecordsNothing | resize | 8 | blas.task refuses an integer dtype and records nothing; EXPECT_ANY_THROW accepts any exception, tighten to std::invalid_argument as test_blas_validation.cpp does; no device needed, small | tests/operations/blas/test_blas_task.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+```
+
+### `tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp`
+
+```
+Medium_ChannelBiasEpilogueTest.AColumnChannelBiasMatchesAPlainRowVectorBroadcast | delete | 1 | forbidden: bare tolerance literal 1e-5 in EXPECT_TENSOR_NEAR (tests/support/tolerance.hpp missing); the promise (column channel on SYCL, same operands and mode) is tested in the same file by TheGemmSeesTheProducedBiasValues, which runs the same column epilogue, the same A and B, in ForceSYCL, with a different bias | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp
+Medium_ChannelBiasEpilogueTest.ARowChannelBiasBroadcastsDownTheOtherAxis | rewrite | 1 | blas.gemm row channel bias on SYCL, hand values; forbidden: bare tolerance literal 1e-5 (tests/support/tolerance.hpp missing); the reference-path row case is a separate test, so this one holds the SYCL row promise | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp
+Medium_ChannelBiasEpilogueTest.TheSameEpilogueAppliesOnTheReferencePath | rewrite | 1 | blas.gemm reference path runs the row channel bias epilogue, hand values; forbidden: bare tolerance literal 1e-5 (tests/support/tolerance.hpp missing); the only test of the reference-path epilogue | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp
+Medium_ChannelBiasEpilogueTest.AZeroBiasIsTheIdentityEpilogue | rewrite | 1 | blas.gemm zero channel bias equals the identity epilogue to the bit (metamorphic); forbidden: a bit-comparison loop over elements in the body, which moves to a helper that compares bytes | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp
+Medium_ChannelBiasEpilogueTest.TheEpiloguesAccessSetReachesTheTask | resize | 8 | blas.gemm declared read of the bias gives the task one dependency; the check is the task graph (GraphProbe, host-only); the tensors are built and uploaded through the process-wide TestEnvironment queue, so the test reaches a process-wide instance; the seam is an engine on a host-only runtime, with no upload, so the test can be small | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_ChannelBiasEpilogueTest.TheGemmSeesTheProducedBiasValues | rewrite | 1 | blas.gemm reads a bias that an earlier op produced in the same graph (ordering and values); forbidden: bare tolerance literal 1e-5 (tests/support/tolerance.hpp missing); the ordering promise is only checked here, the values are shared with the column test | tests/operations/blas/test_dispatch/test_channel_bias_epilogue.cpp
+```
+
+### `tests/operations/blas/test_dispatch/test_packed_product.cpp`
+
+```
+Medium_PackedProduct/*.EveryBlockingEqualsTheReferenceOnExactData | keep | 9 | blas.gemm packed product equals the reference GEMM bit for bit under seven blockings on a ragged shape; oracle is the host reference; the blocking list is a row table, so the loop over it is rows; the device run is a kernel boundary | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.EveryTransposeAndLayoutEqualsTheReference | rewrite | 1 | blas.gemm packed product equals the reference for every transpose pair in both layouts; forbidden: layout and two transpose loops in the body; the matrix goes to rows | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.EdgeShapesEqualTheReference | keep | 9 | blas.gemm packed product equals the reference at register-block edges; the shape list is a row table, the loop is over rows; host reference is the oracle | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.ABatchKeepsItsMatricesApart | rewrite | 1 | blas.gemm batch of three equals the reference per layout; forbidden: layout loop in the body | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.ZeroTermsScaleTheOutput | rewrite | 1 | blas.gemm with no terms stores beta times C, and zero under zero beta; forbidden: a blocking loop with nested row and column loops that count non-zero elements in the body | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.ZeroBetaNeverReadsTheOutput | rewrite | 1 | blas.gemm zero beta never reads the poisoned output; forbidden: blocking loop with nested row and column loops that count NaNs in the body | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.AnEpilogueSeesEveryElementOnceAtItsCoordinates | keep | 9 | blas.gemm epilogue sees each element once at its coordinates; oracle is the host reference run with the same coordinate epilogue; the blocking list is a row table | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.AnEmptyOutputLaunchesNothing | rewrite | 1 | blas.gemm of no rows or no columns plans no block and keeps C; forbidden: a builder loop that fills the initial C in the body and nested loops over shapes and blockings; the builder moves to a named function | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.BlockingsAgreeToTheBitOnInexactData | rewrite | 1 | blas.gemm no blocking changes a bit of a product whose sums round; forbidden: an if in the body that stores the first result, and the blocking loop; the derived bound is from parity_bound, no literal tolerance | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.ARunRepeatsToTheBit | keep | 9 | blas.gemm packed product run twice repeats to the bit (metamorphic); the device is the boundary | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedProduct/*.ThePackedAndTheUnpackedKernelAgreeToTheBit | rewrite | 1 | blas.gemm packed and unpacked kernels agree to the bit on a CPU; forbidden: a GTEST_SKIP guard in the body, which moves to the fixture or a CPU-only suite | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedGemm.TheSeamLeasesScratchWhenTheProfileSelectsThePackedKernel | rewrite | 1 | blas.gemm recording a packed GEMM leases one scratch block, on SYCL alone; forbidden: a GTEST_SKIP guard in the body; the live allocation count is a process-wide reach that question 8 resizes after the rewrite | tests/operations/blas/test_dispatch/test_packed_product.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_PackedGemm.ASmallProductKeepsTheUnpackedKernel | resize | 8 | blas.gemm a product below the packing thresholds leases no scratch; the decision is a function of the device profile and the shape, so the logic seam is Kernels::plan_packed_product (modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp, the function the test file already calls); the allocation count reaches the process-wide runtime, so the decision goes to a small test | tests/operations/blas/test_dispatch/test_packed_product.cpp; modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp
+Medium_PackedGemm.HalfAndComplexTakeThePackedSeam | rewrite | 1 | blas.gemm HALF and COMPLEX64 take the packed seam with parity to the reference; forbidden: a GTEST_SKIP built from accumulated text and an if in the body; the helper expect_seam_parity holds an if on the obstacle | tests/operations/blas/test_dispatch/test_packed_product.cpp
+Medium_PackedGemm.AnEpilogueBundleRidesThePackedSeam | rewrite | 1 | blas.gemm epilogue bundle with a declared bias read runs on the packed seam with parity; forbidden: a GTEST_SKIP guard in the body | tests/operations/blas/test_dispatch/test_packed_product.cpp
+```
+
+### `tests/operations/blas/test_dispatch/test_reference_mode_guard.cpp`
+
+```
+Medium_ReferenceModeGuardTest.ForceReferenceGemmRefusesADeviceOperand | delete | 1 | try/catch in the body; the same refusal of the same call is in tests/engine/engine/test_engine/test_unsupported_execution.cpp (ForceReferenceRefusesADeviceOnlyOperand), the guard's own module, whose helper test covers the operation name | tests/operations/blas/test_dispatch/test_reference_mode_guard.cpp; tests/engine/engine/test_engine/test_unsupported_execution.cpp; modules/foundation/core/include/SushiBLAS/core/errors.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ReferenceModeGuardTest.ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue | rewrite | 7 | body skip guard for absent device USM, which moves into the fixture; not a duplicate, since tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp covers a unary declared read through execute_unary_inplace, not the gemm epilogue; the gemm epilogue promise row stands | tests/operations/blas/test_dispatch/test_reference_mode_guard.cpp; tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ReferenceModeGuardTest.ForceReferenceGemmOnSharedOperandsMatchesSYCL | delete | 1 | loop in the body and a typed tolerance literal (K_TOLERANCE = 1e-5 in EXPECT_NEAR); tests/support/tolerance.hpp is absent from the repository; the same two-mode agreement at the facade is in tests/operations/blas/test_blas/test_gemm.cpp (one problem run under ForceSYCL and ForceReference, lines 94-100 and 130-136) | tests/operations/blas/test_dispatch/test_reference_mode_guard.cpp; tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ReferenceModeGuardTest.ForceSYCLGemmRunsOnADeviceOperand | rewrite | 1 | loop in the body and a typed tolerance literal (1e-5) with tests/support/tolerance.hpp absent; the skip guard moves into the fixture; no other test checks the product of a device-only operand under ForceSYCL, since test_dispatch_seam.cpp and test_math_validation.cpp only record | tests/operations/blas/test_dispatch/test_reference_mode_guard.cpp; tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp; tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_level1.cpp`
+
+```
+Medium_Level1.CopyScaleAndSwapGiveExactValues | split | 3 | the name joins copy, scal and swap, three results that can break apart; each part repeats a Simple test (test_copy.cpp SimpleCOPY, test_scal.cpp SimpleSCAL, test_swap.cpp SimpleSWAP), so after the split each part is a delete at question 4 | tests/operations/blas/test_level1.cpp; tests/operations/blas/test_blas/test_copy.cpp; tests/operations/blas/test_blas/test_scal.cpp; tests/operations/blas/test_blas/test_swap.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_level2.cpp`
+
+```
+Medium_Level2.GemvAndItsTransposeGiveExactValues | split | 3 | the name joins NoTrans and Trans, two results that can break apart; the NoTrans half repeats test_gemv.cpp SimpleGEMV and the Trans half repeats test_gemv.cpp FewLongStridedRows at a larger size, so each part becomes a delete at question 4 | tests/operations/blas/test_level2.cpp; tests/operations/blas/test_blas/test_gemv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Level2.GerAddsTheOuterProduct | merge | 4 | same promise as tests/operations/blas/test_blas/test_level2_reference.cpp Medium_Level2ReferenceTest.GerAddsTheScaledOuterProduct (alpha 2 added to a ones matrix, same call shape), with other inputs; merge into that test's rows | tests/operations/blas/test_level2.cpp; tests/operations/blas/test_blas/test_level2_reference.cpp; tests/operations/blas/test_blas/test_ger.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_level3.cpp`
+
+```
+Medium_Level3.GemmWithScalarsGivesExactValues | merge | 4 | same promise as tests/operations/blas/test_blas/test_gemm.cpp NoTransposeScaled (alpha and beta applied to C, NoTrans), at a larger shape and with other scalars; merge into its rows | tests/operations/blas/test_level3.cpp; tests/operations/blas/test_blas/test_gemm.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_local_tile.cpp`
+
+```
+Medium_LocalTile.TheDemandFollowsTheElementTypeAndIsZeroForIntegers | split | 3 | the name's And joins the sized demand of the float types and the zero demand of integers, two results that can break apart; each part is a pure function of dtype and goes to a Small_ suite at question 8; the same local_tile_demand is also tested by test_syr2k.cpp at line 1081 (outside this chunk) | tests/operations/blas/test_local_tile.cpp; modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp; tests/operations/blas/test_blas/test_syr2k.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_LocalTile.ATileTheDeviceCannotHostIsRefusedUnlessTheReferenceRuns | resize | 8 | the decision reads Device::profile_for(C.device()) and the recorder mode, through GraphProbe and the fixture on TestEnvironment::runtime(), a process-wide instance; the seam to build is an overload of require_local_tile that takes the Device::Profile value, which Device::hosts_local_tile already takes; EXPECT_ANY_THROW should name UnsupportedExecution | tests/operations/blas/test_local_tile.cpp; modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_packed_operand.cpp`
+
+```
+Medium_PackedOperand.TheLargestOrderIsExact | rewrite | 1 | loop over a counts table in the body and a second brick checked in the same body (packed_elements at the end); largest_packed_order has no other test, so the promise stays; the body reads no runtime, so the rows can go to a Small_ suite | tests/operations/blas/test_packed_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_PackedOperand.ATriangleCountGivesItsOrder | rewrite | 1 | nested loops over layouts and counts in the body; the counts and layouts become rows; the tensors come from make_tensor, which takes storage from TestEnvironment::runtime() | tests/operations/blas/test_packed_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_PackedOperand.ACountThatIsNoTriangleIsRefused | rewrite | 1 | loop over four counts in the body; the counts become rows of one parametrised test | tests/operations/blas/test_packed_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_PackedOperand.ATensorThatIsNoDenseVectorIsRefused | resize | 8 | the checks read rank, stride and storage presence, but make_tensor takes storage from TestEnvironment::runtime() through the fixture's SetUp; the seam to build is a runtime-free storage handle, so the test runs Small_ without the engine fixture; test_blas_structured_validation.cpp (APackedMatrixOfAnotherRankIsRefused, AStridedPackedMatrixIsRefused, facade level) repeats the promise, and that copy is the one for the owner to delete | tests/operations/blas/test_packed_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; tests/operations/blas/test_blas/test_blas_structured_validation.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_packed_product_scratch.cpp`
+
+```
+Medium_PackedProductScratch.TheBytesAreThoseOfThePlanOrNone | rewrite | 1 | a conditional expression (plan.selected ? ... : 0) chooses the expected value in the body; the expected value comes from plan_packed_product, a separate brick; split it into a selected row and an unselected row | tests/operations/blas/test_packed_product_scratch.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_product_scratch.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_PackedProductScratch.TheLeaseHoldsThePlannedBytesAndIsDeclared | rewrite | 1 | a conditional expression (bytes == 0 ? 0 : 1) in the body; also at question 6 the expected bytes come from packed_product_scratch_bytes, the function allocate_packed_product_scratch calls itself, so the oracle is the code under test; the oracle becomes the planned bytes from plan_packed_product | tests/operations/blas/test_packed_product_scratch.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_product_scratch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_PackedProductScratch.TheReferencePathLeasesNothing | resize | 8 | allocate_packed_product_scratch reads Device::profile_for(C.device()) before its work, and GraphProbe and the fixture reach TestEnvironment::runtime(), a process-wide instance; the seam to build is a profile value and a recorder over a graph the test owns without a device; no other test leases packed-product scratch under ForceReference | tests/operations/blas/test_packed_product_scratch.cpp; modules/operations/blas/include/SushiBLAS/blas/packed_product_scratch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_scalar_operand.cpp`
+
+```
+Medium_ScalarOperand.OneElementOfAnyRankIsAccepted | resize | 8 | the checks read metadata and storage presence, but make_tensor takes storage from TestEnvironment::runtime() and the fixture's SetUp builds an Engine on it; the seam to build is a runtime-free storage handle, so the test runs Small_ | tests/operations/blas/test_scalar_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/scalar_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ScalarOperand.AnotherElementCountIsRefused | resize | 8 | the two-element case needs storage from TestEnvironment::runtime() through the fixture; the zero-element case needs none; the seam is the same runtime-free storage handle | tests/operations/blas/test_scalar_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/scalar_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ScalarOperand.AMissingStorageIsRefused | resize | 8 | the body reads no runtime (make_tensor_without_storage); only the fixture's SetUp builds the Engine, so the test can run as Small_ with no engine fixture | tests/operations/blas/test_scalar_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/scalar_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ScalarOperand.AnotherDtypeIsRefused | resize | 8 | the Float32 tensor needs storage from TestEnvironment::runtime() through the fixture; the dtype refusal reads metadata only; the same runtime-free storage handle is the seam | tests/operations/blas/test_scalar_operand.cpp; modules/operations/blas/include/SushiBLAS/blas/scalar_operand.hpp; tests/operations/blas/structured_operand_test.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blas/test_sparse.cpp`
+
+```
+Medium_SparseBLAS.IsBuiltOverARecorder | delete | 1 | EXPECT_NO_THROW around a constructor declared noexcept, which cannot throw; the promise is stated by the static_asserts above it in the same file, and the test checks nothing at run time | tests/operations/blas/test_sparse.cpp; modules/operations/blas/include/SushiBLAS/blas/sparse.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/blend/test_blend/test_blend_transforms.cpp`
+
+```
+Medium_BlendTransformsTyped.ATranslationMovesPositionsAndLeavesDirectionsAlone (typed half, float, double) | rewrite | 1 | loop over K_FORCED_MODES in the body; the name also joins a position result and a homogeneous result, which split | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.AFourByFourTransformActsOnAllFourValues (typed half, float, double) | rewrite | 1 | loop over K_FORCED_MODES in the body; the modes become a parameter of one row per case | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.TwoInfluencesGiveTheirWeightedSum (typed half, float, double) | rewrite | 1 | loop over K_FORCED_MODES in the body | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.IntegerDataEqualsTheFormulaExactly (typed half, float, double) | rewrite | 1 | loops in the body over table_cases, over modes, and an ASSERT loop; the formula oracle is written apart from the kernels, so it is kept and the loops become rows | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.WeightsThatSumToOneEqualTheFormulaExactly (typed half, float, double) | rewrite | 1 | loops in the body over table_cases, over modes, and an ASSERT loop; the formula oracle is kept | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.IdentityTransformsWithUnitWeightsKeepThePoint (typed half, float, double) | rewrite | 1 | loops in the body, including the loops that set the identity entries inline; a builder replaces them, and the mode loop becomes rows | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.FractionalDataStaysWithinTheRoundingBound (typed half, float, double) | rewrite | 1 | loops in the body over cases, modes, points and components; the oracle (TruthSum) and the derived bound are sound and stay; the rows replace the loops | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransformsTyped.TheDeviceRepeatsToTheBit (typed half, float, double) | keep | 9 | a device property: two runs of one device must write the same bits, which only a device size sees; no forbidden kind in the body, no tolerance, a deterministic run compared bitwise; no other repeatability test of the blend module | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.AnIndexOutsideTheTransformsAddsNoTerm | rewrite | 1 | loops in the body (an ASSERT loop, a loop rewriting the wide indices, a mode loop); the INT32 and INT64 cases are not tested elsewhere, so the promise stays and merges with AUInt32IndexPastTheTransformsAddsNoTerm into one row table over the three index types | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.EveryIndexTypeGivesTheSameBitsForTheSameValues | rewrite | 1 | a mode loop in the body; the memcmp of the three index types is a sound metamorphic check and stays as rows | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.AUInt32IndexPastTheTransformsAddsNoTerm | rewrite | 1 | loops in the body (an ASSERT loop and a mode loop); the UINT32 case merges into the index-range row table with AnIndexOutsideTheTransformsAddsNoTerm | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.TheNodeCarriesTheNameAndTheDeterminismClass | split | 3 | the name joins the node name and the determinism class, which can break apart; the call without options is a third promise (the operation id and Unstated); split into three | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.AnEmptyNameOrAnUnknownClassIsRefused | split | 3 | three refusals of two kinds: an empty name (char* and string_view, a row) and a class outside the enum; the two kinds can break apart; split and make the empty name a row | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.RefusesMismatchedOperandsAtRecordTime | rewrite | 7 | no forbidden kind; the setup of fourteen tensors is longer than the action (a missing builder), and a check sits between actions (the control call and its run); the malformed operands become rows over a builder | tests/operations/blend/test_blend/test_blend_transforms.cpp; tests/operations/blend/README.md; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_BlendTransforms.RefusesAnOutputThatOverlapsAnInput | resize | 8 | the overlap check compares out.region() with points.region() and transforms.region() (blend_transforms.cpp lines 183-186), and the tensors come from the fixture engine on TestEnvironment::runtime(); the seam to build is a region value the test can build without the runtime | tests/operations/blend/test_blend/test_blend_transforms.cpp; modules/operations/blend/source/blend_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/elementwise/test_dispatch.cpp`
+
+```
+Medium_FunctorReference.ExactOperationsAgreeToTheBit | keep | 9 | dispatch row 1; the device is the subject and the host reference is the oracle, so medium is the smallest size that sees it | tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_FunctorReference.IntegerOperationsAgreeToTheBit | keep | 9 | dispatch row 2; host reference oracle, the device is the subject | tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_FunctorReference.ConvertAgreesToTheBit | rewrite | 7 | the body skips when the device lacks the fp16 aspect; the guard moves into the fixture or the program environment, and the float and double pairs keep their promise | tests/operations/elementwise/test_dispatch.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_FunctorReference.HalfOperationsAgreeOutsideTheSubnormalRange | rewrite | 7 | the body skips when the device lacks the fp16 aspect; the guard moves into the fixture or the program environment | tests/operations/elementwise/test_dispatch.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_FunctorReference.MathOperationsAgreeWithinTheirOwnTolerance | rewrite | 1 | forbidden kind: typed tolerance literals (1e-6, 1e-12 and the 1e-4 default) in named constants; tests/support/tolerance.hpp is absent, so the tolerance is not derived by the helper; this is the only test of math agreement | tests/operations/elementwise/test_dispatch.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_FunctorReference.AFusedUpdateAgreesToTheBit | keep | 9 | dispatch row 6; host reference oracle over 100000 elements | tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_FunctorReference.AutoRunsTheSYCLPath | split | 3 | two promises: Auto and ForceSYCL compute a device-only operand to the right values (medium); ForceReference refuses it, naming the mode, and records nothing (refusal, its own test); the device-only guard moves into the fixture | tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_FunctorReference.AnEmptyTensorRecordsNothingInEitherMode | resize | 8 | the decision is made on num_elements and returns before anything is recorded (dispatch.hpp execute_binary); the test builds a GraphProbe on the shared runtime; seam: the empty decision as a host function, then a small test on it | tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_abs.cpp`
+
+```
+Medium_AbsTest.FloatForward | resize | 8 | abs row; the fixed values reach the device through SushiBLASTest's shared runtime and a host function gives the same answer; seam exists: Dispatch::wrapping_abs is host-callable, so a small test checks the four values on it and the medium test keeps the in-place launch | tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/abs.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_acos.cpp`
+
+```
+Medium_AcosTest.FloatForward | resize | 8 | acos row; same value check on the device; seam: sycl::acos sits in an inline lambda in source/acos.cpp, so the functor must first move to a host-callable function in the module header; the values are specified, with no derivation comment | tests/operations/elementwise/test_elementwise/test_acos.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/acos.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_acosh.cpp`
+
+```
+Medium_AcoshTest.FloatForward | resize | 8 | acosh row; seam: sycl::acosh inline in source/acosh.cpp, needs a host-callable function | tests/operations/elementwise/test_elementwise/test_acosh.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/acosh.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_add.cpp`
+
+```
+Medium_AddTest.FloatForward | resize | 8 | add row; the values reach the device; seam exists: Dispatch::wrapping_add is host-callable, so the small test checks the four sums on it and the medium test keeps the launch | tests/operations/elementwise/test_elementwise/test_add.cpp; modules/operations/elementwise/source/add.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AddTest.BorrowedOperandsAreNamedByAddressAndAddedInPlace | split | 3 | several promises: the plan names the two borrowed bases as reads and the output as a write (medium, runtime plan); the sum of the borrowed operands is right (values); the name says AddedInPlace, but C is a new tensor and nothing checks an in-place add | tests/operations/elementwise/test_elementwise/test_add.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AddTest.ARunNamingABorrowedOperandWhoseOwnerLetGoIsRefused | rewrite | 2 | the name promises that the refusal names the borrowed operand; the body checks only the DanglingResource code, so the naming half would fail nothing; add the naming assertion or drop it from the name; the liveness check is a runtime boundary and stays medium | tests/operations/elementwise/test_elementwise/test_add.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_asin.cpp`
+
+```
+Medium_AsinTest.FloatForward | resize | 8 | asin row; seam: sycl::asin inline in source/asin.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_asin.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/asin.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_asinh.cpp`
+
+```
+Medium_AsinhTest.FloatForward | resize | 8 | asinh row; seam: sycl::asinh inline in source/asinh.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_asinh.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/asinh.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_atan.cpp`
+
+```
+Medium_AtanTest.FloatForward | resize | 8 | atan row; seam: sycl::atan inline in source/atan.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_atan.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/atan.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_atanh.cpp`
+
+```
+Medium_AtanhTest.FloatForward | resize | 8 | atanh row; seam: sycl::atanh inline in source/atanh.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_atanh.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/atanh.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_ceil.cpp`
+
+```
+Medium_CeilTest.FloatForward | resize | 8 | ceil row; seam: sycl::ceil inline in source/ceil.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_ceil.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/ceil.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_clamp.cpp`
+
+```
+Medium_ClampTest.FloatForward | resize | 8 | clamp row; the bound functor (bind_scalars over sycl::clamp) lives in source/clamp.cpp and must move to a host-callable function | tests/operations/elementwise/test_elementwise/test_clamp.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/clamp.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_convert.cpp`
+
+```
+Medium_ConvertTest.Fp32ToFp16RoundsToTheNearestRepresentableValue | resize | 8 | convert row 1; the rounding is a decision on values made on the device through the shared runtime; seam: ConvertElement, defined in source/convert.cpp, moves to a header so a small test casts on the host and checks the hand value | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ConvertTest.Fp32ToFp16BreaksTiesToEven | resize | 8 | convert row 1; tie rounding is a value decision; seam: ConvertElement as above | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.Fp32PastTheHalfRangeBecomesInfinity | resize | 8 | convert row 1; overflow to infinity is a value decision; seam: ConvertElement as above | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive | resize | 8 | convert row 1; underflow and subnormal rounding are value decisions; seam: ConvertElement as above | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.NonFiniteValuesSurviveTheConversion | rewrite | 1 | forbidden kind: a for loop in the body over the two target tensors, outside a row table; it is the only test that checks non-finite values through convert; rewrite as one row per target dtype | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold | resize | 8 | convert row 1; the round trip is one promise over value decisions; seam: ConvertElement as above, applied twice on the host | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.EveryRealDTypePairConvertsExactlyRepresentableValues | rewrite | 1 | forbidden kind: nested for loops over the dtype pairs in the body, outside a row table; no other test checks values for all nine pairs; rewrite as one row per pair | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.ConvertingADTypeToItselfIsAPlainCopy | resize | 8 | convert row 4; the copy is a value decision on the device; seam: ConvertElement as above, and the no-throw rule as a host check | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; tests/operations/elementwise/README.md; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.ARankTwoOperandIsConvertedInFull | rewrite | 1 | forbidden kind: a for loop in the body that builds the input and checks every element, outside a row table or a named builder; no other test converts a rank-two operand; rewrite with a builder | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.ADTypePairOutsideTheRealDomainThrowsNamingBoth | split | 3 | two refusals, complex source and integer target, each with its own message and a record-count check between them; a second action is a second test | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_ConvertTest.DisagreeingLayoutsThrow | resize | 8 | convert refusal on layout, a decision on metadata; the test builds Storage on the process-wide runtime and a GraphProbe; seam: the layout check as a host function over layout values, so a small test needs no Storage | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ConvertTest.DisagreeingShapesThrowNamingWhatDisagreed | split | 3 | two refusals, dimension and rank, each with its own message; a second action is a second test | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.ANonContiguousOperandIsRefused | resize | 8 | convert refusal on strides, a decision on metadata; the test builds the operand on the shared runtime; seam: the contiguity check as a host function over shape and strides | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.OverlappingOperandsAreRefused | resize | 8 | convert row; the overlap check (convert.cpp line 168) decides on byte regions; seam: a host function over two regions, so the small test needs no Storage | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ConvertTest.AConvertIsOrderedBehindTheOpThatWroteItsSource | resize | 8 | convert ordering row: the read region the convert declares is a value; seam: expose the declared OperandSet regions from the recorder without the runtime, so the small test checks the declaration; the edge count itself belongs to the runtime tracker | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ConvertTest.AReaderOfTheConvertedTensorIsOrderedBehindTheConvert | resize | 8 | convert ordering row: the write region the convert declares is a value; the reader is ReductionOps and only shows the edge; seam as for AConvertIsOrderedBehindTheOpThatWroteItsSource | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ConvertTest.ConvertsOverDisjointViewsOfOneArenaDoNotSerialise | resize | 8 | convert ordering row: disjoint byte regions must declare no overlap; a value decision; seam as for AConvertIsOrderedBehindTheOpThatWroteItsSource | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+Medium_ConvertTest.AViewAtANonZeroOffsetConvertsItsOwnElements | split | 3 | two promises: the converted values of the tail view (values, small through the seam) and the untouched head bytes (a memory boundary, medium) | tests/operations/elementwise/test_elementwise/test_convert.cpp; modules/operations/elementwise/source/convert.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_cos.cpp`
+
+```
+Medium_CosTest.FloatForward | resize | 8 | cos row; seam: sycl::cos inline in source/cos.cpp needs a host-callable function; the helper default tolerance (1e-4 in tensor_comparison.hpp) is not written in the body | tests/operations/elementwise/test_elementwise/test_cos.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/cos.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_CosTest.ZeroInSingleElement | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE = 1e-6) in a comparison; tests/support/tolerance.hpp is absent; cos(0) = 1 is tested nowhere else | tests/operations/elementwise/test_elementwise/test_cos.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_CosTest.PositiveInfinity | resize | 8 | cos special-value row; a value decision on the device; seam: sycl::cos as for FloatForward | tests/operations/elementwise/test_elementwise/test_cos.cpp; modules/operations/elementwise/source/cos.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_CosTest.ThousandElements | delete | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE); the promise is the same as FloatForward at a larger count, and test_dispatch.cpp MathOperationsAgreeWithinTheirOwnTolerance runs 1000 elements of cos on both paths | tests/operations/elementwise/test_elementwise/test_cos.cpp; tests/operations/elementwise/test_dispatch.cpp
+Medium_CosTest.Float64 | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT64_TOLERANCE = 1e-12); tests/support/tolerance.hpp is absent; the only FLOAT64 value test of cos | tests/operations/elementwise/test_elementwise/test_cos.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_cosh.cpp`
+
+```
+Medium_CoshTest.FloatForward | resize | 8 | cosh row; seam: sycl::cosh inline in source/cosh.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_cosh.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/cosh.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_div.cpp`
+
+```
+Medium_DivTest.FloatForward | resize | 8 | div row; seam: the inline lambda x / y in source/div.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_div.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/div.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_exp.cpp`
+
+```
+Medium_ExpTest.FloatForward | resize | 8 | exp row; the values reach the device; seam exists: safe_exp in arithmetic/safe_math.hpp is already host-callable | tests/operations/elementwise/test_elementwise/test_exp.cpp; modules/operations/elementwise/source/exp.cpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/safe_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_ExpTest.ZeroInSingleElement | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE = 1e-6); tests/support/tolerance.hpp is absent; exp(0) = 1 is tested nowhere else | tests/operations/elementwise/test_elementwise/test_exp.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_ExpTest.PositiveInfinity | resize | 8 | exp special-value row; seam: safe_exp as for FloatForward | tests/operations/elementwise/test_elementwise/test_exp.cpp; modules/operations/elementwise/source/exp.cpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/safe_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_ExpTest.ThousandElements | delete | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE); the promise is the same as FloatForward at a larger count, and test_dispatch.cpp MathOperationsAgreeWithinTheirOwnTolerance runs 1000 elements of exp on both paths | tests/operations/elementwise/test_elementwise/test_exp.cpp; tests/operations/elementwise/test_dispatch.cpp
+Medium_ExpTest.Float64 | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT64_TOLERANCE = 1e-12); tests/support/tolerance.hpp is absent; the only FLOAT64 value test of exp | tests/operations/elementwise/test_elementwise/test_exp.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_floor.cpp`
+
+```
+Medium_FloorTest.FloatForward | resize | 8 | floor row; seam: sycl::floor inline in source/floor.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_floor.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/floor.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_fmod.cpp`
+
+```
+Medium_FmodTest.FloatForward | resize | 8 | fmod row; seam: sycl::fmod inline in source/fmod.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_fmod.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/fmod.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp`
+
+```
+Medium_IntegerArithmeticTest.AddWrapsAroundOnOverflow | delete | 4 | same wrap promise is checked small on Dispatch::wrapping_add in tests/operations/elementwise/test_wrapping_math.cpp (IntegersWrapAroundTheirWidth) and agreed on the wrap patterns by test_dispatch.cpp IntegerOperationsAgreeToTheBit | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_wrapping_math.cpp; tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+Medium_IntegerArithmeticTest.SubtractsElementwise | merge | 4 | same promise as the FLOAT32 sub test, with integer inputs; merge into one row table with test_elementwise/test_sub.cpp Medium_SubTest.FloatForward | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_elementwise/test_sub.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IntegerArithmeticTest.MulWrapsAroundOnOverflow | delete | 4 | the wrap of mul is checked small in test_wrapping_math.cpp (wrapping_mul of INT32 MAX by 2) and agreed on wrap patterns by test_dispatch.cpp; a MIN times -1 row can be added to the small test if the owner wants it there | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_wrapping_math.cpp; tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+Medium_IntegerArithmeticTest.MinPicksTheSmallerElement | merge | 4 | same promise as the FLOAT32 min test, with integer inputs; merge into one row table with test_elementwise/test_min.cpp Medium_MinTest.FloatForward | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_elementwise/test_min.cpp
+Medium_IntegerArithmeticTest.MaxPicksTheLargerElement | merge | 4 | same promise as the FLOAT32 max test, with integer inputs; merge into one row table with test_elementwise/test_max.cpp Medium_MaxTest.FloatForward | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_elementwise/test_max.cpp
+Medium_IntegerArithmeticTest.NegAndAbsMapTheMinimumToItself | split | 3 | the name has an and; neg and abs are two results that can break apart, each with its own test | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+Medium_IntegerArithmeticTest.ClampTruncatesItsBoundsTowardZero | resize | 8 | integer clamp row; the bound truncation is a value decision made on the device; seam: the bound conversion as a host function over the clamp functor in source/clamp.cpp | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; modules/operations/elementwise/source/clamp.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IntegerArithmeticTest.ClampRejectsAnInvertedRange | resize | 8 | the min above max check (clamp.cpp line 38) is a decision on two scalars; the test also builds a device tensor and a GraphProbe it does not need; seam: the check as a host function, so a small test calls it with the bounds | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; modules/operations/elementwise/source/clamp.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IntegerArithmeticTest.SafeAddFunctorWrapsAroundOnOverflow | delete | 4 | Dispatch::safe_ew_add returns wrapping_add (elementwise/dispatch.hpp line 227); the wrap is checked small in test_wrapping_math.cpp and agreed by test_dispatch.cpp | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; tests/operations/elementwise/test_wrapping_math.cpp; tests/operations/elementwise/test_dispatch.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/dispatch.hpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+Medium_DoubleScalarTest.ClampKeepsADoubleBoundOnAFloat64Tensor | resize | 8 | clamp row for FLOAT64 bounds; the bound kept as a double is a value decision on the device; seam: the bound functor as a host function, so a small test keeps the 1e-9 offset | tests/operations/elementwise/test_elementwise/test_integer_arithmetic.cpp; modules/operations/elementwise/source/clamp.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_log.cpp`
+
+```
+Medium_LogTest.FloatForward | resize | 8 | log row; seam exists: safe_log in arithmetic/safe_math.hpp is already host-callable | tests/operations/elementwise/test_elementwise/test_log.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/log.cpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/safe_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_LogTest.ZeroInSingleElement | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE = 1e-6) on the -inf expectation; tests/support/tolerance.hpp is absent; log(0) = -inf is tested nowhere else | tests/operations/elementwise/test_elementwise/test_log.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_LogTest.NegativeInputIsNaN | resize | 8 | log special-value row; the NaN from a negative input is a value decision; seam: safe_log as for FloatForward; the NaN expectation uses the helper default | tests/operations/elementwise/test_elementwise/test_log.cpp; modules/operations/elementwise/source/log.cpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/safe_math.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_LogTest.PositiveInfinity | resize | 8 | log special-value row; seam: safe_log as for FloatForward | tests/operations/elementwise/test_elementwise/test_log.cpp; modules/operations/elementwise/source/log.cpp; modules/foundation/arithmetic/include/SushiBLAS/arithmetic/safe_math.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_LogTest.ThousandElements | delete | 1 | forbidden kind: typed tolerance literal (K_FLOAT32_TOLERANCE); the promise is the same as FloatForward at a larger count, and test_dispatch.cpp MathOperationsAgreeWithinTheirOwnTolerance runs 1000 elements of log on both paths | tests/operations/elementwise/test_elementwise/test_log.cpp; tests/operations/elementwise/test_dispatch.cpp
+Medium_LogTest.Float64 | rewrite | 1 | forbidden kind: typed tolerance literal (K_FLOAT64_TOLERANCE = 1e-12); tests/support/tolerance.hpp is absent; the only FLOAT64 value test of log | tests/operations/elementwise/test_elementwise/test_log.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_max.cpp`
+
+```
+Medium_MaxTest.FloatForward | resize | 8 | max row; seam: the inline functor in source/max.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_max.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/max.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_MaxTest.NaNInEitherOperandPropagates | resize | 8 | max row; NaN propagation is a value decision; seam: the functor in source/max.cpp as for FloatForward | tests/operations/elementwise/test_elementwise/test_max.cpp; modules/operations/elementwise/source/max.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_min.cpp`
+
+```
+Medium_MinTest.FloatForward | resize | 8 | min row; seam: the inline functor in source/min.cpp needs a host-callable function | tests/operations/elementwise/test_elementwise/test_min.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/min.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_MinTest.NaNInEitherOperandPropagates | resize | 8 | min row; NaN propagation is a value decision; seam: the functor in source/min.cpp as for FloatForward | tests/operations/elementwise/test_elementwise/test_min.cpp; modules/operations/elementwise/source/min.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_mul.cpp`
+
+```
+Medium_MulTest.FloatForward | resize | 8 | mul row; seam exists: Dispatch::wrapping_mul is host-callable, so the small test checks the four products on it and the medium test keeps the launch | tests/operations/elementwise/test_elementwise/test_mul.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/mul.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_neg.cpp`
+
+```
+Medium_NegTest.FloatForward | resize | 8 | neg row; seam exists: Dispatch::wrapping_neg is host-callable, so the small test checks the four values on it and the medium test keeps the launch | tests/operations/elementwise/test_elementwise/test_neg.cpp; tests/operations/elementwise/test_elementwise/test_abs.cpp; modules/operations/elementwise/source/neg.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp`
+
+```
+Medium_OrderedSumTest.OneInputEqualsTheSerialSum | merge | 4 | same promise as TwoInputsEqualTheSerialSum and FiveInputsEqualTheSerialSum, with other input counts; merge into one row table over n, which keeps medium for the SYCL path and moves the reference-path half to OrderedSumElement | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/ordered_sum_element.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.TwoInputsEqualTheSerialSum | merge | 4 | same promise as OneInputEqualsTheSerialSum and FiveInputsEqualTheSerialSum; merge into one row table over n | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/ordered_sum_element.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.FiveInputsEqualTheSerialSum | merge | 4 | same promise as OneInputEqualsTheSerialSum and TwoInputsEqualTheSerialSum; merge into one row table over n | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/ordered_sum_element.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.HandWorkedSumIsExact | merge | 4 | same promise as TwoInputsEqualTheSerialSum, with specified values 14 and 5 as a row; merge into the serial row table so the independent oracle stays | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; tests/operations/elementwise/test_elementwise/test_ordered_sum_element.cpp
+Medium_OrderedSumTest.RefusesNoInputs | resize | 8 | refusal on the input count alone; the typed suite adds nothing because the count does not depend on the type; seam: the count check (ordered_sum.cpp line 145) as a host function over counts, so one non-typed small test covers it | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesAWeightCountThatDiffers | resize | 8 | refusal on the weight count (ordered_sum.cpp line 150), a decision on counts; seam: host function over counts | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesMismatchedShapes | resize | 8 | refusal on shapes (ordered_sum.cpp lines 157 to 170), a decision on metadata; seam: host function over shapes | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesAnOutputOfAnotherShape | resize | 8 | refusal on the output shape (ordered_sum.cpp line 169); seam: host function over shapes | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesMismatchedTypes | resize | 8 | refusal on input types (ordered_sum.cpp line 160); seam: host function over dtypes | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesAnOutputOfAnotherType | resize | 8 | refusal on the output type (ordered_sum.cpp line 168); seam: host function over dtypes | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesAnOutputThatOverlapsAnInput | resize | 8 | refusal on overlap (ordered_sum.cpp line 189), a decision on byte regions; seam: host function over regions | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_OrderedSumTest.RefusesMoreInputsThanTheLimit | resize | 8 | refusal on the input count against K_CAPACITY (ordered_sum.cpp line 147); seam: host function over counts | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/elementwise.hpp
+Medium_OrderedSumTest.IntegerSumRefusesAWeightOtherThanOne | rewrite | 1 | forbidden kind: control flow in the body (a type-based GTEST_SKIP); the integer types belong in their own typed suite | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp
+Medium_OrderedSumTest.FloatingSumAcceptsAWeightOtherThanOne | rewrite | 1 | forbidden kind: control flow in the body (a type-based GTEST_SKIP); the test checks no value, only that the call does not throw, so the promise is not seen; the type split goes with the rewrite | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; modules/operations/elementwise/source/ordered_sum.cpp
+Medium_OrderedSumTest.IntegerSumWrapsAround | rewrite | 1 | forbidden kind: control flow in the body (a type-based GTEST_SKIP); the wrap of ordered_sum is tested nowhere else, so the promise stays and the test moves to an integer-only suite | tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp; tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/source/ordered_sum.cpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_pow.cpp`
+
+```
+Medium_PowTest.FloatForward | rewrite | 7 | name states a feature, not a promise; promise elementwise.pow; Q8 also applies, a device run checks a host-computable op | tests/operations/elementwise/test_elementwise/test_pow.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_reciprocal.cpp`
+
+```
+Medium_ReciprocalTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.reciprocal; Q8 also applies | tests/operations/elementwise/test_elementwise/test_reciprocal.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_remainder.cpp`
+
+```
+Medium_RemainderTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.remainder; Q8 also applies | tests/operations/elementwise/test_elementwise/test_remainder.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_round.cpp`
+
+```
+Medium_RoundTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.round; Q8 also applies | tests/operations/elementwise/test_elementwise/test_round.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_sin.cpp`
+
+```
+Medium_SinTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.sin; Q8 also applies: elementwise.hpp exposes sin only as a recorded TaskHandle and sin.cpp keeps the functor in a lambda, so no host door exists yet | tests/operations/elementwise/test_elementwise/test_sin.cpp; modules/operations/elementwise/source/sin.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/elementwise.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SinTest.ZeroInSingleElement | rewrite | 1 | typed tolerance K_FLOAT32_TOLERANCE = 1e-6 passed to expect_tensor; tests/support/tolerance.hpp is missing from this repository; promise elementwise.sin (zero row) | tests/operations/elementwise/test_elementwise/test_sin.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+Medium_SinTest.PositiveInfinity | rewrite | 7 | name states an input, not a promise; rename to a sentence (sin of +inf is NaN); promise elementwise.sin; Q8 also applies | tests/operations/elementwise/test_elementwise/test_sin.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SinTest.ThousandElements | rewrite | 1 | typed tolerance K_FLOAT32_TOLERANCE = 1e-6; tests/support/tolerance.hpp missing; same promise as FloatForward at a larger size, so its row joins that table (Q4) | tests/operations/elementwise/test_elementwise/test_sin.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+Medium_SinTest.Float64 | rewrite | 1 | typed tolerance K_FLOAT64_TOLERANCE = 1e-12; tests/support/tolerance.hpp missing; promise elementwise.sin FLOAT64 path | tests/operations/elementwise/test_elementwise/test_sin.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_sinh.cpp`
+
+```
+Medium_SinhTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.sinh; Q8 also applies | tests/operations/elementwise/test_elementwise/test_sinh.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_sqrt.cpp`
+
+```
+Medium_SqrtTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.sqrt; Q8 also applies | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SqrtTest.ZeroInSingleElement | rewrite | 1 | typed tolerance K_FLOAT32_TOLERANCE = 1e-6; tests/support/tolerance.hpp missing; promise elementwise.sqrt (zero row) | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+Medium_SqrtTest.NegativeInputIsNaN | resize | 8 | promise elementwise.sqrt (NaN row); the decision is on values but the test reaches the process-wide runtime through the fixture and the device through the recorder; seam: a host-callable sqrt functor, the lambda of sqrt.cpp moved out, so a small test calls it; the public header has no host door | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/operations/elementwise/include/SushiBLAS/elementwise/elementwise.hpp
+Medium_SqrtTest.PositiveInfinity | rewrite | 7 | name states an input, not a promise; rename to a sentence (sqrt of +inf is +inf); promise elementwise.sqrt; Q8 also applies | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SqrtTest.ThousandElements | rewrite | 1 | typed tolerance K_FLOAT32_TOLERANCE = 1e-6; tests/support/tolerance.hpp missing; same promise as FloatForward at a larger size, merge into its rows (Q4) | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+Medium_SqrtTest.Float64 | rewrite | 1 | typed tolerance K_FLOAT64_TOLERANCE = 1e-12; tests/support/tolerance.hpp missing; promise elementwise.sqrt FLOAT64 path | tests/operations/elementwise/test_elementwise/test_sqrt.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tools/testing/support/tolerance.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_square.cpp`
+
+```
+Medium_SquareTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.square; Q8 also applies | tests/operations/elementwise/test_elementwise/test_square.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_sub.cpp`
+
+```
+Medium_SubTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.sub; Q8 also applies | tests/operations/elementwise/test_elementwise/test_sub.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise/test_tan.cpp`
+
+```
+Medium_TanTest.FloatForward | rewrite | 7 | name states a feature; promise elementwise.tan; Q8 also applies | tests/operations/elementwise/test_elementwise/test_tan.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/elementwise/test_elementwise_log_category.cpp`
+
+```
+Small_ElementwiseLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | forbidden kind: test of trivial code (a log category) and a static_assert run as a test; no real promise, so the rewrite branch does not apply | tests/operations/elementwise/test_elementwise_log_category.cpp
+```
+
+### `tests/operations/elementwise/test_ordered_sum_element.cpp`
+
+```
+Small_Regression_OrderedSum.KernelHoldsNoDoubleOutsideTheDoubleTypes | rewrite | 1 | forbidden kind: reaches Dispatch::Detail::OrderedSumElement and its weights type; the checks are type traits run as runtime EXPECT_TRUE, a static_assert in disguise; real promise elementwise.ordered_sum_element; the rewrite needs a public door to the weight type | tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/ordered_sum_element.hpp
+Small_OrderedSumElement.AWeightRoundedOnTheHostKeepsTheSumsBits | rewrite | 1 | forbidden kind: reaches Dispatch::Detail::OrderedSumElement; also a loop in the body (Q7) and an oracle that re-derives the kernel's formula (Q6); promise elementwise.ordered_sum_element.bits; rewrite with a hand-written expected value | tests/operations/elementwise/test_ordered_sum_element.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/ordered_sum_element.hpp
+```
+
+### `tests/operations/elementwise/test_wrapping_math.cpp`
+
+```
+Small_WrappingMath.IntegersWrapAroundTheirWidth | rewrite | 7 | six different calls in one test (sign: different results of different calls); rows over op and input; promise elementwise.wrapping_math | tests/operations/elementwise/test_wrapping_math.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+Small_WrappingMath.FloatingValuesFollowPlainArithmetic | rewrite | 7 | five different calls in one test; rows over op and input; promise elementwise.wrapping_math.float | tests/operations/elementwise/test_wrapping_math.cpp; modules/operations/elementwise/include/SushiBLAS/elementwise/wrapping_math.hpp
+```
+
+### `tests/operations/experimental/lapack/test_linalg.cpp`
+
+```
+Medium_LinalgTyped.FactorReconstructsPLUAndFlagsTheSingularMatrix | rewrite | 1 | one record for the typed test over float and double; typed bound 64.0 * n * epsilon hand-typed, tests/support/tolerance.hpp missing; the name joins two promises (Q3 split: reconstruction; singular flag); promise linalg.lu_factor | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tools/testing/support/tolerance.hpp
+Medium_LinalgTyped.SolveMatchesTheDirectSolve | rewrite | 1 | one record over float and double; typed bound 64.0 * n * epsilon, tests/support/tolerance.hpp missing; promise linalg.lu_solve (oracle is a long-double direct solve, sound) | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tools/testing/support/tolerance.hpp
+Medium_LinalgTyped.GmresMatchesTheDirectSolveAndReportsItsWork | rewrite | 1 | one record over float and double; typed bound 100.0 * relative_tolerance, tests/support/tolerance.hpp missing; the name joins three promises (Q3 split: solution, iteration count, residual); promise linalg.gmres | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tools/testing/support/tolerance.hpp
+Medium_Linalg.FactorRefusesAWrongPivotCount | resize | 8 | promise linalg.refusals; decided on tensor count, reached through the fixture engine and the recorder; seam: the pivot-count check as a host-callable function over counts, so a small test calls it | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Linalg.SolveRefusesAMismatchedDtype | resize | 8 | promise linalg.refusals; decided on dtype, reached through the fixture engine and recorder; seam: a host-callable dtype check | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Linalg.GmresRefusesABlockThatDoesNotDivideTheOrder | resize | 8 | promise linalg.refusals; decided on block and order values, reached through the engine and recorder; seam: a host-callable options check | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Linalg.GmresRefusesAnIntegerMatrix | resize | 8 | promise linalg.refusals; decided on dtype, reached through the engine and recorder; seam: a host-callable dtype check | tests/operations/experimental/lapack/test_linalg.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/experimental/signal/test_transforms.cpp`
+
+```
+Medium_TransformsTyped.ComplexForwardMatchesTheDirectDFTInBothModes | rewrite | 1 | one record over float and double; typed bound 256.0 * epsilon * (rows * columns), tests/support/tolerance.hpp missing; loops over shapes, modes and the input builder (Q7 rows); promise signal.fft | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tools/testing/support/tolerance.hpp
+Medium_TransformsTyped.RealForwardMatchesTheDirectDFTAndInverseRoundTrips | rewrite | 1 | one record over float and double; typed bound 256.0 * epsilon * (rows * columns), tests/support/tolerance.hpp missing; the name joins two promises (Q3 split: forward DFT; round trip); promise signal.real_forward | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; tools/testing/support/tolerance.hpp
+Medium_Transforms.RefusesAMismatchedDtype | resize | 8 | promise signal.refusals; decided on dtype, reached through the engine and recorder; seam: a host-callable dtype check | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Transforms.RefusesAWrongElementCount | resize | 8 | promise signal.refusals; decided on element counts, reached through the engine and recorder; seam: a host-callable count check for the half spectrum | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Transforms.RefusesAnEmptyShape | resize | 8 | promise signal.refusals (inverse_fft); decided on the shape; seam: a host-callable shape check | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Transforms.RefusesAnOutputThatIsTheInput | resize | 8 | promise signal.refusals; decided on operand identity; seam: a host-callable aliasing check over operand identity | tests/operations/experimental/signal/test_transforms.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/experimental/test_dense_operand.cpp`
+
+```
+Small_DenseOperand.MapsAComplexDtypeToTheDtypeOfItsParts | keep | 9 | promise dense_operand.checks (scalar dtype row); none of questions 1 to 8 applies; small already | tests/operations/experimental/test_dense_operand.cpp; modules/operations/experimental/include/SushiBLAS/experimental/dense_operand.hpp
+Medium_DenseOperand.AcceptsADenseTensorOfTheStatedCount | resize | 8 | promise dense_operand.checks (count row); the count check is Dispatch::require_extent over values, but require_storage needs a tensor with storage, so the storage part stays medium; seam: a count-only check taking the count and the element count | tests/operations/experimental/test_dense_operand.cpp; modules/operations/experimental/include/SushiBLAS/experimental/dense_operand.hpp
+Medium_DenseOperand.RefusesAnotherCountNamingTheOperand | rewrite | 1 | forbidden kind: control flow in the body (try, catch, ADD_FAILURE); the only test of the count refusal naming the operand; promise dense_operand.checks; rewrite with EXPECT_THROW and a message check | tests/operations/experimental/test_dense_operand.cpp; modules/operations/experimental/include/SushiBLAS/experimental/dense_operand.hpp
+Medium_DenseOperand.AdmitsOnlyFloatAndDoubleAsReal | resize | 8 | promise dense_operand.checks (float row); require_float_dtype reads only t.dtype; medium only because the tensors come from the engine; seam: a dtype-only check | tests/operations/experimental/test_dense_operand.cpp; modules/operations/experimental/include/SushiBLAS/experimental/dense_operand.hpp
+Medium_DenseOperand.AdmitsOnlyTheComplexDtypesAsComplex | resize | 8 | promise dense_operand.checks (complex row); require_complex_dtype reads only t.dtype; seam: a dtype-only check | tests/operations/experimental/test_dense_operand.cpp; modules/operations/experimental/include/SushiBLAS/experimental/dense_operand.hpp
+```
+
+### `tests/operations/index/test_index_ops.cpp`
+
+```
+Medium_IndexOps.AColouredScatterMatchesItsForceReferenceRunBitForBit | keep | 9 | promise index.for_each.scatter; SYCL against the reference run is a kernel boundary, so medium is the smallest size; none of questions 1 to 8 applies | tests/operations/index/test_index_ops.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IndexOps.AColouredScatterEqualsTheHandOrderedHostLoop | keep | 9 | promise index.for_each.scatter; the colour order is a graph ordering boundary, the expected value is an independent hand-written loop; none of questions 1 to 8 applies | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountRunsOnlyTheCountAPreviousNodeWrote | merge | 4 | promise index.for_each.late_count; same promise as ALateCountOfTheCapacityRunsEveryIndex, ALateCountOfZeroRunsNothing, ALateCountOfTypeUInt32RunsOnlyTheCountAPreviousNodeWrote, ALateCountOutsideTheCapacityFailsTheRun; merge into one row table over count and type (its mode loop becomes rows, Q7) | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountOfTypeUInt32RunsOnlyTheCountAPreviousNodeWrote | merge | 4 | promise index.for_each.late_count_type; same promise as ALateCountRunsOnlyTheCountAPreviousNodeWrote with a UInt32 count; merge into its row table | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountOfTypeUInt32WrittenOnTheHostIsRead | merge | 4 | promise index.for_each.late_count_type; same promise as ALateCountOfTypeUInt32RunsOnlyTheCountAPreviousNodeWrote with a host-written count; merge into its row table | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountOfZeroRunsNothing | merge | 4 | promise index.for_each.late_count; same promise as ALateCountRunsOnlyTheCountAPreviousNodeWrote with count zero; merge into its row table | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountOfTheCapacityRunsEveryIndex | merge | 4 | promise index.for_each.late_count; same promise as ALateCountRunsOnlyTheCountAPreviousNodeWrote with count equal to capacity; merge into its row table | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.Regression_ALateCountAboveACapacityOfZeroFailsTheRun | merge | 4 | promise index.for_each.late_count (count above capacity fails the run); same promise as ALateCountOutsideTheCapacityFailsTheRun with another count; merge | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.Regression_ALateCountOfAWrongTypeIsRefusedAtACapacityOfZero | merge | 4 | promise index.for_each.count_refusal; same refusal as ACountTensorThatIsNeitherUInt32NorInt32InHostMemoryIsRefused with a float count; merge into its row table | tests/operations/index/test_index_ops.cpp; modules/operations/index/include/SushiBLAS/index/index_ops.hpp
+Medium_IndexOps.ALateCountOutsideTheCapacityFailsTheRun | merge | 4 | promise index.for_each.late_count (outside [0, capacity] fails the run); same promise as Regression_ALateCountAboveACapacityOfZeroFailsTheRun; merge into its row table | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ACountOfZeroRecordsNothing | resize | 8 | promise index.for_each.record (zero count row); GraphProbe takes TestEnvironment::runtime(), a process-wide instance, so the decision on the count is reached through a process-wide runtime; seam: GraphProbe over an injected runtime, so a small test owns its graph | tests/operations/index/test_index_ops.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IndexOps.Regression_ACountOfZeroWithOverlappingOperandsIsRefused | merge | 4 | promise index.for_each.record (overlap refusal at zero count); same refusal as AnUpdateThatOverlapsAnotherOperandIsRefused with count zero; merge into its row table | tests/operations/index/test_index_ops.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IndexOps.TheNodeCarriesTheOptionsNameAndOrdersALaterReader | split | 3 | the name joins two promises: the node carries its options name and operation id, and a later reader depends on it (promise index.for_each.record); split one test per promise | tests/operations/index/test_index_ops.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IndexOps.AnUpdateIsOrderedAfterAnEarlierWriterAndBeforeALaterReader | split | 3 | the name joins ordering after the writer and before the reader, and the body also checks the read and write sets; split (promise index.for_each.update) | tests/operations/index/test_index_ops.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IndexOps.AnUpdateHandsTheFunctorThePreviousContentsBetweenReadsAndWrites | rewrite | 7 | loops over modes and an input builder in the body (Q7); promise index.for_each.update; rows per mode, builder for the tensors | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.AnUpdateThatOverlapsAnotherOperandIsRefused | merge | 4 | promise index.for_each.record (overlap refusal); same promise as Regression_ACountOfZeroWithOverlappingOperandsIsRefused; the four cases in its body become rows when merged | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ALateCountTaskWaitsForTheNodeThatWritesTheCount | rewrite | 7 | loop over modes in the body (Q7); promise index.for_each.record (dependency count row); rows per mode; Q8 also applies (GraphProbe over the process-wide runtime) | tests/operations/index/test_index_ops.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_IndexOps.TheRuntimePlanReadsTheDeterminismClassOfEachNode | rewrite | 7 | loop over modes in the body (Q7); promise index.for_each.determinism; rows per mode | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ANodeThatStatesNoClassReadsUnstated | delete | 4 | the default Unstated class is the same promise as Small_OperationOptions.ANameAloneStatesNoDeterminismClass, which is small and in the engine's own test file; the plan read here only shows the options pass through the index, which is wiring | tests/operations/index/test_index_ops.cpp; tests/engine/engine/test_operation_options.cpp
+Medium_IndexOps.AnEmptyNameIsRefused | delete | 4 | the shared check owns the promise: Small_OperationOptions.TheSharedCheckRefusesAnEmptyOrNullName in the engine's own test file; index_ops.hpp:109 passes the options to that check | tests/operations/index/test_index_ops.cpp; tests/engine/engine/test_operation_options.cpp; modules/operations/index/include/SushiBLAS/index/index_ops.hpp
+Medium_IndexOps.ACountTensorThatIsNeitherUInt32NorInt32InHostMemoryIsRefused | merge | 4 | promise index.for_each.count_refusal; same refusal as Regression_ALateCountOfAWrongTypeIsRefusedAtACapacityOfZero; merge into one row table over dtype and residency (its mode and count loops become rows, Q7) | tests/operations/index/test_index_ops.cpp
+Medium_IndexOps.ATaskThatWritesItsOwnCountIsRefused | resize | 8 | promise index.for_each.count_refusal (self-count row); decided on operand sets, reached through the fixture's process-wide runtime; seam: a host-callable operand-set check; index_ops.hpp:163 documents the throw | tests/operations/index/test_index_ops.cpp; modules/operations/index/include/SushiBLAS/index/index_ops.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Regression_IndexOps.AReplayedLateForEachOutlivesItsRecorder | split | 3 | two promises: the replay runs on the live count twice, and releasing the hold leaves the tensors sole owners (held_count and ref_count checks); the loop over live counts becomes rows; split | tests/operations/index/test_index_ops.cpp
+```
+
+### `tests/operations/io/test_io/test_host_transfer.cpp`
+
+```
+Medium_HostTransfer.ToVectorReadsBackWhatFromVectorWrote | keep | 9 | promise io.transfer (round trip); the copy into device or shared memory is the boundary, so medium is the smallest size; none of questions 1 to 8 applies | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.ReadReturnsWhatWriteStored | keep | 9 | promise io.transfer (raw read and write); memory boundary; none of questions 1 to 8 applies | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.SizeMismatchThrows | rewrite | 7 | three different calls in one test (from_vector, write, read) refuse a size; sign: different results of different calls; rows per call; promise io.transfer refusals | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.ElementTypeMismatchThrows | rewrite | 7 | two different calls refuse an element type; rows per call; promise io.transfer refusals | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.ReadSeesTheWriteTheCallerRan | keep | 9 | promise io.recorded_order (recorded copy then read); the runtime ordering is a boundary; none of questions 1 to 8 applies | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.LoadNpyOverwritesTheWriteTheCallerRan | merge | 4 | promise io.recorded_order (load after the run wins); same promise as LoadBinOverwritesTheWriteTheCallerRan with another format; merge into one row table over loaders | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.LoadBinOverwritesTheWriteTheCallerRan | merge | 4 | promise io.recorded_order (load after the run wins); same promise as LoadNpyOverwritesTheWriteTheCallerRan with another format; merge into one row table over loaders | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.NpyRoundTripKeepsTheValues | keep | 9 | promise io.npy.round_trip; the file write and read are the boundary, so medium is the smallest size; none of questions 1 to 8 applies | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.NpyVersionTwoHeaderLoads | resize | 8 | promise io.npy.header (v2 row); the header parse is a decision on bytes, reached through a file from the fixture; seam: a parser over bytes, so a small test passes the v2 header | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.NpyWithAnotherDtypeIsADtypeMismatch | resize | 8 | promise io.npy.header (dtype row); decision on the header bytes reached through a file; seam: the bytes parser | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.NpyWithAnotherShapeIsAShapeMismatch | resize | 8 | promise io.npy.header (shape row); decision on the header bytes reached through a file; seam: the bytes parser | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.NpyWithVersionFourIsMalformed | merge | 4 | promise io.npy.header (malformed rows); same MalformedFile outcome as the other malformed headers in this file; merge into one row table over malformed headers | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.NpyWithoutAShapeIsMalformed | merge | 4 | promise io.npy.header (malformed rows); merge with NpyWithVersionFourIsMalformed, NpyWithoutCommasIsMalformed and NpyWithADuplicateKeyIsMalformed | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.NpyWithNumpyPaddingLoads | resize | 8 | promise io.npy.header (padding row); decision on header bytes reached through a file; seam: the bytes parser | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.NpyWithoutCommasIsMalformed | merge | 4 | promise io.npy.header (malformed rows); merge with NpyWithVersionFourIsMalformed and the other malformed headers | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.NpyWithADuplicateKeyIsMalformed | merge | 4 | promise io.npy.header (malformed rows); merge with NpyWithVersionFourIsMalformed and the other malformed headers | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.LoadNpyRejectsAColumnMajorRankThreeTensor | resize | 8 | promise io.npy.layout; decided on layout and rank of the tensor, reached through the process-wide engine (reinit_engine) and a path that does not exist yet; seam: a layout and rank check over shape and layout values | tests/operations/io/test_io/test_host_transfer.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_HostTransfer.ToStringOfADeviceTensorMatchesItsSharedTwin | rewrite | 7 | loops over six shapes and a value builder in the body (Q7); promise io.to_string (device row); rows per shape, builder for the values | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.ToStringReadsAStridedViewThroughItsStrides | rewrite | 7 | two different calls (transpose, slice) in one test; sign: different results of different calls; rows per view; promise io.to_string (strided row) | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.ToStringOfAnElidedTensorIsUnchanged | rewrite | 7 | the name states no promise ("is unchanged"); two settings in one test; the expected text needs a derivation comment (three edge items each side, ellipsis); promise io.to_string (elision row) | tests/operations/io/test_io/test_host_transfer.cpp
+Medium_HostTransfer.ToStringOfAnEmptyTensorPrintsAnEmptyList | rewrite | 5 | ASSERT_FALSE on t.storage checks an internal of the tensor, so an inside change fails the test; the promise (empty list text) stands without it; promise io.to_string (empty row) | tests/operations/io/test_io/test_host_transfer.cpp
+```
+
+### `tests/operations/io/test_io/test_regression.cpp`
+
+```
+Medium_IO.LoadRejectsATruncatedPayloadAndKeepsTheTensor | rewrite | 1 | bare 0.0 tolerance in EXPECT_TENSOR_NEAR, an exact check written as a tolerance, tests/support/tolerance.hpp missing; the name joins two promises (Q3 split: truncation refused; tensor untouched); promise io.load.truncation | tests/operations/io/test_io/test_regression.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_IO.LoadRejectsAnotherDtype | resize | 8 | promise io.load.header_checks (dtype row); decision on the header dtype reached through a file and the fixture engine; seam: a header check over bytes and dtype | tests/operations/io/test_io/test_regression.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IO.LoadRejectsAnotherLayout | resize | 8 | promise io.load.header_checks (layout row); decision on the layout reached through a file and reinit_engine; seam: a layout check over header bytes and tensor layout | tests/operations/io/test_io/test_regression.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IO.LoadRejectsAnotherFormatVersion | resize | 8 | promise io.load.header_checks (version row); decision on the version byte reached through a file; seam: the header parse over bytes | tests/operations/io/test_io/test_regression.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IO.LoadBinRejectsAShortFileAndKeepsTheTensor | rewrite | 1 | bare 0.0 tolerance in EXPECT_TENSOR_NEAR; tests/support/tolerance.hpp missing; the name joins two promises (Q3 split); promise io.load.truncation (bin row) | tests/operations/io/test_io/test_regression.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_IO.LoadNpyRejectsATruncatedPayload | merge | 4 | promise io.load.truncation (npy row); same promise as the npy case of AShortFileLeavesTheTensorUntouched in this file; merge into its row table | tests/operations/io/test_io/test_regression.cpp
+Medium_IO.BinRoundTripsDeviceAllocatedStorage | rewrite | 1 | bare 0.0 tolerance in EXPECT_TENSOR_NEAR; tests/support/tolerance.hpp missing; the GTEST_SKIP guard in the body moves to the fixture (Q7 part of the rewrite); promise io.bin.device | tests/operations/io/test_io/test_regression.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_IO.AShortFileLeavesTheTensorUntouched | rewrite | 1 | bare 0.0 tolerance in six EXPECT_TENSOR_NEAR calls; tests/support/tolerance.hpp missing; loop over residency in the body (Q7); promise io.load.truncation across bin, sushi and npy; the npy case is also the merge target of LoadNpyRejectsATruncatedPayload | tests/operations/io/test_io/test_regression.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_IO.APayloadLargerThanOneChunkRoundTrips | rewrite | 7 | loop over residency and a value builder loop in the body (Q7); promise io.bin.chunks; rows per residency, builder for the values; medium is the right size (file and device copies) | tests/operations/io/test_io/test_regression.cpp
+Medium_IO.ALongerFileStillLoadsItsPrefix | rewrite | 1 | bare 0.0 tolerance in EXPECT_TENSOR_NEAR; tests/support/tolerance.hpp missing; promise io.bin.prefix | tests/operations/io/test_io/test_regression.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/io/test_io_log_category.cpp`
+
+```
+Small_IoLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | forbidden kind: test of trivial code (a log category) and a static_assert run as a test; no real promise | tests/operations/io/test_io_log_category.cpp
+```
+
+### `tests/operations/io/test_io_status.cpp`
+
+```
+Small_IOStatus.EveryStatusHasItsOwnName | rewrite | 7 | loop over the statuses in the body and several checks (uniqueness, the Truncated name, Unknown absent); rows per status; promise io.status | tests/operations/io/test_io_status.cpp; modules/operations/io/include/SushiBLAS/io/io_status.hpp
+```
+
+### `tests/operations/io/test_partial_file.cpp`
+
+```
+Medium_IoLog.ARemovedPartialFileIsGoneAndStatesNothing | rewrite | 1 | forbidden kind: a stand-in for SushiLog's capture sink (LogCapture), and SushiLog ships no in-memory capture sink, which the rewrite needs; the name joins two promises (Q3 split: file gone; no log line); promise io.partial_file | tests/operations/io/test_partial_file.cpp; modules/operations/io/include/SushiBLAS/io/partial_file.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+Medium_IoLog.AFailedCleanupWarns | rewrite | 1 | forbidden kind: LogCapture stand-in for SushiLog's sink, and SushiLog ships no in-memory capture sink; the decision reaches the process-wide logger (Q8 also applies); promise io.partial_file (warn row) | tests/operations/io/test_partial_file.cpp; modules/operations/io/include/SushiBLAS/io/partial_file.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/log_capture.hpp
+```
+
+### `tests/operations/logic/test_dispatch.cpp`
+
+```
+Medium_LogicDispatch.ThePredicatesCompareRealAndComplexValues | split | 3 | split into logic predicates rows 1 to 6; six predicates, six outcomes, several promises; each piece is a host function, so small with no fixture (Q8) | tests/operations/logic/test_dispatch.cpp;modules/operations/logic/include/SushiBLAS/logic/dispatch.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/logic/README.md
+Medium_LogicDispatch.UnaryAndBinaryTasksWriteOneOrZeroInBothModes | split | 3 | split into logic dispatch unary and logic dispatch binary; the K_BOTH_MODES loop in the body is control flow and becomes a row table; each piece stays medium because the two modes meet at the dispatch seam | tests/operations/logic/test_dispatch.cpp;modules/operations/logic/include/SushiBLAS/logic/dispatch.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/execution_mode_sweep/include/SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/logic/README.md
+```
+
+### `tests/operations/logic/test_logic/test_all.cpp`
+
+```
+Medium_AllTest.FloatForward | rewrite | 7 | row LogicOps::all; the name states a dtype and a direction, not the promise; after the rename Q8 applies: the fixture reaches TestEnvironment::runtime() and a device queue, so the small form needs a host tensor seam | tests/operations/logic/test_logic/test_all.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_any.cpp`
+
+```
+Medium_AnyTest.FloatForward | rewrite | 7 | row LogicOps::any; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_any.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_equal.cpp`
+
+```
+Medium_EqualTest.FloatForward | rewrite | 7 | row LogicOps::equal; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_equal.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_greater.cpp`
+
+```
+Medium_GreaterTest.FloatForward | rewrite | 7 | row LogicOps::greater; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_greater.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_greater_equal.cpp`
+
+```
+Medium_Greater_equalTest.FloatForward | rewrite | 7 | row LogicOps::greater_equal; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_greater_equal.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_less.cpp`
+
+```
+Medium_LessTest.FloatForward | rewrite | 7 | row LogicOps::less; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_less.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_less_equal.cpp`
+
+```
+Medium_Less_equalTest.FloatForward | rewrite | 7 | row LogicOps::less_equal; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_less_equal.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_logical_and.cpp`
+
+```
+Medium_Logical_andTest.FloatForward | rewrite | 7 | row LogicOps::logical_and; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_logical_and.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_logical_not.cpp`
+
+```
+Medium_Logical_notTest.FloatForward | rewrite | 7 | row LogicOps::logical_not; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_logical_not.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_logical_or.cpp`
+
+```
+Medium_Logical_orTest.FloatForward | rewrite | 7 | row LogicOps::logical_or; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_logical_or.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_logical_xor.cpp`
+
+```
+Medium_Logical_xorTest.FloatForward | rewrite | 7 | row LogicOps::logical_xor; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_logical_xor.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_not_equal.cpp`
+
+```
+Medium_Not_equalTest.FloatForward | rewrite | 7 | row LogicOps::not_equal; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_not_equal.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic/test_where.cpp`
+
+```
+Medium_WhereTest.FloatForward | rewrite | 7 | row LogicOps::where; the name states a dtype and a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/logic/test_logic/test_where.cpp;tests/operations/logic/README.md;modules/operations/logic/include/SushiBLAS/logic/logic.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/logic/test_logic_log_category.cpp`
+
+```
+Small_LogicLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | trivial constant (a log category) and static_assert run as a test; both are named forbidden kinds, and the promise states nothing a unit test must hold | tests/operations/logic/test_logic_log_category.cpp;modules/operations/logic/include/SushiBLAS/logic/logic_log_category.hpp
+```
+
+### `tests/operations/nonlinear/test_dispatch.cpp`
+
+```
+Medium_NonlinearDispatch.ForwardRewritesTheTensorInPlace | rewrite | 7 | nonlinear dispatch row execute_nonlinear_forward in both modes; the K_BOTH_MODES loop in the body is control flow, so rewrite as a row table over K_BOTH_MODES; the size stays medium (the modes meet at the dispatch seam) | tests/operations/nonlinear/test_dispatch.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/dispatch.hpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/execution_mode_sweep/include/SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/nonlinear/README.md
+Medium_NonlinearDispatch.BackwardGatesTheGradientByTheInput | rewrite | 7 | nonlinear dispatch row execute_nonlinear_backward in both modes; the K_BOTH_MODES loop in the body is control flow, so rewrite as a row table over K_BOTH_MODES; the size stays medium (the modes meet at the dispatch seam) | tests/operations/nonlinear/test_dispatch.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/dispatch.hpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/execution_mode_sweep/include/SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/nonlinear/README.md
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp`
+
+```
+Medium_ComplexNonlinearTest.SigmoidMatchesHostReference (float, double) | rewrite | 1 | row NonLinearOps::sigmoid (complex); K_COMPLEX32_TOLERANCE 1e-5 and K_COMPLEX64_TOLERANCE 1e-12 are hand-typed epsilons passed to SB_ASSERT_TENSOR_NEAR; tests/support/tolerance.hpp is missing, so the derived helper (TestSupport::measure_relative_error in tools/testing/support/tolerance.hpp) must be copied in | tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tools/testing/support/tolerance.hpp;tests/operations/nonlinear/README.md
+Medium_ComplexNonlinearTest.TanhMatchesHostReference (float, double) | rewrite | 1 | row NonLinearOps::tanh (complex); the same typed epsilons K_COMPLEX32_TOLERANCE and K_COMPLEX64_TOLERANCE in SB_ASSERT_TENSOR_NEAR; tests/support/tolerance.hpp is missing, so the derived helper must be copied in | tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tools/testing/support/tolerance.hpp;tests/operations/nonlinear/README.md
+Medium_ComplexNonlinearTest.EluRefusesComplex (float, double) | resize | 8 | row NonLinearOps::elu (complex); the refusal depends on the dtype alone, but the Medium_ fixture creates device tensors on the shared runtime; the small form needs a host tensor seam, which the fixture does not offer | tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/nonlinear/README.md
+Medium_ComplexSqrtLogTest.SqrtOfInfiniteImaginaryPartIsInfinite | rewrite | 7 | row ElementwiseOps::sqrt; the for loop over the results in the body is control flow, so rewrite as two explicit element checks; size then falls under Q8 (fixture reaches the shared runtime) | tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tests/operations/nonlinear/README.md
+Medium_ComplexSqrtLogTest.LogNearTheUnitCircleKeepsItsRealPart | rewrite | 1 | row ElementwiseOps::log; bare tolerances 1e-22 and 1e-18 in EXPECT_NEAR; derive them with TestSupport::measure_error from tools/testing/support/tolerance.hpp, since tests/support/tolerance.hpp is missing | tests/operations/nonlinear/test_nonlinear/test_complex_nonlinear.cpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_readback.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;tools/testing/support/tolerance.hpp;tests/operations/nonlinear/README.md
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_elu.cpp`
+
+```
+Medium_ELUTest.Forward | rewrite | 7 | row NonLinearOps::elu; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_elu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp;tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp
+Medium_ELUTest.Backward | rewrite | 7 | row NonLinearOps::elu_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_elu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp;tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_gelu.cpp`
+
+```
+Medium_GELUTest.Forward | rewrite | 6 | row NonLinearOps::gelu; the literals are not derived: they match neither exact GELU nor the header's tanh form to six digits (x = -1, 0, 1, 2: header form -0.158808, 0, 0.841192, 1.954598; exact -0.158655, 0, 0.841345, 1.954500; expected -0.158865, 0, 0.841135, 1.954598); rewrite with the header formula evaluated on the host | tests/operations/nonlinear/test_nonlinear/test_gelu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_GELUTest.Backward | rewrite | 6 | row NonLinearOps::gelu_backward; the literals are not derived: header-form derivative -0.082964, 0.5, 1.082964, 1.086099; exact -0.083315, 0.5, 1.083315, 1.085232; expected -0.082937, 0.5, 1.082937, 1.086099; rewrite with that derivative evaluated on the host | tests/operations/nonlinear/test_nonlinear/test_gelu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_leaky_relu.cpp`
+
+```
+Medium_LeakyReLUTest.Forward | rewrite | 7 | row NonLinearOps::leaky_relu; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_leaky_relu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_LeakyReLUTest.Backward | rewrite | 7 | row NonLinearOps::leaky_relu_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_leaky_relu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_relu.cpp`
+
+```
+Medium_ReLUTest.Forward | rewrite | 7 | row NonLinearOps::relu; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_relu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_ReLUTest.Backward | rewrite | 7 | row NonLinearOps::relu_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_relu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_sigmoid.cpp`
+
+```
+Medium_SigmoidTest.Forward | rewrite | 7 | row NonLinearOps::sigmoid; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_sigmoid.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_SigmoidTest.Backward | rewrite | 7 | row NonLinearOps::sigmoid_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_sigmoid.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_silu.cpp`
+
+```
+Medium_SiLUTest.Forward | rewrite | 7 | row NonLinearOps::silu; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_silu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_SiLUTest.Backward | rewrite | 7 | row NonLinearOps::silu_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_silu.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_softplus.cpp`
+
+```
+Medium_SoftplusTest.Forward | rewrite | 7 | row NonLinearOps::softplus; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam); large-input behaviour is already covered in test_math_validation.cpp, so no add | tests/operations/nonlinear/test_nonlinear/test_softplus.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp;tests/library/umbrella/test_SushiBLAS/test_math_validation.cpp
+Medium_SoftplusTest.Backward | rewrite | 7 | row NonLinearOps::softplus_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_softplus.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/nonlinear/test_nonlinear/test_tanh.cpp`
+
+```
+Medium_TanhTest.Forward | rewrite | 7 | row NonLinearOps::tanh; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_tanh.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+Medium_TanhTest.Backward | rewrite | 7 | row NonLinearOps::tanh_backward; the name states a direction, not the promise; after the rename Q8 applies (fixture reaches the shared runtime; no host tensor seam) | tests/operations/nonlinear/test_nonlinear/test_tanh.cpp;modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp;modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp;modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp;modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_fill.hpp;tests/operations/nonlinear/README.md;tests/operations/elementwise/test_dispatch.cpp
+```
+
+### `tests/operations/random/test_dispatch.cpp`
+
+```
+Medium_RandomDispatch.DrawingRefusesHalfAndEveryDomainRefusesItsOutsiders | split | 3 | two promises joined by "and" that break apart: random_admits (HALF refused for DrawsValues, admitted for MovesValues, Domain rule) and require_random_dtype (throws for a dtype outside the domain); the first is pure and small; the second needs only a storage-less Tensor with a dtype, see tensor.hpp null-storage constructor; EXPECT_ANY_THROW accepts any exception type | tests/operations/random/test_dispatch.cpp; modules/operations/random/include/SushiBLAS/random/dispatch.hpp; modules/engine/engine/include/SushiBLAS/engine/dispatch.hpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_RandomDispatch.TheSeedAndTheOffsetTakeTheLastTwoSlots | rewrite | 7 | set_rng_params stamps the seed and the offset into the two reserved slots; the fixture SushiBLASTest builds an Engine and a recorder that this test never uses, a general fixture hiding the cause; rewrite as a plain Small_ test with no fixture; question 4 checked: the copy in tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp is not in the unit's module test file, so this one stays | tests/operations/random/test_dispatch.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/operations/random/include/SushiBLAS/random/dispatch.hpp; tests/library/umbrella/test_SushiBLAS/test_dispatch_seam.cpp
+Medium_RandomFill.BothPathsPlaceEveryBlockAtItsPositions | keep | 9 | Dispatch::RandomFill: exact identity oracle, the reference path and the SYCL path compared; the medium size is the kernel-against-reference boundary; host_queue is one static queue, no per-test device | tests/operations/random/test_dispatch.cpp; modules/operations/random/include/SushiBLAS/random/dispatch.hpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp
+```
+
+### `tests/operations/random/test_random/test_constant.cpp`
+
+```
+Medium_ConstantTest.Float32 | delete | 1 | the comparison runs with the implicit tolerance 1e-4 of expect_tensor (tensor_comparison.hpp line 202, the default argument); Medium_ConstantTest.Float32OddSize and SingleElement check the same promise exactly with 0.0 | tests/operations/random/test_random/test_constant.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_ConstantTest.HalfOddSize | merge | 4 | constant rows over dtypes: one parametrised row table with Float32OddSize, Float64OddSize, Complex32OddSizeHasZeroImaginaryPart, Complex64OddSizeHasZeroImaginaryPart, Int32OddSize, Int64OddSize and SingleElement | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Float32OddSize | merge | 4 | same row table as HalfOddSize | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Float64OddSize | merge | 4 | same row table as HalfOddSize | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Complex32OddSizeHasZeroImaginaryPart | merge | 4 | same row table as HalfOddSize; the zero imaginary part is part of the constant promise for complex dtypes | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Complex64OddSizeHasZeroImaginaryPart | merge | 4 | same row table as HalfOddSize | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Int32OddSize | merge | 4 | same row table as HalfOddSize | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.Int64OddSize | merge | 4 | same row table as HalfOddSize | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ConstantTest.SingleElement | merge | 4 | same row table as HalfOddSize, at size 1 | tests/operations/random/test_random/test_constant.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_distributions.cpp`
+
+```
+Medium_DistributionsTest.LogNormal | rewrite | 2 | a constant draw passes the positivity check; no sibling checks the log-normal law; rewrite against the moments of the law (promise log_normal) | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_DistributionsTest.Exponential | rewrite | 2 | a constant zero passes the non-negativity check; no sibling checks the exponential law (promise exponential) | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_DistributionsTest.Poisson | delete | 2 | a constant zero passes; the non-negative integer property is also checked by Medium_RandomLargeLambdaTest.PoissonAcceptsTheCap and the PTRS moment tests, so the promise is tested elsewhere; the Knuth moments row has no test, see Adds | tests/operations/random/test_random/test_distributions.cpp; tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_DistributionsTest.Bernoulli | rewrite | 2 | a fill that ignores p passes the 0-or-1 check; no sibling checks the Bernoulli law (promise bernoulli) | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_DistributionsTest.DiscreteUniform | rewrite | 2 | a fill of zero passes the range and integer checks; the sibling reference test compares modes only (promise discrete_uniform) | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_DistributionsTest.TruncatedNormalStaysInsideItsBounds | merge | 4 | the bounds row of truncated_normal; the sibling Medium_RandomReference.TruncatedNormalAgreesInsideItsBounds checks the same bounds on [-2, 2] with other inputs; merge into one bounds row table; the 0.5f and 1.75f bounds are exact values, not tolerances | tests/operations/random/test_random/test_distributions.cpp; tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_DistributionsTest.TruncatedNormalFollowsTheTruncatedLawInTheUpperTail | rewrite | 1 | bare tolerance literal 0.02 in EXPECT_NEAR, a forbidden kind; the only test of the truncated law; the mean 1.510048 is a specified value with its derivation in a comment and is allowed, but the tolerance must come from the helper, and tests/support/tolerance.hpp is absent | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_DistributionsTest.TruncatedNormalRejectsBoundsItCannotHonour | rewrite | 7 | one promise over four bounds and one dtype in one body; rows, not repeated EXPECT_THROW lines; the refusals are decided on values and need only a storage-less tensor, so the size is small | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_DistributionsTest.TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw | rewrite | 1 | the tolerance is 4.0 times a standard error built from typed literals 0.886452 and -0.055248, a forbidden kind; the clamp of a lower bound to -40 is tested only here; loop in body | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_DistributionsTest.EveryDistributionRejectsAnInvalidParameterAtRecordTime | rewrite | 7 | one promise over ten operations and 19 refusals in one body; rows per operation family, each refusal checked by its type; refusals decided on values, small with a storage-less tensor | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_DistributionsTest.EveryDistributionRejectsAnUnsupportedDtypeAtRecordTime | split | 3 | three promises that break apart: value draws refuse HALF and complex, uniform and normal refuse only HALF, shuffle refuses only the integer dtypes; one test per promise, rows per dtype, the loops move into rows | tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_initializers.cpp`
+
+```
+Medium_InitializersTest.XavierUniform | rewrite | 7 | bound row of xavier_uniform, the bound is a specified value so the oracle is sound; the for loop in the body breaks straight line, move it into an expect_ helper; a narrowed fill still passes, so add the spread row | tests/operations/random/test_random/test_initializers.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_InitializersTest.XavierNormal | rewrite | 2 | the only check is non-NaN, so a fill of any finite value passes; no test checks the xavier_normal law (promise xavier_normal) | tests/operations/random/test_random/test_initializers.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_InitializersTest.HeUniform | rewrite | 7 | bound row of he_uniform, specified bound sqrt(6/fan_in); the for loop in the body breaks straight line; move it into an expect_ helper and add the spread row | tests/operations/random/test_random/test_initializers.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_InitializersTest.HeNormal | rewrite | 2 | the only check is non-NaN; no test checks the he_normal law (promise he_normal) | tests/operations/random/test_random/test_initializers.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+```
+
+### `tests/operations/random/test_random/test_normal.cpp`
+
+```
+Medium_NormalTest.Float32MomentsMatchTheRequestedDistribution | rewrite | 1 | bare typed bounds K_MEAN_BOUND and K_VARIANCE_BOUND form the EXPECT_NEAR tolerances, a forbidden kind; tests/support/tolerance.hpp is absent (tests/support does not exist; tools/testing/support holds the copy); the FLOAT64 twin has the same forbidden tolerance, so rewrite both as one dtype row table | tests/operations/random/test_random/test_normal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_NormalTest.Float64MomentsMatchTheRequestedDistribution | rewrite | 1 | same as the FLOAT32 twin; one dtype row table | tests/operations/random/test_random/test_normal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_NormalTest.EqualSeedsDrawEqualSamples | keep | 9 | normal reproducibility from one seed; the copy TheSameSeedGivesTheSameReferenceStreamTwice in test_random_reference.cpp is the one deleted under question 4, since this one is in the unit's own module test file | tests/operations/random/test_random/test_normal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_NormalTest.DifferentSeedsDrawDifferentSamples | keep | 9 | the seed reaches the normal draw; device kernel output, medium boundary | tests/operations/random/test_random/test_normal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_orthogonal.cpp`
+
+```
+Medium_OrthogonalTest.TallMatrixHasOrthonormalColumns | rewrite | 1 | typed default tolerance 1e-4f of expect_orthonormal (line 53) is a forbidden kind and tests/support/tolerance.hpp is absent; the Gram promise is tested only with forbidden tolerances here and in test_random_reference.cpp; rewrite the Gram rows (tall, wide, square, 64, gain) as one table with a derived tolerance | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_OrthogonalTest.WideMatrixHasOrthonormalRows | rewrite | 1 | same typed default tolerance; merge into the Gram rows | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_OrthogonalTest.SquareMatrixIsFullyOrthogonal | rewrite | 1 | same typed default tolerance; merge into the Gram rows | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_orthogonal.cpp
+Medium_OrthogonalTest.SixtyFourSquareMatrixIsFullyOrthogonal | rewrite | 1 | same typed default tolerance; the 64 shape is the widest row and stays in the Gram table | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_OrthogonalTest.GainScalesTheGramDiagonalQuadratically | rewrite | 1 | typed tolerance 1e-3f at the call site, a forbidden kind; the gain row merges into the Gram rows | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_OrthogonalTest.ResultIsNotJustAGaussianFill | rewrite | 1 | bare tolerance 1e-4 in EXPECT_NEAR, a forbidden kind; its promise (unit column norms) is the Gram rows, and the Gaussian fallback it guards is also killed by the square 6x6 Gram row; merge into the rows | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_OrthogonalTest.RejectsInputsItCannotOrthonormalize | rewrite | 7 | one promise over four inputs (rank 1, rank 3, HALF, COMPLEX32) in one body; rows in one table; each refusal is decided on shape and dtype, so small with a storage-less tensor | tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/data/tensor/include/SushiBLAS/tensor/tensor.hpp
+Medium_OrthogonalTest.RejectsAMatrixWithoutStorage | resize | 8 | the refusal is decided on the storage of a tensor, a value; the test reaches the process-wide runtime through SushiBLASTest (TestEnvironment::runtime); seam to build: an in-memory adapter of the engine's device queue port (Architecture for small tests, item 2), so RandomOps and its recorder build on a small Engine | tests/operations/random/test_random/test_orthogonal.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_random_large_lambda.cpp`
+
+```
+Medium_RandomLargeLambdaTest.PoissonMomentsMatchLambdaFifty | rewrite | 1 | typed standard errors K_MEAN_SE_SMALL and K_VARIANCE_SE_SMALL and the typed multiplier K_STANDARD_ERRORS form the EXPECT_NEAR tolerance, a forbidden kind; the two sibling moment tests share the pattern; rewrite as rows over lambda 50, 5000 and 1e6 with the standard errors computed in code | tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomLargeLambdaTest.PoissonMomentsMatchLambdaFiveThousand | rewrite | 1 | same pattern with K_MEAN_SE_MEDIUM and K_VARIANCE_SE_MEDIUM; same row table | tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomLargeLambdaTest.PoissonMomentsMatchLambdaOneMillion | rewrite | 1 | same pattern with K_MEAN_SE_LARGE and K_VARIANCE_SE_LARGE; same row table | tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomLargeLambdaTest.PoissonReplaysBitForBitInBothMethods | rewrite | 7 | the replays at lambda 3 (Knuth) and 5000 (PTRS) are one promise over two inputs in one body; rows; the replay oracle (same seed, same bits) is exact | tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomLargeLambdaTest.PoissonAcceptsTheCap | split | 3 | two promises that break apart: the record-time acceptance of lambda equal to K_MAX_POISSON_LAMBDA (EXPECT_NO_THROW), and the non-negative integer draws at that lambda after the run | tests/operations/random/test_random/test_random_large_lambda.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_random_reference.cpp`
+
+```
+Medium_RandomReference.IntegerAndUniformDrawsAreTheSameStream | split | 3 | many promises from different operations and dtypes in one body: uniform (complex), constant over six dtypes, discrete_uniform, bernoulli, uniform, he_uniform, xavier_uniform and shuffle over FLOAT32 and FLOAT64; one test per operation family | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_RandomReference.HalfValuesAreMovedToTheSameBits | split | 3 | two promises joined by "and" that break apart: constant in HALF and shuffle in HALF; the fp16 skip guard in the body moves into the fixture (Medium_RandomReference::SetUp), which is question 7 for each child | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.SmallLambdaPoissonIsTheSameStream | merge | 4 | same promise as LargeLambdaPoissonGivesTheSameCounts at another lambda; one row table over lambda 4 and 50 and both dtypes; caveat: the PTRS comparison is bitwise on integer counts, and the test's own note says device log and lgamma can flip an acceptance test, so the oracle is exact only where host and device agree; resolve before merging | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.LargeLambdaPoissonGivesTheSameCounts | merge | 4 | same row table as SmallLambdaPoissonIsTheSameStream | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.NormalDrawsAgreeWithinTheirBound | split | 3 | one test over five operations (normal, he_normal, xavier_normal, exponential, log_normal), each with its own bound; the bounds are derived in code from epsilon and the parameters, not typed tolerances | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.TruncatedNormalAgreesInsideItsBounds | rewrite | 1 | the tolerance by_precision(1e-3, 1e-9) is a typed literal passed to expect_within, a forbidden kind; the bounds half duplicates Medium_DistributionsTest.TruncatedNormalStaysInsideItsBounds; the agreement half has no other test; rewrite the agreement with a derived tolerance and delete the bounds half | tests/operations/random/test_random/test_random_reference.cpp; tests/operations/random/test_random/test_distributions.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.BothOrthogonalPathsAreOrthonormal | rewrite | 1 | typed tolerances K_GRAM_TOLERANCE (1e-4) and by_precision(1e-3, 1e-10) times gain, forbidden kinds; the Gram promise is tested with forbidden tolerances in test_orthogonal.cpp too; rewrite into the shape rows of K_ORTHOGONAL_CASES (the loop over that row table is allowed) with a derived tolerance | tests/operations/random/test_random/test_random_reference.cpp; tests/operations/random/test_random/test_orthogonal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_RandomReference.ASingleVectorIsScaledToTheGain | rewrite | 1 | typed tolerance K_NORM_TOLERANCE (1e-4) in EXPECT_NEAR, a forbidden kind; the gain promise is tested with a forbidden tolerance in test_orthogonal.cpp too; merge into the gain row once derived | tests/operations/random/test_random/test_random_reference.cpp; tests/operations/random/test_random/test_orthogonal.cpp
+Medium_RandomReference.ARefusedCallReservesNoOffset | split | 3 | two promises that break apart: a refused call reserves no offset (offset equality), and an accepted call under ForceSYCL reserves exactly one offset; the GTEST_SKIP guard for device-only USM in the body moves into the fixture | tests/operations/random/test_random/test_random_reference.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_RandomReference.TheSameSeedGivesTheSameReferenceStreamTwice | delete | 4 | same promise as Medium_NormalTest.EqualSeedsDrawEqualSamples in test_normal.cpp, the unit's own module test file, which stays; this copy runs under ForceReference at another size | tests/operations/random/test_random/test_random_reference.cpp; tests/operations/random/test_random/test_normal.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_shuffle.cpp`
+
+```
+Medium_ShuffleTest.ResultIsAPermutationOfTheInput | split | 3 | two promises that break apart: the output is a permutation of the input, and the output is not the identity (the kernel ran); the loop and the if in the body go with the split children | tests/operations/random/test_random/test_shuffle.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/README.md
+Medium_ShuffleTest.SameSeedReproducesTheSamePermutation | keep | 9 | equal seed and fresh engine give the same permutation; device kernel output, medium boundary | tests/operations/random/test_random/test_shuffle.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_ShuffleTest.DifferentSeedsProduceDifferentPermutations | keep | 9 | the seed reaches the permutation; device kernel output | tests/operations/random/test_random/test_shuffle.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ShuffleTest.ConsecutiveShufflesOnOneEngineDiffer | keep | 9 | consecutive tasks draw fresh offsets, so the permutations differ; device kernel output | tests/operations/random/test_random/test_shuffle.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_ShuffleTest.PermutesHalfPrecisionToo | rewrite | 7 | the promise (shuffle accepts HALF) is sound; the for loops in the body break straight line; move them into rows or an expect_ helper | tests/operations/random/test_random/test_shuffle.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random/test_uniform.cpp`
+
+```
+Medium_UniformTest.Float32StaysInRangeAndMatchesItsMoments | rewrite | 1 | two promises in one test: the range check on [min, max) is exact and stays; the moment check uses typed bounds K_MEAN_BOUND, K_VARIANCE_BOUND and K_EDGE_BAND, forbidden kinds; split into a range test and moment rows | tests/operations/random/test_random/test_uniform.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_UniformTest.Float64StaysInRangeAndMatchesItsMoments | rewrite | 1 | same as the FLOAT32 twin; one dtype row table | tests/operations/random/test_random/test_uniform.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+Medium_UniformTest.EqualSeedsDrawEqualSamples | keep | 9 | uniform reproducibility from one seed; no sibling replays uniform (the reference test compares modes) | tests/operations/random/test_random/test_uniform.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp; tests/operations/random/test_random/test_random_reference.cpp
+Medium_UniformTest.DifferentSeedsDrawDifferentSamples | keep | 9 | the seed reaches the uniform draw; device kernel output | tests/operations/random/test_random/test_uniform.cpp; modules/operations/random/include/SushiBLAS/random/random.hpp
+```
+
+### `tests/operations/random/test_random_log_category.cpp`
+
+```
+TheCategoryIsNamedAfterTheModule | delete | 1 | a static_assert run as a test, and a test of trivial code (a log category constant), both forbidden kinds; the compile-time check already fails the build | tests/operations/random/test_random_log_category.cpp; modules/operations/random/include/SushiBLAS/random/random_log_category.hpp
+```
+
+### `tests/operations/reductions/test_arg_reduction.cpp`
+
+```
+Medium_ArgReduction.TheReferenceFindsTheFirstLargestAndSmallest | resize | 8 | arg_reduction: first largest and smallest index; host values only and the HostDeviceTest fixture is unused, so it moves to a Small_ suite without the fixture; no seam needed | tests/operations/reductions/test_arg_reduction.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/operations/reductions/include/SushiBLAS/reductions/arg_reduction.hpp
+Medium_ArgReduction.TheSYCLPathPicksTheIndexTheReferencePicks | keep | 9 | arg_reduction: the SYCL path returns the reference index | tests/operations/reductions/test_arg_reduction.cpp; modules/operations/reductions/include/SushiBLAS/reductions/arg_reduction.hpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+```
+
+### `tests/operations/reductions/test_centred_reduction.cpp`
+
+```
+Medium_CentredReduction.TheReferenceVarianceOfOneToFiveIsTwo | resize | 8 | centred_reduction: reference variance of 1 to 5 is 2; host values only, the HostDeviceTest fixture is unused, so it moves to Small_ without the fixture | tests/operations/reductions/test_centred_reduction.cpp; modules/foundation/host_device/include/SushiBLAS/host_device/host_device_test.hpp; modules/operations/reductions/include/SushiBLAS/reductions/centred_reduction.hpp
+Medium_CentredReduction.TheTermsCentreOnTheValueTheyAreGiven | split | 3 | four promises in one body: MeanOfSum, SquaredDeviation, RootOfMeanDeviations and ExpBelowCentre; one test per term | tests/operations/reductions/test_centred_reduction.cpp; modules/operations/reductions/include/SushiBLAS/reductions/centred_reduction.hpp
+Medium_CentredReduction.TheSYCLVarianceEqualsTheReference | keep | 9 | centred_reduction: the SYCL variance equals the host reference; integer inputs with an exact mean make bitwise equality exact | tests/operations/reductions/test_centred_reduction.cpp; modules/operations/reductions/include/SushiBLAS/reductions/centred_reduction.hpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+```
+
+### `tests/operations/reductions/test_dispatch.cpp`
+
+```
+Medium_ReductionDispatch.AHalfPartialIsHeldWideAndTheRestAtTheirWidth | rewrite | 6 | the expected value is sizeof(Reduce::AccumulationOf<half>), the same expression the code returns, so the oracle is the code under test; rewrite with a named oracle: a HALF partial is wider than the 2-byte half, FLOAT64 is 8 bytes, INT32 is 4 bytes | tests/operations/reductions/test_dispatch.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp
+Medium_ReductionDispatch.AnEmptyTensorPlansNoPartialsAndTheReferenceLeasesNone | split | 3 | three promises: empty tensor plans zero partials; reference recorder leases none; automatic recorder leases the planned count | tests/operations/reductions/test_dispatch.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_ReductionDispatch.AnIndexReductionGivesTheSameIndexInBothModes | rewrite | 1 | for loop over K_BOTH_MODES in the body; one test per mode, or a row table over the mode | tests/operations/reductions/test_dispatch.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_axis_reductions.cpp`
+
+```
+Medium_AxisReductionPlan.EnoughSegmentsTakesOneItemPerSegment | rewrite | 7 | three plan_axis calls in one body, one promise over several profiles: rows over profile and extent; plan_axis takes a Device::Profile value, so the rows are small (Q8) | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_AxisReductionPlan.FewLongSegmentsTakeAWorkGroupEach | rewrite | 7 | four checks over a CPU and a GPU profile in one body: rows over profile; the rows are small (Q8), a Profile value is all they read | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductionPlan.FewShortSegmentsStillTakeOneItemPerSegment | rewrite | 7 | boundary pair at group width minus one and group width in one body: rows over the two sides of the boundary; small by Q8 | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductionPlan.EmptySpansTakeTheCheapShape | rewrite | 7 | two degenerate spans in one body: rows over the degenerate span; small by Q8 | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductionsTyped.RowMaxFoldsAxisOne | keep | 9 | max_along: row max hand values for HALF, FLOAT32, FLOAT64; the values are exact, the test writes no tolerance (the expect_tensor default is a helper finding) | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp; tests/operations/reductions/README.md
+Medium_AxisReductionsTyped.ColumnMaxFoldsAxisZero | keep | 9 | max_along: column max hand values for HALF, FLOAT32, FLOAT64 | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AxisReductionsTyped.RowSumFoldsAxisOne | keep | 9 | sum_along: row sum hand values for HALF, FLOAT32, FLOAT64 | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AxisReductionsTyped.ColumnSumFoldsAxisZero | keep | 9 | sum_along: column sum hand values for HALF, FLOAT32, FLOAT64 | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AxisReductions.ColumnMajorOperandsFoldTheSameAxes | split | 3 | two results of two calls, max_along on axis 1 and sum_along on axis 0; one test per op | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductions.AViewAtANonZeroOffsetReducesItsOwnElements | keep | 9 | max_along: a view at a non-zero offset reduces its own elements | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_AxisReductions.AxisReductionsOrderAgainstViewsOfOneAllocation | split | 3 | two promises: the values (sum 36) and the recorded dependency of the read on its writer; one test each | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_AxisReductions.MalformedOperandsAreRejectedAtRecordTime | rewrite | 7 | nine refusals of malformed operands, one promise over many inputs: rows over the malformed operand | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp
+Medium_AxisReductions.MinAlongMirrorsMaxAlong | split | 3 | two promises: min_along results and min_along refusals; one test each | tests/operations/reductions/test_reductions/test_axis_reductions.cpp
+Medium_AxisReductions.NonRealDtypesAreRefusedByName | rewrite | 1 | for loop over the four dtypes in the body; rows over dtype | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp
+Medium_AxisReductions.TheCooperativeTreeAgreesWithTheItemPerSegmentFold | rewrite | 1 | loops build the input and the expected sums in the body; bare 1e-6 literal in EXPECT_NEAR (exact * 1e-6) and tests/support/tolerance.hpp is missing; rewrite with a builder and a derived tolerance | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductions.BothShapesFindTheSamePerSegmentMaximum | rewrite | 1 | loops build the input and expected values in the body; move the build into a builder, keep the exact comparison (max is exact) | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductions.RowSumsAreCompensated | rewrite | 1 | loops fill the input and check the rows in the body; EXPECT_FLOAT_EQ allows four ulps where the oracle is exact (100004096 is representable), so use an exact comparison | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductions.BothShapesAreBitwiseStable | rewrite | 1 | loops over widths, runs and input fill in the body; rows over width, and the run loop moves into a helper | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisReductions.ARowWiseShiftSurvivesAGapThatDestroysAGlobalOne | rewrite | 1 | loops in the body; the global-maximum half asserts an underflow of a formula the library makes no promise about, so at rewrite the row-wise promise is kept and the global half is deleted | tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/operations/reductions/include/SushiBLAS/reductions/dispatch.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_count_nonfinite.cpp`
+
+```
+Medium_CountNonFiniteTyped.ACleanTensorCountsZero | keep | 9 | count_nonfinite: a clean tensor counts zero in both shapes | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_CountNonFiniteTyped.AnInfinityIsCountedInEitherSign | rewrite | 7 | two count calls, +inf and -inf, in one body: rows over the sign | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTyped.ANaNIsCounted | keep | 9 | count_nonfinite: a NaN is counted at a small size; the larger ASingleBad test repeats only the large-size NaN, so this smaller copy stays (REVIEWING question 4 read literally would delete it, see the reply) | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTyped.ASingleBadElementIsFoundAtAnyIndexIncludingTheLast | rewrite | 1 | for loop over the index list in the body; rows over index | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTyped.EveryBadElementIsCounted | keep | 9 | count_nonfinite: several bad elements of both kinds add up to their count, which a saturating any would not | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTyped.BothLaunchShapesGiveTheSameCount | rewrite | 7 | two sizes and two counts in one body: rows over size, since the promise is the same count on both shapes | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean | split | 3 | the count half (a clean HALF tensor of 20000 counts zero) is this unit's promise and merges into the ACleanTensor rows; the asum half characterises another op and leaves this file | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTest.NonRealInputDTypesAreRefusedByName | rewrite | 1 | for loop over the dtypes in the body; rows over dtype, and the no-task check is its own test | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_CountNonFiniteTest.TheResultTensorMustBeAnInt64Scalar | split | 3 | two refusals: a result that is not INT64, and an INT64 result that is not a scalar; one test each | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+Medium_CountNonFiniteTest.IsOrderedBehindTheOpThatWroteItsInput | keep | 9 | count_nonfinite: ordered behind its writer; the recorded in-degree is the only observable form of that ordering, so the check reads GraphProbe's plan | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_CountNonFiniteTest.AnOverflowProducedInsideTheGraphIsFound | keep | 9 | count_nonfinite: an overflow produced earlier in the graph is found | tests/operations/reductions/test_reductions/test_count_nonfinite.cpp
+```
+
+### `tests/operations/reductions/test_reductions/test_max_min_nan.cpp`
+
+```
+Medium_MaxMinNaNTest.NegativeInfinityAloneGivesNegativeInfinity | delete | 1 | K_TOLERANCE literal in expect_max_min; the promise repeats TwoNegativeInfinitiesGiveNegativeInfinity in this file | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.TwoNegativeInfinitiesGiveNegativeInfinity | rewrite | 1 | K_TOLERANCE literal in expect_max_min; the sole test of the negative-infinity promise once its single-element copy goes; rewrite as rows over -inf, -inf and +inf with an exact comparison | tests/operations/reductions/test_reductions/test_max_min_nan.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_MaxMinNaNTest.PositiveInfinityAloneGivesPositiveInfinity | delete | 1 | K_TOLERANCE literal; the promise is a row of the TwoNegativeInfinities rewrite | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder | rewrite | 1 | for loop over the two orders in the body; rows over order | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity | rewrite | 1 | K_TOLERANCE literal; sole max_along test of -inf; exact comparison | tests/operations/reductions/test_reductions/test_max_min_nan.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_MaxMinNaNTest.NaNFirstGivesNaN | rewrite | 1 | K_TOLERANCE literal; survivor of the NaN set: rows over position 0, middle, last and one large size, so the NaN-near-end case is covered | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.NaNInTheMiddleGivesNaN | delete | 1 | K_TOLERANCE literal; a row of the NaNFirstGivesNaN rewrite | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.NaNLastGivesNaN | delete | 1 | K_TOLERANCE literal; a row of the NaNFirstGivesNaN rewrite | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.WithoutNaNGivesTheExtremes | rewrite | 1 | K_TOLERANCE literal; survivor of the finite-extremes set: rows include a large size, so LargeInputWithoutNaN is covered | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.NaNNearTheEndOfALargeInputGivesNaN | delete | 1 | K_TOLERANCE literal; the large-size NaN is a row of the NaNFirstGivesNaN rewrite | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.LargeInputWithoutNaNGivesTheExtremes | delete | 1 | K_TOLERANCE literal; a row of the WithoutNaNGivesTheExtremes rewrite | tests/operations/reductions/test_reductions/test_max_min_nan.cpp
+Medium_MaxMinNaNTest.AxisExtremaPropagateNaN | rewrite | 1 | loops build the input in the body; K_TOLERANCE literal (NaN expectations are exact in expect_tensor, so the literal is not needed); rewrite with a builder | tests/operations/reductions/test_reductions/test_max_min_nan.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_mean_spatial.cpp`
+
+```
+Medium_MeanSpatialTest.FoldsTheTwoMiddleAxesOfAnNhwcTensor | rewrite | 1 | loops build the input and the expected values in the body; EXPECT_NEAR with a 1e-5f literal and no tests/support/tolerance.hpp; rewrite with a builder and a derived tolerance | tests/operations/reductions/test_reductions/test_mean_spatial.cpp
+Medium_MeanSpatialTest.ASingleSegmentPairIsStillCorrect | rewrite | 1 | 1e-5f literal; the only test of N = 1 and C = 1; 2.5 is exact, so the comparison can be exact | tests/operations/reductions/test_reductions/test_mean_spatial.cpp
+Medium_MeanSpatialTest.ALongExtentReachesTheCooperativeShape | rewrite | 1 | loops build the input and the expected value in the body; 1e-5f literal; the name says the cooperative shape is reached, but the body never checks plan_axis, so the rewrite fixes name and assertion together | tests/operations/reductions/test_reductions/test_mean_spatial.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_AxisSpanTest.ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid | delete | 1 | loops and a 1e-5f literal; its row-sum promise repeats RowSumFoldsAxisOne in test_axis_reductions.cpp; the default-span promise it names is not asserted here, so it is listed under Adds | tests/operations/reductions/test_reductions/test_mean_spatial.cpp; tests/operations/reductions/test_reductions/test_axis_reductions.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_reduce_segments.cpp`
+
+```
+Medium_ReduceSegments.BothShapesFoldEverySegmentOnce | rewrite | 1 | loops over shapes and extents in the body; rows over shape and extent | tests/operations/reductions/test_reductions/test_reduce_segments.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_ReduceSegments.TheCooperativeShapeFoldsInLaneOrder | rewrite | 1 | loops over segments and terms build the expected lane fold in the body; move the lane fold into a named host helper | tests/operations/reductions/test_reductions/test_reduce_segments.cpp
+Medium_ReduceSegments.ReduceAxisKeepsItsFloatBits | rewrite | 1 | loops over group counts and lanes in the body; the FLOAT64 GTEST_SKIP guard moves into the fixture | tests/operations/reductions/test_reductions/test_reduce_segments.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_ReduceSegments.AHalfAxisSumIsFoldedInFloat | rewrite | 1 | loop over lanes in the body; the fp16 GTEST_SKIP guard moves into the fixture | tests/operations/reductions/test_reductions/test_reduce_segments.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp
+Medium_ReduceSegments.AHalfMeanSpatialDoesNotOverflow | rewrite | 7 | the fp16 GTEST_SKIP guard in the body moves into the fixture (rewrite at Q7 by the testing brief); the body is otherwise one mean_spatial call | tests/operations/reductions/test_reductions/test_reduce_segments.cpp
+Medium_ReduceSegments.AStoreSeesItsOwnSegmentOnly | rewrite | 1 | loop over lanes in the body; rows over lane count | tests/operations/reductions/test_reductions/test_reduce_segments.cpp
+```
+
+### `tests/operations/reductions/test_reductions/test_reduction_determinism.cpp`
+
+```
+Medium_ReductionDeterminism.BothShapesAreReachedHere | rewrite | 1 | if on p.is_cpu in the body; the premise is planned_partials, a pure function of a Profile value, so the threshold belongs in a Small_ test (see Adds) | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+Medium_ReductionDeterminism.SumIsBitwiseStable | rewrite | 7 | two sizes in one body: rows over size; the stability check is a helper | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.MeanIsBitwiseStable | rewrite | 7 | two sizes in one body: rows over size | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.AsumIsBitwiseStable | rewrite | 7 | two sizes in one body: rows over size | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.Nrm2IsBitwiseStable | rewrite | 7 | two sizes in one body: rows over size | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.ProdIsBitwiseStable | rewrite | 7 | two sizes in one body: rows over size | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.TwoStageMomentsAreBitwiseStable | split | 3 | three ops in one body (var, std, logsumexp); one test each | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.CompensatedSumRecoversASmallTailUnderALargeHead | keep | 9 | reductions (determinism): the compensated sum recovers 4096 ones under a head of 1e8; the same numbers in the axis row sums test are a different op | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp; tests/operations/reductions/test_reductions/test_axis_reductions.cpp
+Medium_ReductionDeterminism.CompensatedSumBeatsNaiveSummationOnRepeatedTenths | rewrite | 1 | for loops in the body; bare 1e-7 literal in the second EXPECT_LT with no tests/support/tolerance.hpp | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp
+Medium_ReductionDeterminism.TwoStageTreeAgreesWithTheSequentialPass | rewrite | 1 | bare 1e-6 literal in both EXPECT_NEAR (exact * 1e-6); a loop inside the lambda that builds the host sum; rewrite with a derived tolerance | tests/operations/reductions/test_reductions/test_reduction_determinism.cpp; modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_reductions.cpp`
+
+```
+Medium_ReductionOpsTyped.Sum | delete | 1 | 1e-4 tolerance literal in EXPECT_TENSOR_NEAR; the promise is held by Medium_ReductionReferenceTyped.SumsAgreeWithTheirReferencePathWithinTheBound | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Mean | delete | 1 | 1e-4 literal; held by SumsAgreeWithTheirReferencePathWithinTheBound | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Max | delete | 1 | 1e-4 literal; held by OrderFreeReductionsAgreeToTheBit, which compares the max bits with the reference | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Min | delete | 1 | 1e-4 literal; held by OrderFreeReductionsAgreeToTheBit | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.ArgMax | delete | 1 | 0.0 tolerance literal; held by ArgMaxAndArgMinFollowTheScanRule and IndexReductionsOfIntegersAgreeToTheBit | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.ArgMin | delete | 1 | 0.0 tolerance literal; held by ArgMaxAndArgMinFollowTheScanRule and IndexReductionsOfIntegersAgreeToTheBit | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Var | delete | 1 | 1e-4 literal; held by VarianceMatchesATwoPassHostReference | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Std | delete | 1 | 1e-4 literal; held by VarianceMatchesATwoPassHostReference and MomentsAgreeWithTheirReferencePath | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Prod | delete | 1 | 1e-4 literal; held by ProductAndNormAgreeWithinTheirBounds | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.LogSumExp | rewrite | 1 | 1e-4 literal; the finite-value promise (logsumexp of 1, 2, 3) is held by no other test; rewrite with a derived tolerance | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Asum | delete | 1 | 1e-4 literal; held by SumsAgreeWithTheirReferencePathWithinTheBound | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOpsTyped.Nrm2 | delete | 1 | 1e-4 literal; held by ProductAndNormAgreeWithinTheirBounds | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.NonRealDtypesAreRefusedByName | rewrite | 1 | for loop over Int32 and Int64 in the body; rows over dtype | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.ADeviceOnlyOperandIsRefusedOnEverySeam | split | 3 | two promises: refusal under ForceReference on six seams, and acceptance under ForceSYCL; the skip guard in the body moves into the fixture | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.MalformedOperandsAreRefusedAlikeInBothModes | rewrite | 7 | four refusal calls in one body, one promise over several calls: rows over call | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.EmptyOperandsBehaveAlikeInBothModes | split | 3 | four promises: empty sum and product identities, and mean and max refusals; one test each | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.AReferenceReductionLeasesNoScratch | rewrite | 7 | four recorded reductions and checks between them in one body; rows per op; the skip guard moves into the fixture | tests/operations/reductions/test_reductions/test_reductions.cpp; modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp
+Medium_ReductionOps.AHostMeanDividesBeforeItNarrows | split | 3 | two ops, mean and mean_spatial; one test each | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.IndexReductionsOfIntegersAgreeToTheBit | rewrite | 1 | for loops over sizes, tensors and both modes in the body | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.LogSumExpHandlesInfiniteAndNaNInputs | rewrite | 1 | 1e-3 literal in expect_logsumexp; the infinity and NaN expectations are exact, so only the log(2) case needs a derived tolerance | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionOps.ArgMaxAndArgMinFollowTheScanRule | rewrite | 1 | for loop over sizes in the body; rows over size, and the ties, first-NaN and later-NaN rules become separate tests | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionMomentsTyped.VarianceMatchesATwoPassHostReference | rewrite | 1 | for loop over sizes in the body; the oracle is named (host_variance) and kept; K_MOMENT_ULPS is a typed ulp count, so derive the bound instead | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.SumsAgreeWithTheirReferencePathWithinTheBound | rewrite | 1 | for loops over shapes and calls in the body; rows over shape and call | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.SumsOfSmallIntegersAgreeToTheBit | rewrite | 1 | loop with a continue that skips a shape silently when the magnitude check fails, so the test can pass without asserting; rows over shape with a failing skip | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.OrderFreeReductionsAgreeToTheBit | rewrite | 1 | nested loops and four promises in one body (sign of zero, NaN, argmax index, count); rows over shape, one test per promise | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.MomentsAgreeWithTheirReferencePath | rewrite | 1 | for loops over sizes and calls in the body; rows over size and call | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.ProductAndNormAgreeWithinTheirBounds | rewrite | 1 | for loop over sizes in the body and three promises (prod bound, exact powers, nrm2 bound); split at rewrite | tests/operations/reductions/test_reductions/test_reductions.cpp
+Medium_ReductionReferenceTyped.LogSumExpAgreesWithItsReferencePath | rewrite | 1 | for loop over sizes in the body and two promises (finite terms, special values); split at rewrite | tests/operations/reductions/test_reductions/test_reductions.cpp
+```
+
+### `tests/operations/reductions/test_reductions/test_reductions_log_category.cpp`
+
+```
+Small_ReductionsLogCategory.TheCategoryIsNamedAfterTheModule | delete | 1 | static_assert run as a test of a log category constant, which the forbidden-kinds table names as trivial; no runtime assertion | tests/operations/reductions/test_reductions_log_category.cpp; modules/operations/reductions/include/SushiBLAS/reductions/reductions_log_category.hpp
+```
+
+### `tests/operations/reductions/test_reductions/test_scratch_buffer.cpp`
+
+```
+Medium_ScratchBuffer.ZeroBytesLeaseNothing | resize | 8 | ScratchBuffer: a zero-byte lease holds no block and returns none; the pool is reached through the process runtime and the live allocation counter; seam: ScratchPool takes its block source through an in-memory port; resize to small after the seam | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp; modules/foundation/test_runner/include/SushiBLAS/test_runner/test_environment.hpp; modules/engine/engine/include/SushiBLAS/engine/scratch_pool.hpp
+Medium_ScratchBuffer.ALeaseHoldsABlockOfItsClass | rewrite | 1 | for loop over the requests in the body; rows over (request, block) pairs; the class table is a decision on values, small after the seam | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.ACopyKeepsTheBlockOut | rewrite | 7 | copy, reset and a second lease, with a check between actions; one test per action | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.TheLastCopyReturnsTheBlock | rewrite | 7 | copy, assignment and drop in one body; several actions | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.ALeaseOutlivesItsPool | split | 3 | two promises: the lease outlives its pool (logic, small after the seam) and the device accepts a write over the block (medium) | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.LiveLeasesNeverShareABlock | rewrite | 1 | for loop in the body builds 300 leases; a builder or rows; the uniqueness check is logic, small after the seam | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.LeasesAreSafeAcrossThreads | rewrite | 1 | loops and an if inside the worker lambdas in the body; move the worker into a named helper that counts, and keep the thread test at medium | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.ARecordedReductionReusesItsScratch | rewrite | 7 | the GTEST_SKIP guard in the body moves into the fixture; two runs with checks between them | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+Medium_ScratchBuffer.TwoRecordersLeaseFromOnePool | rewrite | 7 | the GTEST_SKIP guard in the body moves into the fixture; several actions in one body | tests/operations/reductions/test_reductions/test_scratch_buffer.cpp
+```
+
+### `tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp`
+
+```
+Medium_SumEdgeCasesTest.SingleElement | rewrite | 1 | K_TOLERANCE literal in expect_reductions; the one-element promise is held by no other test; exact comparison | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SumEdgeCasesTest.OnePastAPowerOfTwo | rewrite | 1 | K_TOLERANCE literal; the odd-tail promise at 65537 is held by no other test; 65537 and 1 are exact | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+Medium_SumEdgeCasesTest.AllEqual | delete | 1 | K_TOLERANCE literal; equal values repeat the one-element promise and become rows of the SingleElement rewrite | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+Medium_SumEdgeCasesTest.NegativeZeros | rewrite | 1 | K_TOLERANCE literal, and a tolerance cannot see the sign of zero, which is the promise; rewrite with a bitwise check | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+Medium_SumEdgeCasesTest.NaNPropagatesThroughSumAndMean | delete | 1 | K_TOLERANCE literal; held by NaNPropagatesThroughEveryReduction | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+Medium_SumEdgeCasesTest.NaNPropagatesThroughEveryReduction | rewrite | 1 | K_TOLERANCE literal; sole test of NaN through sum and mean; NaN expectations are exact in expect_tensor, so the literal is not needed | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp; modules/data/tensor_expectations/include/SushiBLAS/tensor_expectations/tensor_comparison.hpp
+Medium_SumEdgeCasesTest.PositiveInfinity | rewrite | 1 | K_TOLERANCE literal; survivor of the infinity set, rows over both signs | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+Medium_SumEdgeCasesTest.NegativeInfinity | delete | 1 | K_TOLERANCE literal; a row of the PositiveInfinity rewrite | tests/operations/reductions/test_reductions/test_sum_edge_cases.cpp
+```
+
+### `tests/operations/signal/test_signal/test_signal_convolve_1d.cpp`
+
+```
+Medium_SignalConvolve1DTyped.TheTwoTapConvolutionGivesItsHandWorkedValues | rewrite | 1 | for loop over the modes in the body; rows over mode | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1DTyped.IntegerDataEqualsTheFormulaExactly | rewrite | 1 | loops over cases and modes and an ASSERT inside the loop in the body; rows over case and mode | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1DTyped.FractionalDataStaysWithinTheRoundingBound | rewrite | 1 | loops over cases, modes, rows and samples in the body; move the truth sum into a builder; the bound itself is derived and is kept | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1DTyped.TheDeviceRepeatsToTheBit | keep | 9 | signal convolve_1d: one device run repeats to the bit on non-integer data | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1D.RefusesMismatchedOperandsAtRecordTime | rewrite | 7 | eight refusal calls over malformed operands, one promise: rows over operand; the control call stays | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1D.TheNodeCarriesTheNameAndTheDeterminismClass | split | 3 | two promises: a named call carries its name and class; an unnamed call keeps the default id and Unstated | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1D.AnEmptyNameOrAnUnknownClassIsRefused | rewrite | 7 | three refusals over bad options in one body: rows over option; the message is not checked here | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp
+Medium_SignalConvolve1D.RefusesAnOutputThatOverlapsAnInput | resize | 8 | an output region that overlaps an input is decided on Tensor regions (value ranges, convolve_1d.cpp lines 109 to 112); seam: a host-callable region overlap predicate; resize after the seam | tests/operations/signal/test_signal/test_signal_convolve_1d.cpp; modules/operations/signal/source/convolve_1d.cpp
+```
+
+### `tests/operations/sparse/benchmark_sparse.cpp`
+
+```
+main | keep | 9 | benchmark kind: prints GB/s and returns no verdict, sits beside the unit tests and runs through the bench command, so the test questions do not apply | tests/operations/sparse/benchmark_sparse.cpp
+```
+
+### `tests/operations/sparse/test_accumulator_size.cpp`
+
+```
+Medium_SparseTypes.IndexBaseKeepsItsValuesInOneByte | delete | 1 | trivial code: constants 221, 222 and sizeof; the same promise is at tests/foundation/core/test_sparse_types.cpp::Small_IndexBase.KeepsItsSparseBLASNumbersInOneByte | tests/operations/sparse/test_accumulator_size.cpp; tests/foundation/core/test_sparse_types.cpp; modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp
+Medium_SparseTypes.IsValidRefusesAValueOutsideTheEnumeration | merge | 4 | IndexBase: is_valid accepts both enumerators and no other value; merge into tests/foundation/core/test_sparse_types.cpp::Small_IndexBase.IsValidAcceptsBothBasesAndNothingElse, the chunk adds value 255 and a cast of 0 as rows | tests/operations/sparse/test_accumulator_size.cpp; tests/foundation/core/test_sparse_types.cpp
+Medium_SparseTypes.FirstIndexIsTheStoredValueOfPositionZero | delete | 4 | IndexBase: first_index is 0 or 1; same inputs at tests/foundation/core/test_sparse_types.cpp::Small_IndexBase.FirstIndexIsZeroOrOne | tests/operations/sparse/test_accumulator_size.cpp; tests/foundation/core/test_sparse_types.cpp
+Medium_SparseTypes.ToStringNamesBothBasesAndAnUnknownValue | delete | 4 | IndexBase: to_string names; identical test and inputs at tests/foundation/core/test_sparse_types.cpp::Small_IndexBase.ToStringNamesBothBasesAndAnUnknownValue | tests/operations/sparse/test_accumulator_size.cpp; tests/foundation/core/test_sparse_types.cpp
+Medium_SparseTypes.ADefaultSparseVectorIsEmptyAndZeroBased | delete | 1 | a default value (forbidden kind); the same check is at tests/data/sparse_storage/test_sparse_vector.cpp::Medium_SparseVector.ADefaultVectorIsEmptyAndZeroBased | tests/operations/sparse/test_accumulator_size.cpp; tests/data/sparse_storage/test_sparse_vector.cpp
+Medium_SparseTypes.ADefaultSparseMatrixIsEmptyAndZeroBased | delete | 1 | a default value (forbidden kind); the same check is at tests/data/sparse_storage/test_sparse_matrix.cpp::Medium_SparseMatrix.ADefaultMatrixIsEmptyAndZeroBased | tests/operations/sparse/test_accumulator_size.cpp; tests/data/sparse_storage/test_sparse_matrix.cpp
+Medium_SparseTypes.ASparseVectorReportsTheDtypesOfItsTensors | merge | 4 | SparseVector: nnz and dtypes read from its tensors; merge into tests/data/sparse_storage/test_sparse_vector.cpp::Medium_SparseVector.ReadsItsCountAndDtypesFromItsTensors as rows (other dtypes: Complex64 values, Int32 indices) | tests/operations/sparse/test_accumulator_size.cpp; tests/data/sparse_storage/test_sparse_vector.cpp
+Medium_SparseTypes.ASparseMatrixReportsTheDtypesOfItsTensors | merge | 4 | SparseMatrix: nnz and dtypes read from its tensors; merge into tests/data/sparse_storage/test_sparse_matrix.cpp::Medium_SparseMatrix.ReadsItsCountAndDtypesFromItsTensors as rows (other dtypes: Half values, Int64 offsets) | tests/operations/sparse/test_accumulator_size.cpp; tests/data/sparse_storage/test_sparse_matrix.cpp
+Medium_SparseTypes.ACsrPatternSubtractsItsFirstIndex | merge | 4 | CsrPattern: reads the stored arrays less the first index; merge into tests/kernels/sparse_kernels/test_csr_pattern.cpp::Small_CsrPattern.AOneBasedPatternSubtractsItsBase as rows, which then take the INT32 instantiation; the two loops and the two helper templates go away with the rows (Q7 sign) | tests/operations/sparse/test_accumulator_size.cpp; tests/kernels/sparse_kernels/test_csr_pattern.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/csr_pattern.hpp
+Medium_SparseTypes.AnIndexListSubtractsItsFirstIndex | merge | 4 | IndexList: reads positions less the first index; merge into tests/kernels/sparse_kernels/test_index_list.cpp::Small_IndexList.ReadsEachPositionLessTheBase as rows (other inputs: one-based INT32 and INT64 with stored values 7, 2, 5) | tests/operations/sparse/test_accumulator_size.cpp; tests/kernels/sparse_kernels/test_index_list.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/index_list.hpp
+Medium_SparseTypes.AccumulatorBytesIsTheSizeOfTheAccumulatorOfEachDtype | resize | 8 | accumulator_bytes: sizeof of the Accumulator per dtype; a constexpr and sizeof table with no device, so a Medium label with nothing medium in it; the table is a row table, so its loop is not a Q7 sign; no sibling test (grep) | tests/operations/sparse/test_accumulator_size.cpp; modules/operations/sparse/include/SushiBLAS/sparse/accumulator_size.hpp
+```
+
+### `tests/operations/sparse/test_index_check.cpp`
+
+```
+Medium_IndexCheck.OnlyTheTwoEnumeratorsAreIndexBases | resize | 8 | index_check: require_index_base accepts the two enumerators and refuses another value; the fixture SetUp builds an Engine on TestEnvironment::runtime, the check reads only the enum, so Small_ with no seam; Q4 sibling tests/operations/sparse/test_sparse/test_sparse_validation.cpp line 152 refuses base 0 at operation level, but the unit's own file stays by the rule for two tests of one promise | tests/operations/sparse/test_index_check.cpp; modules/operations/sparse/include/SushiBLAS/sparse/index_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp; modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp; tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_IndexCheck.ACompressedArrayIsADenseVectorOfTheExpectedLength | resize | 8 | require_compressed_array accepts a rank-1 array of the expected length and refuses another rank or length; the accepting case needs an array with storage, which a runtime-free host buffer does not give today (Storage Borrowed takes a Runtime), so the seam is built first; Q4 no sibling test of require_compressed_array (grep of tests/) | tests/operations/sparse/test_index_check.cpp; modules/operations/sparse/include/SushiBLAS/sparse/index_check.hpp; modules/data/tensor/include/SushiBLAS/tensor/storage.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_IndexCheck.AnIndexArrayIsIntegralAndHoldsTheLargestIndex | split | 3 | name joins two promises: integral dtype (require_index_array dtype rule) and the largest index against the INT32 limit | tests/operations/sparse/test_index_check.cpp; modules/operations/sparse/include/SushiBLAS/sparse/index_check.hpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_level1.cpp`
+
+```
+Medium_SparseLevel1Test.AxpyiAddsTheScaledEntriesAtTheirPositions (typed) | rewrite | 1 | tolerance: bare 0.0 passed to expect_near, exact by construction, use EXPECT_EQ on the widened values; the mode and base loops are a sweep; promise: SparseOps level 1 axpyi row | tests/operations/sparse/test_sparse/test_sparse_level1.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SparseLevel1Test.DotiIsDefinedForRealTensorsAndNamesItsSiblings (typed) | rewrite | 1 | tolerance: bare 0.0; branch on is_complex with continue in body (Q7); name joins two promises (doti defined on real, refused on complex), split after the rewrite | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.DotuiMultipliesAsStoredAndDotciConjugatesX (typed) | rewrite | 1 | tolerance: bare 0.0; branches on is_complex in body (Q7); two routines in one test, split after the rewrite | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.OnARealTensorTheThreeDotProductsHoldTheSameBits (typed) | rewrite | 7 | GTEST_SKIP guard for complex T in the body moves into the fixture; promise: doti, dotui and dotci hold the same bits on a real tensor; no tolerance here | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.GthrCopiesTheElementsAtThePositionsAndLeavesY (typed) | rewrite | 1 | tolerance: bare 0.0; promise: gthr copies entries and leaves y | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.GthrzAlsoZeroesTheGatheredElements (typed) | rewrite | 1 | tolerance: bare 0.0; promise: gthrz also zeroes gathered elements | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.SctrWritesTheEntriesAtTheirPositions (typed) | rewrite | 1 | tolerance: bare 0.0; promise: sctr writes entries at positions | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.RotiRotatesTheEntriesAgainstTheirElements (typed) | rewrite | 1 | tolerance: bare 0.0; hand-derived values kept | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.AStridedYIsAddressedByItsIncrement (typed) | rewrite | 1 | tolerance: bare 0.0; element-building loops in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.AVectorWithoutEntriesLeavesYAndGivesAZeroDotProduct (typed) | rewrite | 1 | tolerance: bare 0.0; axpyi and dotui in one test, split after the rewrite | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Test.ALongDotProductOfIntegersIsExactInBothModes (typed) | rewrite | 1 | tolerance: bare 0.0; input built by loops in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Half.AxpyiFormsItsProductInFloat32 | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Integers.GatherAndScatterMoveIntegerValues | split | 3 | name joins gthr, gthrz and sctr, three routines that can break apart | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+Medium_SparseLevel1Integers.TheArithmeticRoutinesRefuseIntegerValues | split | 3 | three routines (axpyi, doti, roti) refuse integer values, one test per routine | tests/operations/sparse/test_sparse/test_sparse_level1.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_recording.cpp`
+
+```
+Medium_SparseRecording.ARecordedTaskComputesItsResult | delete | 1 | tolerance: typed K_TOLERANCE 1e-5 in expect_tensor (forbidden kind); the routines run through the same recorder and are checked to the same values in the routine files, so the promise is tested elsewhere; the lone-task dependency check is not there and is added below | tests/operations/sparse/test_sparse/test_sparse_recording.cpp; tests/operations/sparse/test_sparse/test_sparse_spmv.cpp; tests/operations/sparse/test_sparse/test_sparse_spmm.cpp; tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp; tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseRecording.AMatrixDestroyedBeforeExecuteIsKept | delete | 1 | tolerance: typed K_TOLERANCE 1e-5 (forbidden kind); the same promise, a task keeps its input allocated until it has run, is at tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp::Medium_OperandLifetime.ATaskKeepsItsInputAllocatedUntilItHasRun; the live-allocation counter is also a process-wide reach (question 8) | tests/operations/sparse/test_sparse/test_sparse_recording.cpp; tests/library/umbrella/test_SushiBLAS/test_operand_lifetime.cpp
+Medium_SparseRecording.AProductIsOrderedBehindTheTaskThatWroteItsValues | rewrite | 7 | promise: a product reads A.values and is ordered behind the writer; two scenarios (dependent and independent) as rows; no tolerance; the engine tests cover the generic dependency mechanism, not the per-operation read declaration | tests/operations/sparse/test_sparse/test_sparse_recording.cpp; tests/engine/engine/test_task_recorder.cpp
+Medium_SparseRecording.TheSameCallsReplayIntoASecondGraph | delete | 1 | tolerance: typed K_TOLERANCE 1e-5 (forbidden kind); the same promise, the same calls replay into a second graph with equal results, is at tests/engine/engine/test_task_recorder.cpp::Medium_TaskRecorderTest.TheSameCallsReplayIntoASecondGraph | tests/operations/sparse/test_sparse/test_sparse_recording.cpp; tests/engine/engine/test_task_recorder.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_spmm.cpp`
+
+```
+Medium_SparseSpmmTest.EveryColumnOfTheSampleProductMatchesTheHost (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE 1e-4; the host_product oracle is kept; promise: spmm matches the host reference for every transpose, base and layout | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+Medium_SparseSpmmTest.ConjTransConjugatesAComplexMatrixAndNothingElse (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE and bare 0.0; if on is_complex in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+Medium_SparseSpmmTest.ABetaOfZeroDoesNotReadC (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+Medium_SparseSpmmTest.IntegerDataIsExactInBothModesForEveryTranspose (typed) | rewrite | 1 | tolerance: bare 0.0 with exact-by-construction data (EXPECT_EQ); input built by a loop in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+Medium_SparseSpmmTest.DenseOperandsWithoutColumnsRecordAndRun (typed) | rewrite | 6 | implicit oracle: the checks are no-throw and run has_value only; name the oracle (an empty product, C with no elements, one recorded task); the no-crash oracle is allowed only in a fuzz or stress test | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+Medium_SparseSpmmHalf.ATransposedColumnIsSummedInFloat32 | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spmm.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_spmv.cpp`
+
+```
+Medium_SparseSpmvTest.TheSampleProductMatchesTheHostInEveryModeAndBase (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE 1e-4 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.TheTransposedSampleProductMatchesTheHost (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE 1e-4 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.ConjTransConjugatesAComplexMatrixAndNothingElse (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE and bare 0.0; if on is_complex in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.IntegerDataIsExactInBothModesForEveryTranspose (typed) | rewrite | 1 | tolerance: bare 0.0 with exact data; input built by a loop in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.ABetaOfZeroDoesNotReadY (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.AMatrixWithoutEntriesScalesYByBeta (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.AMatrixWithoutRowsOrColumnsScalesItsOtherSide (typed) | rewrite | 1 | tolerance: bare 0.0; four calls in one test, split after the rewrite | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.StridedVectorsGiveTheSampleProduct (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE, expect_interleaved also passes bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvTest.APairStoredTwiceCountsTwice (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvHalf.ARowAndAColumnAreSummedInFloat32 | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp
+Medium_SparseSpmvKernel.EveryBlockCountGivesTheExactIntegerResult | merge | 4 | promise: the transposed SYCL spmv kernel gives the exact integer result; the same promise with other inputs (block counts 1, 2, 3, 7, 64, 256) is in tests/kernels/sparse_kernels/sycl/test_spmv.cpp::Medium_SYCLSparseSpmv.MatchesTheReferencePlainAndTransposed; merge as rows there | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp; tests/kernels/sparse_kernels/sycl/test_spmv.cpp
+Medium_SparseSpmvKernel.TheRowBlocksCoverEveryEntryOnce | rewrite | 1 | forbidden kind: Detail:: symbols (Kernels::SYCL::Detail); the rows-in-order part is tested at tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp::Medium_RowBlocks.TheBlocksCoverTheRowsInOrder, the entries-covered-once promise is only here, so rewrite through a public seam; ASSERT loops in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp; tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp; modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/row_blocks.hpp
+Medium_SparseSpmvKernel.TheBlockCountFollowsTheProfileAndTheDensity | merge | 4 | promise: scatter_blocks follows the device profile and the density; the same promise with other inputs (8 CPU units, 64 GPU units) is tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp::Medium_RowBlocks.TheBlockCountIsCappedByUnitsEntriesAndTheMaximum; merge as rows there | tests/operations/sparse/test_sparse/test_sparse_spmv.cpp; tests/kernels/sparse_kernels/sycl/test_row_blocks.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp`
+
+```
+Medium_SparseSpsymvTest.EitherStoredTriangleGivesTheProductOfTheSample (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.AMatrixStoredInFullGivesTheSameUnderEitherUplo (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.TheOtherTriangleIsNotRead (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.ABetaOfZeroDoesNotReadY (typed) | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.SphemvConjugatesTheMirrorAndReadsARealDiagonal (typed) | rewrite | 1 | tolerance: typed K_SAMPLE_TOLERANCE; GTEST_SKIP guard in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.OnARealTensorSphemvHoldsTheBitsOfSpsymv (typed) | rewrite | 7 | GTEST_SKIP guard for complex T in the body moves into the fixture; no tolerance; promise: on a real tensor sphemv holds the bits of spsymv | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.IntegerDataIsExactInBothModesForEitherTriangle (typed) | rewrite | 1 | tolerance: bare 0.0 with exact data | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvTest.AMatrixOfOrderZeroRecordsAndRuns (typed) | rewrite | 6 | implicit oracle: no-throw and run has_value only; name the oracle (an empty product, one recorded task per routine) | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvHalf.TheMirroredEntriesAreSummedInFloat32 | rewrite | 1 | tolerance: bare 0.0 | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp
+Medium_SparseSpsymvKernel.EveryBlockCountGivesTheExactIntegerResult | merge | 4 | promise: the symmetric SYCL kernel gives the exact integer result; the same promise with other inputs (block counts) is tests/kernels/sparse_kernels/sycl/test_spsymv.cpp::Medium_SYCLSpsymv.MatchesTheReferenceForEitherTriangle; merge as rows there | tests/operations/sparse/test_sparse/test_sparse_spsymv.cpp; tests/kernels/sparse_kernels/sycl/test_spsymv.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp`
+
+```
+Medium_SparseSptrsvTest.BothTrianglesSolveBothSystemsOfTheSample (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE 1e-4 | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.AUnitDiagonalIsNotRead (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE; the NaN-building loop in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.TheOtherTriangleIsNotRead (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.TheOrderOfTheTripletsDoesNotChangeTheBits (typed) | resize | 8 | promise: sptrsv bits do not depend on the order of the triplets; no tolerance (memcmp); the fixture reaches the process runtime and the case is a value relation, so it runs small on the host reference kernel, if that kernel takes raw arrays (modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/sptrsv.hpp, not read) | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SparseSptrsvTest.ADiagonalStoredAsTwoEntriesIsTheirSum (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.ConjTransSolvesAgainstTheConjugateTranspose (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE, and K_DISTINCT 1e-2 in an EXPECT_GT; GTEST_SKIP guard and loops in the body (Q7) | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.SystemsOfOrderOneAndZeroSolve (typed) | rewrite | 1 | tolerance: typed K_SOLVE_TOLERANCE; the empty-system part checks only no-throw and has_value, an implicit oracle (question 6) | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvTest.ALongBidiagonalSystemOfIntegersIsSolvedExactly (typed) | rewrite | 1 | tolerance: bare 0.0 with exact data; the system is built by a loop with a copy of the whole triplet set in each step (Q7) | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+Medium_SparseSptrsvHalf.TheSolutionIsCarriedInFloat32 | rewrite | 1 | tolerance: typed K_HALF_CARRY_TOLERANCE 1e-5 | tests/operations/sparse/test_sparse/test_sparse_sptrsv.cpp
+```
+
+### `tests/operations/sparse/test_sparse/test_sparse_validation.cpp`
+
+```
+Medium_SparseValidation.ASparseVectorOutsideItsRulesIsRefused | rewrite | 7 | promise: axpyi refuses a sparse vector outside its rules and records nothing; nine (rule, operand) cases written as copies, which are rows; the describe_sparse_vector refusals in test_sparse_vector_operand.cpp test the helper, a different promise | tests/operations/sparse/test_sparse/test_sparse_validation.cpp; modules/operations/sparse/include/SushiBLAS/sparse/sparse_vector_operand.hpp
+Medium_SparseValidation.ASparseMatrixOutsideItsRulesIsRefused | rewrite | 7 | promise: spmv refuses a matrix outside its rules; five cases written as copies, which are rows; the default-constructed matrix is one row | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_SparseValidation.SpmvRefusesOperandsScalarsAndFlagsOutsideItsRules | split | 3 | name joins operands, scalars and flags; three promises that can break apart | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_SparseValidation.SpsymvAndSphemvRefuseOperandsAndFlagsOutsideTheirRules | split | 3 | two routines, each with operands and flags | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_SparseValidation.SpmmRefusesDenseOperandsOutsideItsRules | rewrite | 7 | promise: spmm refuses dense operands outside its rules; four cases written as copies, which are rows | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_SparseValidation.SptrsvRefusesOperandsAndFlagsOutsideItsRules | split | 3 | name joins operands and flags | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+Medium_SparseValidation.ForceReferenceRefusesAMatrixWithDeviceOnlyValues | split | 3 | two promises: a shared-USM matrix records under ForceReference, and a device-only one is refused; the GTEST_SKIP guard and try and catch in the body are Q7 signs too | tests/operations/sparse/test_sparse/test_sparse_validation.cpp
+```
+
+### `tests/operations/sparse/test_sparse_matrix_operand.cpp`
+
+```
+Medium_SparseMatrixOperand.DescribesItsExtentsEntriesAndFirstIndex | resize | 8 | describe_sparse_matrix returns rows, cols, nnz and first_index; the fixture reaches the process runtime and the accepting case needs storage, so the seam (runtime-free host storage) is built first; Q4 no other describe_sparse_matrix test found by grep of tests/ | tests/operations/sparse/test_sparse_matrix_operand.cpp; modules/operations/sparse/include/SushiBLAS/sparse/sparse_matrix_operand.hpp; modules/operations/sparse/include/SushiBLAS/sparse/index_check.hpp; modules/engine/engine/include/SushiBLAS/engine/operand_check.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SparseMatrixOperand.RefusesAWrongOffsetCountAndMixedIndexDtypes | split | 3 | name joins two refusals: a wrong offset count and mixed index dtypes | tests/operations/sparse/test_sparse_matrix_operand.cpp; modules/operations/sparse/include/SushiBLAS/sparse/sparse_matrix_operand.hpp
+```
+
+### `tests/operations/sparse/test_sparse_vector_operand.cpp`
+
+```
+Medium_SparseVectorOperand.DescribesItsSizeEntriesAndFirstIndex | resize | 8 | describe_sparse_vector returns size, nnz and first_index; same fixture reach and storage need as the matrix operand, seam first; Q4 no other describe_sparse_vector test found by grep | tests/operations/sparse/test_sparse_vector_operand.cpp; modules/operations/sparse/include/SushiBLAS/sparse/sparse_vector_operand.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_SparseVectorOperand.RefusesANegativeSizeAndMoreEntriesThanPositions | split | 3 | name joins two refusals: a negative size and more entries than positions | tests/operations/sparse/test_sparse_vector_operand.cpp; modules/operations/sparse/include/SushiBLAS/sparse/sparse_vector_operand.hpp
+```
+
+### `tests/operations/spatial/benchmark_spatial.cpp`
+
+```
+main | keep | 9 | benchmark kind: prints GB/s, returns no verdict, sits beside the unit tests and runs through the bench command | tests/operations/spatial/benchmark_spatial.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp`
+
+```
+Medium_SpatialBroadcastTest.ChannelAffineAppliesThePerChannelPair | rewrite | 7 | promise: channel_affine applies the per-channel pair; per-element loop in the body; the tensor expectation helper keeps it out of the body | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.ChannelAffineWithUnitGammaAndZeroBetaIsACopy | rewrite | 7 | promise: unit gamma and zero beta copy the input; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.BroadcastSpatialSpreadsAndScales | rewrite | 7 | promise: broadcast_spatial spreads its plane and scales it; per-element loop with the formula in the body | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.BroadcastSpatialAtOneOverHwIsTheMeanBackward | rewrite | 1 | tolerance: bare literal 1e-6f in EXPECT_NEAR, and tests/support/tolerance.hpp is absent; the plane-sum check is a second promise (split after the rewrite) | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.LayoutConvertRoundTripsToItself | merge | 4 | promise: layout_convert round-trips; the same round trip with other inputs (ragged 2 x 5 x 7 x 37) is LayoutConvertMovesRaggedTilesBothWays in this file; merge as rows there | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.LayoutConvertMovesTheChannelIndex | rewrite | 7 | promise: layout_convert moves the channel index to the NCHW position; hand-derived expected values; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.LayoutConvertMovesRaggedTilesBothWays | split | 3 | name joins the forward and the back conversion, two results that can break apart; nested loops with ASSERT in the body (Q7) after the split | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+Medium_SpatialBroadcastTest.TheSYCLKernelsAgreeWithTheReferenceKernels | split | 3 | three routines (channel_affine, broadcast_spatial, layout_convert) compared with the reference, one test per routine | tests/operations/spatial/test_spatial/test_spatial_broadcast.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_channels.cpp`
+
+```
+Medium_SpatialChannelsTest.ConcatPlacesEachSourceAtItsOffset | rewrite | 7 | promise: concat_channels places each source at its offset; per-element loops in the body | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.SliceIsConcatsInverse | rewrite | 7 | promise: slice_channels inverts concat_channels; per-element loops in the body | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.TheyAreEachOthersBackward | delete | 4 | the same promise, a slice at the offset inverts a concat, is checked over the whole tensors by SliceIsConcatsInverse in this file at a larger size | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.ARangeThatRunsPastTheChannelCountIsRefused | split | 3 | refusals of concat_channels and slice_channels, two operations; try and catch with FAIL in the body (Q7) | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.AStridedSourceIsAddressedThroughItsStrides | rewrite | 7 | promise: a strided source is read through its strides; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.TheSYCLKernelAgreesWithTheReferenceKernel | split | 3 | two routines, concat_channels and slice_channels, compared with the reference | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+Medium_SpatialChannelsTest.MalformedSpatialOperandsNameTheOperand | rewrite | 7 | promise: a malformed operand is refused naming the operation and the operand; four cases written as copies with try and catch inside a lambda, so rows; the concat dst case has no other test and stays as a row | tests/operations/spatial/test_spatial/test_spatial_channels.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_col2im.cpp`
+
+```
+Medium_SpatialCol2ImTest.EachPixelReceivesOncePerWindowThatReadIt | rewrite | 7 | promise: col2im gives each pixel one term per window that read it; the brute-force count loops build the expected value in the body; move them into a named host helper | tests/operations/spatial/test_spatial/test_spatial_col2im.cpp
+Medium_SpatialCol2ImTest.StrideAndDilationSelectTheRightContributors | split | 3 | name claims stride and dilation, body checks stride only; the stride promise stays, the dilation promise has no test and is added below | tests/operations/spatial/test_spatial/test_spatial_col2im.cpp
+Medium_SpatialCol2ImTest.PixelsNoWindowReadsAreWrittenZeroRatherThanLeftAlone | rewrite | 7 | promise: pixels no window reads are written zero; sentinel loop and per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_col2im.cpp
+Medium_SpatialCol2ImTest.TheSYCLKernelAgreesWithTheReferenceKernel | rewrite | 7 | promise: the SYCL col2im agrees with the reference to the bit; input-building loop and per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_col2im.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_determinism.cpp`
+
+```
+Medium_SpatialDeterminismTest.Col2ImIsBitReproducible | rewrite | 6 | promise: col2im is bit reproducible; the oracle is a second run of the same code under test, which question 6 forbids; name a host reference with a fixed order instead | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp
+Medium_SpatialDeterminismTest.MaxPoolBackwardIsBitReproducible | rewrite | 6 | promise: pool_max_backward is bit reproducible; oracle is a second run of the code under test; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+Medium_SpatialDeterminismTest.AvgPoolBackwardIsBitReproducible | rewrite | 6 | promise: pool_avg_backward is bit reproducible; oracle is a second run; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+Medium_SpatialDeterminismTest.WindowDotBackwardIsBitReproducible | rewrite | 6 | promise: window_dot_backward is bit reproducible; oracle is a second run; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+Medium_SpatialDeterminismTest.WindowDotWeightsBackwardIsBitReproducible | rewrite | 6 | promise: window_dot_weights_backward is bit reproducible; oracle is a second run; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+Medium_SpatialDeterminismTest.UpsampleBackwardIsBitReproducible | rewrite | 6 | promise: upsample_nearest_backward is bit reproducible; oracle is a second run; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+Medium_SpatialDeterminismTest.MeanSpatialIsBitReproducible | rewrite | 6 | promise: mean_spatial is bit reproducible over a 256 by 256 reduction; oracle is a second run; name a host reference | tests/operations/spatial/test_spatial/test_spatial_determinism.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_half.cpp`
+
+```
+Medium_SpatialHalf.Col2ImSumsItsTermsInFloat | resize | 8 | promise: col2im sums HALF terms in float32; value logic, and the reference col2im takes raw pointers (modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp), so the host case runs small; the SYCL-to-reference agreement stays medium | tests/operations/spatial/test_spatial/test_spatial_half.cpp; modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/col2im.hpp
+Medium_SpatialHalf.PoolMaxBackwardSumsItsTermsInFloat | resize | 8 | promise: pool_max_backward sums HALF terms in float32; value logic, runs small on the host reference kernel, the same seam as col2im | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+Medium_SpatialHalf.UpsampleBackwardSumsItsBlockInFloat | resize | 8 | promise: upsample_nearest_backward sums its HALF block in float32; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+Medium_SpatialHalf.PoolAvgDividesAFloatSum | resize | 8 | promise: pool_avg divides the float32 sum; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+Medium_SpatialHalf.PoolAvgBackwardAddsItsSharesInFloat | resize | 8 | promise: pool_avg_backward adds its shares in float32 and rounds once; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+Medium_SpatialHalf.EveryKernelAgreesWithItsReferenceInHalf | split | 3 | thirteen routines in one test, one test per routine | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+Medium_SpatialHalf.PoolMaxOfHalfStartsBelowEveryValue | resize | 8 | promise: pool_max of two HALF negatives is the larger element; the name states a reason, not the promise, so rename when resized; host reference seam | tests/operations/spatial/test_spatial/test_spatial_half.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_im2col.cpp`
+
+```
+Medium_SpatialIm2ColTest.AUnitWindowIsTheIdentityGather | rewrite | 7 | promise: a unit window is the identity gather; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.EachRowIsOneWindowWithChannelInnermost | rewrite | 7 | promise: each row is one window with channel innermost; per-entry loops in the body | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.OutOfBoundsTapsReadZeroRatherThanNeighbouringMemory | rewrite | 7 | promise: out-of-bounds taps read zero; per-entry loop in the body | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.DilationSpacesTheTapsWithoutMovingTheWindows | rewrite | 7 | promise: dilation spaces the taps without moving the window; per-entry loop in the body | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.AsymmetricPaddingNeedsTheExplicitExtentOverload | split | 3 | two promises: the two-operand overload refuses this geometry, and the explicit-extent overload gathers with its windows; the refusal uses EXPECT_THROW with std::exception, too broad | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.TheSYCLKernelAgreesWithTheReferenceKernel | rewrite | 7 | promise: the SYCL im2col agrees with the reference to the bit; per-element loop with EXPECT_EQ in the body | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.AColumnMatrixOfTheWrongShapeIsRefusedByName | rewrite | 7 | promise: a column matrix of the wrong shape is refused naming spatial.im2col and the sizes; try and catch with FAIL in the body; the digits 7 and 8 are a weak oracle, a message with those digits passes | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp
+Medium_SpatialIm2ColTest.ARankThatIsNotFourIsRefusedAtRecordTime | resize | 8 | promise: a rank other than four is refused at record time; the refusal reads shapes only, so shape-only tensors suffice; EXPECT_THROW std::exception is too broad, name the exception | tests/operations/spatial/test_spatial/test_spatial_im2col.cpp; modules/operations/spatial/include/SushiBLAS/spatial/window.hpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp`
+
+```
+Medium_SpatialPoolAvgTest.TheAverageIsOverTheWholeWindowIncludingPaddedTaps | resize | 8 | promise: the average divides by the whole window including padded taps; value logic, the reference pool_avg kernel is the host seam (modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/pool_avg.hpp, header only listed) | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+Medium_SpatialPoolAvgTest.AnUnpaddedPoolIsThePlainMean | resize | 8 | promise: an unpadded pool is the plain mean; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+Medium_SpatialPoolAvgTest.TheBackwardSpreadsEachGradientOverItsWholeWindow | rewrite | 7 | promise: pool_avg_backward spreads each gradient over its window; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+Medium_SpatialPoolAvgTest.OverlappingWindowsSumTheirShares | resize | 8 | promise: overlapping windows sum their shares; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+Medium_SpatialPoolAvgTest.TheBackwardOfAConstantForwardIsUniform | rewrite | 7 | promise: the backward of a constant forward is uniform; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+Medium_SpatialPoolAvgTest.TheSYCLKernelAgreesWithTheReferenceKernel | rewrite | 7 | promise: SYCL pool_avg agrees with the reference to the bit; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_pool_avg.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp`
+
+```
+Medium_SpatialPoolMaxTest.PaddingNeverWinsAWindow | resize | 8 | promise: padding never wins a window; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.ThePoolTakesTheWindowMaximum | resize | 8 | promise: the pool takes the window maximum; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.TheIndexNamesTheElementTheMaximumCameFrom | resize | 8 | promise: the index names the element the maximum came from; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.ATieGoesToTheFirstElementInScanOrder | resize | 8 | promise: a tie goes to the first element in scan order; value logic, host reference seam | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.TheBackwardRoutesEachGradientToItsArgmaxAndNowhereElse | rewrite | 7 | promise: pool_max_backward routes each gradient to its argmax; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.OverlappingWindowsAccumulateAtASharedArgmax | split | 3 | two promises: the selection of a shared argmax, and the backward accumulation at it; an ASSERT loop and a per-element loop follow the split | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+Medium_SpatialPoolMaxTest.TheSYCLKernelAgreesWithTheReferenceKernel | rewrite | 7 | promise: SYCL pool_max agrees with the reference to the bit for values and indices; input-building loop and per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_pool_max.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_upsample.cpp`
+
+```
+Medium_SpatialUpsampleTest.EachInputPixelBecomesAScaleByScaleBlock | rewrite | 7 | promise: each input pixel becomes a scale-by-scale block; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+Medium_SpatialUpsampleTest.AnisotropicScalesAreIndependent | rewrite | 7 | promise: anisotropic scales are independent; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+Medium_SpatialUpsampleTest.AUnitScaleIsACopy | rewrite | 7 | promise: a unit scale is a copy; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+Medium_SpatialUpsampleTest.TheBackwardSumsTheBlockThatReadEachInput | rewrite | 7 | promise: backward sums the block that read each input; four nested loops build the expected value in the body; move them into a named host reference helper | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+Medium_SpatialUpsampleTest.AScaleOfZeroOrNegativeIsRefused | rewrite | 7 | promise: a zero or negative scale is refused naming the operation; two cases as copies with try and catch in the body, so rows | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+Medium_SpatialUpsampleTest.TheSYCLKernelAgreesWithTheReferenceKernel | rewrite | 7 | promise: SYCL upsample agrees with the reference to the bit; per-element loop in the body | tests/operations/spatial/test_spatial/test_spatial_upsample.cpp
+```
+
+### `tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp`
+
+```
+Medium_SpatialWindowDotTyped.TheOneRowWindowGivesItsHandWorkedValues (typed) | split | 3 | three routines (forward, input gradient, weight gradient) in one test | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDotTyped.ForwardMatchesTheFormula (typed) | keep | 9 | promise: forward equals the host formula over the G1 to G5 table; the table holds one row per geometry and the expectation is a host reference; the mode loop is a sweep over constants | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDotTyped.InputGradientMatchesAHostScatter (typed) | keep | 9 | promise: the input gradient equals a host scatter over G1 to G5; same shape as the forward case | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDotTyped.WeightGradientMatchesTheFormula (typed) | rewrite | 7 | promise: the weight gradient equals the host formula; an ASSERT loop over the expected values in the body checks the exactness precondition; move it into the helper | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDotTyped.ReferenceAndSYCLAgreeToTheBitOnTheGathers (typed) | rewrite | 1 | tolerance: holds_equal_bits allows a HALF pair one unit apart below the typed limit 0x1p-13 (the literal 1 in reference_bits + 1 and the typed limit), a tolerance in a comparison; derive the bound instead; the name joins two gathers, split after the rewrite | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDotTyped.WeightGradientIsWithinItsBound (typed) | rewrite | 7 | promise: the weight gradient of 4096 terms is within its derived bound; per-tap loop with EXPECT_LE in the body; the bound and the truth are derived, so only the loop moves | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.TheThreeKernelsAreAdjoint | rewrite | 7 | promise: the three kernels are adjoint; GTEST_SKIP guard for fp64 in the body moves into the fixture | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.WeightGradientIsExactInBothLaunchShapes | resize | 8 | promise: the integer weight gradient is exact in both launch shapes; plan_axis decides the launch shape from a Device::Profile value, so that decision runs small with a profile value (Reduce::plan_axis is the seam); the exactness stays medium; RecordProperty writes the cooperative flag without a check, which is a fact recorded, not asserted | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.AWindowOfOnlyPaddingGivesZero | rewrite | 7 | promise: a window of only padding gives zero; three results of three calls (forward, input gradient, weight gradient) in one test | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.AStridedInputIsReadThroughItsStrides | rewrite | 7 | promise: a strided input is read through its strides; the dense copy is built by nested loops in the body (Q7), so move the builder into a named helper | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.AZeroBatchWritesAZeroWeightGradient | resize | 8 | promise: a zero batch writes a zero weight gradient; value logic on shapes with no device-only detail, so it runs small on the host reference, the device side stays medium | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.MalformedOperandsNameTheOperand | rewrite | 7 | promise: a malformed window_dot operand is refused naming the operation and the operand; five refusals written as copies, which are rows | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+Medium_SpatialWindowDot.ADeviceOnlyOperandIsRefusedUnderForceReference | split | 3 | two promises: refusal under ForceReference, and recording under Auto; try and catch and GTEST_SKIP guards in the body | tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp
+```
+
+### `tests/operations/spatial/test_window.cpp`
+
+```
+Medium_Window.TheSpanOfADenseInputFollowsItsStrides | resize | 8 | window_span_for of a dense NHWC input reports batch, strides, windows and patch size; one call, one promise; window_span_for checks no storage, so shape-only tensors (Tensor with null storage, as the helper in test_accumulator_size builds) suffice and no seam is needed; the fixture engine reaches the process runtime; no sibling test of window_span_for (grep) | tests/operations/spatial/test_window.cpp; modules/operations/spatial/include/SushiBLAS/spatial/window.hpp; modules/foundation/geometry/include/SushiBLAS/geometry/spatial_geometry.hpp; modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp
+Medium_Window.AnInvalidGeometryOrAnOutputPastTheInputIsRefused | split | 3 | name joins two refusals: a zero stride (require_valid_geometry) and an output past the input (window_span_for) | tests/operations/spatial/test_window.cpp; modules/operations/spatial/include/SushiBLAS/spatial/window.hpp
+Medium_Window.APoolingWindowOfOnlyPaddingIsRefused | rewrite | 7 | pooling_span_for refuses an all-padding window; the EXPECT_FALSE on window_has_live_tap is a second call with its own promise and no other test of it, so the test checks two results of two calls; rewrite drops it or moves it to an own test (added below); the Medium label is also wrong, shape-only tensors suffice | tests/operations/spatial/test_window.cpp; modules/operations/spatial/include/SushiBLAS/spatial/window.hpp
+Medium_Window.ColumnAndTapSpansMatchTheirMatrices | split | 3 | name joins several promises: column_span_for accepts 18 by 27 and refuses 18 by 26, tap_span_for accepts 3 by 3 by 3 | tests/operations/spatial/test_window.cpp; modules/operations/spatial/include/SushiBLAS/spatial/window.hpp
+```
+
+### `tests/package/main.cpp`
+
+```
+main | rewrite | 1 | the program decides pass or fail, so it is a test: bare tolerance literals 1e-4f in three comparisons, and tests/support/tolerance.hpp is absent from the repository; loops and ifs in the body (Q7 sign); it makes a runtime and a queue in main, which Running fast rule 3 forbids; no TEST cases, a package smoke program | tests/package/main.cpp
+```
+
+### `tools/tests/test_check_engine_seams.py`
+
+```
+RegistrationTest.test_is_registered | resize | 8 | rule table of four rules; values only, medium is the file-level label; small suffices | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+SeamEngineIncludesTest.test_accepts_the_view_of_a_family | resize | 8 | exemption of view headers; the decision is on lines, so the core is _include_matches over lines with the exempt set passed in as a value; seam to build: a lines-taking form of find_seam_engine_includes | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py; tools/layering/check_tier_contents.py
+SeamEngineIncludesTest.test_reports_a_seam_and_an_operation_source | resize | 8 | one promise, an engine.hpp include reported in a seam header and in an operation source; core as above | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py; tools/layering/check_tier_contents.py
+ViewEngineCallsTest.test_accepts_rng | resize | 8 | rng() is the one allowed member; _engine_calls(lines, K_VIEW_ALLOWED_MEMBERS) already takes lines, so the test calls the core small | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py; tools/layering/check_tier_contents.py
+ViewEngineCallsTest.test_reports_another_member_and_skips_engine_hpp | split | 3 | two behaviours: a view header's other member is reported (a); engine.hpp is not scanned by this rule (b) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+RemovedEngineMembersTest.test_accepts_the_engine_without_a_graph_and_a_recorder_constructor | split | 3 | two behaviours: a clean engine.hpp with a comment and a deleted copy constructor reports nothing (a); a family constructor over TaskRecorder& is accepted (b) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+RemovedEngineMembersTest.test_reports_a_planted_execute_and_a_planted_family_constructor | split | 3 | two behaviours: execute in engine.hpp is reported (a); XOps(Engine&) in a family header is reported (b) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+RemovedEngineMembersTest.test_reports_each_other_removed_member | resize | 8 | the removed-member list of engine.hpp; the regex decides on lines; core is a lines-taking form of find_removed_engine_members, seam to build | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TaskDependenciesTest.test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies | split | 3 | two behaviours: a submit with depends_on is accepted (a); a fill with deps is accepted (b) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TaskDependenciesTest.test_reports_a_command_group_and_a_shortcut_that_drop_them | split | 3 | two behaviours: a submit without depends_on is reported (a); a fill without deps is reported (b) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TaskDependenciesTest.test_accepts_a_second_stage_that_waits_on_the_first | merge | 4 | merge with TaskDependenciesTest.test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies, its command-group half: same promise, other input (depends_on(staged)) | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TestOnlyModuleTest.test_exempts_a_test_only_module | rewrite | 1 | control flow: a for loop over the three rules in the body; the only test of the SB_BUILD_TESTS exemption, merged into rows with the two tests below | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TestOnlyModuleTest.test_exempts_a_benchmark_only_module | rewrite | 1 | control flow: the same for loop; the only test of the SB_BUILD_BENCHMARKS exemption, merged into rows with the tests around it | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TestOnlyModuleTest.test_exempts_a_module_built_for_tests_or_benchmarks | rewrite | 1 | control flow: the same for loop; the only test of the OR form, merged into rows with the tests around it | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+TestOnlyModuleTest.test_checks_a_module_that_is_not_internal | rewrite | 1 | control flow: a comprehension loops over the three rules and builds the asserted messages; the only test of the non-INTERNAL case; rows naming each rule's message | tools/tests/test_check_engine_seams.py; tools/layering/check_engine_seams.py
+```
+
+### `tools/tests/test_check_operation_costs.py`
+
+```
+RegistrationTest.test_is_registered | resize | 8 | rule table of two rules; values only; small suffices | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+OperationWithoutRowTest.test_accepts_an_operation_with_a_row | merge | 4 | merge with OperationWithoutRowTest.test_accepts_an_operation_with_an_uncosted_row: same promise, costed row instead of uncosted | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+OperationWithoutRowTest.test_accepts_an_operation_with_an_uncosted_row | merge | 4 | merge with OperationWithoutRowTest.test_accepts_an_operation_with_a_row: same promise, uncosted row | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+OperationWithoutRowTest.test_reports_an_operation_with_no_row | resize | 8 | an id missing from the rows is decided on two dicts; core missing_rows(sites, rows) over values, seam to build; Repository reads the files | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+OperationWithoutRowTest.test_ignores_a_literal_inside_the_cost_module | resize | 8 | the cost module is skipped by path in operation_sites; core takes (path, text) pairs and drops the cost module, seam to build | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+RowWithoutOperationTest.test_reports_a_stale_row | resize | 8 | a row whose id no module records; core stale_rows(rows, sites) over two dicts, seam to build | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+RowWithoutOperationTest.test_accepts_a_row_with_an_operation | resize | 8 | negative half of rule_row_without_operation; same core stale_rows | tools/tests/test_check_operation_costs.py; tools/profiling/check_operation_costs.py
+```
+
+### `tools/tests/test_check_test_additions.py`
+
+```
+CheckTestAdditionsTest.test_a_commit_at_its_limit_passes_and_one_over_it_is_named | delete | 3 | tools/testing/check_test_additions.py was removed from the shared tools upstream: D:/Projects/sushiskills/tools/testing/check_test_additions.py does not exist; this copy and its test are a leftover | tools/tests/test_check_test_additions.py; tools/tests/repo_builder.py; D:/Projects/sushiskills/tools/testing/check_test_additions.py (not found)
+CheckTestAdditionsTest.test_a_fix_has_the_smaller_limit | delete | 3 | the removal of tools/testing/check_test_additions.py from the shared tools, as above | tools/tests/test_check_test_additions.py; tools/tests/repo_builder.py; D:/Projects/sushiskills/tools/testing/check_test_additions.py (not found)
+CheckTestAdditionsTest.test_a_second_program_needs_the_owners_line | delete | 3 | the removal of tools/testing/check_test_additions.py from the shared tools, as above | tools/tests/test_check_test_additions.py; tools/tests/repo_builder.py; D:/Projects/sushiskills/tools/testing/check_test_additions.py (not found)
+CheckTestAdditionsTest.test_the_owners_line_approves_a_second_program | delete | 3 | the removal of tools/testing/check_test_additions.py from the shared tools, as above | tools/tests/test_check_test_additions.py; tools/tests/repo_builder.py; D:/Projects/sushiskills/tools/testing/check_test_additions.py (not found)
+CheckTestAdditionsTest.test_a_repository_that_sets_no_base_commit_is_not_checked | delete | 3 | the removal of tools/testing/check_test_additions.py from the shared tools, as above | tools/tests/test_check_test_additions.py; tools/tests/repo_builder.py; D:/Projects/sushiskills/tools/testing/check_test_additions.py (not found)
+```
+
+### `tools/tests/test_check_tier_contents.py`
+
+```
+RegistrationTest.test_is_registered | resize | 8 | rule table of five layer rules; values only; small suffices | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+FoundationIndependenceTest.test_accepts_core_foundation_and_sycl | resize | 8 | no forbidden include; _include_matches over lines with K_FOUNDATION_FORBIDDEN_INCLUDE is already pure, so the test calls it small | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+FoundationIndependenceTest.test_reports_engine_kernel_and_tensor_includes | merge | 4 | merge with FoundationIndependenceTest.test_reports_the_sparse_operand_headers: same rule, other forbidden includes | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+FoundationIndependenceTest.test_reports_the_sparse_operand_headers | merge | 4 | merge with FoundationIndependenceTest.test_reports_engine_kernel_and_tensor_includes: same rule, other forbidden includes | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+KernelIncludesTest.test_accepts_a_clean_kernel | resize | 8 | a kernel with core includes only; _include_matches over lines with K_KERNEL_FORBIDDEN_INCLUDE, already pure, small | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+KernelIncludesTest.test_reports_engine_and_tensor_includes | merge | 4 | merge with KernelIncludesTest.test_reports_the_sparse_operand_headers, its sparse half: same rule, other forbidden includes | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+KernelIncludesTest.test_reports_the_sparse_operand_headers | split | 3 | two behaviours: the three sparse operand headers are reported (a), merged with the engine and tensor test above; a private kernel brick is accepted (b) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+KernelIncludesTest.test_reports_a_known_entry_as_a_note_only | split | 3 | two behaviours: the rule reports nothing for a tabled violation (a); known_notes names it (b) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+KernelIncludesTest.test_reports_a_stale_entry | resize | 8 | a tabled violation that no longer occurs; the stale set is a difference of two key sets inside _screened_rule; core is a pure function over known and seen keys, seam to build | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+EngineHeaderIncludesTest.test_accepts_the_bricks_engine_composes | resize | 8 | the bricks are exempt; a filter of _include_matches over lines, seam to build: find_engine_header_includes_in(lines) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+EngineHeaderIncludesTest.test_reports_a_view_a_seam_io_and_experimental | resize | 8 | one promise, four forbidden kinds in engine.hpp; core as above | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+OperationEngineCallsTest.test_accepts_the_recorder_and_a_comment | split | 3 | two behaviours: a recorder call is not an engine call (a); an engine call in a comment is not counted (b) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+OperationEngineCallsTest.test_reports_every_member | resize | 8 | every member called on an engine is reported; _engine_calls(lines, frozenset()) is pure over lines and already the core, so small | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+GraphInsertionsTest.test_accepts_the_recorder_header_a_primitive_and_a_comment | split | 3 | two behaviours: a recording verb in task_recorder.hpp and in the graph primitives is allowed (a); a comment naming a verb is not counted (b) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+GraphInsertionsTest.test_accepts_a_record_call_and_a_free_function | split | 3 | two behaviours: TaskRecorder::record_pair is not a recording verb (a); a free function named as a verb is not a member call (b) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+GraphInsertionsTest.test_reports_a_seam_and_a_source | resize | 8 | one promise, a recording verb outside the recorder reported in a seam and in an operation source; find_graph_insertions decides on lines with a path test, seam to build: graph_insertions_in(lines) | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+GraphInsertionsTest.test_reports_every_recording_verb | rewrite | 1 | control flow: a generator builds the input in the body; it lists seven of the ten K_RECORDING_VERBS and omits raw_kernel, captured_kernel and untracked_raw_kernel (see Adds); the only test of the verb promise | tools/tests/test_check_tier_contents.py; tools/layering/check_tier_contents.py
+```
+
+### `tools/tests/test_check_version.py`
+
+```
+RegistrationTest.test_is_registered | resize | 8 | rule table of seven rules; values only; small suffices | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_reads_the_version_and_its_line | resize | 8 | one behaviour, the read gives the version and where it is; read_source_version reads a file, the decision is on text, seam to build: read_source_version_text(text) | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_reads_a_project_call_over_several_lines | resize | 8 | a version on a later line of project(); core read_source_version_text as above | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_skips_a_commented_project_call | resize | 8 | comment stripping and the match are text logic; core read_source_version_text as above | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_accepts_agreeing_copies | resize | 8 | every copy agrees; the copy rules decide on text; core _copy_issues over text, seam to build | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_accepts_a_v_prefix_in_doxyfile_and_readme | resize | 8 | the v prefix is a value rule; core _copy_issues over text | tools/tests/test_check_version.py; tools/versioning/check_version.py
+AgreementTest.test_accepts_an_agreeing_manifest_version | resize | 8 | rule_module_manifest decides on text; core _copy_issues over text | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_the_header_string | merge | 4 | merge with DisagreementTest.test_reports_a_header_component: same rule rule_version_header, another copy | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_a_header_component | merge | 4 | merge with DisagreementTest.test_reports_the_header_string: same rule rule_version_header, another copy | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_the_doxyfile | resize | 8 | rule_doxyfile decides on text; core _copy_issues over text, seam to build | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_the_cli_package | resize | 8 | rule_cli_package decides on the [project] section of text; core _copy_issues over text | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_ignores_a_version_key_outside_the_project_table | merge | 4 | merge with DisagreementTest.test_ignores_a_version_key_of_an_array_table: same promise, another table form | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_ignores_a_version_key_of_an_array_table | merge | 4 | merge with DisagreementTest.test_ignores_a_version_key_outside_the_project_table: same promise, array-of-tables form | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_a_single_quoted_value_below_a_commented_header | merge | 4 | merge with DisagreementTest.test_reports_the_module_manifest: same rule rule_module_manifest, other input form | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_the_module_manifest | merge | 4 | merge with DisagreementTest.test_reports_a_single_quoted_value_below_a_commented_header: same rule rule_module_manifest | tools/tests/test_check_version.py; tools/versioning/check_version.py
+DisagreementTest.test_reports_the_readme | resize | 8 | rule_readme decides on text; core _copy_issues over text | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_reports_a_missing_required_file | rewrite | 1 | control flow: a for loop with subTest over three literal rows in the body; rows of a parametrised test replace it; the only test of the required-file promise | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_accepts_a_missing_optional_file | resize | 8 | an absent optional file is silent; the absence is a path check in _copy_rule; core: the copy rule over text with an absent value, seam to build | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_reports_a_required_file_without_a_version | resize | 8 | a Doxyfile with no PROJECT_NUMBER; _stated_values reads the file; core _stated_values over text, seam to build | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_reports_a_missing_source_once | rewrite | 6 | the last assertion takes its expected value from the code under test: issues come from _all_issues and are compared with rule_source_version; the oracle is the code under test; rewrite with the expected message named | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_reports_a_source_without_a_version | merge | 4 | merge with MissingTest.test_reports_a_source_version_of_four_numbers: same rule rule_source_version, another unreadable version | tools/tests/test_check_version.py; tools/versioning/check_version.py
+MissingTest.test_reports_a_source_version_of_four_numbers | merge | 4 | merge with MissingTest.test_reports_a_source_without_a_version: same rule rule_source_version | tools/tests/test_check_version.py; tools/versioning/check_version.py
+ChangelogTest.test_a_changelog_without_a_release_is_accepted | resize | 8 | an Unreleased-only changelog is silent; rule_changelog decides on text; core as above | tools/tests/test_check_version.py; tools/versioning/check_version.py
+ChangelogTest.test_a_release_heading_that_agrees_is_accepted | rewrite | 1 | control flow: a for loop with subTest over two headings in the body; rows replace it; the only test of the agreeing-heading promise | tools/tests/test_check_version.py; tools/versioning/check_version.py
+ChangelogTest.test_a_release_heading_that_disagrees_is_reported_at_its_line | resize | 8 | one heading, its line and message; rule_changelog decides on text; core as above | tools/tests/test_check_version.py; tools/versioning/check_version.py
+ChangelogTest.test_a_missing_changelog_is_not_a_finding | resize | 8 | an absent changelog is silent; path check in _copy_rule; core as above | tools/tests/test_check_version.py; tools/versioning/check_version.py
+CommandLineTest.test_exits_clean_on_agreement | resize | 8 | the exit code and empty output come from run over a folder; core: run split into render(findings, root) and the path shell, seam to build; a Checker whose collect yields in-memory repositories would reach it small | tools/tests/test_check_version.py; tools/versioning/check_version.py; tools/checking/checker.py
+CommandLineTest.test_names_file_line_and_rule_on_disagreement | resize | 8 | the printed line is Finding.format(root), a pure function of path, line, rule and message; the test can call it small | tools/tests/test_check_version.py; tools/checking/checker.py
+```
+
+### `tools/tests/test_test_budget_settings.py`
+
+```
+TestBudgetSettingsTest.test_the_skill_table_matches_the_settings | rewrite | 1 | control flow: an if guard with skipTest in the body; the skill file is absent here (D:/Projects/sushiblas/skills/testing/SKILL.md not found), so the test skips on every run in this repository; the only test of the table-to-settings promise; move the guard into the fixture and name the table's home | tools/tests/test_test_budget_settings.py; tools/settings.py; skills/testing/SKILL.md (not found)
+TestBudgetSettingsTest.test_reads_a_number_with_a_thousands_space_and_a_trailing_note | split | 3 | two behaviours: a number with a thousands space is read and its trailing note dropped (a); rows naming no key or lying outside the Budget table are skipped (b) | tools/tests/test_test_budget_settings.py
+TestBudgetSettingsTest.test_names_each_key_that_differs | resize | 8 | differences() decides on two dicts; pure; the file-level medium label is wider than needed; small | tools/tests/test_test_budget_settings.py; tools/settings.py
+TestBudgetSettingsTest.test_every_row_of_the_table_has_a_constant | resize | 8 | set equality of two key sets; pure values; small; the test reads settings only as an import | tools/tests/test_test_budget_settings.py; tools/settings.py
+```
+
+### `tools/tests/test_tier_table.py`
+
+```
+TierTableTest.test_the_checker_and_the_build_state_one_order | rewrite | 1 | a small test reads cmake/SushiBLASLayers.cmake, which the small size forbids; the only test of the tier-order agreement; split into a medium file read and a small parser over text | tools/tests/test_tier_table.py; tools/settings.py; cmake/SushiBLASLayers.cmake
+TierTableTest.test_every_module_folder_is_in_the_table_under_its_tier | rewrite | 1 | a small test globs the modules/ tree, which the small size forbids, and a comprehension builds the found dict; the only test of the folder promise; medium read with the listing compared as values | tools/tests/test_tier_table.py; cmake/SushiBLASLayers.cmake; modules/ folder tree
+```
+
+## Adds
+
+Promises a header or a port states that no test checks: `unit: promise | oracle | size`.
+
+```
+status_of_error: InvalidAccess, DanglingResource and InvalidArgument map to InvalidRequest; CompileFailed and ProtocolMismatch map to BackendFailed | literal mapping of each code | small
+Storage: a request whose rounding would overflow size_t is refused | the SIZE_MAX boundary, at SIZE_MAX minus 127 and one past it | small
+sushiblas_dtype: uint32_t maps to UInt32 | enum names in modules/foundation/core/include/SushiBLAS/core/common.hpp | small
+fill_tensor: values convert to the tensor's dtype for Half, Float32, Complex64, Int64 and UInt32 | hand-written values | small
+expect_tensor: a complex element matches only when both parts match, and a real expectation expects a zero imaginary part | hand-written values | small
+expect_tensor: an integer element matches only its exact value | hand-written values | small
+assert_tensor_near: refuses a tensor whose dtype or shape differs from the expectation, before the copy | contract (ASSERT_EQ in tensor_comparison.hpp) | small
+BoundPack::tensor: each tensor lies at its entry's offset in the buffer | hand-derived offsets | small
+remote_operation_name: returns "<name>:<16 lower-case hex digits>" | contract in modules/engine/cluster/include/SushiBLAS/cluster/remote_task.hpp | small
+record_remote: refuses a null pack, or a pack not shared with the binding | contract (throws std::runtime_error) | medium
+record_scatter: refuses a tensor whose type, layout or shape differs from its entry | contract (PackLayout::matches) | small
+TensorPack::segment_tensor: a type no entry has gives an empty tensor | contract in modules/engine/cluster/include/SushiBLAS/cluster/tensor_pack.hpp | medium
+reduce: a plan with fewer elements than work-items folds each element once | exact sum | medium
+tensor-reshape: reshape refuses a non-contiguous view | contract | small
+recording_fixture: run_succeeds reports a failed run with the runtime's message in the assertion | contract | medium
+map_task: a zip task's first output is the negation of its second input | specified value | medium
+matrix_operand: require_square refuses a non-square operand | contract | small
+matrix_operand: require_same_batch_axes refuses operands whose batch axes differ in count or size | contract | medium
+scratch_lease: allocate_level1_scratch leases partials times the partial bytes and declares one write | contract | medium
+ceilings_file: a member of the wrong kind is refused Invalid | specified status | small
+profiler_parts: gathering the facts of a registry twice gives equal build facts | equality of two gathers | small
+graph_primitives.invalid_graph (recording_outcome): a recorder that holds a refusal reports that refusal | contract | small
+cost_table.cost_of: a convolution with groups below 1 is costed as one group | specified value | small
+cost_table.fft: a real transform with odd columns is not packed | specified value | small
+cost.to_string(UncostedReason): a value outside the enumeration reads "unknown" | contract | small
+geometry.output_extent: a non-positive stride, kernel or dilation gives zero | contract | small
+host_device: HostDeviceTest skips a test, and does not pass it, when host_queue is null | GTEST_SKIP status seen from a fixture given a null queue | small (seam: device list)
+host_device: SharedArray throws std::bad_alloc when the allocation returns null | exception type from an in-memory allocator that returns null | small (seam: allocator)
+host_device: SharedArray frees its allocation once, on destruction | free count from an in-memory allocator | small (seam: allocator)
+launch: vector_aligned is true only when every pointer is 16-byte aligned | pointer modulo | small
+launch: plan_for takes the flat shape only for a CPU, width one and n above zero | hand-computed Shape1D fields | small
+running_solution: a value beyond HALF's range is stored as infinity in the bound array, while the wide copy keeps the value | specified value | small
+running_solution: a NaN set on HALF stays NaN in the bound array and in the wide copy | special value | small
+log_capture: LogCapture keeps a Trace record, since its constructor sets SushiBLAS to Trace | specified value | small
+log_capture: LogCapture restores WARN as SushiBLAS's level when it ends | specified value | small
+run_observer_capture: records() returns a copy that a later run does not change | contract | small
+test_environment: queue(i) for each i below device_count() is the queue of device i, and the queues are distinct | contract | medium
+default_type_names: SB_TYPED_TEST_SUITE gives each type of the list its own suite name | contract | medium
+rot: with c and s both nonzero, both components change by the rotation formula, or a rotation by an angle followed by its inverse restores the input | hand-computed, or the inverse rotation | small
+iamax: a complex magnitude is abs1, so the value (3, 3) at index 0 beats (5, 0) at index 1, where a modulus test would pick index 1 | hand-computed | small
+row_reduction_width: a row one column past the staged threshold takes the group width, and one column short of it takes zero | specified value | small
+swap: the SYCL swap exchanges the strided elements of both x and y | host reference | medium
+VectorSnapshot: copies every incx-th element into a contiguous buffer, reachable without the Detail namespace | specified value | small
+tbsv: with Diag::Unit the stored diagonal is not read | specified value | medium
+tpsv: with Diag::Unit the stored diagonal is not read | specified value | medium
+syrk (SYCL): beta zero overwrites C without reading it, so NaN in C never reaches the result | host reference | medium
+syrk (SYCL): scratch below the packed plan's bytes takes the tiled path and gives the reference result | host reference | medium
+syrk (SYCL): a device that cannot host the tile's work-group throws std::runtime_error | throw | small
+trsm (SYCL): a non-unit diagonal divides each step by its pivot | host reference | medium
+trsm (SYCL): alpha scales the right-hand side | host reference | medium
+blas.hpp: the level 3 reference and SYCL kernels are reachable through it and give a value | host reference | medium
+packed product store: a block the store refuses (wants false) is neither computed nor stored | call counts, no store | medium
+SYCL gemm: a non-identity epilogue is applied after alpha and beta to each element | reference gemm plus a bias epilogue, exact integers | medium
+gemm tile table: each measured entry is a tile choose_gemm_tile admits for its architecture at a product of its size class | choose_gemm_tile on an injected table | small
+gmres (device): a zero right-hand side gives x = 0, zero iterations and zero residual, as the device contract of the GMRES solve | exact | medium
+lu_reference: the pivot is the largest magnitude in its column when no other row ties with it | hand value | small
+philox: uniform_block with lo == hi fills every draw with lo | exact | small
+orthonormalize_sycl: the work group is the largest power of two at most the maximum the device accepts, the test checks only power of two and range | range against the device maximum passed as a value | small
+fft_plan: a multi-row plan has a column line of length rows | length | small
+poisson: the draw method switches at K_POISSON_PTRS_MIN_LAMBDA, checked just below and at it | boundary | small
+scatter_blocks: the block count never exceeds K_MAX_SCATTER_BLOCKS when units and entries allow more | closed form over the three terms | small
+scatter_blocks: a non-CPU profile uses compute_units times K_WAVES_PER_COMPUTE_UNIT resident blocks | closed form | small
+block_first_row: returns the first row whose entries start at or after nnz * block / blocks, with the remainder rule | hand-computed on a fixed pattern | small
+fold_blocks: beta exactly zero does not read y, so a NaN in y is overwritten | specified | small after the seam (launch part medium)
+reference spmv: beta exactly zero does not read y, so a NaN in y is overwritten | contract on a NaN in y | small
+reference spmv: strided x and y (incx, incy greater than 1) give the same product as unit strides | dense oracle | small
+im2col (reference): window origins step by the stride and taps by the dilation | specified value | small
+pool_max (reference): a window holding NaN takes its first NaN, as its header states | specified value | small
+window_dot (reference): a tap outside the input adds nothing, as its header states | specified value | small
+spatial_kernels umbrella: spatial.hpp declares every reference and SYCL spatial kernel | compile of the including translation unit, no runtime oracle, owner to rule | small
+Bench::run_guarded: a body that returns normally gives EXIT_SUCCESS | exact return code | small
+Bench::parse_sizes: zero and negative arguments are refused as not positive | boundary, invalid_argument | small
+Bench::device_supports: Complex64 follows the fp64 aspect of the profile | profile field | medium
+Bench::time_iterations: the median of an even count is the mean of the two middle times | formula | small, needs a clock seam (missing)
+Bench::ResultTable::print_row: the printed rate is work per iteration over unit over median time | formula | small, needs a stdout seam (missing)
+Bench::ProfileSession::start_from_environment: an empty folder variable starts no session | exact | medium, needs an environment seam (missing)
+blas.rotg (reference kernel): the real rotation table of the design, rows 2 to 7, which Small_ReferenceRotg does not cover | exact table | small
+blas.trsv (reference, dense): solves op(A) x = b with a unit diagonal, each triangle and transpose | exact by construction | small
+blas.gemm (reference kernel): matches a dense loop in both layouts, every transpose and an epilogue, with no tolerance typed in the test | exact by construction or host reference within a derived bound | small
+blas.gemv (SYCL): a transposed product over long strided rows matches the exact host sum, the path the removed FewLongStridedRows covered | exact by construction | medium
+packed operand: describe_packed_operand refuses a dtype the device cannot compute in with UnsupportedExecution | device profile value | small
+scalar operand: require_scalar_operand refuses a dtype the device cannot compute in with UnsupportedExecution | device profile value | small
+blend: blend_transforms refuses a dtype the device cannot compute in with UnsupportedExecution, where the typed suite skips instead | device profile value | medium
+ordered_sum: exactly K_MAX_ORDERED_SUM_INPUTS (32), the limit, inputs are accepted and summed in index order | host serial sum | medium
+clamp: equal lower and upper bounds are accepted and every element becomes that bound | hand values | small (seam: the bound check)
+io.load.shape: .sushi and .bin loads refuse a file of another rank or dimension with ShapeMismatch (the npy case is the only one tested) | specified value | medium
+io.save.unwritable: save to an unwritable path returns FileUnwritable and removes the partial file | contract | medium
+io.load.missing: load from a missing path returns FileUnreadable | contract | medium
+NonLinearOps::leaky_relu: with alpha omitted the slope is 0.01, as the header's default states | specified value | small
+LogicOps::any: result is 0 when every element is zero | hand-written values | small
+NonLinearOps::gelu, silu, softplus, leaky_relu: refuse a complex tensor with std::invalid_argument, as the header's "real dtypes only" note states | refusal | small
+RandomOps::poisson (lambda below 10): samples are non-negative integers with mean and variance lambda | derived sample moments with a bound computed in code | medium
+RandomOps::poisson: a lambda just above K_MAX_POISSON_LAMBDA is refused at record time | contract | small
+RandomOps::uniform: min equal to max fills every element with min | contract | medium
+RandomOps::bernoulli: p of 0 gives all zeros and p of 1 gives all ones | exact by construction | medium
+RandomOps::set_seed: rewinds the offset to zero, so the next draw repeats the first draw of that seed | metamorphic relation | medium
+Dispatch::RandomFill: a count of zero writes nothing | contract | medium
+reduce_axis: a span that leaves segments2 and segment_stride2 at their defaults reduces each row as the single-axis fold did | host reference | medium
+planned_partials: 0 on a CPU below K_CPU_TWO_STAGE_MIN_ELEMENTS and a positive count at and above it | specified threshold | small
+ScratchPool: a lease of n bytes holds a block of its size class, 1 to 128, 129 to 256 and 4096 to 4096 | specified value | small after the in-memory block seam
+ScratchBuffer: a zero-byte lease holds no block and returns none to the pool | specified value | small after the in-memory block seam
+accumulator_bytes: an unsigned 32-bit integer dtype accumulates in 0 bytes | contract | small
+window_has_live_tap: a window whose taps all miss the input has no live tap | contract | small
+window_span_for: refuses an output extent below 1 | contract | small
+window_span_for: refuses an input that is not rank 4 | contract | small
+require_valid_geometry: refuses a zero dilation | contract | small
+col2im: a dilated window contributes to exactly the pixels its dilated taps read | hand-derived values | small
+SparseOps recording: a lone sparse task with no earlier writer records zero dependencies | contract | small
+check_tier_contents: rule_foundation_independence reports operands and functor_map includes | contract | small
+check_tier_contents: rule_graph_insertions reports raw_kernel, captured_kernel and untracked_raw_kernel | contract | small
+check_tier_contents: collect returns one repository per existing folder and none for a missing one | contract | small
+check_engine_seams: rule_seam_engine_includes exempts the umbrella header and engine.hpp | contract | small
+check_engine_seams: rule_task_dependencies reports a parallel_for, memset or copy shortcut that names no deps | contract | small
+check_operation_costs: collect returns one repository per existing folder | contract | small
+check_operation_costs: a repository with no cost table reports every recorded operation | contract | small
+check_version: rule_version_header reports a differing MAJOR or PATCH macro | contract | small
+check_version: collect returns one repository per existing folder, with the version its CMakeLists.txt states | contract | small
+```
