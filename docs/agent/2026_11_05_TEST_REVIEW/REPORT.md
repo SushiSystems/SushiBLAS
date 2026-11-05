@@ -55,13 +55,17 @@ checkers' tests.
 - `tools/tests/test_test_budget_settings.py` skips here, since the repository has no `skills/` folder, so
   its promise is checked nowhere; it also defines `read_budget` and `differences` in the test file.
 
-## The owner's decisions waiting
+## Decisions
 
-1. `ForceReferenceRefusesADeviceOnlyOperand`: the page or the code.
-2. `fill_random`'s range: the page or the code.
-3. `multiply_add`, reachable only as `Kernels::Detail`: a public door or not.
-4. Whether a compile check (`spatial.hpp`, a `static_assert` file) counts as a test.
-5. A ceilings source port for the six profiling tests that read the ceilings folder.
+The owner delegated these decisions on 2026-11-05. Each ruling below is final for the plan; its reason follows it.
+
+1. A named constant holding a hand-typed epsilon is not a typed tolerance. A tolerance names its kind (absolute, relative or ulps) and its derivation, so every such constant is redefined through `tolerance.hpp`, keeping its name. The rewrites stay rewrites, and they are mechanical.
+2. `ForceReferenceRefusesADeviceOnlyOperand`: the code changes. The engine refuses an unsupported run with `UnsupportedExecution` (`engine/operand_check.hpp`), and `test_unsupported_execution.cpp` already expects it. The symm path throwing `std::invalid_argument` is the odd one out.
+3. `fill_random`'s range: the page changes to `[min, max)`. A half-open range is what the standard distributions give, and the test already asserts it.
+4. `multiply_add` gets no public door. Its promise is tested through the public operations that use it, and the public surface stays as small as it is.
+5. A compile check is not a test. Its `static_assert`s move into a compile-only translation unit that the build compiles and the test runner never lists, and the wrapping test is deleted.
+6. A ceilings source port, with an in-memory adapter: yes. The folder reader becomes the port's file adapter, tested medium once, and the six profiling tests run small.
+7. Death tests are medium: each one starts a child process. The testing skill records this.
 
 ## Dispatches
 
