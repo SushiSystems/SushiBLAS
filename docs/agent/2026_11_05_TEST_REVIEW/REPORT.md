@@ -68,6 +68,17 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 7. Death tests are medium: each one starts a child process. The testing skill records this.
 8. RW-135, ruled 2026-11-07 by the orchestrator on the owner's delegation: micro benchmarks stay beside their tests as `tests/<owner>/benchmark_<name>.cpp` with `Benchmark_` suites, as `repository-layout`'s TESTS.md and the `performance` skill say. They build into the module's benchmark program and never into a test program, so T4's acceptance reads "no benchmark is built into a test program".
 9. RW-137, ruled 2026-11-07 the same way: `HostDeviceTest` takes the program-wide CPU queue from the test program's Environment, one device per process, and the `host_device` test support gains the edge to `test_runner` it needs. The edge is test-only.
+10. Ruled 2026-11-07 by the orchestrator on the owner's delegation: `OperandAccess` gains the `row_cursor`, the cursor `at`, `first_column` and `end_column` the band and packed accesses have, and `Reference::trsv` calls `Detail::triangular_solve`, so one solve loop remains. The interface is internal to the kernels.
+11. Ruled the same day: `OwnedMemory` lives once, in `tests/support/owned_memory.hpp`, and `test_storage.cpp` and `test_task_cost.cpp` include it.
+12. Ruled the same day: `modules/kernels/README.md` names the dense TRSV reference among the users of `triangular_solve`.
+
+## Risks the final build checks
+
+Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; the one `sb build` and `sb test` at the end of the plan checks each.
+
+- T2 seams (`scalar_math.hpp`, `task_cost.hpp`, the dense TRSV reference) and their tests have never been built or run.
+- `OperandAccess::row_cursor` and the trsv fold: the SYCL device pass of every kernel that includes `operand_access.hpp`, and `test_trsv.cpp` results.
+- `tests/support/owned_memory.hpp`: the device queue use in a header shared by two test programs.
 
 ## Dispatches
 

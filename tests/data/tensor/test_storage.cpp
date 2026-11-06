@@ -36,6 +36,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/owned_memory.hpp"
 
 namespace SushiBLAS
 {
@@ -46,49 +47,6 @@ namespace SushiBLAS
         {
             return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
         }
-
-        /// @brief Holds USM that stands in for memory another owner keeps alive.
-        class OwnedMemory
-        {
-            public:
-                /// @brief Allocates n_bytes of shared USM on the queue of the first device.
-                explicit OwnedMemory(std::size_t n_bytes)
-                    : address_(sycl::malloc_shared<std::byte>(n_bytes, TestEnvironment::queue(0))),
-                      token_(SushiRuntime::make_liveness())
-                {
-
-                }
-
-                OwnedMemory(const OwnedMemory&) = delete;
-                OwnedMemory& operator=(const OwnedMemory&) = delete;
-
-                /// @brief Frees the USM.
-                ~OwnedMemory()
-                {
-                    sycl::free(address_, TestEnvironment::queue(0));
-                }
-
-                /// @brief Returns the first byte.
-                std::byte* data() const noexcept { return address_; }
-
-                /// @brief Returns count bytes from offset, borrowed through Interop.
-                SushiRuntime::Buffer<std::byte> borrow(std::size_t offset, std::size_t count) const
-                {
-                    return TestEnvironment::runtime().interop().borrow<std::byte>(
-                        address_ + offset, count, SushiRuntime::DeviceIndex{0},
-                        SushiRuntime::Residency::Shared, token_).value();
-                }
-
-                /// @brief Lets go of the memory, as its owner does when it frees it.
-                void release() { token_.reset(); }
-
-            private:
-                /// @brief The USM.
-                std::byte* address_;
-
-                /// @brief Lives as long as the memory is valid.
-                SushiRuntime::LivenessToken token_;
-        };
 
         /// @brief Returns a storage over count bytes of memory, from offset.
         static SushiRuntime::sushi_ptr<Storage> borrowed_of(const OwnedMemory& memory,

@@ -23,7 +23,7 @@
 
 /**
  * @file triangular_solve.hpp
- * @brief Defines the reference triangular substitution TBSV and TPSV share.
+ * @brief Defines the reference triangular substitution TRSV, TBSV and TPSV share.
  * @author Mustafa Garip
  */
 
@@ -48,7 +48,7 @@ namespace SushiBLAS
                 /**
                  * @brief Solves op(A) * x = b in place for a triangular op(A) read through access,
                  *        where x holds b on entry.
-                 * @tparam Access BandAccess or PackedAccess of op(A).
+                 * @tparam Access OperandAccess, BandAccess or PackedAccess of op(A).
                  * @param op_upper Whether op(A) is upper triangular.
                  * @see kernels/README.md
                  */

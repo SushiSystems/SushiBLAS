@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/blas_seam_kernels/row_cursor.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 
 namespace SushiBLAS
@@ -62,6 +63,37 @@ namespace SushiBLAS
             [[nodiscard]] constexpr T at(const T* p, int64_t r, int64_t c) const noexcept
             {
                 return conjugate_if(conjugated, p[index(r, c)]);
+            }
+
+            /** @brief Returns a cursor on element (r, c) of op(X) that walks row r. */
+            [[nodiscard]] constexpr RowCursor row_cursor(int64_t r, int64_t c) const noexcept
+            {
+                return RowCursor{index(r, c), col, 0};
+            }
+
+            /**
+             * @brief Returns the element of op(X) a cursor stands on.
+             * @pre The cursor stands inside op(X).
+             */
+            template<typename T>
+            [[nodiscard]] constexpr T at(const T* p, const RowCursor& cursor) const noexcept
+            {
+                return conjugate_if(conjugated, p[cursor.offset]);
+            }
+
+            /** @brief Returns the first column of row r of op(X) the storage holds, which is 0. */
+            [[nodiscard]] constexpr int64_t first_column(int64_t) const noexcept
+            {
+                return 0;
+            }
+
+            /**
+             * @brief Returns one past the last column of row r of op(X) the storage holds.
+             * @param columns Columns of op(X).
+             */
+            [[nodiscard]] constexpr int64_t end_column(int64_t, int64_t columns) const noexcept
+            {
+                return columns;
             }
 
             /** @brief Returns the access of the transpose of op(X), with the same conjugation. */

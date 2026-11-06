@@ -41,6 +41,7 @@
 #include <SushiBLAS/engine/task_cost.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/owned_memory.hpp"
 
 namespace SushiBLAS
 {
@@ -85,46 +86,6 @@ namespace SushiBLAS
                 EXPECT_EQ(actual.offset, expected.offset);
                 EXPECT_EQ(actual.length, expected.length);
             }
-
-            /** @brief Holds USM that stands in for memory another owner keeps alive. */
-            class OwnedMemory final
-            {
-                public:
-                    /** @brief Allocates n_bytes of shared USM and a live token for it. */
-                    explicit OwnedMemory(std::size_t n_bytes)
-                        : address_(sycl::malloc_shared<std::byte>(n_bytes, TestEnvironment::queue(0))),
-                          token_(SushiRuntime::make_liveness())
-                    {
-
-                    }
-
-                    OwnedMemory(const OwnedMemory&) = delete;
-                    OwnedMemory& operator=(const OwnedMemory&) = delete;
-
-                    /** @brief Frees the USM. */
-                    ~OwnedMemory()
-                    {
-                        sycl::free(address_, TestEnvironment::queue(0));
-                    }
-
-                    /** @brief Returns a storage that borrows count bytes from the start. */
-                    [[nodiscard]] SushiRuntime::sushi_ptr<Storage> borrowed_storage(
-                        std::size_t count) const
-                    {
-                        return SushiRuntime::make_sushi<Storage>(
-                            Storage::Borrowed{}, TestEnvironment::runtime(),
-                            TestEnvironment::runtime().interop().borrow<std::byte>(
-                                address_, count, SushiRuntime::DeviceIndex{0},
-                                SushiRuntime::Residency::Shared, token_).value());
-                    }
-
-                private:
-                    /// @brief The USM.
-                    std::byte* address_;
-
-                    /// @brief Lives as long as the memory is valid.
-                    SushiRuntime::LivenessToken token_;
-            };
 
             /** @brief Holds one dtype and the class the runtime names for it. */
             struct NodeDTypeRow
@@ -196,7 +157,8 @@ namespace SushiBLAS
         TEST_F(Medium_TaskAccess, ABorrowedStorageNamesItsLiveOwner)
         {
             const OwnedMemory memory(128);
-            const Tensor borrowed(memory.borrowed_storage(128), {4});
+            const Tensor borrowed(SushiRuntime::make_sushi<Storage>(
+                Storage::Borrowed{}, TestEnvironment::runtime(), memory.borrow(0, 128)), {4});
             OperandSet operands;
             operands.writes(borrowed);
 

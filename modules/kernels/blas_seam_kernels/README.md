@@ -12,7 +12,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `symmetric_access.hpp` | `SymmetricAccess`, which reads a symmetric or Hermitian matrix from one triangle |
 | `band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
 | `packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
-| `row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
+| `row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a dense, band-stored or packed op(X) |
 | `symmetric_row.hpp` | `SymmetricRow`, which walks one row of a band-stored or packed symmetric matrix |
 | `conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
 | `givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
@@ -92,8 +92,8 @@ The Level 2 band and packed kernels of both back ends are written against these 
 
 ### `RowCursor`
 
-`row_cursor(r, c)` of a `BandAccess` or a `PackedAccess` returns the offset of element (r, c)
-with the distance to the next column of the row and how that distance changes; `advance()` and
+`row_cursor(r, c)` of an `OperandAccess`, a `BandAccess` or a `PackedAccess` returns the offset
+of element (r, c) with the distance to the next column of the row and how that distance changes; `advance()` and
 `retreat()` move one column, and `at(p, cursor)` reads the element. In a triangle packed by
 columns the offset of (r, c) holds `c * (c + 1) / 2`, so a loop over c that calls `at(p, r, c)`
 multiplies 64-bit integers once per element; the distance from column c to c + 1 is `c + 1`, or

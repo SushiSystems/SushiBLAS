@@ -106,9 +106,9 @@ Three loops written once over an access brick and shared by the band and the pac
 `symmetric_product` is the matrix-vector product of a symmetric or Hermitian matrix of which one
 triangle is stored: `sbmv` and `hbmv` call it with a `BandAccess`, `spmv` and `hpmv` with a
 `PackedAccess`. `triangular_product` is `x = op(A) * x` in place, shared by `tbmv` and `tpmv`, and
-`triangular_solve` is the substitution shared by `tbsv` and `tpsv`. A brick answers `holds(r, c)`
-and bounds the stored part of a row, so each loop visits only what the storage holds. The dense
-routines `symv` and `trmv` keep their own kernels, and `trsv` runs on the kernel of `trsm`.
+`triangular_solve` is the substitution of `tbsv`, `tpsv` and the dense TRSV reference, which reads
+op(A) through `OperandAccess`. A brick bounds the stored part of a row, so each loop visits only
+what the storage holds. `symv` and `trmv` keep their own kernels; the public `trsv` runs on `trsm`.
 
 `gbmv`, `spr` and `spr2` have a kernel each: `gbmv` reads a general band through `BandAccess`,
 and `spr`, `hpr`, `spr2` and `hpr2` write a packed triangle through `PackedAccess`. The
