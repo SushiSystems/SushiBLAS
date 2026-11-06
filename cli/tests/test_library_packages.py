@@ -17,10 +17,12 @@ except ModuleNotFoundError:  # Python below 3.11
 
 import pytest
 from sushicore import deps_fragment
-from sushicore.proc import Runner
+from sushicore.console_memory import RecordingConsole
+from sushicore.proc_memory import RecordingRunner
 from typer.testing import CliRunner
 
 from sushiblas import cli, config
+from sushiblas.command_context import CommandContext, using
 from sushiblas.config import Config
 from sushiblas.services import library_packages
 from sushiblas.services.build_type import BuildType
@@ -36,16 +38,6 @@ K_PROFILER_CONFIG = "/store/sushiprofiler/ghi/prefix/lib/cmake/SushiProfiler"
 K_RUN_DIRS = ["/store/sushiruntime/abc/prefix/lib", "/store/sushilog/def/prefix/lib",
               "/store/sushiprofiler/ghi/prefix/lib"]
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
-
-
-class _Console:
-    """Swallows every line the service prints."""
-
-    def __init__(self) -> None:
-        self.console = self
-
-    def __getattr__(self, kind: str):
-        return lambda *arguments, **options: None
 
 
 class _Packages:
@@ -136,10 +128,10 @@ def parts(tmp_path):
     """Returns the service over a scratch checkout, with its config and driver."""
     root = tmp_path / "sushiblas"
     root.mkdir()
-    cfg, driver, console = _Config(), _Driver(), _Console()
+    cfg, driver, console = _Config(), _Driver(), RecordingConsole()
     service = ProjectService(
         console=console,
-        runner=Runner(console, "sb", catch_interrupt=True),
+        runner=RecordingRunner(console),
         driver=driver,
         index=None,
         build_env=_BuildEnv(),
@@ -278,21 +270,18 @@ def test_lean_refuses_the_benchmarks(parts):
     assert driver.configured == []
 
 
-def test_the_build_command_forwards_the_tree_and_lean(monkeypatch):
-    received: list[tuple] = []
+def test_the_build_command_forwards_the_tree_and_lean(parts):
+    root, cfg, driver, service = parts
+    context = CommandContext(
+        service_factory=lambda: service, console=RecordingConsole(), project_root=lambda: root)
 
-    class _Service:
-        def build(self, *arguments):
-            received.append(arguments[-3:-1])
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-
-    result = CliRunner().invoke(cli.app, ["build", "--build-dir", "build/pkg-x", "--lean"])
+    with using(context):
+        result = CliRunner().invoke(cli.app, ["build", "--build-dir", "build/pkg-x", "--lean"])
 
     assert result.exit_code == 0
-    assert received == [(True, "build/pkg-x")]
+    arguments = driver.configured[0]
+    assert "-DSB_BUILD_TESTS=OFF" in arguments
+    assert arguments[arguments.index("-B") + 1] == str(root / "build" / "pkg-x")
 
 
 def test_the_package_command_is_registered_with_its_options():
@@ -310,11 +299,18 @@ def test_the_compiler_the_environment_names_outranks_the_pinned_one(monkeypatch,
     assert cfg.resolved_compiler(tmp_path) == "/stack/clang++"
 
 
+class _Module:
+    """Reads no file: every layer is empty, so the defaults stand."""
+
+    def load(self, cls):
+        """Returns *cls* with its defaults."""
+        return cls()
+
+
 def test_load_config_reads_the_stack_compiler_from_the_environment(monkeypatch):
-    monkeypatch.setattr(config, "_MODULE", type("Module", (), {"load": lambda self, cls: cls()})())
     monkeypatch.setenv(config.K_STACK_CXX_ENV, "/env/clang++")
 
-    assert config.load_config().stack_cxx == "/env/clang++"
+    assert config.load_config(_Module()).stack_cxx == "/env/clang++"
 
 
 def test_the_fragment_names_the_cli():

@@ -12,14 +12,16 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from dataclasses import replace
 
 import pytest
+from sushicore.console_memory import RecordingConsole
 from sushicore.root_options import version_line
 from typer.testing import CliRunner
 
 import sushiblas.console
 from sushiblas import cli
+from sushiblas.command_context import default_context, using
 
 pytestmark = pytest.mark.medium
 
@@ -45,14 +47,6 @@ K_PUBLISH_LIST = (
 )
 K_ARCHIVE = "docs-bundle-1.2.3.tar.gz"
 K_DOXYFILE = Path(__file__).resolve().parents[2] / ".config" / "doxygen" / "Doxyfile"
-
-
-class _DocsService:
-    """Stands in for the project service; docs returns a fixed code."""
-
-    def docs(self) -> int:
-        """Returns K_DOCS_EXIT_CODE."""
-        return K_DOCS_EXIT_CODE
 
 
 @pytest.fixture
@@ -148,16 +142,14 @@ def test_config_and_env_are_not_declared_in_this_package():
     assert registered["env"] == "sushicore.diag_commands"
 
 
-def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_path):
+def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(commands):
     """`sb docs` still builds the reference, and `sb docs bundle` asks for a release."""
-    monkeypatch.setattr(cli, "_service", _DocsService)
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
-    runner = CliRunner()
-    built = runner.invoke(cli.app, ["docs"])
+    commands.runner.script(K_DOCS_EXIT_CODE).script(K_DOCS_EXIT_CODE)
+    built = commands.invoke("docs")
     assert built.exit_code == K_DOCS_EXIT_CODE
-    assert "Doxygen Generation" in built.output
-    assert runner.invoke(cli.app, ["doxygen"]).exit_code == K_DOCS_EXIT_CODE
-    missing = runner.invoke(cli.app, ["docs", "bundle"])
+    assert "Doxygen Generation" in commands.console.texts("header")
+    assert commands.invoke("doxygen").exit_code == K_DOCS_EXIT_CODE
+    missing = commands.invoke("docs", "bundle")
     assert missing.exit_code == 2
     assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
 
@@ -189,9 +181,11 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
     """Writes the archive and its digest file at the checkout's root and reports both lines."""
     _published_checkout(tmp_path)
     monkeypatch.chdir(tmp_path / "docs" / "guides")
-    said: list[str] = []
-    monkeypatch.setattr(cli, "console", SimpleNamespace(success=said.append))
-    result = CliRunner().invoke(cli.app, ["docs", "bundle", "--release", "1.2.3"])
+    console = RecordingConsole()
+    context = replace(default_context(), console=console)
+    with using(context):
+        result = CliRunner().invoke(cli.app, ["docs", "bundle", "--release", "1.2.3"])
+    said = console.texts("success")
     assert result.exit_code == 0, result.output
     bundle = tmp_path / "build" / "docs" / "bundle"
     assert (bundle / K_ARCHIVE).is_file()
@@ -201,8 +195,8 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
     assert said[1].startswith("sha256 ")
 
 
-def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(monkeypatch, tmp_path):
+def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(commands):
     """Names `<OUTPUT_DIRECTORY>/<XML_OUTPUT>` of the Doxyfile, below the repository root."""
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
     written = Path(_doxyfile_value("OUTPUT_DIRECTORY", "")) / _doxyfile_value("XML_OUTPUT", "xml")
-    assert cli._api_source().xml_dir == tmp_path / written
+    with using(commands.context):
+        assert cli._api_source().xml_dir == commands.root / written

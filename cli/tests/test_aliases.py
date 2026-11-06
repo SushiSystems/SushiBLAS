@@ -21,19 +21,13 @@ K_OLD_SPELLINGS = {"sb doxygen": "sb docs"}
 K_DOCS_EXIT_CODE = 7
 
 
-class _DocsService:
-    """Stands in for the project service; docs returns a fixed code."""
-
-    def docs(self) -> int:
-        """Returns K_DOCS_EXIT_CODE."""
-        return K_DOCS_EXIT_CODE
-
-
 @pytest.mark.parametrize("word", ["docs", "doxygen"])
-def test_the_old_word_runs_the_new_command(monkeypatch, word):
+def test_the_old_word_runs_the_new_command(commands, word):
     """`sb doxygen` reaches the same service call as `sb docs`."""
-    monkeypatch.setattr(cli, "_service", _DocsService)
-    assert CliRunner().invoke(cli.app, [word]).exit_code == K_DOCS_EXIT_CODE
+    commands.runner.script(K_DOCS_EXIT_CODE)
+    assert commands.invoke(word).exit_code == K_DOCS_EXIT_CODE
+    assert [command.argv[1:] for command in commands.runner.commands] == [
+        (".config/doxygen/Doxyfile",)]
 
 
 def test_the_old_word_is_absent_from_help():

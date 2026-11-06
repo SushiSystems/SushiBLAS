@@ -26,12 +26,11 @@ from sushicore.typer_help import help_group
 
 from . import console
 from .aliases import K_ALIASES
-from .config import PROFILE, find_project_root, load_config
+from .command_context import context_of_run
+from .config import PROFILE, load_config
 from .services.build_type import K_BENCHMARK_BUILD_TYPE, K_DEFAULT_BUILD_TYPE, BuildType
 from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
 from .services.errors import CLIOptionError, PackageOptionError, ProjectError
-from .services.project import ProjectService
-from .services.project_factory import create_project_service
 from .services.sanitizer import Sanitizer
 from .services.tree_choice import TreeChoice
 
@@ -70,9 +69,14 @@ def _sanitize_option() -> Optional[Sanitizer]:
         help="Sanitizer tree: none | address-undefined | thread. Left out, the plain tree.")
 
 
-def _service() -> ProjectService:
-    """Returns a ProjectService that reports through this run's console."""
-    return create_project_service(console.current())
+def _project_root() -> Path:
+    """Returns the checkout root the running command's context names."""
+    return context_of_run().project_root()
+
+
+def _report(line: str) -> None:
+    """Prints one result line through the running command's console."""
+    context_of_run().console.success(line)
 
 
 def _code_of(step: Callable[[], int]) -> int:
@@ -80,7 +84,7 @@ def _code_of(step: Callable[[], int]) -> int:
     try:
         return step()
     except ProjectError as error:
-        console.error(str(error))
+        context_of_run().console.error(str(error))
         return error.exit_code
 
 
@@ -150,13 +154,14 @@ def build(
     --clean to start over. A different --type builds in another tree, and a
     tree configured as one type is never configured as another.
     """
-    console.header("Project Build")
+    context = context_of_run()
+    context.console.header("Project Build")
 
     def step() -> int:
         """Builds and announces success."""
-        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs, distributed,
-                              lean, build_dir, report)
-        console.success("Build completed successfully!")
+        rc = context.service_factory().build(
+            type, clean, define, benchmarks, sanitize, jobs, distributed, lean, build_dir, report)
+        context.console.success("Build completed successfully!")
         return rc
 
     _exit_with(step)
@@ -204,22 +209,24 @@ def test(
     not apply to it. --cli runs pytest, so --filter, --repeat and --jobs do not
     apply to it.
     """
-    console.header("Project Test")
+    context = context_of_run()
+    context.console.header("Project Test")
 
     def step() -> int:
         """Runs the tests; a package run that returns has passed."""
         if package:
             if label or filter or repeat or jobs or cli:
                 raise PackageOptionError()
-            rc = _service().test_package(TreeChoice(type, sanitize))
-            console.success("Package consumer built and ran against the install prefix.")
+            rc = context.service_factory().test_package(TreeChoice(type, sanitize))
+            context.console.success("Package consumer built and ran against the install prefix.")
             return rc
         if cli:
             if filter or repeat or jobs:
                 raise CLIOptionError()
-            return _service().test_cli(label)
-        return _service().test(label, filter, repeat, jobs, TreeChoice(type, sanitize),
-                               every_size=all_sizes, shuffle=shuffle, seed=seed)
+            return context.service_factory().test_cli(label)
+        return context.service_factory().test(
+            label, filter, repeat, jobs, TreeChoice(type, sanitize),
+            every_size=all_sizes, shuffle=shuffle, seed=seed)
 
     _exit_with(step)
 
@@ -254,8 +261,10 @@ def bench(
             f"{name!r} is not a benchmark; options for the program go after `--`.",
             param_hint="NAME",
         )
-    console.header("Project Bench")
-    _exit_with(lambda: _service().bench(name, list(ctx.args), TreeChoice(type, sanitize)))
+    context = context_of_run()
+    context.console.header("Project Bench")
+    _exit_with(lambda: context.service_factory().bench(
+        name, list(ctx.args), TreeChoice(type, sanitize)))
 
 
 @app.command(
@@ -281,8 +290,9 @@ def run(
             f"{target!r} is not a target; options for the program go after `--`.",
             param_hint="TARGET",
         )
-    console.header("Project Run")
-    _exit_with(lambda: _service().run(
+    context = context_of_run()
+    context.console.header("Project Run")
+    _exit_with(lambda: context.service_factory().run(
         target=target, sort=sort, app_args=list(ctx.args), tree=TreeChoice(type, sanitize)))
 
 
@@ -298,15 +308,16 @@ def clean(
     sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
     """Remove one build tree: the Debug one unless --type says another."""
-    console.header("Project Clean")
+    context = context_of_run()
+    context.console.header("Project Clean")
 
     def step() -> int:
         """Removes the tree and says what happened."""
-        result = _service().clean(TreeChoice(type, sanitize))
+        result = context.service_factory().clean(TreeChoice(type, sanitize))
         if result.removed:
-            console.success(f"{result.tree} removed.")
+            context.console.success(f"{result.tree} removed.")
         else:
-            console.info(f"{result.tree} does not exist, nothing to clean.")
+            context.console.info(f"{result.tree} does not exist, nothing to clean.")
         return 0
 
     _exit_with(step)
@@ -314,13 +325,13 @@ def clean(
 
 def _build_api_reference() -> int:
     """Prints the header, generates the Doxygen API reference and returns the exit code."""
-    console.header("Doxygen Generation")
-    return _code_of(lambda: _service().docs())
+    context_of_run().console.header("Doxygen Generation")
+    return _code_of(lambda: context_of_run().service_factory().docs())
 
 
 def _api_source() -> ApiSource:
     """Returns how `sb` builds the API reference and where Doxygen leaves its XML."""
-    return ApiSource(build=_build_api_reference, xml_dir=find_project_root() / K_API_XML)
+    return ApiSource(build=_build_api_reference, xml_dir=_project_root() / K_API_XML)
 
 
 def _docs_alias() -> None:
@@ -332,9 +343,9 @@ register_docs_commands(
     app,
     program=PROFILE.program,
     panel=K_DOCUMENTATION,
-    project_root=find_project_root,
+    project_root=_project_root,
     api=_api_source,
-    report=lambda line: console.success(line),
+    report=_report,
     group_cls=_help_group,
 )
 
@@ -342,8 +353,8 @@ register_backlog_commands(
     app,
     program=PROFILE.program,
     panel=K_DOCUMENTATION,
-    project_root=find_project_root,
-    report=lambda line: console.success(line),
+    project_root=_project_root,
+    report=_report,
     group_cls=_help_group,
 )
 
@@ -351,8 +362,8 @@ register_design_commands(
     app,
     program=PROFILE.program,
     panel=K_DOCUMENTATION,
-    project_root=find_project_root,
-    report=lambda line: console.success(line),
+    project_root=_project_root,
+    report=_report,
     group_cls=_help_group,
 )
 
@@ -363,10 +374,10 @@ register_diagnostic_commands(
 
 _PROVISION = ModuleProvision(
     profile=PROFILE,
-    project_root=find_project_root,
+    project_root=_project_root,
     load_config=load_config,
     console=lambda: console,
-    locate=lambda name: load_config().locate_sibling(find_project_root(), name),
+    locate=lambda name: load_config().locate_sibling(_project_root(), name),
     panel=K_DIAGNOSTICS,
     uses_base=True,
 )

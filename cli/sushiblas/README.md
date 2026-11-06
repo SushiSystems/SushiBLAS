@@ -56,6 +56,17 @@ including `sb --help`, which Typer can serve with no project at all.
 The module assigns `__getattr__` (PEP 562), so attributes resolve on first access and importing
 the module never touches the filesystem or the project layout.
 
+## command_context.py
+
+`CommandContext` is the one object a command reaches outside its arguments: a factory for the
+`ProjectService`, the console, and the function that finds the checkout root. `cli.py` reads it in
+one place, `context_of_run`. `sb` itself sets none, so the default context builds the real service
+with `create_project_service`, prints through the lazy console and finds the root with
+`find_project_root`. A test runs its commands inside `using(context)`, with a context built over
+`sushicore.proc_memory.RecordingRunner` and `sushicore.console_memory.RecordingConsole`, and so
+replaces no function of this package. The registered `docs`, `backlog`, `design`, `setup` and
+`package` callbacks read the same object, since `using` holds it for the whole block.
+
 ## env.py
 
 A parent process cannot `call vcvars64.bat` and inherit the result. The shell is run as a child
@@ -77,9 +88,10 @@ must not offer that dependency's executables as its own.
 
 `cli.py` parses arguments, prints the header and the outcome, and turns a
 `services.errors.ProjectError` into one error line and that error's exit code. The services
-return a result or raise; each error class carries its exit code. `ProjectService` is built per
-command by `services/project_factory.py`, so importing the package builds no runner, driver or
-index. It still prints progress lines through the console it receives, because sushicore's
+return a result or raise; each error class carries its exit code. A command gets its
+`ProjectService` and its console from the `CommandContext` in Typer's context object (see
+`command_context.py` below), and by default that service is built per command by
+`services/project_factory.py`, so importing the package builds no runner, driver or index. It still prints progress lines through the console it receives, because sushicore's
 `Runner` and `CMakeDriver`, which it wraps, print through the same console.
 
 `services/diag.py` keeps `K_DIAGNOSTICS` at module level: `register_diagnostic_commands` takes

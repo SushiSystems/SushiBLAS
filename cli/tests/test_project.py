@@ -6,11 +6,19 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
-import sushicore.proc
+from command_harness import (
+    K_DEBUG_TREE,
+    K_EXECUTABLE,
+    K_RELEASE_TREE,
+    StubBuildEnv,
+    StubConfig,
+    StubIndex,
+)
 from sushicore.build_admission import (
     BuildStoppedError,
     compiler_cache,
@@ -19,11 +27,11 @@ from sushicore.build_admission import (
     stop_file,
 )
 from sushicore.errors import ConfigError
+from sushicore.console_memory import RecordingConsole
 from sushicore.proc import Runner
+from sushicore.proc_memory import RecordingRunner
 from sushicore.testing import TestLabel
-from typer.testing import CliRunner
 
-from sushiblas import cli
 from sushiblas.services import project
 from sushiblas.services.build_type import K_DEFAULT_BUILD_TYPE, BuildType
 from sushiblas.services.errors import (
@@ -43,28 +51,6 @@ pytestmark = pytest.mark.medium
 K_CONFIGURE_FAILED = 9
 K_CHILD_EXIT = 7
 K_INTERRUPTED = 130
-K_EXECUTABLE = "quickstart_demo"
-#: The trees a plain build and a benchmark find, below the checkout.
-K_DEBUG_TREE = Path("build") / "default-debug"
-K_RELEASE_TREE = Path("build") / "default-release"
-
-
-class _Console:
-    """Records every line the service prints, by kind."""
-
-    def __init__(self) -> None:
-        self.lines: list[tuple[str, str]] = []
-        self.console = self
-
-    def __getattr__(self, kind: str):
-        """Returns a printer that records its text under *kind*."""
-        return lambda text="": self.lines.append((kind, str(text)))
-
-    def texts(self, kind: str) -> list[str]:
-        """Returns the lines recorded under *kind*."""
-        return [text for recorded, text in self.lines if recorded == kind]
-
-
 class _Driver:
     """Stands in for the driver: asks for a configure, fails it, and lets Doxygen succeed."""
 
@@ -97,106 +83,38 @@ class _Driver:
         return 0
 
 
-class _Index:
-    """Finds one executable, named K_EXECUTABLE, directly under the build tree."""
-
-    def match(self, build_root: Path, query: str) -> Path | None:
-        """Returns the executable when *query* names it."""
-        exe = build_root / K_EXECUTABLE
-        return exe if query == K_EXECUTABLE and exe.is_file() else None
-
-
-class _BuildEnv:
-    """Returns an empty environment without running a shell."""
-
-    def load(self, cfg, build_dir: Path) -> dict[str, str]:
-        """Returns no variables."""
-        return {}
-
-
-class _Packages:
-    """Stands in for a package set that holds no library."""
-
-    def names(self) -> list[str]:
-        """Returns no name."""
-        return []
-
-    def definitions(self) -> list[str]:
-        """Returns no definition."""
-        return []
-
-    def run_dirs(self, platform: str) -> list[str]:
-        """Returns no folder."""
-        return []
-
-
-class _Config:
-    """Holds the few settings the service reads."""
-
-    generator = "Ninja"
-    ccache_exe = ""
-    is_windows = False
-    platform = "linux"
-    target_bin = K_EXECUTABLE
-
-    def sushi_definitions(self, root: Path, packaged=None) -> list[str]:
-        """Returns no definition: every pinned library is a package."""
-        return []
-
-    def sushi_packages(self, root: Path, build_type: str, options=None, report=print,
-                       warn=print, compiler: str = ""):
-        """Returns a package set with no library."""
-        return _Packages()
-
-    def resolved_compiler(self, root: Path) -> str:
-        """Returns a compiler name; nothing runs it."""
-        return "clang++"
-
-    def resolved_vcpkg(self, root: Path) -> str:
-        """Returns no vcpkg tree."""
-        return ""
+@pytest.fixture
+def checkout(commands):
+    """Returns the scratch checkout of the commands fixture."""
+    return commands.root
 
 
 @pytest.fixture
-def checkout(tmp_path):
-    """Returns a checkout with a Debug and a Release tree and a SushiRuntime sibling."""
-    root = tmp_path / "sushiblas"
-    (root / K_DEBUG_TREE).mkdir(parents=True)
-    (root / K_RELEASE_TREE).mkdir(parents=True)
-    (root / "CMakeLists.txt").write_text("")
-    (tmp_path / "sushiruntime").mkdir()
-    (tmp_path / "sushiruntime" / "CMakeLists.txt").write_text("")
-    return root
+def console():
+    """Returns the console that records every line the service prints."""
+    return RecordingConsole()
 
 
 @pytest.fixture
-def parts(checkout):
-    """Returns the recording console and driver and the service built on them."""
-    console = _Console()
+def runner(console):
+    """Returns the runner that records each command and starts no process."""
+    return RecordingRunner(console)
+
+
+@pytest.fixture
+def parts(checkout, console, runner):
+    """Returns the recording console and the stub driver and the service built on them."""
     driver = _Driver()
     service = ProjectService(
         console=console,
-        runner=Runner(console, "sb", catch_interrupt=True),
+        runner=runner,
         driver=driver,
-        index=_Index(),
-        build_env=_BuildEnv(),
+        index=StubIndex(),
+        build_env=StubBuildEnv(),
         find_root=lambda: checkout,
-        load_config=_Config,
+        load_config=StubConfig,
     )
     return console, driver, service
-
-
-def _child_exits_with(monkeypatch, code: int) -> list[list[str]]:
-    """Makes every child process exit with *code* and returns the list of commands run."""
-    commands: list[list[str]] = []
-
-    def fake_run(cmd, **kwargs):
-        """Records *cmd* and returns its fixed exit code."""
-        commands.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, code)
-
-    monkeypatch.setattr(sushicore.proc.subprocess, "run", fake_run)
-    return commands
 
 
 def test_build_says_it_replaces_a_tree_of_another_generator(parts, checkout):
@@ -231,7 +149,7 @@ def test_build_rejects_a_bad_define_before_touching_the_tree(parts, checkout):
     assert raised.value.exit_code == K_EXIT_USAGE
     assert marker.is_file()
     assert driver.configured == []
-    assert console.lines == []
+    assert console.calls == []
 
 
 def test_build_appends_defines_after_every_default(parts, checkout):
@@ -307,18 +225,18 @@ class _CompilingDriver(_Driver):
         return 0
 
 
-def _compiling_service(checkout) -> tuple[_Console, _CompilingDriver, ProjectService]:
+def _compiling_service(checkout) -> tuple[RecordingConsole, _CompilingDriver, ProjectService]:
     """Returns the console and driver that configure and compile, and the service on them."""
-    console = _Console()
+    console = RecordingConsole()
     driver = _CompilingDriver()
     service = ProjectService(
         console=console,
-        runner=Runner(console, "sb", catch_interrupt=True),
+        runner=RecordingRunner(console),
         driver=driver,
-        index=_Index(),
-        build_env=_BuildEnv(),
+        index=StubIndex(),
+        build_env=StubBuildEnv(),
         find_root=lambda: checkout,
-        load_config=_Config,
+        load_config=StubConfig,
     )
     return console, driver, service
 
@@ -412,7 +330,7 @@ def test_build_configure_carries_both_gate_launchers(checkout):
         assert f"-D{entry}" in driver.configured[0]
 
 
-def test_build_prints_and_writes_the_report_on_request(checkout, monkeypatch):
+def test_build_prints_and_writes_the_report_on_request(checkout):
     """--report prints the report lines and writes build_report.json into the tree."""
     console, driver, service = _compiling_service(checkout)
     service.build(BuildType.DEBUG)
@@ -447,97 +365,78 @@ def test_test_hands_the_jobs_to_ctest(parts, checkout):
     assert [run["jobs"] for run in driver.tested] == [3, None]
 
 
-def test_test_cli_runs_pytest_with_the_marker_expression(parts, checkout, monkeypatch):
+def test_test_cli_runs_pytest_with_the_marker_expression(parts, checkout, runner):
     """--cli runs pytest from cli/ with the expression of the labels given."""
     console, driver, service = parts
-    commands = _child_exits_with(monkeypatch, 0)
     assert service.test_cli([TestLabel.SMALL]) == 0
-    assert commands[0][1:] == ["-m", "pytest", "-q", "-m", "(small) and not quarantined"]
+    assert runner.commands[0].argv[1:] == (
+        "-m", "pytest", "-q", "-m", "(small) and not quarantined")
+    assert runner.commands[0].cwd == checkout / "cli"
+
+
+def _configure_of(commands) -> tuple[str, ...]:
+    """Returns the cmake configure line the service handed the runner first."""
+    return commands.runner.commands[0].argv
+
+
+def _compile_of(commands) -> tuple[str, ...]:
+    """Returns the cmake build line the service handed the runner second."""
+    return commands.runner.commands[1].argv
 
 
 @pytest.mark.parametrize(
     ("args", "expected"),
     [
-        (["build", "--benchmarks"], True),
-        (["build", "--no-benchmarks"], False),
-        (["build"], None),
+        (["build", "--benchmarks"], ["-DSB_BUILD_BENCHMARKS=ON"]),
+        (["build", "--no-benchmarks"], ["-DSB_BUILD_BENCHMARKS=OFF"]),
+        (["build"], []),
     ],
 )
-def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expected):
+def test_build_command_forwards_the_benchmarks_option(commands, args, expected):
     """The build command hands the tri-state option to the service unchanged."""
-    received = []
-
-    class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path, report):
-            received.append(benchmarks)
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    result = CliRunner().invoke(cli.app, args)
-    assert result.exit_code == 0
-    assert received == [expected]
+    result = commands.invoke(*args)
+    assert result.exit_code == 0, result.output
+    flags = [word for word in _configure_of(commands) if word.startswith("-DSB_BUILD_BENCHMARKS")]
+    assert flags == expected
 
 
-def test_build_command_defaults_to_debug_and_forwards_the_report_option(monkeypatch):
+def test_build_command_defaults_to_debug_and_forwards_the_report_option(commands):
     """With no option the build command asks for Debug and no report; --report asks for one."""
-    received = []
-
-    class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path, report):
-            received.append((build_type, report))
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    assert CliRunner().invoke(cli.app, ["build"]).exit_code == 0
-    assert CliRunner().invoke(cli.app, ["build", "--report", "--type", "release"]).exit_code == 0
-    assert received == [(BuildType.DEBUG, False), (BuildType.RELEASE, True)]
+    assert commands.invoke("build").exit_code == 0
+    assert "-DCMAKE_BUILD_TYPE=Debug" in _configure_of(commands)
+    assert not [text for text in commands.console.texts("info") if text.startswith("Report:")]
+    assert commands.invoke("build", "--report", "--type", "release").exit_code == 0
+    assert "-DCMAKE_BUILD_TYPE=Release" in commands.runner.commands[2].argv
+    assert f"Report: {commands.root / K_RELEASE_TREE / 'build_report.json'}" in (
+        commands.console.texts("info"))
 
 
-@pytest.mark.parametrize(("args", "expected"), [(["build", "--jobs", "4"], 4), (["build"], None)])
-def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
-    """The build command hands --jobs to the service unchanged, and None when it is left out."""
-    received = []
-
-    class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path, report):
-            received.append(jobs)
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    result = CliRunner().invoke(cli.app, args)
-    assert result.exit_code == 0
-    assert received == [expected]
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [(["build", "--jobs", "4"], "4"), (["build"], str(hardware_threads()))],
+)
+def test_build_command_forwards_the_jobs_option(commands, args, expected):
+    """The build command hands --jobs to the service unchanged, and one per hardware thread when it is left out."""
+    result = commands.invoke(*args)
+    assert result.exit_code == 0, result.output
+    build = _compile_of(commands)
+    assert build[build.index("--parallel") + 1] == expected
 
 
 @pytest.mark.parametrize(
     ("args", "expected"),
     [
-        (["build", "--distributed"], True),
-        (["build", "--no-distributed"], False),
-        (["build"], None),
+        (["build", "--distributed"], ["-DSB_ENABLE_DISTRIBUTED=ON"]),
+        (["build", "--no-distributed"], ["-DSB_ENABLE_DISTRIBUTED=OFF"]),
+        (["build"], []),
     ],
 )
-def test_build_command_forwards_the_distributed_option(monkeypatch, args, expected):
+def test_build_command_forwards_the_distributed_option(commands, args, expected):
     """The build command hands the tri-state --distributed option to the service unchanged."""
-    received = []
-
-    class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed, lean,
-                  tree_path, report):
-            received.append(distributed)
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    result = CliRunner().invoke(cli.app, args)
-    assert result.exit_code == 0
-    assert received == [expected]
+    result = commands.invoke(*args)
+    assert result.exit_code == 0, result.output
+    flags = [word for word in _configure_of(commands) if word.startswith("-DSB_ENABLE_DISTRIBUTED")]
+    assert flags == expected
 
 
 def test_distributed_flags_switch_the_cluster_module():
@@ -565,35 +464,31 @@ def test_clean_reports_a_missing_tree(parts, checkout):
 def test_clean_raises_when_the_tree_remains(parts, checkout, monkeypatch):
     """A tree the removal could not delete raises instead of reporting success."""
     console, driver, service = parts
-    monkeypatch.setattr(project.shutil, "rmtree", lambda path, ignore_errors=False: None)
+    monkeypatch.setattr(shutil, "rmtree", lambda path, ignore_errors=False: None)
     with pytest.raises(TreeNotRemovedError) as raised:
         service.clean()
     assert raised.value.exit_code == 1
     assert (checkout / K_DEBUG_TREE).is_dir()
 
 
-def test_clean_command_exits_one_when_the_tree_remains(parts, checkout, monkeypatch):
+def test_clean_command_exits_one_when_the_tree_remains(commands, monkeypatch):
     """sb clean prints the failure and exits 1, with no success line."""
-    console, driver, service = parts
-    monkeypatch.setattr(project.shutil, "rmtree", lambda path, ignore_errors=False: None)
-    monkeypatch.setattr(cli, "_service", lambda: service)
-    printed = _Console()
-    monkeypatch.setattr(cli, "console", printed)
-    result = CliRunner().invoke(cli.app, ["clean"])
+    monkeypatch.setattr(shutil, "rmtree", lambda path, ignore_errors=False: None)
+    result = commands.invoke("clean")
     assert result.exit_code == 1
-    assert len(printed.texts("error")) == 1
-    assert str(checkout / K_DEBUG_TREE) in printed.texts("error")[0]
-    assert printed.texts("success") == []
+    assert len(commands.console.texts("error")) == 1
+    assert str(commands.root / K_DEBUG_TREE) in commands.console.texts("error")[0]
+    assert commands.console.texts("success") == []
 
 
-def test_run_returns_the_exit_code_of_the_child(parts, checkout, monkeypatch):
+def test_run_returns_the_exit_code_of_the_child(parts, checkout, runner):
     """run launches the default target with the forwarded arguments and returns its code."""
     console, driver, service = parts
     exe = checkout / K_DEBUG_TREE / K_EXECUTABLE
     exe.write_text("")
-    commands = _child_exits_with(monkeypatch, K_CHILD_EXIT)
+    runner.script(K_CHILD_EXIT)
     assert service.run(app_args=["--flag"]) == K_CHILD_EXIT
-    assert commands == [[str(exe), "--flag"]]
+    assert [command.argv for command in runner.commands] == [(str(exe), "--flag")]
 
 
 def test_run_raises_for_a_target_that_matches_nothing(parts):
@@ -614,16 +509,11 @@ def test_run_raises_without_a_build_tree(parts, checkout):
 
 
 @pytest.mark.parametrize("args", [["run", "--sortt"], ["run", "x", "--bogus"], ["run", "--", "-x"]])
-def test_run_command_rejects_a_mistyped_option(monkeypatch, args):
+def test_run_command_rejects_a_mistyped_option(commands, args):
     """An option sb run does not know is a usage error, never a target or a forwarded flag."""
-
-    def no_service():
-        """Fails the test if the command reaches the service."""
-        raise AssertionError("the service was reached")
-
-    monkeypatch.setattr(cli, "_service", no_service)
-    result = CliRunner().invoke(cli.app, args)
+    result = commands.invoke(*args)
     assert result.exit_code == K_EXIT_USAGE
+    assert commands.runner.commands == []
 
 
 @pytest.mark.parametrize("args", [
@@ -634,16 +524,11 @@ def test_run_command_rejects_a_mistyped_option(monkeypatch, args):
     ["test", "--cli", "--jobs", "2"],
     ["test", "--package", "--jobs", "2"],
 ])
-def test_test_command_refuses_options_that_do_not_apply(monkeypatch, args):
+def test_test_command_refuses_options_that_do_not_apply(commands, args):
     """--package takes no selection option and --cli no ctest option; both exit 2."""
-
-    def no_service():
-        """Fails the test if the command reaches the service."""
-        raise AssertionError("the service was reached")
-
-    monkeypatch.setattr(cli, "_service", no_service)
-    result = CliRunner().invoke(cli.app, args)
+    result = commands.invoke(*args)
     assert result.exit_code == K_EXIT_USAGE
+    assert commands.runner.commands == []
 
 
 def test_docs_creates_the_site_folder_under_the_build_tree(parts, checkout):
@@ -662,9 +547,9 @@ def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
         """Raises what Ctrl+C raises while the child runs."""
         raise KeyboardInterrupt
 
-    console = _Console()
+    console = RecordingConsole()
     runner = Runner(console, "sb", catch_interrupt=True)
-    monkeypatch.setattr(sushicore.proc.subprocess, "run", interrupt)
+    monkeypatch.setattr(subprocess, "run", interrupt)
     assert runner.run(["some-tool"], tmp_path, {}) == K_INTERRUPTED
     assert console.texts("warn") == ["Interrupted."]
 
@@ -676,28 +561,28 @@ def test_bench_raises_when_no_benchmark_program_is_built(parts, checkout):
         service.bench()
 
 
-def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monkeypatch):
+def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, runner):
     """bench runs each benchmark_* program under build/tests, skipping the test programs and the ones that take arguments."""
     console, driver, service = parts
     programs = checkout / K_RELEASE_TREE / "tests"
     programs.mkdir()
     for name in ("benchmark_sparse", "benchmark_gemm", "benchmark_gemm_blocking", "sushiblas_operations_tests"):
         (programs / name).write_text("")
-    commands = _child_exits_with(monkeypatch, 0)
     assert service.bench() == 0
-    assert [Path(command[0]).name for command in commands] == ["benchmark_gemm", "benchmark_sparse"]
+    assert [Path(command.argv[0]).name for command in runner.commands] == [
+        "benchmark_gemm", "benchmark_sparse"]
 
 
 def test_bench_runs_the_named_scenario_benchmark_with_the_forwarded_options(
-    parts, checkout, monkeypatch
+    parts, checkout, runner
 ):
     """bench with a name runs that one executable and passes the options after it."""
     console, driver, service = parts
     exe = checkout / K_RELEASE_TREE / K_EXECUTABLE
     exe.write_text("")
-    commands = _child_exits_with(monkeypatch, K_CHILD_EXIT)
+    runner.script(K_CHILD_EXIT)
     assert service.bench(K_EXECUTABLE, ["--out", "folder"]) == K_CHILD_EXIT
-    assert commands == [[str(exe), "--out", "folder"]]
+    assert [command.argv for command in runner.commands] == [(str(exe), "--out", "folder")]
 
 
 def test_bench_raises_for_a_scenario_benchmark_that_matches_nothing(parts, checkout):
@@ -716,46 +601,29 @@ def test_bench_finds_the_release_tree_unless_told_another(parts, checkout):
     assert "sb build --type release" in str(raised.value)
 
 
-def test_bench_command_forwards_the_name_and_the_options_after_the_separator(monkeypatch):
+def test_bench_command_forwards_the_name_and_the_options_after_the_separator(commands):
     """The bench command hands the name and what follows `--` to the service."""
-    received = []
-
-    class _Service:
-        def bench(self, name, app_args, tree):
-            received.append((name, app_args, tree))
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    result = CliRunner().invoke(cli.app, ["bench", "device_ceilings", "--", "--runs", "3"])
-    assert result.exit_code == 0
-    assert received == [("device_ceilings", ["--runs", "3"], TreeChoice(BuildType.RELEASE))]
+    exe = commands.root / K_RELEASE_TREE / K_EXECUTABLE
+    exe.write_text("")
+    result = commands.invoke("bench", K_EXECUTABLE, "--", "--runs", "3")
+    assert result.exit_code == 0, result.output
+    assert [command.argv for command in commands.runner.commands] == [(str(exe), "--runs", "3")]
 
 
-def test_bench_command_without_a_name_runs_every_program(monkeypatch):
+def test_bench_command_without_a_name_runs_every_program(commands):
     """The bench command with no name hands the service no name and no options."""
-    received = []
-
-    class _Service:
-        def bench(self, name, app_args, tree):
-            received.append((name, app_args, tree))
-            return 0
-
-    monkeypatch.setattr(cli, "_service", lambda: _Service())
-    monkeypatch.setattr(cli, "console", _Console())
-    result = CliRunner().invoke(cli.app, ["bench"])
-    assert result.exit_code == 0
-    assert received == [(None, [], TreeChoice(BuildType.RELEASE))]
+    programs = commands.root / K_RELEASE_TREE / "tests"
+    programs.mkdir()
+    (programs / "benchmark_gemm").write_text("")
+    result = commands.invoke("bench")
+    assert result.exit_code == 0, result.output
+    assert [command.argv for command in commands.runner.commands] == [
+        (str(programs / "benchmark_gemm"),)]
 
 
 @pytest.mark.parametrize("args", [["bench", "--", "--runs", "3"], ["bench", "--sortt"]])
-def test_bench_command_rejects_options_that_belong_to_no_benchmark(monkeypatch, args):
+def test_bench_command_rejects_options_that_belong_to_no_benchmark(commands, args):
     """Options need a benchmark name before the separator; an unknown flag is a usage error."""
-
-    def no_service():
-        """Fails the test if the command reaches the service."""
-        raise AssertionError("the service was reached")
-
-    monkeypatch.setattr(cli, "_service", no_service)
-    result = CliRunner().invoke(cli.app, args)
+    result = commands.invoke(*args)
     assert result.exit_code == K_EXIT_USAGE
+    assert commands.runner.commands == []

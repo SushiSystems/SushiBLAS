@@ -67,8 +67,12 @@ class Config(StackConfig):
         return super().resolved_compiler(root)
 
 
-def load_config() -> Config:
-    """Load and resolve the layered configuration for the current platform."""
-    cfg = _MODULE.load(Config)
+def load_config(module: ModuleConfig = _MODULE) -> Config:
+    """Load and resolve the layered configuration for the current platform.
+
+    Args:
+        module: Reads the layers; the one of this checkout unless a caller names another.
+    """
+    cfg = module.load(Config)
     cfg.stack_cxx = os.environ.get(K_STACK_CXX_ENV, "")
     return cfg
