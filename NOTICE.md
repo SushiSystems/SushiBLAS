@@ -3,6 +3,9 @@
 SushiBLAS is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the Apache
 License 2.0; see `LICENSE`. The material below keeps its own licence.
 
+Every version of SushiBLAS published under the PolyForm Noncommercial License 1.0.0 is also
+licensed, from 2026-11-06 on, under the Apache License 2.0.
+
 ## What ships in this repository
 
 Three third-party works have code or text in the tracked files: portBLAS, the Contributor
@@ -94,7 +97,7 @@ in this repository. The licence column says where each licence was read.
 
 | Component | Used by | Source | Version | Licence |
 | --- | --- | --- | --- | --- |
-| SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | the package the CLI built, at the tag `cli/sushistack.deps.toml` pins | PolyForm Noncommercial 1.0.0, from the checkout's `LICENSE` |
+| SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | the package the CLI built, at the tag `cli/sushistack.deps.toml` pins | Apache License 2.0, which covers every SushiRuntime version |
 | SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include; `intel-oneapi-compiler-dpcpp-cpp` from Intel's apt repository in `.github/actions/setup-oneapi/action.yml` | https://github.com/intel/llvm | not pinned | unverified |
 | Intel CPU Runtime for OpenCL Applications | the SYCL CPU device of the Windows CI job; `w_opencl_runtime_p` installed by `.github/actions/setup-opencl-cpu/action.yml` | https://www.intel.com/content/www/us/en/developer/articles/technical/intel-cpu-runtime-for-opencl-applications-with-sycl-support.html | 2026.0.0.946, pinned with its SHA256 | unverified |
 | GoogleTest | `cmake/SushiBLASTests.cmake`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
