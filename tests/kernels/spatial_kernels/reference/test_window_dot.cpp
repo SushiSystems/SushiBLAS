@@ -27,8 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -37,16 +35,12 @@
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/spatial_kernels/reference/window_dot.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Relative tolerance: 1024 double roundings per unit of magnitude.
-        constexpr double K_ADJOINT_TOLERANCE = absolute_tolerance<double>(1024);
-
         TEST(Small_ReferenceWindowDot, WeighsEachTapOfOneChannel)
         {
             Spatial::ConvGeometry geometry;
@@ -78,7 +72,8 @@ namespace SushiBLAS
 
             const double lhs = std::inner_product(y.begin(), y.end(), dy.begin(), 0.0);
             const double rhs = std::inner_product(x.begin(), x.end(), dx.begin(), 0.0);
-            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
+            // Every product is a small integer, so both sums are exact.
+            EXPECT_EQ(lhs, rhs);
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -63,7 +63,22 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Medium_SYCLSparseLevel1, TheUpdatesMatchTheReference)
+        TEST_F(Medium_SYCLSparseLevel1, AxpyiMatchesTheReference)
+        {
+            const SharedArray<int64_t> stored = positions();
+            const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
+            const std::vector<double> x = small_integers<double>(K_COUNT, 1);
+            std::vector<double> y = small_integers<double>(K_EXTENT, 2);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), y);
+
+            Kernels::SYCL::axpyi(queue(), 3.0, device_x.get(), list, device_y.get(), 1, {}).wait();
+            Kernels::Reference::axpyi(3.0, x.data(), list, y.data(), 1);
+
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLSparseLevel1, RotiMatchesTheReferenceWithBothCoefficientsNonZero)
         {
             const SharedArray<int64_t> stored = positions();
             const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
@@ -72,21 +87,61 @@ namespace SushiBLAS
             SharedArray<double> device_x(queue(), x);
             SharedArray<double> device_y(queue(), y);
 
-            Kernels::SYCL::axpyi(queue(), 3.0, device_x.get(), list, device_y.get(), 1, {}).wait();
-            Kernels::SYCL::roti(queue(), device_x.get(), list, device_y.get(), 1, 2.0, 1.0,
-                                {}).wait();
-            Kernels::SYCL::gthrz(queue(), device_y.get(), 1, list, device_x.get(), {}).wait();
-            Kernels::SYCL::sctr(queue(), device_x.get(), list, device_y.get(), 1, {}).wait();
-            Kernels::Reference::axpyi(3.0, x.data(), list, y.data(), 1);
+            Kernels::SYCL::roti(queue(), device_x.get(), list, device_y.get(), 1, 2.0, 1.0, {})
+                .wait();
             Kernels::Reference::roti(x.data(), list, y.data(), 1, 2.0, 1.0);
-            Kernels::Reference::gthrz(y.data(), 1, list, x.data());
-            Kernels::Reference::sctr(x.data(), list, y.data(), 1);
 
             EXPECT_EQ(device_x.values(), x);
             EXPECT_EQ(device_y.values(), y);
         }
 
-        TEST_F(Medium_SYCLSparseLevel1, GatherAndDotMatchTheReference)
+        TEST_F(Medium_SYCLSparseLevel1, GthrzMatchesTheReference)
+        {
+            const SharedArray<int64_t> stored = positions();
+            const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
+            std::vector<double> x = small_integers<double>(K_COUNT, 1);
+            std::vector<double> y = small_integers<double>(K_EXTENT, 2);
+            SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), y);
+
+            Kernels::SYCL::gthrz(queue(), device_y.get(), 1, list, device_x.get(), {}).wait();
+            Kernels::Reference::gthrz(y.data(), 1, list, x.data());
+
+            EXPECT_EQ(device_x.values(), x);
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLSparseLevel1, SctrMatchesTheReference)
+        {
+            const SharedArray<int64_t> stored = positions();
+            const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
+            const std::vector<double> x = small_integers<double>(K_COUNT, 1);
+            std::vector<double> y = small_integers<double>(K_EXTENT, 2);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), y);
+
+            Kernels::SYCL::sctr(queue(), device_x.get(), list, device_y.get(), 1, {}).wait();
+            Kernels::Reference::sctr(x.data(), list, y.data(), 1);
+
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLSparseLevel1, GthrMatchesTheReference)
+        {
+            const SharedArray<int64_t> stored = positions();
+            const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
+            const std::vector<double> y = small_integers<double>(K_EXTENT, 4);
+            const SharedArray<double> device_y(queue(), y);
+            SharedArray<double> gathered(queue(), static_cast<std::size_t>(K_COUNT));
+            std::vector<double> expected(static_cast<std::size_t>(K_COUNT));
+
+            Kernels::SYCL::gthr(queue(), device_y.get(), 1, list, gathered.get(), {}).wait();
+            Kernels::Reference::gthr(y.data(), 1, list, expected.data());
+
+            EXPECT_EQ(gathered.values(), expected);
+        }
+
+        TEST_F(Medium_SYCLSparseLevel1, DotiMatchesTheReference)
         {
             const SharedArray<int64_t> stored = positions();
             const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
@@ -94,21 +149,16 @@ namespace SushiBLAS
             const std::vector<double> y = small_integers<double>(K_EXTENT, 4);
             const SharedArray<double> device_x(queue(), x);
             const SharedArray<double> device_y(queue(), y);
-            SharedArray<double> gathered(queue(), static_cast<std::size_t>(K_COUNT));
             SharedArray<double> dot(queue(), 1);
             const std::size_t scratch_bytes = 4096;
             SharedArray<std::byte> scratch(queue(), scratch_bytes);
+            double expected = 0.0;
 
-            Kernels::SYCL::gthr(queue(), device_y.get(), 1, list, gathered.get(), {}).wait();
             Kernels::SYCL::doti(queue(), device_x.get(), list, device_y.get(), 1, dot.get(),
                                 scratch.get(), scratch_bytes, {}).wait();
-            std::vector<double> expected_gather(static_cast<std::size_t>(K_COUNT));
-            double expected_dot = 0.0;
-            Kernels::Reference::gthr(y.data(), 1, list, expected_gather.data());
-            Kernels::Reference::doti(x.data(), list, y.data(), 1, &expected_dot);
+            Kernels::Reference::doti(x.data(), list, y.data(), 1, &expected);
 
-            EXPECT_EQ(gathered.values(), expected_gather);
-            EXPECT_EQ(dot.get()[0], expected_dot);
+            EXPECT_EQ(dot.get()[0], expected);
         }
     } // namespace Test
 } // namespace SushiBLAS

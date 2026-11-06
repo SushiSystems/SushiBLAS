@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -49,14 +50,31 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs spsymv on the host CPU queue. */
-        class Medium_SYCLSpsymv : public HostDeviceTest
+        namespace
+        {
+            /** @brief The triangle spsymv reads. */
+            struct TriangleRow
+            {
+                    const char* name; /**< The row's suffix. */
+                    bool upper;       /**< Whether the upper triangle is the one stored and read. */
+            };
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string triangle_row_name(const ::testing::TestParamInfo<TriangleRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs spsymv on the host CPU queue, one triangle at a time. */
+        class Medium_SYCLSpsymv : public HostDeviceTest, public ::testing::WithParamInterface<TriangleRow>
         {
 
         };
 
-        TEST_F(Medium_SYCLSpsymv, MatchesTheReferenceForEitherTriangle)
+        TEST_P(Medium_SYCLSpsymv, MatchesTheReferenceForEitherTriangle)
         {
+            const bool upper = GetParam().upper;
             const int64_t n = 283;
             const IntegerCsr a = integer_csr(n, n, 4, true);
             const SharedArray<int64_t> offsets(queue(), a.offsets);
@@ -72,20 +90,21 @@ namespace SushiBLAS
                 queue(), blocks * static_cast<std::size_t>(n));
             const std::vector<double> x = small_integers<double>(n, 5);
             const SharedArray<double> device_x(queue(), x);
-            for (const bool upper : {false, true})
-            {
-                SCOPED_TRACE(upper);
-                std::vector<double> y = small_integers<double>(n, 6);
-                SharedArray<double> device_y(queue(), y);
+            std::vector<double> y = small_integers<double>(n, 6);
+            SharedArray<double> device_y(queue(), y);
 
-                Kernels::SYCL::spsymv(queue(), uplo_of(upper), device_pattern, values.get(), 1.0,
-                                      device_x.get(), 1, 3.0, device_y.get(), 1, partials.get(),
-                                      blocks, {}).wait();
-                Kernels::Reference::spsymv(uplo_of(upper), host_pattern, a.values.data(), 1.0,
-                                           x.data(), 1, 3.0, y.data(), 1);
+            Kernels::SYCL::spsymv(queue(), uplo_of(upper), device_pattern, values.get(), 1.0,
+                                  device_x.get(), 1, 3.0, device_y.get(), 1, partials.get(),
+                                  blocks, {}).wait();
+            Kernels::Reference::spsymv(uplo_of(upper), host_pattern, a.values.data(), 1.0,
+                                       x.data(), 1, 3.0, y.data(), 1);
 
-                EXPECT_EQ(device_y.values(), y);
-            }
+            EXPECT_EQ(device_y.values(), y);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSpsymv,
+                                 ::testing::Values(TriangleRow{"Lower", false},
+                                                   TriangleRow{"Upper", true}),
+                                 triangle_row_name);
     } // namespace Test
 } // namespace SushiBLAS

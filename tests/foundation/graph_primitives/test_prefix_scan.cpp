@@ -28,9 +28,13 @@
  * @see tests/foundation/graph_primitives/README.md
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <optional>
+#include <ostream>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,6 +65,9 @@ namespace SushiBLAS
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
 
+            /// @brief Names the buffer type every operand of a scan has.
+            using Words = SushiRuntime::Buffer<std::uint32_t>;
+
             /// @brief Holds the tile size the level plan of a scan is built on.
             constexpr std::size_t K_TILE = GraphPrimitives::K_REDUCE_TILE;
 
@@ -70,70 +77,427 @@ namespace SushiBLAS
             /// @brief Holds a capacity of two levels: three tiles under one top tile.
             constexpr std::size_t K_TWO_LEVEL_CAPACITY = 2 * K_TILE + 88;
 
-            /**
-             * @brief Writes the exclusive prefix sums of the first n counts, modulo 2^32.
-             * @param offsets Holds at least n + 1 elements; offsets[n] receives the sum.
-             * @return The sum of the first n counts.
-             */
-            std::uint32_t host_exclusive_scan(const std::vector<std::uint32_t>& counts,
-                                              std::size_t n, std::vector<std::uint32_t>& offsets)
+            /// @brief Holds the nodes a two-level call records: resolver, up, two downs, close.
+            constexpr std::size_t K_TWO_LEVEL_PASSES = 5;
+
+            /// @brief Holds the capacity of the scan whose live count changes between runs.
+            constexpr std::size_t K_LATE_CAPACITY = 1000003;
+
+            /// @brief Holds the capacity of the scans that read their count from the device.
+            constexpr std::size_t K_DEVICE_CAPACITY = 100;
+
+            /// @brief Places each operand of the window tests a few elements into its buffer.
+            constexpr GraphPrimitives::PrefixScanWindow K_WINDOW{9, 6, 2};
+
+            /// @brief Holds the three operands of one prefix_scan() call.
+            struct ScanBuffers
             {
-                std::uint32_t running = 0;
+                /// @brief Holds the counts the scan reads.
+                Words counts;
+                /// @brief Holds the offsets the scan writes, the sum last.
+                Words offsets;
+                /// @brief Holds the sum the scan writes.
+                Words total;
+            };
+
+            /// @brief Holds the sum and the sentinel offsets[n] one run published.
+            struct ScanEnd
+            {
+                /// @brief Holds total[0] after the run.
+                std::uint32_t total;
+                /// @brief Holds offsets[n] after the run, n being the live count of the run.
+                std::uint32_t sentinel;
+            };
+
+            /** @brief Returns whether two runs published the same sum and sentinel. */
+            bool operator==(const ScanEnd& left, const ScanEnd& right)
+            {
+                return left.total == right.total && left.sentinel == right.sentinel;
+            }
+
+            /** @brief Prints a run's sum and sentinel in a failure message. */
+            void PrintTo(const ScanEnd& end, std::ostream* out)
+            {
+                *out << "{total " << end.total << ", sentinel " << end.sentinel << "}";
+            }
+
+            /// @brief Names a short operand and the live count that does not fit it.
+            struct MisSizedRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the element count of the counts buffer.
+                std::size_t counts;
+                /// @brief Holds the element count of the offsets buffer.
+                std::size_t offsets;
+                /// @brief Holds the element count of the total buffer.
+                std::size_t total;
+                /// @brief Holds the capacity the call is recorded with.
+                std::size_t capacity;
+            };
+
+            /// @brief Names an operand and a window that reaches one element past its buffer.
+            struct WindowRefusalRow
+            {
+                /// @brief Names the row in the test report, and the operand the error names.
+                const char* name;
+                /// @brief Holds the window that does not fit.
+                GraphPrimitives::PrefixScanWindow window;
+            };
+
+            /// @brief Names a set of options that names no node or states no class.
+            struct OptionRefusalRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the options the call is refused for.
+                GraphPrimitives::PrimitiveOptions options;
+            };
+
+            /// @brief Names a pass of a two-level scan and the width it launches at.
+            struct NodeWidthRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the place of the pass in the recorded order.
+                std::size_t pass;
+                /// @brief Holds the width the level plan gives the pass.
+                std::uint32_t width;
+            };
+
+            /// @brief Holds what a scan over windows and the same scan over compact buffers wrote.
+            struct WindowedScan
+            {
+                /// @brief Holds the offsets inside the window, the sum last.
+                std::vector<std::uint32_t> window_offsets;
+                /// @brief Holds the offsets of the compact scan, the sum last.
+                std::vector<std::uint32_t> compact_offsets;
+                /// @brief Holds the sum written inside the total window.
+                std::uint32_t window_total;
+                /// @brief Holds the sum of the compact scan.
+                std::uint32_t compact_total;
+                /// @brief Holds the offsets element just before the window.
+                std::uint32_t offset_before_window;
+                /// @brief Holds the total element just before the window.
+                std::uint32_t total_before_window;
+            };
+
+            /** @brief Names a test case after its row. */
+            template <typename Row>
+            std::string row_name(const ::testing::TestParamInfo<Row>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Returns the n values generate(0) to generate(n - 1). */
+            template <typename Generator>
+            std::vector<std::uint32_t> counts_of(std::size_t n, Generator generate)
+            {
+                std::vector<std::uint32_t> counts(n);
                 for (std::size_t i = 0; i < n; ++i)
-                {
-                    offsets[i] = running;
-                    running += counts[i];
-                }
-                offsets[n] = running;
-                return running;
+                    counts[i] = static_cast<std::uint32_t>(generate(i));
+                return counts;
             }
 
             /** @brief Returns n counts that cycle through 1 to 13. */
             std::vector<std::uint32_t> cycling_counts(std::size_t n)
             {
-                std::vector<std::uint32_t> counts(n);
-                for (std::size_t i = 0; i < n; ++i)
-                    counts[i] = static_cast<std::uint32_t>((i % 13) + 1);
-                return counts;
+                return counts_of(n, [](std::size_t i) { return (i % 13) + 1; });
             }
-        } // namespace
 
-        /** @brief Tests exact agreement with the host scan at the tile and level edges. */
-        TEST(Medium_GraphPrimitivesPrefixScan, AgreesWithTheHostScanAtTileEdges)
-        {
-            const std::vector<std::size_t> sizes = {0, 1, K_TILE - 1, K_TILE, K_TILE + 1,
-                                                    K_TILE * K_TILE, K_TILE * K_TILE + 1,
-                                                    1000000};
-
-            for (std::size_t n : sizes)
+            /** @brief Returns the counts 1 to n. */
+            std::vector<std::uint32_t> ascending_counts(std::size_t n)
             {
-                auto runtime = Runtime::create().value();
-                auto counts = runtime.buffer<std::uint32_t>(n == 0 ? 1 : n).value();
-                auto offsets = runtime.buffer<std::uint32_t>(n + 2).value();
-                auto total = runtime.buffer<std::uint32_t>(1).value();
+                return counts_of(n, [](std::size_t i) { return i + 1; });
+            }
 
-                const std::vector<std::uint32_t> host_counts = cycling_counts(n);
-                for (std::size_t i = 0; i < n; ++i)
-                    counts[i] = host_counts[i];
-                for (std::size_t i = 0; i < offsets.size(); ++i)
-                    offsets[i] = K_CANARY;
-                total[0] = K_CANARY;
+            /** @brief Returns the counts of one replay step: (i + step) mod 5. */
+            std::vector<std::uint32_t> step_counts(std::size_t n, std::size_t step)
+            {
+                return counts_of(n, [step](std::size_t i) { return (i + step) % 5; });
+            }
 
-                std::vector<std::uint32_t> expected_offsets(n + 1, 0);
-                const std::uint32_t expected_total =
-                    host_exclusive_scan(host_counts, n, expected_offsets);
+            /**
+             * @brief Returns the exclusive prefix sums of counts, modulo 2^32.
+             * @return counts.size() + 1 offsets; the last one is the sum of every count.
+             */
+            std::vector<std::uint32_t> host_offsets(const std::vector<std::uint32_t>& counts)
+            {
+                std::vector<std::uint32_t> offsets(counts.size() + 1, 0);
+                std::uint32_t running = 0;
+                for (std::size_t i = 0; i < counts.size(); ++i)
+                {
+                    offsets[i] = running;
+                    running += counts[i];
+                }
+                offsets[counts.size()] = running;
+                return offsets;
+            }
+
+            /** @brief Writes values into buffer from element offset on. */
+            void copy_into(const Words& buffer, const std::vector<std::uint32_t>& values,
+                           std::size_t offset = 0)
+            {
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    buffer[offset + i] = values[i];
+            }
+
+            /** @brief Sets every element of buffer to value. */
+            void fill_with(const Words& buffer, std::uint32_t value)
+            {
+                for (std::size_t i = 0; i < buffer.size(); ++i)
+                    buffer[i] = value;
+            }
+
+            /** @brief Returns elements [begin, begin + count) of buffer. */
+            std::vector<std::uint32_t> words_of(const Words& buffer, std::size_t begin,
+                                                std::size_t count)
+            {
+                std::vector<std::uint32_t> words(count);
+                for (std::size_t i = 0; i < count; ++i)
+                    words[i] = buffer[begin + i];
+                return words;
+            }
+
+            /** @brief Returns counts, offsets and total buffers of the given element counts. */
+            ScanBuffers scan_buffers(Runtime& runtime, std::size_t counts, std::size_t offsets,
+                                     std::size_t total)
+            {
+                return {runtime.buffer<std::uint32_t>(counts).value(),
+                        runtime.buffer<std::uint32_t>(offsets).value(),
+                        runtime.buffer<std::uint32_t>(total).value()};
+            }
+
+            /** @brief Returns compact buffers for a scan of the given capacity. */
+            ScanBuffers buffers_for(Runtime& runtime, std::size_t capacity)
+            {
+                return scan_buffers(runtime, capacity, capacity + 1, 1);
+            }
+
+            /** @brief Returns compact buffers of two levels, counts cycling through 1 to 7. */
+            ScanBuffers two_level_buffers(Runtime& runtime)
+            {
+                ScanBuffers buffers = buffers_for(runtime, K_TWO_LEVEL_CAPACITY);
+                copy_into(buffers.counts, counts_of(K_TWO_LEVEL_CAPACITY,
+                                                    [](std::size_t i) { return (i % 7) + 1; }));
+                return buffers;
+            }
+
+            /** @brief Records a two-level scan over buffers into graph, with options if any. */
+            void record_two_level(SushiRuntime::Graph& graph, const ScanBuffers& buffers,
+                                  const std::optional<GraphPrimitives::PrimitiveOptions>& options)
+            {
+                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                            LateCount::fixed(K_TWO_LEVEL_CAPACITY),
+                            GraphPrimitives::PrefixScanWindow{}, options).value();
+            }
+
+            /** @brief Runs a two-level scan for steps steps and returns the node events seen. */
+            std::vector<SushiRuntime::NodeEventRecord> two_level_events(Runtime& runtime,
+                                                                        std::size_t steps)
+            {
+                const ScanBuffers buffers = two_level_buffers(runtime);
+                auto graph = runtime.graph();
+                const RunObserverCapture capture(runtime);
+                record_two_level(graph, buffers, std::nullopt);
+                graph.run(steps).value();
+                return capture.records();
+            }
+
+            /** @brief Returns the distinct node_index values of events. */
+            std::set<std::uint32_t>
+            node_indices_of(const std::vector<SushiRuntime::NodeEventRecord>& events)
+            {
+                std::set<std::uint32_t> indices;
+                for (const auto& record : events)
+                    indices.insert(record.node_index);
+                return indices;
+            }
+
+            /** @brief Returns how many events each invocation saw, keyed by invocation. */
+            std::map<std::uint32_t, std::size_t>
+            passes_per_invocation(const std::vector<SushiRuntime::NodeEventRecord>& events)
+            {
+                std::map<std::uint32_t, std::size_t> passes;
+                for (const auto& record : events)
+                    ++passes[record.invocation];
+                return passes;
+            }
+
+            /**
+             * @brief Writes each step's counts, runs graph once per step and returns its offsets.
+             * @return Per step, the offsets 0 to n with offsets[n] replaced by total[0].
+             */
+            std::vector<std::vector<std::uint32_t>>
+            replay_offsets(SushiRuntime::Graph& graph, const ScanBuffers& buffers,
+                           const std::vector<std::vector<std::uint32_t>>& steps)
+            {
+                std::vector<std::vector<std::uint32_t>> results;
+                for (const auto& counts : steps)
+                {
+                    copy_into(buffers.counts, counts);
+                    graph.run().value();
+                    std::vector<std::uint32_t> offsets =
+                        words_of(buffers.offsets, 0, counts.size() + 1);
+                    offsets.back() = buffers.total[0];
+                    results.push_back(offsets);
+                }
+                return results;
+            }
+
+            /** @brief Returns the host scan of each step, as replay_offsets() returns it. */
+            std::vector<std::vector<std::uint32_t>>
+            host_offsets_of_each(const std::vector<std::vector<std::uint32_t>>& steps)
+            {
+                std::vector<std::vector<std::uint32_t>> results;
+                for (const auto& counts : steps)
+                    results.push_back(host_offsets(counts));
+                return results;
+            }
+
+            /**
+             * @brief Records a node that sets counter to live_count, then a scan sized by it.
+             * @param counter Holds one host-resident element the scan reads its count from.
+             */
+            void record_device_counted_scan(SushiRuntime::Graph& graph, Words& counter,
+                                            const ScanBuffers& buffers, std::uint32_t live_count)
+            {
+                std::uint32_t* c = counter.data();
+                graph.add(std::size_t{1}, SushiRuntime::Reads{}, SushiRuntime::Writes(counter),
+                          [c, live_count](std::size_t)
+                          {
+                              c[0] = live_count;
+                          });
+                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                            LateCount::from_device(K_DEVICE_CAPACITY, counter)).value();
+            }
+
+            /** @brief Returns a one-element host-resident counter for a device count. */
+            Words device_counter(Runtime& runtime)
+            {
+                return runtime.buffer<std::uint32_t>(1, SushiRuntime::DeviceIndex{0},
+                                                     SushiRuntime::Residency::Host).value();
+            }
+
+            /** @brief Scans K_WINDOW of wide buffers and compact buffers at live count n. */
+            WindowedScan scan_window_and_compact(Runtime& runtime, std::size_t n)
+            {
+                constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
+                const std::vector<std::uint32_t> host = cycling_counts(K_CAPACITY);
+                const ScanBuffers wide =
+                    scan_buffers(runtime, K_WINDOW.counts_offset + K_CAPACITY + 4,
+                                 K_WINDOW.offsets_offset + K_CAPACITY + 1 + 4,
+                                 K_WINDOW.total_offset + 2);
+                const ScanBuffers compact = buffers_for(runtime, K_CAPACITY);
+                fill_with(wide.counts, 1000u);
+                fill_with(wide.offsets, K_CANARY);
+                fill_with(wide.total, K_CANARY);
+                copy_into(wide.counts, host, K_WINDOW.counts_offset);
+                copy_into(compact.counts, host);
 
                 auto graph = runtime.graph();
-                prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(n)).value();
+                prefix_scan(graph.recorder(), wide.counts, wide.offsets, wide.total,
+                            LateCount::fixed(n), K_WINDOW).value();
+                prefix_scan(graph.recorder(), compact.counts, compact.offsets, compact.total,
+                            LateCount::fixed(n)).value();
                 graph.run().value();
 
-                EXPECT_EQ(total[0], expected_total) << "n = " << n;
-                for (std::size_t i = 0; i <= n; ++i)
-                    ASSERT_EQ(offsets[i], expected_offsets[i]) << "n = " << n << ", i = " << i;
-                EXPECT_EQ(offsets[n + 1], K_CANARY)
-                    << "n = " << n << ": a write reached past the declared window";
+                return {words_of(wide.offsets, K_WINDOW.offsets_offset, n + 1),
+                        words_of(compact.offsets, 0, n + 1),
+                        wide.total[K_WINDOW.total_offset],
+                        compact.total[0],
+                        wide.offsets[K_WINDOW.offsets_offset - 1],
+                        wide.total[K_WINDOW.total_offset - 1]};
             }
+
+            /** @brief Holds a scan whose live count a host provider reads between runs. */
+            class LateBoundScan final
+            {
+                public:
+                    /** @brief Records the scan over K_LATE_CAPACITY counts of one. */
+                    LateBoundScan()
+                        : runtime_(Runtime::create().value()),
+                          buffers_(buffers_for(runtime_, K_LATE_CAPACITY)),
+                          graph_(runtime_.graph())
+                    {
+                        fill_with(buffers_.counts, 1u);
+                        prefix_scan(graph_.recorder(), buffers_.counts, buffers_.offsets,
+                                    buffers_.total,
+                                    LateCount::from_host(K_LATE_CAPACITY,
+                                                         [this]() { return live_n_; })).value();
+                    }
+
+                    LateBoundScan(const LateBoundScan&) = delete;
+                    LateBoundScan& operator=(const LateBoundScan&) = delete;
+                    LateBoundScan(LateBoundScan&&) = delete;
+                    LateBoundScan& operator=(LateBoundScan&&) = delete;
+                    ~LateBoundScan() = default;
+
+                    /** @brief Runs once per live count and returns what each run published. */
+                    std::vector<ScanEnd> ends_for(const std::vector<std::size_t>& live_counts)
+                    {
+                        std::vector<ScanEnd> ends;
+                        for (const std::size_t n : live_counts)
+                        {
+                            live_n_ = n;
+                            graph_.run().value();
+                            ends.push_back({buffers_.total[0], buffers_.offsets[n]});
+                        }
+                        return ends;
+                    }
+
+                    /** @brief Returns how many times the graph compiled. */
+                    std::size_t compile_count()
+                    {
+                        return graph_.compile_count();
+                    }
+
+                private:
+                    /// @brief Holds the runtime the scan runs on.
+                    Runtime runtime_;
+                    /// @brief Holds the operands of the scan.
+                    ScanBuffers buffers_;
+                    /// @brief Holds the live count the host provider returns.
+                    std::size_t live_n_ = 0;
+                    /// @brief Holds the graph the scan is recorded into.
+                    SushiRuntime::Graph graph_;
+            };
+        } // namespace
+
+        /// @brief Runs a scan at one live count on the tile and level edges.
+        class Medium_GraphPrimitivesPrefixScanTileEdges
+            : public ::testing::TestWithParam<std::size_t>
+        {
+        };
+
+        /** @brief Tests exact agreement with the host scan at the tile and level edges. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanTileEdges, AgreesWithTheHostScanAtTileEdges)
+        {
+            const std::size_t n = GetParam();
+            auto runtime = Runtime::create().value();
+            const ScanBuffers buffers =
+                scan_buffers(runtime, std::max<std::size_t>(n, 1), n + 2, 1);
+            const std::vector<std::uint32_t> host = cycling_counts(n);
+            copy_into(buffers.counts, host);
+            fill_with(buffers.offsets, K_CANARY);
+            fill_with(buffers.total, K_CANARY);
+            const std::vector<std::uint32_t> expected = host_offsets(host);
+
+            auto graph = runtime.graph();
+            prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                        LateCount::fixed(n)).value();
+            graph.run().value();
+
+            EXPECT_EQ(buffers.total[0], expected.back());
+            EXPECT_EQ(words_of(buffers.offsets, 0, n + 1), expected);
+            EXPECT_EQ(buffers.offsets[n + 1], K_CANARY)
+                << "a write reached past the declared window";
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesPrefixScanTileEdges,
+                                 ::testing::Values(std::size_t{0}, std::size_t{1}, K_TILE - 1,
+                                                   K_TILE, K_TILE + 1, K_TILE * K_TILE,
+                                                   K_TILE * K_TILE + 1, std::size_t{1000000}));
 
         /** @brief Tests that offsets[n] equals the total the scan publishes. */
         TEST(Medium_GraphPrimitivesPrefixScan, OffsetsAtLiveCountEqualsTotal)
@@ -141,55 +505,34 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = K_TILE + 1;
 
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_COUNT + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                counts[i] = static_cast<std::uint32_t>(i + 1);
+            const ScanBuffers buffers = buffers_for(runtime, K_COUNT);
+            copy_into(buffers.counts, ascending_counts(K_COUNT));
 
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_COUNT))
-                .value();
+            prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                        LateCount::fixed(K_COUNT)).value();
             graph.run().value();
 
-            EXPECT_EQ(total[0], static_cast<std::uint32_t>(K_COUNT * (K_COUNT + 1) / 2));
-            EXPECT_EQ(offsets[K_COUNT], total[0]);
+            EXPECT_EQ(buffers.total[0], static_cast<std::uint32_t>(K_COUNT * (K_COUNT + 1) / 2));
+            EXPECT_EQ(buffers.offsets[K_COUNT], buffers.total[0]);
+        }
+
+        /** @brief Tests that each run of a late-bound scan sums the live count of that run. */
+        TEST(Medium_GraphPrimitivesPrefixScan, LateBoundChangingCountScansEachLiveCount)
+        {
+            LateBoundScan scan;
+
+            EXPECT_EQ(scan.ends_for({1000, 700000, 3}),
+                      (std::vector<ScanEnd>{{1000u, 1000u}, {700000u, 700000u}, {3u, 3u}}));
         }
 
         /** @brief Tests that a live count that changes between runs keeps one compile. */
         TEST(Medium_GraphPrimitivesPrefixScan, LateBoundChangingCountKeepsOneCompile)
         {
-            constexpr std::size_t K_CAPACITY = 1000003;
+            LateBoundScan scan;
+            (void)scan.ends_for({1000, 700000, 3});
 
-            auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_CAPACITY; ++i)
-                counts[i] = 1;
-
-            std::size_t live_n = 1000;
-            const LateCount count =
-                LateCount::from_host(K_CAPACITY, [&live_n]() { return live_n; });
-
-            auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, count).value();
-
-            graph.run().value();
-            EXPECT_EQ(total[0], 1000u);
-            EXPECT_EQ(offsets[1000], 1000u);
-
-            live_n = 700000;
-            graph.run().value();
-            EXPECT_EQ(total[0], 700000u);
-            EXPECT_EQ(offsets[700000], 700000u);
-
-            live_n = 3;
-            graph.run().value();
-            EXPECT_EQ(total[0], 3u);
-            EXPECT_EQ(offsets[3], 3u);
-
-            EXPECT_EQ(graph.compile_count(), 1u)
+            EXPECT_EQ(scan.compile_count(), 1u)
                 << "a live count change between runs must not trigger a recompile";
         }
 
@@ -197,108 +540,78 @@ namespace SushiBLAS
         TEST(Medium_GraphPrimitivesPrefixScan, EachRunScansItsOwnCounts)
         {
             constexpr std::size_t K_CAPACITY = 300;
+            const std::vector<std::vector<std::uint32_t>> steps = {
+                step_counts(K_CAPACITY, 0), step_counts(K_CAPACITY, 1),
+                step_counts(K_CAPACITY, 2), step_counts(K_CAPACITY, 3)};
 
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-
+            const ScanBuffers buffers = buffers_for(runtime, K_CAPACITY);
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_CAPACITY))
-                .value();
+            prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                        LateCount::fixed(K_CAPACITY)).value();
 
-            for (std::uint32_t step = 0; step < 4; ++step)
-            {
-                std::vector<std::uint32_t> host_counts(K_CAPACITY);
-                for (std::size_t i = 0; i < K_CAPACITY; ++i)
-                {
-                    host_counts[i] = static_cast<std::uint32_t>((i + step) % 5);
-                    counts[i] = host_counts[i];
-                }
-
-                std::vector<std::uint32_t> expected_offsets(K_CAPACITY + 1, 0);
-                const std::uint32_t expected_total =
-                    host_exclusive_scan(host_counts, K_CAPACITY, expected_offsets);
-
-                graph.run().value();
-
-                EXPECT_EQ(total[0], expected_total) << "step " << step;
-                for (std::size_t i = 0; i <= K_CAPACITY; ++i)
-                    ASSERT_EQ(offsets[i], expected_offsets[i])
-                        << "step " << step << ", i = " << i;
-            }
-
+            EXPECT_EQ(replay_offsets(graph, buffers, steps), host_offsets_of_each(steps));
             EXPECT_EQ(graph.compile_count(), 1u);
+        }
+
+        /** @brief Tests that a two-level call records five passes under one rule. */
+        TEST(Medium_GraphPrimitivesPrefixScan, TwoLevelCallRecordsFivePassesUnderOneRule)
+        {
+            auto runtime = Runtime::create().value();
+            const ScanBuffers buffers = two_level_buffers(runtime);
+            auto graph = runtime.graph();
+            record_two_level(graph, buffers, std::nullopt);
+
+            EXPECT_EQ(graph.recorder().node_count(), K_TWO_LEVEL_PASSES);
+            EXPECT_EQ(graph.recorder().rule_count(), 1u);
         }
 
         /** @brief Tests that every node of one call shares one node_index on every step. */
         TEST(Medium_GraphPrimitivesPrefixScan, SharesOneNodeIndexAcrossStepsAndPasses)
         {
-            // Two levels record a resolver, one up pass, two down passes and the closing write.
-            constexpr std::size_t K_EXPECTED_PASSES = 5;
-            constexpr std::size_t K_STEPS = 4;
-
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_TWO_LEVEL_CAPACITY; ++i)
-                counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
-            EXPECT_EQ(graph.recorder().node_count(), K_EXPECTED_PASSES);
-            EXPECT_EQ(graph.recorder().rule_count(), 1u);
-
-            graph.run(K_STEPS).value();
-            const auto events = capture.records();
-
-            ASSERT_EQ(events.size(), K_EXPECTED_PASSES * K_STEPS);
-
-            const std::uint32_t node_index = events.front().node_index;
-            std::vector<std::size_t> per_invocation(K_STEPS, 0);
-            for (const auto& record : events)
-            {
-                EXPECT_EQ(record.node_index, node_index)
-                    << "every pass of one prefix_scan() call must share one node_index";
-                ASSERT_LT(record.invocation, K_STEPS);
-                ++per_invocation[record.invocation];
-            }
-            for (std::size_t step = 0; step < K_STEPS; ++step)
-                EXPECT_EQ(per_invocation[step], K_EXPECTED_PASSES) << "step " << step;
+            EXPECT_EQ(node_indices_of(two_level_events(runtime, 4)).size(), 1u)
+                << "every pass of one prefix_scan() call must share one node_index";
         }
+
+        /** @brief Tests that every step of a two-level scan runs all five passes. */
+        TEST(Medium_GraphPrimitivesPrefixScan, EveryStepRunsEveryPass)
+        {
+            auto runtime = Runtime::create().value();
+
+            EXPECT_EQ(passes_per_invocation(two_level_events(runtime, 4)),
+                      (std::map<std::uint32_t, std::size_t>{{0u, K_TWO_LEVEL_PASSES},
+                                                            {1u, K_TWO_LEVEL_PASSES},
+                                                            {2u, K_TWO_LEVEL_PASSES},
+                                                            {3u, K_TWO_LEVEL_PASSES}}));
+        }
+
+        /// @brief Runs one pass of a two-level scan against its width in the level plan.
+        class Medium_GraphPrimitivesPrefixScanNodeWidth
+            : public ::testing::TestWithParam<NodeWidthRow>
+        {
+        };
 
         /** @brief Tests that each node launches at the width its pass has in the level plan. */
-        TEST(Medium_GraphPrimitivesPrefixScan, NodeWidthsMatchTheLevelPlan)
+        TEST_P(Medium_GraphPrimitivesPrefixScanNodeWidth, NodeWidthsMatchTheLevelPlan)
         {
-            // The nodes are the resolver, up 0, the top down pass, down 0 and the closing write.
-            const std::vector<std::uint32_t> expected_widths = {1u, 3u, 1u, 3u, 1u};
-
+            const NodeWidthRow& row = GetParam();
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_TWO_LEVEL_CAPACITY; ++i)
-                counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
+            const auto events = two_level_events(runtime, 1);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
-
-            graph.run().value();
-            const auto events = capture.records();
-
-            ASSERT_EQ(events.size(), expected_widths.size());
-            for (std::size_t i = 0; i < expected_widths.size(); ++i)
-            {
-                EXPECT_EQ(events[i].launched_width, expected_widths[i])
-                    << "pass " << i;
-                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "pass " << i;
-            }
+            ASSERT_EQ(events.size(), K_TWO_LEVEL_PASSES);
+            EXPECT_EQ(events[row.pass].launched_width, row.width);
+            EXPECT_EQ(events[row.pass].live_width, row.width);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesPrefixScanNodeWidth,
+                                 ::testing::Values(NodeWidthRow{"Resolver", 0, 1u},
+                                                   NodeWidthRow{"UpLevel0", 1, 3u},
+                                                   NodeWidthRow{"DownTop", 2, 1u},
+                                                   NodeWidthRow{"DownLevel0", 3, 3u},
+                                                   NodeWidthRow{"Close", 4, 1u}),
+                                 row_name<NodeWidthRow>);
 
         /** @brief Tests that a capacity of zero writes a zero total and a zero offsets[0]. */
         TEST(Medium_GraphPrimitivesPrefixScan, ZeroCapacityWritesZeroTotal)
@@ -318,40 +631,35 @@ namespace SushiBLAS
             EXPECT_EQ(total[0], 0u);
         }
 
-        /** @brief Tests that a short buffer is refused with invalid_graph and records nothing. */
-        TEST(Medium_GraphPrimitivesPrefixScan, RejectsMisSizedArguments)
+        /// @brief Records a scan whose buffers are too short for its capacity.
+        class Medium_GraphPrimitivesPrefixScanMisSized
+            : public ::testing::TestWithParam<MisSizedRow>
         {
-            using Words = SushiRuntime::Buffer<std::uint32_t>;
+        };
 
+        /** @brief Tests that a short buffer is refused with invalid_graph and records nothing. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanMisSized, RejectsMisSizedArguments)
+        {
+            const MisSizedRow& row = GetParam();
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(9).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto empty = runtime.buffer<std::uint32_t>(0).value();
-
+            const ScanBuffers buffers = scan_buffers(runtime, row.counts, row.offsets, row.total);
             auto graph = runtime.graph();
-            const auto refused_code = [&graph](const Words& c, const Words& o, const Words& t,
-                                               std::size_t capacity)
-            {
-                const SushiRuntime::Result<void> recorded =
-                    prefix_scan(graph.recorder(), c, o, t, LateCount::fixed(capacity));
-                if (recorded)
-                    return std::optional<SushiRuntime::ErrorCode>();
 
-                return std::optional<SushiRuntime::ErrorCode>(recorded.error().code);
-            };
+            const SushiRuntime::Result<void> recorded =
+                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                            LateCount::fixed(row.capacity));
 
-            EXPECT_EQ(refused_code(counts, offsets, total, 9),
-                      SushiRuntime::ErrorCode::InvalidGraph)
-                << "nine counts do not fit a buffer of eight";
-            EXPECT_EQ(refused_code(counts, counts, total, 8),
-                      SushiRuntime::ErrorCode::InvalidGraph)
-                << "eight offsets cannot hold the sentinel of eight counts";
-            EXPECT_EQ(refused_code(counts, offsets, empty, 8),
-                      SushiRuntime::ErrorCode::InvalidGraph)
-                << "an empty total cannot receive the sum";
-            EXPECT_EQ(graph.recorder().node_count(), 0u);
+            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesPrefixScanMisSized,
+            ::testing::Values(MisSizedRow{"NineCountsInEight", 8, 9, 1, 9},
+                              MisSizedRow{"NoRoomForTheSentinel", 8, 8, 1, 8},
+                              MisSizedRow{"EmptyTotal", 8, 9, 0, 8}),
+            row_name<MisSizedRow>);
 
         /** @brief Tests that a live count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
@@ -376,19 +684,17 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_CAPACITY);
-                auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
-                auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
-                auto total = runtime.buffer<std::uint32_t>(1).value();
-                for (std::size_t i = 0; i < K_CAPACITY; ++i)
-                    counts[i] = static_cast<std::uint32_t>((i * 31u) % 9u);
-                for (std::size_t i = 0; i <= K_CAPACITY; ++i)
-                    offsets[i] = 0;
+                const ScanBuffers buffers = buffers_for(runtime, K_CAPACITY);
+                copy_into(buffers.counts,
+                          counts_of(K_CAPACITY, [](std::size_t i) { return (i * 31u) % 9u; }));
+                fill_with(buffers.offsets, 0u);
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
-                GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
+                GraphPrimitives::prefix_scan(graph.recorder(), buffers.counts, buffers.offsets,
+                                             buffers.total,
                                              harness.device_count(K_CAPACITY)).value();
-                harness.add_live_digest(graph, offsets, 1);
+                harness.add_live_digest(graph, buffers.offsets, 1);
                 return harness.record(graph);
             });
         }
@@ -396,82 +702,67 @@ namespace SushiBLAS
         /** @brief Tests that a device count above capacity fails a chained run of a primitive. */
         TEST(Medium_GraphPrimitivesDeviceSized, DeviceCountOverCapacityFailsAChainedRun)
         {
-            using namespace DeviceSized;
-
-            constexpr std::size_t K_CAPACITY = 100;
-
             auto runtime = Runtime::create().value();
-            auto counter = runtime.buffer<std::uint32_t>(
-                1, SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Host).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            std::uint32_t* c = counter.data();
+            auto counter = device_counter(runtime);
+            const ScanBuffers buffers = buffers_for(runtime, K_DEVICE_CAPACITY);
 
             auto graph = runtime.graph();
-            graph.add(std::size_t{1}, Reads{}, Writes(counter),
-                      [c](std::size_t)
-                      {
-                          c[0] = static_cast<std::uint32_t>(K_CAPACITY) + 1u;
-                      });
-            GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
-                                         LateCount::from_device(K_CAPACITY, counter)).value();
-            EXPECT_FALSE(graph.run(4).has_value());
+            record_device_counted_scan(graph, counter, buffers,
+                                       static_cast<std::uint32_t>(K_DEVICE_CAPACITY) + 1u);
 
-            // A later graph with a count inside the capacity runs clean on the same runtime.
+            EXPECT_FALSE(graph.run(4).has_value());
+        }
+
+        /** @brief Tests that a chained run after one that failed on its count runs clean. */
+        TEST(Medium_GraphPrimitivesDeviceSized, ChainedRunAfterACountFailureRunsClean)
+        {
+            using namespace DeviceSized;
+
+            auto runtime = Runtime::create().value();
+            auto counter = device_counter(runtime);
+            const ScanBuffers buffers = buffers_for(runtime, K_DEVICE_CAPACITY);
+            auto failed = runtime.graph();
+            record_device_counted_scan(failed, counter, buffers,
+                                       static_cast<std::uint32_t>(K_DEVICE_CAPACITY) + 1u);
+            ASSERT_FALSE(failed.run(4).has_value());
+
             auto valid = runtime.graph();
-            valid.add(std::size_t{1}, Reads{}, Writes(counter), [c](std::size_t) { c[0] = 3u; });
-            GraphPrimitives::prefix_scan(valid.recorder(), counts, offsets, total,
-                                         LateCount::from_device(K_CAPACITY, counter)).value();
+            record_device_counted_scan(valid, counter, buffers, 3u);
             const auto report = valid.run(2).value();
+
             EXPECT_TRUE(report.is_successful);
             EXPECT_EQ(report.layer, ExecutionLayer::Chain);
         }
-        /** @brief Tests that a scan over windows equals one over compact buffers. */
-        TEST(Medium_GraphPrimitivesPrefixScan, WindowMatchesACompactBufferExactly)
+
+        /// @brief Scans a window and compact buffers at one live count.
+        class Medium_GraphPrimitivesPrefixScanWindow
+            : public ::testing::TestWithParam<std::size_t>
         {
-            constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
-            const GraphPrimitives::PrefixScanWindow window{9, 6, 2};
-            const std::vector<std::uint32_t> host = cycling_counts(K_CAPACITY);
+        };
 
+        /** @brief Tests that a scan over windows equals one over compact buffers. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanWindow, WindowMatchesACompactBufferExactly)
+        {
             auto runtime = Runtime::create().value();
-            auto wide_counts = runtime.buffer<std::uint32_t>(window.counts_offset + K_CAPACITY + 4)
-                                   .value();
-            auto wide_offsets =
-                runtime.buffer<std::uint32_t>(window.offsets_offset + K_CAPACITY + 1 + 4).value();
-            auto wide_total = runtime.buffer<std::uint32_t>(window.total_offset + 2).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < wide_counts.size(); ++i)
-                wide_counts[i] = 1000u;
-            for (std::size_t i = 0; i < wide_offsets.size(); ++i)
-                wide_offsets[i] = K_CANARY;
-            for (std::size_t i = 0; i < wide_total.size(); ++i)
-                wide_total[i] = K_CANARY;
-            for (std::size_t i = 0; i < K_CAPACITY; ++i)
-            {
-                counts[i] = host[i];
-                wide_counts[window.counts_offset + i] = host[i];
-            }
+            const WindowedScan scan = scan_window_and_compact(runtime, GetParam());
 
-            for (const std::size_t n : {std::size_t{0}, K_TILE + 1, K_CAPACITY})
-            {
-                auto graph = runtime.graph();
-                prefix_scan(graph.recorder(), wide_counts, wide_offsets, wide_total,
-                            LateCount::fixed(n), window).value();
-                prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(n))
-                    .value();
-                graph.run().value();
-
-                for (std::size_t i = 0; i <= n; ++i)
-                    EXPECT_EQ(wide_offsets[window.offsets_offset + i], offsets[i])
-                        << "n = " << n << ", offset " << i;
-                EXPECT_EQ(wide_total[window.total_offset], total[0]) << "n = " << n;
-                EXPECT_EQ(wide_offsets[window.offsets_offset - 1], K_CANARY) << "n = " << n;
-                EXPECT_EQ(wide_total[window.total_offset - 1], K_CANARY) << "n = " << n;
-            }
+            EXPECT_EQ(scan.window_offsets, scan.compact_offsets);
+            EXPECT_EQ(scan.window_total, scan.compact_total);
         }
+
+        /** @brief Tests that a windowed scan leaves the element before each output window. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanWindow, WindowLeavesTheElementBeforeItUntouched)
+        {
+            auto runtime = Runtime::create().value();
+            const WindowedScan scan = scan_window_and_compact(runtime, GetParam());
+
+            EXPECT_EQ(scan.offset_before_window, K_CANARY);
+            EXPECT_EQ(scan.total_before_window, K_CANARY);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesPrefixScanWindow,
+                                 ::testing::Values(std::size_t{0}, K_TILE + 1,
+                                                   K_TWO_LEVEL_CAPACITY));
 
         /** @brief Tests that a writer of an operand waits only when it hits the window. */
         TEST(Medium_GraphPrimitivesPrefixScan, WindowOrdersOnlyOverlappingWriters)
@@ -506,100 +797,130 @@ namespace SushiBLAS
             EXPECT_GT(predecessors(region_of(total, window.total_offset, 1)), 0u);
         }
 
-        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST(Medium_GraphPrimitivesPrefixScan, RejectsAWindowPastItsBuffer)
+        /// @brief Records a scan whose window reaches past one operand's buffer.
+        class Medium_GraphPrimitivesPrefixScanWindowRefusal
+            : public ::testing::TestWithParam<WindowRefusalRow>
         {
+        };
+
+        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanWindowRefusal, RejectsAWindowPastItsBuffer)
+        {
+            const WindowRefusalRow& row = GetParam();
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(9).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-
-            const struct
-            {
-                GraphPrimitives::PrefixScanWindow window;
-                const char* operand;
-            } cases[] = {{{1, 0, 0}, "counts"}, {{0, 1, 0}, "offsets"}, {{0, 0, 1}, "total"}};
-
+            const ScanBuffers buffers = buffers_for(runtime, 8);
             auto graph = runtime.graph();
-            for (const auto& refused : cases)
-            {
-                const SushiRuntime::Result<void> recorded = prefix_scan(
-                    graph.recorder(), counts, offsets, total, LateCount::fixed(8), refused.window);
-                ASSERT_FALSE(recorded.has_value()) << refused.operand;
-                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
-                    << recorded.error().message;
-            }
+
+            const SushiRuntime::Result<void> recorded =
+                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                            LateCount::fixed(8), row.window);
+
+            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_NE(recorded.error().message.find(row.name), std::string::npos)
+                << recorded.error().message;
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
 
-        /** @brief Tests that a named call names its nodes by stage and states their class. */
-        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesAndStatesTheirClass)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesPrefixScanWindowRefusal,
+            ::testing::Values(WindowRefusalRow{"counts", {1, 0, 0}},
+                              WindowRefusalRow{"offsets", {0, 1, 0}},
+                              WindowRefusalRow{"total", {0, 0, 1}}),
+            row_name<WindowRefusalRow>);
+
+        /** @brief Tests that a named call names its nodes by stage. */
+        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesByStage)
         {
-            const GraphPrimitives::PrimitiveOptions options{
-                "offsets", SushiRuntime::Determinism::Bitwise};
-
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-
+            const ScanBuffers buffers = two_level_buffers(runtime);
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY),
-                        GraphPrimitives::PrefixScanWindow{}, options).value();
+            record_two_level(graph, buffers,
+                             GraphPrimitives::PrimitiveOptions{
+                                 "offsets", SushiRuntime::Determinism::Bitwise});
 
             EXPECT_EQ(PlanLabels::names_of(graph),
                       PlanLabels::staged("offsets", {"resolve", "up_sweep", "down_sweep",
                                                      "down_sweep", "close"}));
-            for (const auto determinism : PlanLabels::determinisms_of(graph))
-                EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
         }
 
-        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        /** @brief Tests that a named call states its class on every node. */
+        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallStatesTheClassOfEveryNode)
+        {
+            auto runtime = Runtime::create().value();
+            const ScanBuffers buffers = two_level_buffers(runtime);
+            auto graph = runtime.graph();
+            record_two_level(graph, buffers,
+                             GraphPrimitives::PrimitiveOptions{
+                                 "offsets", SushiRuntime::Determinism::Bitwise});
+
+            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+                      std::vector<SushiRuntime::Determinism>(
+                          K_TWO_LEVEL_PASSES, SushiRuntime::Determinism::Bitwise));
+        }
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed. */
         TEST(Medium_GraphPrimitivesPrefixScan, UnnamedCallKeepsItsNodesUnnamed)
         {
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const ScanBuffers buffers = two_level_buffers(runtime);
             const std::string unnamed = PlanLabels::unnamed_name(runtime);
-
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
+            record_two_level(graph, buffers, std::nullopt);
 
-            EXPECT_EQ(PlanLabels::names_of(graph), std::vector<std::string>(5, unnamed));
-            for (const auto determinism : PlanLabels::determinisms_of(graph))
-                EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+            EXPECT_EQ(PlanLabels::names_of(graph),
+                      std::vector<std::string>(K_TWO_LEVEL_PASSES, unnamed));
         }
 
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST(Medium_GraphPrimitivesPrefixScan, RejectsOptionsThatNameNothing)
+        /** @brief Tests that a call with no options leaves every node Unstated. */
+        TEST(Medium_GraphPrimitivesPrefixScan, UnnamedCallLeavesEveryNodeUnstated)
         {
             auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(9).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            const GraphPrimitives::PrimitiveOptions unnamed{};
-            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
-                                                              SushiRuntime::Determinism::Bitwise};
-            const GraphPrimitives::PrimitiveOptions bad_class{
-                "offsets", static_cast<SushiRuntime::Determinism>(250)};
-
+            const ScanBuffers buffers = two_level_buffers(runtime);
             auto graph = runtime.graph();
-            for (const auto& options : {unnamed, null_name, bad_class})
-            {
-                const SushiRuntime::Result<void> recorded = prefix_scan(
-                    graph.recorder(), counts, offsets, total, LateCount::fixed(8),
-                    GraphPrimitives::PrefixScanWindow{}, options);
-                ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                    << recorded.error().message;
-            }
+            record_two_level(graph, buffers, std::nullopt);
+
+            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+                      std::vector<SushiRuntime::Determinism>(
+                          K_TWO_LEVEL_PASSES, SushiRuntime::Determinism::Unstated));
+        }
+
+        /// @brief Records a scan with options that name nothing or state no class.
+        class Medium_GraphPrimitivesPrefixScanOptionRefusal
+            : public ::testing::TestWithParam<OptionRefusalRow>
+        {
+        };
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST_P(Medium_GraphPrimitivesPrefixScanOptionRefusal, RejectsOptionsThatNameNothing)
+        {
+            auto runtime = Runtime::create().value();
+            const ScanBuffers buffers = buffers_for(runtime, 8);
+            auto graph = runtime.graph();
+
+            const SushiRuntime::Result<void> recorded =
+                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
+                            LateCount::fixed(8), GraphPrimitives::PrefixScanWindow{},
+                            GetParam().options);
+
+            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
+                << recorded.error().message;
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesPrefixScanOptionRefusal,
+            ::testing::Values(
+                OptionRefusalRow{"Unnamed", GraphPrimitives::PrimitiveOptions{}},
+                OptionRefusalRow{"NullName",
+                                 GraphPrimitives::PrimitiveOptions{
+                                     std::string_view{}, SushiRuntime::Determinism::Bitwise}},
+                OptionRefusalRow{"UnknownClass",
+                                 GraphPrimitives::PrimitiveOptions{
+                                     "offsets", static_cast<SushiRuntime::Determinism>(250)}}),
+            row_name<OptionRefusalRow>);
 
     } // namespace Test
 } // namespace SushiBLAS

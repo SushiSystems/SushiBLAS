@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_sparse.cpp                                                        */
+/* compile_spatial.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,9 +22,9 @@
 /**************************************************************************/
 
 /**
- * @file test_sparse.cpp
+ * @file compile_spatial.cpp
  * @brief Checks at compile time that the umbrella header compiles on its own; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/sparse_kernels/sparse.hpp>
+#include <SushiBLAS/spatial_kernels/spatial.hpp>

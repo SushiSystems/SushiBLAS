@@ -10,10 +10,10 @@ what a test checks; a section below holds why a test is written the way it is.
 | --- | --- |
 | `reference/test_broadcast.cpp` | Tests the reference channel affine, spatial broadcast and layout conversion |
 | `reference/test_channels.cpp` | Tests that the reference channel copy moves a range of channels between offsets |
-| `reference/test_col2im.cpp` | Tests that the reference col2im is the adjoint of im2col and counts the overlaps |
+| `reference/test_col2im.cpp` | Tests that the reference col2im is the exact adjoint of im2col on small integers and counts the overlaps |
 | `reference/test_im2col.cpp` | Tests the reference im2col on a one-tap window and on a padded two-by-two window |
 | `reference/test_pool_avg.cpp` | Tests the reference average pool against hand values and its backward as its adjoint |
-| `reference/test_pool_max.cpp` | Tests the reference max pool, the index it records and the backward that uses it |
+| `reference/test_pool_max.cpp` | Tests the reference max pool values, the index it records and the backward that uses it |
 | `reference/test_upsample.cpp` | Tests the reference nearest upsample against hand values and its backward as its adjoint |
 | `reference/test_window_dot.cpp` | Tests the reference window product against hand values and its backward as its adjoint |
 | `reference/test_window_dot_weights.cpp` | Tests that the reference weight gradient pairs with the window product as a bilinear form |
@@ -26,6 +26,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/test_upsample.cpp` | Tests the SYCL nearest upsample and its backward against the reference ones |
 | `sycl/test_window_dot.cpp` | Tests the SYCL window product and its backward against the reference ones |
 | `sycl/test_window_dot_weights.cpp` | Tests the SYCL weight gradient in both launch shapes against the reference |
+| `compile_spatial.cpp` | Compile check, never run: `spatial.hpp` stands alone |
 
 ## Helpers
 

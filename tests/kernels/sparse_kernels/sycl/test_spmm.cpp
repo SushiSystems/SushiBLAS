@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -48,14 +49,41 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs spmm on the host CPU queue. */
-        class Medium_SYCLSpmm : public HostDeviceTest
+        namespace
+        {
+            /** @brief One layout and one form of the spmm. */
+            struct SpmmRow
+            {
+                    const char* name;    /**< The row's suffix. */
+                    Core::Layout layout; /**< The layout of B and C. */
+                    bool transposed;     /**< Whether op(A) is the transpose. */
+            };
+
+            /** @brief Returns the four combinations of layout and form. */
+            std::vector<SpmmRow> spmm_rows()
+            {
+                return {{"RowMajorPlain", Core::Layout::RowMajor, false},
+                        {"RowMajorTransposed", Core::Layout::RowMajor, true},
+                        {"ColumnMajorPlain", Core::Layout::ColumnMajor, false},
+                        {"ColumnMajorTransposed", Core::Layout::ColumnMajor, true}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string spmm_row_name(const ::testing::TestParamInfo<SpmmRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs spmm on the host CPU queue, one layout and form at a time. */
+        class Medium_SYCLSpmm : public HostDeviceTest, public ::testing::WithParamInterface<SpmmRow>
         {
 
         };
 
-        TEST_F(Medium_SYCLSpmm, MatchesTheReferenceForEveryLayoutAndForm)
+        TEST_P(Medium_SYCLSpmm, MatchesTheReferenceForEveryLayoutAndForm)
         {
+            const SpmmRow& row = GetParam();
             const int64_t rows = 97;
             const int64_t cols = 83;
             const int64_t nrhs = 5;
@@ -67,32 +95,28 @@ namespace SushiBLAS
                                                               offsets.get(), columns.get()};
             const Kernels::CsrPattern<int64_t> host_pattern{rows, cols, a.nnz(), 0,
                                                             a.offsets.data(), a.columns.data()};
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool transposed : {false, true})
-                {
-                    SCOPED_TRACE(transposed);
-                    const int64_t in_rows = transposed ? rows : cols;
-                    const int64_t out_rows = transposed ? cols : rows;
-                    const bool row_major = (layout == Core::Layout::RowMajor);
-                    const std::vector<double> b = small_integers<double>(in_rows * nrhs, 3);
-                    std::vector<double> c = small_integers<double>(out_rows * nrhs, 4);
-                    const SharedArray<double> device_b(queue(), b);
-                    SharedArray<double> device_c(queue(), c);
-                    SharedArray<Kernels::Accumulator<double>> work(queue(), c.size());
+            const int64_t in_rows = row.transposed ? rows : cols;
+            const int64_t out_rows = row.transposed ? cols : rows;
+            const bool row_major = (row.layout == Core::Layout::RowMajor);
+            const std::vector<double> b = small_integers<double>(in_rows * nrhs, 3);
+            std::vector<double> c = small_integers<double>(out_rows * nrhs, 4);
+            const SharedArray<double> device_b(queue(), b);
+            SharedArray<double> device_c(queue(), c);
+            SharedArray<Kernels::Accumulator<double>> work(queue(), c.size());
 
-                    Kernels::SYCL::spmm(queue(), layout, transpose_of(transposed), device_pattern,
-                                        values.get(), nrhs, 2.0, device_b.get(),
-                                        row_major ? nrhs : in_rows, 1.0, device_c.get(),
-                                        row_major ? nrhs : out_rows, work.get(), {}).wait();
-                    Kernels::Reference::spmm(layout, transpose_of(transposed), host_pattern,
-                                             a.values.data(), nrhs, 2.0, b.data(),
-                                             row_major ? nrhs : in_rows, 1.0, c.data(),
-                                             row_major ? nrhs : out_rows);
+            Kernels::SYCL::spmm(queue(), row.layout, transpose_of(row.transposed), device_pattern,
+                                values.get(), nrhs, 2.0, device_b.get(),
+                                row_major ? nrhs : in_rows, 1.0, device_c.get(),
+                                row_major ? nrhs : out_rows, work.get(), {}).wait();
+            Kernels::Reference::spmm(row.layout, transpose_of(row.transposed), host_pattern,
+                                     a.values.data(), nrhs, 2.0, b.data(),
+                                     row_major ? nrhs : in_rows, 1.0, c.data(),
+                                     row_major ? nrhs : out_rows);
 
-                    EXPECT_EQ(device_c.values(), c);
-                }
-            }
+            EXPECT_EQ(device_c.values(), c);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSpmm, ::testing::ValuesIn(spmm_rows()),
+                                 spmm_row_name);
     } // namespace Test
 } // namespace SushiBLAS

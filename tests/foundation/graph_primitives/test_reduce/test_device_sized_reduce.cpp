@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/api/runtime/runtime.hpp>
 #include <SushiBLAS/graph_primitives/combiners.hpp>
@@ -40,6 +41,29 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Returns n floats from 0.1 to 1.112 that repeat every 1013 elements in a scattered order. */
+            std::vector<float> scattered_fractions(std::size_t n)
+            {
+                std::vector<float> values;
+                values.reserve(n);
+                for (std::size_t i = 0; i < n; ++i)
+                    values.push_back(static_cast<float>((i * 7919u) % 1013u) * 0.001f + 0.1f);
+                return values;
+            }
+
+            /** @brief Returns a buffer of runtime that holds values, element for element. */
+            SushiRuntime::Buffer<float> buffer_holding(SushiRuntime::Runtime& runtime,
+                                                       const std::vector<float>& values)
+            {
+                SushiRuntime::Buffer<float> buffer = runtime.buffer<float>(values.size()).value();
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    buffer[i] = values[i];
+                return buffer;
+            }
+        } // namespace
+
         /** @brief Tests reduce() with a device count on both layers as the count changes. */
         TEST(Medium_GraphPrimitivesDeviceSized, ReduceChainMatchesSchedulerAsTheCountChanges)
         {
@@ -49,11 +73,9 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_CAPACITY);
-                auto values = runtime.buffer<float>(K_CAPACITY).value();
+                auto values = buffer_holding(runtime, scattered_fractions(K_CAPACITY));
                 auto result = runtime.buffer<float>(1).value();
                 auto bits = runtime.buffer<std::uint32_t>(1).value();
-                for (std::size_t i = 0; i < K_CAPACITY; ++i)
-                    values[i] = static_cast<float>((i * 7919u) % 1013u) * 0.001f + 0.1f;
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);

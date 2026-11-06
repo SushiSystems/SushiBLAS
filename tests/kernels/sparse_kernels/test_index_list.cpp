@@ -28,6 +28,7 @@
  */
 
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
@@ -36,17 +37,48 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_IndexList, ReadsEachPositionLessTheBase)
+        namespace
         {
-            const std::vector<int32_t> zero_based{4, 0, 7};
-            const std::vector<int64_t> one_based{5, 1, 8};
-            const Kernels::IndexList<int32_t> zero{3, 8, 0, zero_based.data()};
-            const Kernels::IndexList<int64_t> one{3, 8, 1, one_based.data()};
+            /** @brief One stored list and the dense positions it must read. */
+            struct PositionRow
+            {
+                    const char* name;                 /**< The row's suffix. */
+                    int64_t base;                     /**< The first index the list uses. */
+                    int64_t entry;                    /**< The entry read. */
+                    int64_t expected;                 /**< The dense position of that entry. */
+            };
 
-            for (int64_t entry = 0; entry < 3; ++entry)
-                EXPECT_EQ(zero.at(entry), one.at(entry));
-            EXPECT_EQ(zero.at(2), int64_t{7});
-            EXPECT_EQ(one.extent, int64_t{8});
+            /** @brief Returns every entry of the positions 4, 0 and 7 under base zero and one. */
+            std::vector<PositionRow> position_rows()
+            {
+                return {{"ZeroBasedFirst", 0, 0, 4}, {"ZeroBasedSecond", 0, 1, 0},
+                        {"ZeroBasedThird", 0, 2, 7}, {"OneBasedFirst", 1, 0, 4},
+                        {"OneBasedSecond", 1, 1, 0},  {"OneBasedThird", 1, 2, 7}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string position_row_name(const ::testing::TestParamInfo<PositionRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Reads one entry of a list at a time. */
+        class Small_IndexList : public ::testing::TestWithParam<PositionRow>
+        {
+
+        };
+
+        TEST_P(Small_IndexList, ReadsEachPositionLessTheBase)
+        {
+            const PositionRow& row = GetParam();
+            const std::vector<int64_t> stored{4 + row.base, 0 + row.base, 7 + row.base};
+            const Kernels::IndexList<int64_t> list{3, 8, row.base, stored.data()};
+
+            EXPECT_EQ(list.at(row.entry), row.expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_IndexList, ::testing::ValuesIn(position_rows()),
+                                 position_row_name);
     } // namespace Test
 } // namespace SushiBLAS

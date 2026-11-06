@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -42,25 +43,49 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSpsymv, ReadsOneTriangleAndSkipsTheOther)
+        namespace
         {
+            /** @brief The triangle spsymv reads. */
+            struct TriangleRow
+            {
+                    const char* name; /**< The row's suffix. */
+                    bool upper;       /**< Whether the upper triangle is the one stored and read. */
+            };
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string triangle_row_name(const ::testing::TestParamInfo<TriangleRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the reference spsymv one triangle at a time. */
+        class Small_ReferenceSpsymv : public ::testing::TestWithParam<TriangleRow>
+        {
+
+        };
+
+        TEST_P(Small_ReferenceSpsymv, ReadsOneTriangleAndSkipsTheOther)
+        {
+            const bool upper = GetParam().upper;
             const int64_t n = 8;
             const IntegerCsr a = integer_csr(n, n, 4, true);
             const Kernels::CsrPattern<int64_t> pattern{n, n, a.nnz(), 0, a.offsets.data(),
                                                        a.columns.data()};
             const std::vector<double> x = small_integers<double>(n, 5);
-            for (const bool upper : {false, true})
-            {
-                SCOPED_TRACE(upper);
-                std::vector<double> y = small_integers<double>(n, 6);
-                const std::vector<double> expected =
-                    dense_matvec(symmetric_from(a.dense(), n, upper), n, n, false, 1.0, x, 2.0, y);
+            std::vector<double> y = small_integers<double>(n, 6);
+            const std::vector<double> expected =
+                dense_matvec(symmetric_from(a.dense(), n, upper), n, n, false, 1.0, x, 2.0, y);
 
-                Kernels::Reference::spsymv(uplo_of(upper), pattern, a.values.data(), 1.0,
-                                           x.data(), 1, 2.0, y.data(), 1);
+            Kernels::Reference::spsymv(uplo_of(upper), pattern, a.values.data(), 1.0, x.data(), 1,
+                                       2.0, y.data(), 1);
 
-                EXPECT_EQ(y, expected);
-            }
+            EXPECT_EQ(y, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceSpsymv,
+                                 ::testing::Values(TriangleRow{"Lower", false},
+                                                   TriangleRow{"Upper", true}),
+                                 triangle_row_name);
     } // namespace Test
 } // namespace SushiBLAS

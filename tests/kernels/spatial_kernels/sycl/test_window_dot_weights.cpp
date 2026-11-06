@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -45,13 +46,30 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the kernel on the host CPU queue. */
-        class Medium_SYCLWindowDotWeights : public HostDeviceTest
+        namespace
+        {
+            /** @brief One launch shape of the weight gradient. */
+            struct LaunchRow
+            {
+                    const char* name;   /**< The row's suffix. */
+                    std::size_t local;  /**< The work-group size of the reduction. */
+            };
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string launch_row_name(const ::testing::TestParamInfo<LaunchRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the kernel on the host CPU queue, one launch shape at a time. */
+        class Medium_SYCLWindowDotWeights : public HostDeviceTest,
+                                            public ::testing::WithParamInterface<LaunchRow>
         {
 
         };
 
-        TEST_F(Medium_SYCLWindowDotWeights, MatchesTheReference)
+        TEST_P(Medium_SYCLWindowDotWeights, MatchesTheReference)
         {
             // Every value is a small integer, so both kernels compute without rounding.
             const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
@@ -63,19 +81,18 @@ namespace SushiBLAS
             std::vector<double> dw(static_cast<std::size_t>(span.patch_elements()));
             Kernels::Reference::window_dot_weights_backward(span, taps, dy.data(), x.data(),
                                                             dw.data());
-            for (const std::size_t local : {std::size_t{1}, std::size_t{16}})
-            {
-                SCOPED_TRACE(local);
-                SharedArray<double> device_dw(queue(),
-                                              static_cast<std::size_t>(span.patch_elements()));
+            SharedArray<double> device_dw(queue(), static_cast<std::size_t>(span.patch_elements()));
 
-                Kernels::SYCL::window_dot_weights_backward(queue(), span, taps,
-                                                           Reduce::AxisPlan{local},
-                                                           device_dy.get(), device_x.get(),
-                                                           device_dw.get(), {}).wait();
+            Kernels::SYCL::window_dot_weights_backward(queue(), span, taps,
+                                                       Reduce::AxisPlan{GetParam().local},
+                                                       device_dy.get(), device_x.get(),
+                                                       device_dw.get(), {}).wait();
 
-                EXPECT_EQ(device_dw.values(), dw);
-            }
+            EXPECT_EQ(device_dw.values(), dw);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLWindowDotWeights,
+                                 ::testing::Values(LaunchRow{"LocalOne", 1}, LaunchRow{"LocalSixteen", 16}),
+                                 launch_row_name);
     } // namespace Test
 } // namespace SushiBLAS

@@ -86,6 +86,8 @@ Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; t
 - M15, M16, M20 to M22: the literal 149997 of the device sum, the half literal 0.0999755859375 in `test_running_solution.cpp`, `test_serial_reduce.cpp` now host-only `Small_`, and `compile_test_runner_log_category.cpp`, which had no compile_commands entry when checked.
 - M26 to M30: the derived bounds never run (`K_TERMS_PER_SAMPLE = 8` in both FFT files, `K_NORMAL_OPERATIONS` in `test_philox.cpp`, the orthonormalize device bound); `sycl/compile_philox.cpp` as a compile check under the SYCL flags; the one-point blend row; the Poisson method-switch test.
 - M36, M38, M45, M48: the derived LU, solve and FFT bounds in `test_linalg.cpp` and `test_transforms.cpp` (the Bluestein rows 12 and 7 most of all); the hand value 8.0 of `AWellFormedCallRecordsAndRuns`; the exact comparisons of `tests/package/main.cpp`, which has no compile_commands entry.
+- M27, M31, M32: the `TEST_P` row suites of sparse and linalg kernels, the exact `EXPECT_EQ` adjoints of col2im, upsample and the window products, the `absolute_tolerance<T>(8*n)` LU bounds, the `K_MAX_SCATTER_BLOCKS` rows, and the three renamed compile checks.
+- M10, M12, M19: the graph-primitive row suites (counting sort now 2^17 keys, about 1400 lines), the canaries and whole-vector offsets that are stricter than before, `NodeWidths` opening five runtimes, the `Small_` device-policy rows, and `compile_combiners.cpp`.
 - M23: `Medium_TypedSuiteNaming` names its suites `/0` and `/1` by type order.
 
 ## Dispatches
@@ -106,6 +108,8 @@ dispatch: J16 M8 M9 M11 foundation tests — sonnet medium, 2 rounds (sent back:
 dispatch: J16 M15 M16 M20 M21 M22 foundation tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
 dispatch: J16 M26 M28 M29 M30 kernels tests — sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
 dispatch: J16 M36 M38 M45 M48 operations and package tests — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 M27 M31 M32 kernels tests — sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
+dispatch: J16 M10 M12 M19 foundation tests — sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
 
 ## Totals
 

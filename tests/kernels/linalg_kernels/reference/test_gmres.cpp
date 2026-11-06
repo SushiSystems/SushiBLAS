@@ -131,6 +131,15 @@ namespace SushiBLAS
                 return std::sqrt(r) / std::sqrt(norm);
             }
 
+            /** @brief Expects every element of @p actual to be within @p tolerance of @p expected. */
+            void expect_elements_near(const std::vector<double>& actual,
+                                      const std::vector<double>& expected, double tolerance)
+            {
+                ASSERT_EQ(actual.size(), expected.size());
+                for (std::size_t i = 0; i < expected.size(); ++i)
+                    EXPECT_NEAR(actual[i], expected[i], tolerance) << i;
+            }
+
             /** @brief Holds what one solve wrote. */
             struct Solve
             {
@@ -165,8 +174,7 @@ namespace SushiBLAS
             const std::vector<double> expected = direct_solve(a, b);
             EXPECT_LE(s.residual, K_SOLVE_TOLERANCE);
             EXPECT_GE(s.iterations, 1u);
-            for (std::size_t i = 0; i < K_N; ++i)
-                EXPECT_NEAR(s.x[i], expected[i], K_COARSE_SOLVE_TOLERANCE) << i;
+            expect_elements_near(s.x, expected, K_COARSE_SOLVE_TOLERANCE);
         }
 
         TEST(Small_ReferenceGmres, RestartsAndBlocksStillConverge)
@@ -212,7 +220,7 @@ namespace SushiBLAS
             const Solve s = run(a, b, direct_solve(a, b), settings);
 
             EXPECT_EQ(s.iterations, 0u);
-            EXPECT_LE(s.residual, K_WARM_START_TOLERANCE);
+            EXPECT_LE(s.residual, settings.relative_tolerance);
         }
 
         TEST(Small_ReferenceGmres, AZeroRightHandSideGivesZero)

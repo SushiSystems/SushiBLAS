@@ -48,31 +48,60 @@ namespace SushiBLAS
     {
         using GraphPrimitives::Detail::require_window;
 
-        /** @brief Tests that windows ending at or before the buffer's end fit it. */
-        TEST(Small_GraphPrimitivesElementWindow, AcceptsWindowsInsideTheBuffer)
+        namespace
         {
-            EXPECT_TRUE(require_window("p", "input", 8, 0, 8).has_value());
-            EXPECT_TRUE(require_window("p", "input", 8, 3, 5).has_value());
-            EXPECT_TRUE(require_window("p", "input", 8, 8, 0).has_value());
-            EXPECT_TRUE(require_window("p", "input", 0, 0, 0).has_value());
+            /// @brief Names a buffer size and a window over it.
+            struct WindowRow
+            {
+                /// @brief Holds the buffer size in elements.
+                std::size_t size;
+                /// @brief Holds the first element of the window.
+                std::size_t offset;
+                /// @brief Holds the element count of the window.
+                std::size_t count;
+            };
+        } // namespace
+
+        /// @brief Runs one window against a buffer of eight elements.
+        class Small_GraphPrimitivesElementWindowAccepted : public ::testing::TestWithParam<WindowRow>
+        {
+        };
+
+        /** @brief Tests that a window ending at or before the buffer's end fits it. */
+        TEST_P(Small_GraphPrimitivesElementWindowAccepted, AcceptsWindowsInsideTheBuffer)
+        {
+            const WindowRow& row = GetParam();
+
+            EXPECT_TRUE(require_window("p", "input", row.size, row.offset, row.count).has_value());
         }
 
-        /** @brief Tests that a window past the end is refused, even where offset + count wraps. */
-        TEST(Small_GraphPrimitivesElementWindow, RefusesWindowsPastTheBuffer)
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesElementWindowAccepted,
+                                 ::testing::Values(WindowRow{8, 0, 8}, WindowRow{8, 3, 5},
+                                                   WindowRow{8, 8, 0}, WindowRow{0, 0, 0}));
+
+        /// @brief Runs one window past the end of a buffer of eight elements.
+        class Small_GraphPrimitivesElementWindowRefused : public ::testing::TestWithParam<WindowRow>
         {
-            const std::size_t huge = std::numeric_limits<std::size_t>::max();
-            for (const auto& window : {std::pair<std::size_t, std::size_t>{9, 0},
-                                       std::pair<std::size_t, std::size_t>{4, 5},
-                                       std::pair<std::size_t, std::size_t>{1, huge}})
-            {
-                const SushiRuntime::Result<void> refused =
-                    require_window("reduce", "output", 8, window.first, window.second);
-                ASSERT_FALSE(refused.has_value()) << window.first << " + " << window.second;
-                EXPECT_EQ(refused.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_EQ(refused.error().message.rfind("reduce: the output window", 0), 0u)
-                    << refused.error().message;
-            }
+        };
+
+        /** @brief Tests that a window past the end is refused, even where offset + count wraps. */
+        TEST_P(Small_GraphPrimitivesElementWindowRefused, RefusesWindowsPastTheBuffer)
+        {
+            const WindowRow& row = GetParam();
+
+            const SushiRuntime::Result<void> refused =
+                require_window("reduce", "output", row.size, row.offset, row.count);
+
+            ASSERT_FALSE(refused.has_value());
+            EXPECT_EQ(refused.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_EQ(refused.error().message.rfind("reduce: the output window", 0), 0u)
+                << refused.error().message;
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_GraphPrimitivesElementWindowRefused,
+            ::testing::Values(WindowRow{8, 9, 0}, WindowRow{8, 4, 5},
+                              WindowRow{8, 1, std::numeric_limits<std::size_t>::max()}));
 
         /** @brief Tests that a refused window prints its computed end, not the sum unworked. */
         TEST(Small_Regression_GraphPrimitivesElementWindow, MessagePrintsTheComputedEnd)
@@ -95,8 +124,8 @@ namespace SushiBLAS
                 << refused.error().message;
         }
 
-        /** @brief Tests that a span narrows its buffer's key to its bytes and keeps the watch. */
-        TEST(Medium_GraphPrimitivesElementWindow, AccessOfNarrowsSpansAndKeepsRegions)
+        /** @brief Tests that a span narrows its buffer's key to its bytes and keeps the other keys. */
+        TEST(Medium_GraphPrimitivesElementWindow, AccessOfNarrowsASpanToItsBytes)
         {
             auto runtime = SushiRuntime::Runtime::create().value();
             auto buffer = runtime.buffer<std::uint32_t>(16).value();
@@ -113,8 +142,18 @@ namespace SushiBLAS
             EXPECT_EQ(writes.keys[1].base, other.base);
             EXPECT_EQ(writes.keys[1].offset, other.offset);
             EXPECT_EQ(writes.keys[1].length, other.length);
-            EXPECT_EQ(writes.lives.size(), SushiRuntime::Writes(buffer).lives.size())
-                << "the span's buffer must be watched as the buffer itself is";
+        }
+
+        /** @brief Tests that the buffer behind a span stays watched as the buffer itself is. */
+        TEST(Medium_GraphPrimitivesElementWindow, AccessOfKeepsTheSpansBufferWatched)
+        {
+            auto runtime = SushiRuntime::Runtime::create().value();
+            auto buffer = runtime.buffer<std::uint32_t>(16).value();
+
+            const SushiRuntime::Writes writes = GraphPrimitives::Detail::access_of<
+                SushiRuntime::Writes>(GraphPrimitives::Detail::elements(buffer, 3, 5));
+
+            EXPECT_EQ(writes.lives.size(), SushiRuntime::Writes(buffer).lives.size());
         }
     } // namespace Test
 } // namespace SushiBLAS

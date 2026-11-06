@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_sparse_kernels_log_category.cpp                                   */
+/* compile_combiners.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,27 @@
 /**************************************************************************/
 
 /**
- * @file test_sparse_kernels_log_category.cpp
- * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
+ * @file compile_combiners.cpp
+ * @brief Checks at compile time that every combiner is trivially copyable; compiled, never run.
  * @author Mustafa Garip
+ * @see tests/foundation/graph_primitives/README.md
  */
 
-#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
+#include <type_traits>
+
+#include <SushiBLAS/graph_primitives/combiners.hpp>
 
 namespace SushiBLAS
 {
-    static_assert(K_SPARSE_KERNELS_LOG_CATEGORY.module() == "sparse_kernels", "the folder name of the module");
-    static_assert(K_SPARSE_KERNELS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+    namespace Test
+    {
+        static_assert(std::is_trivially_copyable<GraphPrimitives::Sum<float>>::value,
+                      "A device kernel captures the combiner by value.");
+        static_assert(std::is_trivially_copyable<GraphPrimitives::Product<float>>::value,
+                      "A device kernel captures the combiner by value.");
+        static_assert(std::is_trivially_copyable<GraphPrimitives::Minimum<float>>::value,
+                      "A device kernel captures the combiner by value.");
+        static_assert(std::is_trivially_copyable<GraphPrimitives::Maximum<float>>::value,
+                      "A device kernel captures the combiner by value.");
+    } // namespace Test
 } // namespace SushiBLAS

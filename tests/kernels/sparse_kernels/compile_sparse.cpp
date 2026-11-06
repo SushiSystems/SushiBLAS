@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_launch_log_category.cpp                                           */
+/* compile_sparse.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,9 @@
 /**************************************************************************/
 
 /**
- * @file test_launch_log_category.cpp
- * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
+ * @file compile_sparse.cpp
+ * @brief Checks at compile time that the umbrella header compiles on its own; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/launch/launch_log_category.hpp>
-
-namespace SushiBLAS
-{
-    static_assert(K_LAUNCH_LOG_CATEGORY.module() == "launch", "the folder name of the module");
-    static_assert(K_LAUNCH_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-} // namespace SushiBLAS
+#include <SushiBLAS/sparse_kernels/sparse.hpp>

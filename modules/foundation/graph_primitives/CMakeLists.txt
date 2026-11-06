@@ -27,4 +27,6 @@ sushiblas_add_test_program(
         test_prefix_scan.cpp
         test_reduce/test_device_sized_reduce.cpp
         test_reduce/test_reduce.cpp
-        test_segmented_reduce.cpp)
+        test_segmented_reduce.cpp
+    COMPILE_CHECKS
+        compile_combiners.cpp)

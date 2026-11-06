@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -46,7 +47,36 @@ namespace SushiBLAS
         {
             using GraphPrimitives::PrimitiveOptions;
             using GraphPrimitives::Detail::NodeStamper;
+
+            /// @brief Names a node, the label its operation must hash and the operation it holds.
+            struct OperationRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the label the operation is the hash of.
+                const char* label;
+                /// @brief Holds the operation the stamper gave the node.
+                SushiRuntime::OperationID operation;
+            };
+
+            /** @brief Returns the operation of a stage, a bare node and a named node. */
+            std::vector<OperationRow> operation_rows()
+            {
+                const std::optional<PrimitiveOptions> none;
+                NodeStamper unnamed(none, "graph.test");
+                const std::optional<PrimitiveOptions> named = PrimitiveOptions{"gather"};
+                NodeStamper stamper(named, "graph.test");
+
+                return {{"Stage", "graph.test.level", unnamed.stage("level").operation},
+                        {"BareNode", "graph.test", unnamed.node().operation},
+                        {"NamedNode", "gather", stamper.node().operation}};
+            }
         } // namespace
+
+        /// @brief Runs one node's operation row.
+        class Small_GraphPrimitivesNodeStamperOperation : public ::testing::TestWithParam<OperationRow>
+        {
+        };
 
         /** @brief Tests that an unnamed call gets the width and an operation id, and no name or class. */
         TEST(Small_GraphPrimitivesNodeStamper, AnUnnamedCallStatesTheWidthAndTheOperationOnly)
@@ -64,21 +94,19 @@ namespace SushiBLAS
             EXPECT_EQ(single.width, SushiRuntime::NodeOptions{}.width);
         }
 
-        /** @brief Tests that every node carries the hash of its label as its operation. */
-        TEST(Small_GraphPrimitivesNodeStamper, EveryNodeCarriesTheHashOfItsLabelAsItsOperation)
+        /** @brief Tests that a node carries the hash of its label as its operation. */
+        TEST_P(Small_GraphPrimitivesNodeStamperOperation, EveryNodeCarriesTheHashOfItsLabelAsItsOperation)
         {
-            const std::optional<PrimitiveOptions> none;
-            NodeStamper unnamed(none, "graph.test");
-            EXPECT_EQ(unnamed.stage("level").operation, SushiRuntime::OperationID(
-                SushiRuntime::OperationID::hash("graph.test.level", 16)));
-            EXPECT_EQ(unnamed.node().operation, SushiRuntime::OperationID(
-                SushiRuntime::OperationID::hash("graph.test", 10)));
+            const OperationRow& row = GetParam();
 
-            const std::optional<PrimitiveOptions> named = PrimitiveOptions{"gather"};
-            NodeStamper stamper(named, "graph.test");
-            EXPECT_EQ(stamper.node().operation, SushiRuntime::OperationID(
-                SushiRuntime::OperationID::hash("gather", 6)));
+            EXPECT_EQ(row.operation, SushiRuntime::OperationID(SushiRuntime::OperationID::hash(
+                                         row.label, std::char_traits<char>::length(row.label))));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesNodeStamperOperation,
+                                 ::testing::ValuesIn(operation_rows()),
+                                 [](const ::testing::TestParamInfo<OperationRow>& info)
+                                 { return std::string(info.param.name); });
 
         /** @brief Tests that a single-node primitive reports under the bare name. */
         TEST(Small_GraphPrimitivesNodeStamper, ANodeCarriesTheBareNameAndTheClass)

@@ -53,6 +53,15 @@ namespace SushiBLAS
             /// @brief Holds a capacity of three levels.
             constexpr std::size_t K_THREE_LEVEL_CAPACITY = 1000000;
 
+            /// @brief Names a tile and the sum of ones it must fold.
+            struct TileRow
+            {
+                /// @brief Holds the tile index.
+                std::size_t tile;
+                /// @brief Holds the number of ones the tile covers.
+                std::uint64_t folded;
+            };
+
             /** @brief Appends one decimal digit per element, so a fold shows its order. */
             struct AppendDigit
             {
@@ -64,56 +73,96 @@ namespace SushiBLAS
             };
         } // namespace
 
-        /** @brief Tests that the plan depends on the count alone and its levels chain. */
-        TEST(Medium_GraphPrimitivesFixedOrderLevels, PlanLayoutIsPureAndDisjoint)
+        /** @brief Tests that a count of zero plans no level. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, AnEmptyPlanHasNoLevel)
         {
             EXPECT_TRUE(plan_reduction(0).empty());
+        }
 
+        /** @brief Tests that one element plans one level that needs no scratch. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, ASingleElementPlansOneLevelWithoutScratch)
+        {
             const auto one = plan_reduction(1);
+
             ASSERT_EQ(one.size(), 1u);
             EXPECT_EQ(one[0].in_count, 1u);
             EXPECT_EQ(one[0].out_count, 1u);
             EXPECT_EQ(reduce_scratch_count(one), 0u) << "a single level writes the output";
+        }
 
-            const auto exact = plan_reduction(K_TILE);
-            ASSERT_EQ(exact.size(), 1u) << "exactly one tile still needs only one level";
+        /** @brief Tests that exactly one tile still needs only one level. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, ExactlyOneTilePlansOneLevel)
+        {
+            EXPECT_EQ(plan_reduction(K_TILE).size(), 1u);
+        }
 
+        /** @brief Tests that a three-level count shrinks by one tile per level. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, AThreeLevelCountShrinksByOneTilePerLevel)
+        {
             const auto three = plan_reduction(K_THREE_LEVEL_CAPACITY);
+
             ASSERT_EQ(three.size(), 3u);
             EXPECT_EQ(three[0].in_count, K_THREE_LEVEL_CAPACITY);
             EXPECT_EQ(three[0].out_count, (K_THREE_LEVEL_CAPACITY + K_TILE - 1) / K_TILE);
             EXPECT_EQ(three[1].in_count, three[0].out_count);
             EXPECT_EQ(three[2].out_count, 1u);
+        }
 
-            // Level i reads what level i - 1 wrote, and the two windows do not alias.
-            for (std::size_t i = 1; i < three.size(); ++i)
-                EXPECT_EQ(three[i].in_offset, three[i - 1].out_offset) << "at level " << i;
+        /** @brief Tests that a level reads what the level before wrote, and the windows differ. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, EachLevelReadsWhatThePreviousLevelWrote)
+        {
+            const auto three = plan_reduction(K_THREE_LEVEL_CAPACITY);
+
+            ASSERT_EQ(three.size(), 3u);
+            EXPECT_EQ(three[1].in_offset, three[0].out_offset);
+            EXPECT_EQ(three[2].in_offset, three[1].out_offset);
             EXPECT_NE(three[0].out_offset, three[1].out_offset);
+        }
 
+        /** @brief Tests that the scratch count is the sum of the widths the levels write. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, ScratchHoldsEveryLevelButTheLast)
+        {
+            const auto three = plan_reduction(K_THREE_LEVEL_CAPACITY);
+
+            ASSERT_EQ(three.size(), 3u);
             EXPECT_EQ(reduce_scratch_count(three), three[0].out_count + three[1].out_count);
         }
 
         /** @brief Tests that a tile folds left to right from its first element. */
-        TEST(Medium_GraphPrimitivesFixedOrderLevels, FoldTileCombinesLeftToRight)
+        TEST(Small_GraphPrimitivesFixedOrderLevels, FoldTileCombinesLeftToRight)
         {
             const std::vector<std::uint64_t> digits = {7, 1, 2, 3, 4, 9};
 
             EXPECT_EQ(fold_tile(AppendDigit{}, digits.data(), 1, 5), 1234u);
-            EXPECT_EQ(fold_tile(AppendDigit{}, digits.data(), 0, 1), 7u)
-                << "a tile of one element is that element";
         }
+
+        /** @brief Tests that a tile of one element is that element. */
+        TEST(Small_GraphPrimitivesFixedOrderLevels, ATileOfOneElementIsThatElement)
+        {
+            const std::vector<std::uint64_t> digits = {7, 1};
+
+            EXPECT_EQ(fold_tile(AppendDigit{}, digits.data(), 0, 1), 7u);
+        }
+
+        /// @brief Runs one tile index against a count of two tiles and three elements.
+        class Small_GraphPrimitivesFixedOrderTile : public ::testing::TestWithParam<TileRow>
+        {
+        };
 
         /** @brief Tests that tile t covers K_TILE values and the last tile stops at the count. */
-        TEST(Medium_GraphPrimitivesFixedOrderLevels, IndexedTileStopsAtTheLiveCount)
+        TEST_P(Small_GraphPrimitivesFixedOrderTile, IndexedTileStopsAtTheLiveCount)
         {
             const std::size_t count = 2 * K_TILE + 3;
-            std::vector<std::uint64_t> ones(count + K_TILE, 1);
-
+            const std::vector<std::uint64_t> ones(count + K_TILE, 1);
             const auto add = [](std::uint64_t a, std::uint64_t b) { return a + b; };
-            EXPECT_EQ(fold_indexed_tile(add, ones.data(), 0, count), K_TILE);
-            EXPECT_EQ(fold_indexed_tile(add, ones.data(), 1, count), K_TILE);
-            EXPECT_EQ(fold_indexed_tile(add, ones.data(), 2, count), 3u)
-                << "the last tile must not read past the count";
+
+            EXPECT_EQ(fold_indexed_tile(add, ones.data(), GetParam().tile, count),
+                      GetParam().folded);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesFixedOrderTile,
+                                 ::testing::Values(TileRow{0, K_TILE}, TileRow{1, K_TILE},
+                                                   TileRow{2, 3u}));
+
     } // namespace Test
 } // namespace SushiBLAS

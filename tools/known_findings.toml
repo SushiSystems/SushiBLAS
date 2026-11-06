@@ -50,13 +50,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/foundation/launch/test_submitted_events.cpp"
-count = 2
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/foundation/sparse_assembly/test_sparse_assembly.cpp"
 count = 1
 backlog = "RW-133"

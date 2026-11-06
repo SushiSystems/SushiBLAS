@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -76,28 +77,83 @@ namespace SushiBLAS
                 return find_defect(positions);
             }
 
-            /** @brief Expects the sample matrix stored in Index to keep every rule under base. */
+            /** @brief Returns the defect of the sample matrix stored in Index under base. */
             template<typename Index>
-            void expect_sample_has_no_defect(IndexBase base)
+            StructureDefect defect_of_sample(IndexBase base)
             {
                 const std::vector<Index> offsets =
                     stored_indices<Index>(sample_row_offsets(), base);
                 const std::vector<Index> columns = stored_indices<Index>(sample_columns(), base);
 
-                EXPECT_EQ(find_defect(sample_pattern(offsets, columns, base)),
-                          StructureDefect::None)
-                    << "base " << Core::to_string(base);
+                return find_defect(sample_pattern(offsets, columns, base));
+            }
+
+            /** @brief One base and index type of the sample matrix. */
+            struct SampleRow
+            {
+                    const char* name;                 /**< The row's suffix. */
+                    IndexBase base;                   /**< The index base the arrays are stored in. */
+                    StructureDefect (*check)(IndexBase); /**< Returns the defect of the sample stored in the row's type. */
+            };
+
+            /** @brief Returns the four combinations of base and index type. */
+            std::vector<SampleRow> sample_rows()
+            {
+                return {{"ZeroBasedInt32", IndexBase::Zero, &defect_of_sample<int32_t>},
+                        {"ZeroBasedInt64", IndexBase::Zero, &defect_of_sample<int64_t>},
+                        {"OneBasedInt32", IndexBase::One, &defect_of_sample<int32_t>},
+                        {"OneBasedInt64", IndexBase::One, &defect_of_sample<int64_t>}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string sample_row_name(const ::testing::TestParamInfo<SampleRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief A 4 x 5 matrix given by its stored arrays and base. */
+            struct ColumnRow
+            {
+                    const char* name;               /**< The row's suffix. */
+                    std::vector<int32_t> offsets;   /**< The row offsets, in the row's base. */
+                    std::vector<int32_t> columns;   /**< The column indices, in the row's base. */
+                    IndexBase base;                 /**< The index base the arrays are stored in. */
+            };
+
+            /** @brief Returns a column at the number of columns, and one below the one base. */
+            std::vector<ColumnRow> out_of_range_rows()
+            {
+                return {{"ColumnPastTheLast", {0, 2, 2, 5, 7}, {0, 3, 1, 2, 5, 0, 4}, IndexBase::Zero},
+                        {"ColumnBelowTheBase", {1, 3, 3, 6, 8}, {1, 4, 2, 3, 5, 0, 5}, IndexBase::One}};
+            }
+
+            /** @brief Returns columns out of order and a column repeated within a row. */
+            std::vector<ColumnRow> tolerated_order_rows()
+            {
+                return {{"UnsortedColumns", {0, 2, 2, 5, 7}, {3, 0, 4, 1, 2, 4, 0}, IndexBase::Zero},
+                        {"RepeatedPair", {0, 2, 2, 5, 7}, {3, 3, 1, 2, 2, 0, 4}, IndexBase::Zero}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string column_row_name(const ::testing::TestParamInfo<ColumnRow>& info)
+            {
+                return info.param.name;
             }
         } // namespace
 
-        TEST(Small_SparseStructure, TheSampleKeepsEveryRule)
+        /** @brief Runs the sample check one base and index type at a time. */
+        class Small_SparseStructureSample : public ::testing::TestWithParam<SampleRow>
         {
-            for (const IndexBase base : K_BOTH_BASES)
-            {
-                expect_sample_has_no_defect<int32_t>(base);
-                expect_sample_has_no_defect<int64_t>(base);
-            }
+
+        };
+
+        TEST_P(Small_SparseStructureSample, TheSampleKeepsEveryRule)
+        {
+            EXPECT_EQ(GetParam().check(GetParam().base), StructureDefect::None);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SparseStructureSample, ::testing::ValuesIn(sample_rows()),
+                                 sample_row_name);
 
         TEST(Small_SparseStructure, AFirstOffsetOtherThanTheBaseIsReported)
         {
@@ -117,30 +173,40 @@ namespace SushiBLAS
                       StructureDefect::LastOffset);
         }
 
-        TEST(Small_SparseStructure, AColumnPastTheLastIsReported)
+        /** @brief Runs the column range check one stored matrix at a time. */
+        class Small_SparseStructureColumnRange : public ::testing::TestWithParam<ColumnRow>
         {
-            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {0, 3, 1, 2, 5, 0, 4}),
+
+        };
+
+        TEST_P(Small_SparseStructureColumnRange, AColumnOutsideTheRangeIsReported)
+        {
+            const ColumnRow& row = GetParam();
+
+            EXPECT_EQ(find_defect(sample_pattern(row.offsets, row.columns, row.base)),
                       StructureDefect::IndexOutOfRange);
         }
 
-        TEST(Small_SparseStructure, AColumnBelowTheBaseIsReported)
-        {
-            const std::vector<int32_t> offsets = {1, 3, 3, 6, 8};
-            const std::vector<int32_t> columns = {1, 4, 2, 3, 5, 0, 5};
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_SparseStructureColumnRange, ::testing::ValuesIn(out_of_range_rows()),
+            column_row_name);
 
-            EXPECT_EQ(find_defect(sample_pattern(offsets, columns, IndexBase::One)),
-                      StructureDefect::IndexOutOfRange);
+        /** @brief Runs the column order check one stored matrix at a time. */
+        class Small_SparseStructureColumnOrder : public ::testing::TestWithParam<ColumnRow>
+        {
+
+        };
+
+        TEST_P(Small_SparseStructureColumnOrder, UnsortedOrRepeatedColumnsAreNotADefect)
+        {
+            const ColumnRow& row = GetParam();
+
+            EXPECT_EQ(find_defect(sample_pattern(row.offsets, row.columns, row.base)),
+                      StructureDefect::None);
         }
 
-        TEST(Small_SparseStructure, UnsortedColumnsAreNotADefect)
-        {
-            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 0, 4, 1, 2, 4, 0}), StructureDefect::None);
-        }
-
-        TEST(Small_SparseStructure, ARepeatedPairIsNotADefect)
-        {
-            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 3, 1, 2, 2, 0, 4}), StructureDefect::None);
-        }
+        INSTANTIATE_TEST_SUITE_P(, Small_SparseStructureColumnOrder,
+                                 ::testing::ValuesIn(tolerated_order_rows()), column_row_name);
 
         TEST(Small_SparseStructure, DistinctPositionsInsideTheVectorKeepEveryRule)
         {

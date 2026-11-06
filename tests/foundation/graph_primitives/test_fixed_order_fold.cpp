@@ -44,7 +44,6 @@ namespace SushiBLAS
         {
             using GraphPrimitives::fold_fixed_order;
             using GraphPrimitives::fold_fixed_order_streamed;
-            using GraphPrimitives::fold_tile;
 
             /// @brief Holds the tile size every expected number below derives from.
             constexpr std::size_t K_TILE = GraphPrimitives::K_REDUCE_TILE;
@@ -71,6 +70,29 @@ namespace SushiBLAS
                 return values;
             }
 
+            /** @brief Returns the left fold of values[begin, end) under Mix. */
+            std::uint64_t left_fold(const std::vector<std::uint64_t>& values, std::size_t begin,
+                                    std::size_t end)
+            {
+                std::uint64_t folded = values[begin];
+                for (std::size_t i = begin + 1; i < end; ++i)
+                    folded = Mix{}(folded, values[i]);
+                return folded;
+            }
+
+            /** @brief Returns the left fold of each tile of values, in order. */
+            std::vector<std::uint64_t> tile_folds_of(const std::vector<std::uint64_t>& values)
+            {
+                std::vector<std::uint64_t> folds;
+                for (std::size_t begin = 0; begin < values.size(); begin += K_TILE)
+                {
+                    const std::size_t end =
+                        begin + K_TILE < values.size() ? begin + K_TILE : values.size();
+                    folds.push_back(left_fold(values, begin, end));
+                }
+                return folds;
+            }
+
             /** @brief Folds with the streamed form over a vector. */
             std::uint64_t streamed(const std::vector<std::uint64_t>& values)
             {
@@ -80,83 +102,79 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Tests that an empty fold returns the identity and one element returns itself. */
-        TEST(Medium_GraphPrimitivesFixedOrderFold, EmptyAndSingleCounts)
+        /** @brief Tests that an empty fold returns the identity in both forms. */
+        TEST(Small_GraphPrimitivesFixedOrderFold, AnEmptyFoldReturnsTheIdentity)
         {
             const std::vector<std::uint64_t> none;
+
             EXPECT_EQ(fold_fixed_order(Mix{}, none.data(), 0, K_IDENTITY), K_IDENTITY);
             EXPECT_EQ(streamed(none), K_IDENTITY);
+        }
 
+        /** @brief Tests that a fold of one element returns that element in both forms. */
+        TEST(Small_GraphPrimitivesFixedOrderFold, OneElementReturnsItself)
+        {
             const std::vector<std::uint64_t> one = {42u};
+
             EXPECT_EQ(fold_fixed_order(Mix{}, one.data(), 1, K_IDENTITY), 42u);
             EXPECT_EQ(streamed(one), 42u);
         }
 
         /** @brief Tests that a count within one tile folds left to right from its first element. */
-        TEST(Medium_GraphPrimitivesFixedOrderFold, OneTileFoldsLeftToRight)
+        TEST(Small_GraphPrimitivesFixedOrderFold, OneTileFoldsLeftToRight)
         {
             const std::vector<std::uint64_t> values = values_of(K_TILE);
-            std::uint64_t expected = values[0];
-            for (std::size_t i = 1; i < K_TILE; ++i)
-                expected = expected * 31u + values[i];
+            const std::uint64_t expected = left_fold(values, 0, K_TILE);
 
             EXPECT_EQ(fold_fixed_order(Mix{}, values.data(), K_TILE, K_IDENTITY), expected);
             EXPECT_EQ(streamed(values), expected);
         }
 
         /** @brief Tests that a second tile is folded on its own before it meets the first. */
-        TEST(Medium_GraphPrimitivesFixedOrderFold, ASecondTileIsFoldedOnItsOwn)
+        TEST(Small_GraphPrimitivesFixedOrderFold, ASecondTileIsFoldedOnItsOwn)
         {
             const std::vector<std::uint64_t> values = values_of(K_TILE + 2);
-            const std::uint64_t first_tile = fold_tile(Mix{}, values.data(), 0, K_TILE);
-            const std::uint64_t second_tile = values[K_TILE] * 31u + values[K_TILE + 1];
-            const std::uint64_t expected = first_tile * 31u + second_tile;
-
-            std::uint64_t flat = values[0];
-            for (std::size_t i = 1; i < values.size(); ++i)
-                flat = flat * 31u + values[i];
-            ASSERT_NE(expected, flat) << "the operator must tell the tree from a flat fold";
+            const std::uint64_t first_tile = left_fold(values, 0, K_TILE);
+            const std::uint64_t second_tile = left_fold(values, K_TILE, K_TILE + 2);
+            const std::uint64_t expected = Mix{}(first_tile, second_tile);
+            ASSERT_NE(expected, left_fold(values, 0, values.size()))
+                << "the operator must tell the tree from a flat fold";
 
             EXPECT_EQ(fold_fixed_order(Mix{}, values.data(), values.size(), K_IDENTITY), expected);
             EXPECT_EQ(streamed(values), expected);
         }
 
-        /** @brief Tests that the levelled and the streamed fold agree at every level boundary. */
-        TEST(Medium_GraphPrimitivesFixedOrderFold, BothFormsAgreeAcrossLevelBoundaries)
+        /// @brief Runs one element count against both forms of the fold.
+        class Small_GraphPrimitivesFixedOrderFoldBoundary
+            : public ::testing::TestWithParam<std::size_t>
         {
-            const std::size_t counts[] = {2,
-                                          K_TILE - 1,
-                                          K_TILE + 1,
-                                          2 * K_TILE,
-                                          K_TILE * K_TILE - 1,
-                                          K_TILE * K_TILE,
-                                          K_TILE * K_TILE + 1,
-                                          K_TILE * K_TILE + K_TILE + 1,
-                                          3 * K_TILE * K_TILE + 5};
-            for (const std::size_t count : counts)
-            {
-                const std::vector<std::uint64_t> values = values_of(count);
-                EXPECT_EQ(fold_fixed_order(Mix{}, values.data(), count, K_IDENTITY),
-                          streamed(values))
-                    << "count " << count;
-            }
+        };
+
+        /** @brief Tests that the levelled and the streamed fold agree at a level boundary. */
+        TEST_P(Small_GraphPrimitivesFixedOrderFoldBoundary, BothFormsAgreeAcrossLevelBoundaries)
+        {
+            const std::size_t count = GetParam();
+            const std::vector<std::uint64_t> values = values_of(count);
+
+            EXPECT_EQ(fold_fixed_order(Mix{}, values.data(), count, K_IDENTITY), streamed(values));
         }
 
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesFixedOrderFoldBoundary,
+                                 ::testing::Values(2, K_TILE - 1, K_TILE + 1, 2 * K_TILE,
+                                                   K_TILE * K_TILE - 1, K_TILE * K_TILE,
+                                                   K_TILE * K_TILE + 1,
+                                                   K_TILE * K_TILE + K_TILE + 1,
+                                                   3 * K_TILE * K_TILE + 5));
+
         /** @brief Tests a three-level count against the tree written out by hand. */
-        TEST(Medium_GraphPrimitivesFixedOrderFold, ThreeLevelsMatchTheTreeWrittenOut)
+        TEST(Small_GraphPrimitivesFixedOrderFold, ThreeLevelsMatchTheTreeWrittenOut)
         {
             const std::size_t count = K_TILE * K_TILE + 3;
             const std::vector<std::uint64_t> values = values_of(count);
-
-            std::vector<std::uint64_t> level_one;
-            for (std::size_t begin = 0; begin < count; begin += K_TILE)
-            {
-                const std::size_t end = begin + K_TILE < count ? begin + K_TILE : count;
-                level_one.push_back(fold_tile(Mix{}, values.data(), begin, end));
-            }
+            const std::vector<std::uint64_t> level_one = tile_folds_of(values);
             ASSERT_EQ(level_one.size(), K_TILE + 1);
-            const std::uint64_t left = fold_tile(Mix{}, level_one.data(), 0, K_TILE);
-            const std::uint64_t expected = left * 31u + level_one[K_TILE];
+            const std::uint64_t expected =
+                Mix{}(left_fold(level_one, 0, K_TILE), level_one[K_TILE]);
 
             EXPECT_EQ(fold_fixed_order(Mix{}, values.data(), count, K_IDENTITY), expected);
             EXPECT_EQ(streamed(values), expected);

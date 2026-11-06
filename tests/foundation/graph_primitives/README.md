@@ -8,7 +8,8 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_combiners.cpp` | Tests what each combiner returns, its identity and that a kernel can capture it |
+| `compile_combiners.cpp` | Checks at compile time that every combiner is trivially copyable; compiled, never run |
+| `test_combiners.cpp` | Tests what each combiner returns and its identity |
 | `test_counting_sort.cpp` | Tests counting_sort(): stability, digit boundaries, late-bound replay and node widths |
 | `test_fixed_order_fold.cpp` | Tests the two host folds against the fixed tile order, without a device |
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
@@ -57,8 +58,9 @@ constant changed in one place only.
 fixed-order sum and the naive left-to-right sum differ. The test asserts that they differ; if
 they did not, it could not tell a fixed order from a schedule-dependent one.
 
-`ResultIsStableAcrossSchedules`: 32 runs of one graph, then one run on a second runtime with the
-thermal rebalancer on, which migrates tasks between workers during a run.
+`RepeatedRunsAgreeBitForBit`: 32 runs of one graph. `RebalancedRunMatchesTheFixedOrderReference`:
+one run on a runtime with the thermal rebalancer on, which migrates tasks between workers during
+a run.
 
 `DeviceCountIsReadAfterItsProducer`: a kernel of the same graph writes the count. The reduce has
 to fold the count written in its own run, not the one the previous run left.
@@ -102,9 +104,9 @@ between 0 and 2; a second pass would move it last. The order therefore says how 
 histogram (2 tiles), the column scan (one per bin), the bin base (1), the placement (2), the
 offsets (51) and the counts (50).
 
-`LargeRandomCaseAgainstHostReference` sorts 10^6 keys over a range of 2^20 and
-`LiveKeyRangeBelowCapacityLandsInIndices` allocates 2^24 + 1 offsets. They are the two slowest
-tests of the module.
+`LargeRandomCaseAgainstHostReference` sorts 2^17 keys over a range of 2^20, which is 512 tiles and
+three digit passes, and `LiveKeyRangeBelowCapacityLandsInIndices` allocates 2^17 + 1 offsets.
+They stay the largest cases of the module.
 
 ## test_reduce/test_device_sized_primitives.cpp
 
@@ -134,7 +136,7 @@ The headers below are shared by tests of this module only, so they sit in this f
 
 ## Window tests
 
-Each primitive's file holds three window tests. `WindowMatchesACompactBufferExactly` records the
+Each primitive's file holds the window tests below, and a test that the elements around an output window stay untouched. `WindowMatchesACompactBufferExactly` records the
 primitive over windows that start past element 0 and again over buffers that hold only those
 windows, in one graph, and compares the two results bit for bit; the elements around an output
 window hold a canary. `WindowOrdersOnlyOverlappingWriters` adds a node that writes a part of an

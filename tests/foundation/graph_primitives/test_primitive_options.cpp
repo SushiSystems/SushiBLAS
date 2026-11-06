@@ -31,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -47,6 +48,39 @@ namespace SushiBLAS
         {
             using GraphPrimitives::PrimitiveOptions;
             using GraphPrimitives::Detail::require_options;
+
+            /// @brief Names a class of the runtime.
+            struct ClassRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the class the options carry.
+                SushiRuntime::Determinism determinism;
+            };
+
+            /// @brief Names an option name that names no node.
+            struct NameRow
+            {
+                /// @brief Names the row in the test report.
+                const char* label;
+                /// @brief Holds the name the options carry.
+                std::string_view name;
+            };
+
+            /** @brief Returns the four classes of the runtime. */
+            std::vector<ClassRow> class_rows()
+            {
+                return {{"Unstated", SushiRuntime::Determinism::Unstated},
+                        {"Bitwise", SushiRuntime::Determinism::Bitwise},
+                        {"Tolerant", SushiRuntime::Determinism::Tolerant},
+                        {"Cosmetic", SushiRuntime::Determinism::Cosmetic}};
+            }
+
+            /** @brief Returns the null and the empty name. */
+            std::vector<NameRow> name_rows()
+            {
+                return {{"Null", std::string_view{}}, {"Empty", std::string_view{""}}};
+            }
         } // namespace
 
         /** @brief Tests that a call with no options passes the check. */
@@ -55,30 +89,46 @@ namespace SushiBLAS
             EXPECT_TRUE(require_options("reduce", std::nullopt).has_value());
         }
 
-        /** @brief Tests that a name with each class of the runtime passes the check. */
-        TEST(Small_GraphPrimitivesPrimitiveOptions, ANamedClassPasses)
+        /// @brief Runs one runtime class under a name.
+        class Small_GraphPrimitivesPrimitiveOptionsClass : public ::testing::TestWithParam<ClassRow>
         {
-            for (const auto determinism :
-                 {SushiRuntime::Determinism::Unstated, SushiRuntime::Determinism::Bitwise,
-                  SushiRuntime::Determinism::Tolerant, SushiRuntime::Determinism::Cosmetic})
-                EXPECT_TRUE(require_options("reduce", PrimitiveOptions{"sum", determinism})
-                                .has_value());
+        };
+
+        /** @brief Tests that a name with a class of the runtime passes the check. */
+        TEST_P(Small_GraphPrimitivesPrimitiveOptionsClass, ANamedClassPasses)
+        {
+            EXPECT_TRUE(
+                require_options("reduce", PrimitiveOptions{"sum", GetParam().determinism})
+                    .has_value());
         }
 
-        /** @brief Tests that a null or empty name is refused, naming the primitive and 'options'. */
-        TEST(Small_GraphPrimitivesPrimitiveOptions, ANullOrEmptyNameIsRefused)
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesPrimitiveOptionsClass,
+                                 ::testing::ValuesIn(class_rows()),
+                                 [](const ::testing::TestParamInfo<ClassRow>& info)
+                                 { return std::string(info.param.name); });
+
+        /// @brief Runs one option set that names no node.
+        class Small_GraphPrimitivesPrimitiveOptionsName : public ::testing::TestWithParam<NameRow>
         {
-            for (const std::string_view name : {std::string_view{}, std::string_view{""}})
-            {
-                const auto refused = require_options("prefix_scan", PrimitiveOptions{name});
-                ASSERT_FALSE(refused.has_value());
-                EXPECT_EQ(refused.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_EQ(refused.error().message.rfind("prefix_scan:", 0), 0u)
-                    << refused.error().message;
-                EXPECT_NE(refused.error().message.find("'options'"), std::string::npos)
-                    << refused.error().message;
-            }
+        };
+
+        /** @brief Tests that a null or empty name is refused, naming the primitive and 'options'. */
+        TEST_P(Small_GraphPrimitivesPrimitiveOptionsName, ANullOrEmptyNameIsRefused)
+        {
+            const auto refused = require_options("prefix_scan", PrimitiveOptions{GetParam().name});
+
+            ASSERT_FALSE(refused.has_value());
+            EXPECT_EQ(refused.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_EQ(refused.error().message.rfind("prefix_scan:", 0), 0u)
+                << refused.error().message;
+            EXPECT_NE(refused.error().message.find("'options'"), std::string::npos)
+                << refused.error().message;
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesPrimitiveOptionsName,
+                                 ::testing::ValuesIn(name_rows()),
+                                 [](const ::testing::TestParamInfo<NameRow>& info)
+                                 { return std::string(info.param.label); });
 
         /** @brief Tests that a class outside the runtime's enumeration is refused. */
         TEST(Small_GraphPrimitivesPrimitiveOptions, AClassOutsideTheEnumerationIsRefused)

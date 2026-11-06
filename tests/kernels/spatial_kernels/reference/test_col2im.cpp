@@ -27,8 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -38,16 +36,12 @@
 #include <SushiBLAS/spatial_kernels/reference/col2im.hpp>
 #include <SushiBLAS/spatial_kernels/reference/im2col.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Relative tolerance: 1024 double roundings per unit of magnitude.
-        constexpr double K_ADJOINT_TOLERANCE = absolute_tolerance<double>(1024);
-
         TEST(Small_ReferenceCol2Im, IsTheAdjointOfIm2Col)
         {
             // <im2col(x), y> equals <x, col2im(y)>; on small integers both sides are exact.
@@ -63,7 +57,7 @@ namespace SushiBLAS
 
             const double lhs = std::inner_product(columns.begin(), columns.end(), y.begin(), 0.0);
             const double rhs = std::inner_product(x.begin(), x.end(), folded.begin(), 0.0);
-            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
+            EXPECT_EQ(lhs, rhs);
         }
 
         TEST(Small_ReferenceCol2Im, OnesFoldIntoTheOverlapCountOfEachPixel)

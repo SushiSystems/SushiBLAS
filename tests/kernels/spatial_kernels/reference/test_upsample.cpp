@@ -27,8 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
@@ -37,16 +35,12 @@
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/spatial_kernels/reference/upsample.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Relative tolerance: 1024 double roundings per unit of magnitude.
-        constexpr double K_ADJOINT_TOLERANCE = absolute_tolerance<double>(1024);
-
         /** @brief Returns the span of an upsample of a dense NHWC input by scale_h x scale_w. */
         static Spatial::WindowSpan upsample_span(int64_t batch, int64_t height, int64_t width,
                                                  int64_t channels, int64_t scale_h,
@@ -85,7 +79,8 @@ namespace SushiBLAS
 
             const double lhs = std::inner_product(y.begin(), y.end(), dy.begin(), 0.0);
             const double rhs = std::inner_product(x.begin(), x.end(), dx.begin(), 0.0);
-            EXPECT_NEAR(lhs, rhs, K_ADJOINT_TOLERANCE * std::max(1.0, std::abs(lhs)));
+            // Every product is a small integer, so both sums are exact.
+            EXPECT_EQ(lhs, rhs);
         }
     } // namespace Test
 } // namespace SushiBLAS

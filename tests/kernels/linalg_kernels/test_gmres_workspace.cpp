@@ -23,20 +23,37 @@
 
 /**
  * @file test_gmres_workspace.cpp
- * @brief Tests that GmresLayout places every array of the workspace after the one before it.
+ * @brief Tests that GmresLayout places every array of the workspace after the one before it, and that
+ * a solve with the default GmresSettings reaches the default tolerance.
  * @author Mustafa Garip
  */
 
 #include <SushiBLAS/linalg_kernels/gmres_workspace.hpp>
 
+#include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <SushiBLAS/linalg_kernels/reference/gmres.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Returns a row-major matrix of order n whose diagonal, n, outweighs the off-diagonal sum of each row. */
+            std::vector<double> diagonally_dominant_matrix(std::size_t n)
+            {
+                std::vector<double> a(n * n);
+                for (std::size_t i = 0; i < n; ++i)
+                    for (std::size_t j = 0; j < n; ++j)
+                        a[i * n + j] = i == j ? static_cast<double>(n)
+                                              : static_cast<double>((i * 7 + j * 3) % 5) - 2.0;
+                return a;
+            }
+        } // namespace
+
         TEST(Small_GmresLayout, PlacesTheArraysBackToBack)
         {
             const Kernels::GmresLayout layout(10, 4, 2);
@@ -63,14 +80,22 @@ namespace SushiBLAS
                       layout.scalars * sizeof(double) + 6u * sizeof(std::uint32_t));
         }
 
-        TEST(Small_GmresSettings, DefaultsMatchTheEngineContract)
+        TEST(Small_GmresSettings, ADefaultSolveConvergesToTheDefaultTolerance)
         {
+            constexpr std::size_t K_N = 12;
+            const std::vector<double> a = diagonally_dominant_matrix(K_N);
+            const std::vector<double> b(K_N, 1.0);
+            std::vector<double> x(K_N, 0.0);
+            std::uint32_t iterations = 0;
+            double residual = -1.0;
             const Kernels::GmresSettings settings;
 
-            EXPECT_EQ(settings.restart, 30u);
-            EXPECT_EQ(settings.max_iterations, 300u);
-            EXPECT_EQ(settings.relative_tolerance, 1e-6);
-            EXPECT_EQ(settings.block_size, 1u);
+            Kernels::Reference::gmres(a.data(), b.data(), x.data(), &iterations, &residual, K_N,
+                                      settings);
+
+            EXPECT_GE(iterations, 1u);
+            EXPECT_LT(iterations, settings.max_iterations);
+            EXPECT_LE(residual, settings.relative_tolerance);
         }
     } // namespace Test
 } // namespace SushiBLAS

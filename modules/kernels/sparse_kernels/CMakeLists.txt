@@ -36,5 +36,5 @@ sushiblas_add_test_program(
         sycl/test_spsymv.cpp
         sycl/test_sptrsv.cpp
     COMPILE_CHECKS
-        test_sparse_kernels_log_category.cpp
-        test_sparse.cpp)
+        compile_sparse_kernels_log_category.cpp
+        compile_sparse.cpp)

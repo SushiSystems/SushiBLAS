@@ -50,33 +50,51 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SYCLUpsample, MatchesTheReference)
+        namespace
+        {
+            /** @brief Returns the span of a 2 x 5 x 4 x 3 input upsampled by 2 and 3 to 10 x 12. */
+            Spatial::WindowSpan upsample_span()
+            {
+                Spatial::WindowSpan span = nhwc_span(2, 5, 4, 3, Spatial::ConvGeometry{}, 0);
+                span.out_h = 10;
+                span.out_w = 12;
+                span.out_row_stride = span.out_w * 3;
+                span.out_batch_stride = span.out_h * span.out_w * 3;
+                return span;
+            }
+        } // namespace
+
+        TEST_F(Medium_SYCLUpsample, ForwardMatchesTheReference)
         {
             // Every value is a small integer, so both kernels compute without rounding.
-            Spatial::WindowSpan span = nhwc_span(2, 5, 4, 3, Spatial::ConvGeometry{}, 0);
-            span.out_h = 10;
-            span.out_w = 12;
-            span.out_row_stride = span.out_w * 3;
-            span.out_batch_stride = span.out_h * span.out_w * 3;
+            const Spatial::WindowSpan span = upsample_span();
             const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
-            const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
             const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
-            const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
             const SharedArray<double> device_x(queue(), x);
-            const SharedArray<double> device_dy(queue(), dy);
             SharedArray<double> device_y(queue(), outputs);
-            SharedArray<double> device_dx(queue(), inputs);
             std::vector<double> y(outputs);
-            std::vector<double> dx(inputs);
 
             Kernels::SYCL::upsample_nearest(queue(), span, 2, 3, device_x.get(), device_y.get(),
                                             {}).wait();
-            Kernels::SYCL::upsample_nearest_backward(queue(), span, 2, 3, device_dy.get(),
-                                                     device_dx.get(), {}).wait();
             Kernels::Reference::upsample_nearest(span, 2, 3, x.data(), y.data());
-            Kernels::Reference::upsample_nearest_backward(span, 2, 3, dy.data(), dx.data());
 
             EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLUpsample, BackwardMatchesTheReference)
+        {
+            // Every value is a small integer, so both kernels compute without rounding.
+            const Spatial::WindowSpan span = upsample_span();
+            const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
+            const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
+            const SharedArray<double> device_dy(queue(), dy);
+            SharedArray<double> device_dx(queue(), inputs);
+            std::vector<double> dx(inputs);
+
+            Kernels::SYCL::upsample_nearest_backward(queue(), span, 2, 3, device_dy.get(),
+                                                     device_dx.get(), {}).wait();
+            Kernels::Reference::upsample_nearest_backward(span, 2, 3, dy.data(), dx.data());
+
             EXPECT_EQ(device_dx.values(), dx);
         }
     } // namespace Test

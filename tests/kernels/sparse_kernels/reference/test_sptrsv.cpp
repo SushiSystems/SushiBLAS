@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -42,33 +43,62 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSptrsv, RecoversTheVectorAProductMade)
+        namespace
         {
+            /** @brief One flag set of the triangular solve. */
+            struct FlagRow
+            {
+                    const char* name; /**< The row's suffix. */
+                    bool upper;       /**< Whether the upper triangle is solved. */
+                    bool transposed;  /**< Whether op(A) is the transpose. */
+                    bool unit;        /**< Whether the diagonal is taken as one. */
+            };
+
+            /** @brief Returns the eight combinations of triangle, transposition and diagonal. */
+            std::vector<FlagRow> flag_rows()
+            {
+                return {{"LowerPlainStored", false, false, false},
+                        {"LowerPlainUnit", false, false, true},
+                        {"LowerTransposedStored", false, true, false},
+                        {"LowerTransposedUnit", false, true, true},
+                        {"UpperPlainStored", true, false, false},
+                        {"UpperPlainUnit", true, false, true},
+                        {"UpperTransposedStored", true, true, false},
+                        {"UpperTransposedUnit", true, true, true}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string flag_row_name(const ::testing::TestParamInfo<FlagRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the reference sptrsv one flag set at a time. */
+        class Small_ReferenceSptrsv : public ::testing::TestWithParam<FlagRow>
+        {
+
+        };
+
+        TEST_P(Small_ReferenceSptrsv, RecoversTheVectorAProductMade)
+        {
+            const FlagRow& row = GetParam();
             const int64_t n = 9;
             // A stored unit diagonal keeps every substitution exact in integers.
             const IntegerCsr a = integer_csr(n, n, 3, true);
             const Kernels::CsrPattern<int64_t> pattern{n, n, a.nnz(), 0, a.offsets.data(),
                                                        a.columns.data()};
             const std::vector<double> solution = small_integers<double>(n, 4);
-            for (const bool upper : {false, true})
-            {
-                for (const bool transposed : {false, true})
-                {
-                    for (const bool unit : {false, true})
-                    {
-                        SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                        std::vector<double> b = dense_matvec(triangle_of(a.dense(), n, upper, unit),
-                                                             n, n, transposed, 1.0, solution, 0.0,
-                                                             solution);
+            std::vector<double> b = dense_matvec(triangle_of(a.dense(), n, row.upper, row.unit), n,
+                                                 n, row.transposed, 1.0, solution, 0.0, solution);
 
-                        Kernels::Reference::sptrsv(uplo_of(upper), transpose_of(transposed),
-                                                   diag_of(unit), pattern, a.values.data(),
-                                                   b.data());
+            Kernels::Reference::sptrsv(uplo_of(row.upper), transpose_of(row.transposed),
+                                       diag_of(row.unit), pattern, a.values.data(), b.data());
 
-                        EXPECT_EQ(b, solution);
-                    }
-                }
-            }
+            EXPECT_EQ(b, solution);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceSptrsv, ::testing::ValuesIn(flag_rows()),
+                                 flag_row_name);
     } // namespace Test
 } // namespace SushiBLAS

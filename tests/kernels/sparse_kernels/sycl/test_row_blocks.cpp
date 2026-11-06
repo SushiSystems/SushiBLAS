@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -46,30 +47,71 @@ namespace SushiBLAS
     {
         namespace Blocks = Kernels::SYCL;
 
-        TEST(Medium_RowBlocks, TheBlockCountIsCappedByUnitsEntriesAndTheMaximum)
+        namespace
         {
+            /** @brief One call of scatter_blocks on a CPU profile and the count it must give. */
+            struct BlockCountRow
+            {
+                    const char* name;     /**< The row's suffix. */
+                    std::size_t units;    /**< The compute units of the CPU profile. */
+                    int64_t outputs;      /**< Elements of the result. */
+                    int64_t entries;      /**< Stored entries of the matrix. */
+                    std::size_t expected; /**< The block count. */
+            };
+
+            /** @brief Returns the rows: no outputs, too few entries, units bind, and the maximum binds. */
+            std::vector<BlockCountRow> block_count_rows()
+            {
+                return {{"NoOutputsTakeNoBlock", 8, 0, 100, 0},
+                        {"FewEntriesPerOutputTakeOneBlock", 8, 1000, 100, 1},
+                        {"TheUnitsCapTheCount", 8, 10, 1000000, 8},
+                        {"TheMaximumCapsTheCount", 1000, 10, 1000000, Blocks::K_MAX_SCATTER_BLOCKS}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string block_count_row_name(const ::testing::TestParamInfo<BlockCountRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Expects the blocks of a matrix to start at row 0, end at the last row, and touch end to start. */
+            void expect_blocks_cover_the_rows(const Kernels::CsrPattern<int64_t>& pattern,
+                                              int64_t blocks)
+            {
+                EXPECT_EQ(Blocks::Detail::block_first_row(pattern, 0, blocks), int64_t{0});
+                EXPECT_EQ(Blocks::Detail::block_end_row(pattern, blocks - 1, blocks), pattern.rows);
+                for (int64_t block = 0; block + 1 < blocks; ++block)
+                    EXPECT_EQ(Blocks::Detail::block_end_row(pattern, block, blocks),
+                              Blocks::Detail::block_first_row(pattern, block + 1, blocks));
+            }
+        } // namespace
+
+        /** @brief Runs scatter_blocks one profile at a time. */
+        class Small_RowBlocks : public ::testing::TestWithParam<BlockCountRow>
+        {
+
+        };
+
+        TEST_P(Small_RowBlocks, TheBlockCountIsCappedByUnitsEntriesAndTheMaximum)
+        {
+            const BlockCountRow& row = GetParam();
             Device::Profile cpu;
             cpu.is_cpu = true;
-            cpu.compute_units = 8;
+            cpu.compute_units = row.units;
 
-            EXPECT_EQ(Blocks::scatter_blocks(cpu, 0, 100), std::size_t{0});
-            EXPECT_EQ(Blocks::scatter_blocks(cpu, 1000, 100), std::size_t{1});
-            EXPECT_EQ(Blocks::scatter_blocks(cpu, 10, 1000000), std::size_t{8});
-            EXPECT_LE(Blocks::scatter_blocks(cpu, 10, 1000000), Blocks::K_MAX_SCATTER_BLOCKS);
+            EXPECT_EQ(Blocks::scatter_blocks(cpu, row.outputs, row.entries), row.expected);
         }
 
-        TEST(Medium_RowBlocks, TheBlocksCoverTheRowsInOrder)
+        INSTANTIATE_TEST_SUITE_P(, Small_RowBlocks, ::testing::ValuesIn(block_count_rows()),
+                                 block_count_row_name);
+
+        TEST(Small_RowBlocksCoverage, TheBlocksCoverTheRowsInOrder)
         {
             const IntegerCsr a = integer_csr(50, 40, 3, false);
             const Kernels::CsrPattern<int64_t> pattern{50, 40, a.nnz(), 0, a.offsets.data(),
                                                        a.columns.data()};
-            const int64_t blocks = 6;
 
-            EXPECT_EQ(Blocks::Detail::block_first_row(pattern, 0, blocks), int64_t{0});
-            EXPECT_EQ(Blocks::Detail::block_end_row(pattern, blocks - 1, blocks), int64_t{50});
-            for (int64_t block = 0; block + 1 < blocks; ++block)
-                EXPECT_EQ(Blocks::Detail::block_end_row(pattern, block, blocks),
-                          Blocks::Detail::block_first_row(pattern, block + 1, blocks));
+            expect_blocks_cover_the_rows(pattern, 6);
         }
 
         /** @brief Folds partials on the host CPU queue. */

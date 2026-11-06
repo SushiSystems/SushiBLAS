@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_spatial.cpp                                                       */
+/* compile_sparse_kernels_log_category.cpp                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,9 +22,15 @@
 /**************************************************************************/
 
 /**
- * @file test_spatial.cpp
- * @brief Checks at compile time that the umbrella header compiles on its own; the build compiles it and no test runner lists it.
+ * @file compile_sparse_kernels_log_category.cpp
+ * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
+
+namespace SushiBLAS
+{
+    static_assert(K_SPARSE_KERNELS_LOG_CATEGORY.module() == "sparse_kernels", "the folder name of the module");
+    static_assert(K_SPARSE_KERNELS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+} // namespace SushiBLAS

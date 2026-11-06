@@ -23,7 +23,7 @@
 
 /**
  * @file test_launch_1d.cpp
- * @brief Tests the shape-taking launch primitives and the local tile fit check.
+ * @brief Tests the shape-taking launch primitives.
  * @author Mustafa Garip
  */
 
@@ -33,7 +33,6 @@
 #include <vector>
 #include <cstddef>
 #include <cstring>
-#include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -69,6 +68,25 @@ namespace SushiBLAS
                 return static_cast<T>(i % K_VALUE_PERIOD);
             }
 
+            /** @brief Sets element i of array to generate(i) for every i below n. */
+            template<typename T, typename Generator>
+            void fill_from(SharedArray<T>& array, std::size_t n, Generator generate)
+            {
+                for (std::size_t i = 0; i < n; ++i)
+                    array.get()[i] = generate(i);
+            }
+
+            /** @brief Returns the n values generate(0) to generate(n - 1). */
+            template<typename T, typename Generator>
+            [[nodiscard]] std::vector<T> vector_from(std::size_t n, Generator generate)
+            {
+                std::vector<T> values;
+                values.reserve(n);
+                for (std::size_t i = 0; i < n; ++i)
+                    values.push_back(generate(i));
+                return values;
+            }
+
             /** @brief Returns how many elements of got differ in their bits from the same element of want. */
             template<typename T>
             [[nodiscard]] std::size_t count_mismatches(const T* got, const std::vector<T>& want)
@@ -92,55 +110,61 @@ namespace SushiBLAS
                 }
         };
 
+        /** @brief Gives a launch-shape test one element count to run at. */
+        class LaunchAtCount : public ::testing::TestWithParam<std::size_t>
+        {
+            protected:
+                /** @brief Returns the queue of the test environment. */
+                [[nodiscard]] static sycl::queue& queue()
+                {
+                    return TestEnvironment::queue();
+                }
+        };
+
+        /// @brief Runs the wide pass of a map at one element count.
+        class Medium_LaunchWidePass : public LaunchAtCount
+        {
+        };
+
         /** @brief Tests that a wide pass and its scalar tail together write every element of a map. */
-        TEST_F(Medium_LaunchShapes, TheWidePassAndItsTailCoverEveryElement)
+        TEST_P(Medium_LaunchWidePass, TheWidePassAndItsTailCoverEveryElement)
         {
             sycl::queue& q = queue();
+            const std::size_t n = GetParam();
+            SharedArray<float> in(q, n);
+            SharedArray<float> out(q, n);
+            fill_from(in, n, [](std::size_t i) { return value_at<float>(i); });
+            fill_from(out, n, [](std::size_t) { return -1.0f; });
+            const std::vector<float> want =
+                vector_from<float>(n, [](std::size_t i) { return value_at<float>(i) * 2.0f + 1.0f; });
 
-            for (const std::size_t n : {std::size_t{1}, std::size_t{3}, std::size_t{4}, std::size_t{5},
-                                        std::size_t{127}, std::size_t{1000}, std::size_t{1023},
-                                        K_LARGE_COUNT})
+            const Launch::Shape1D shape = gpu_like_shape(q, n, 4);
+            ASSERT_EQ(shape.vector_steps, n / 4);
+            ASSERT_FALSE(shape.flat);
+
+            const float* in_ptr = in.get();
+            float* out_ptr = out.get();
+            q.submit([&](sycl::handler& h)
             {
-                SCOPED_TRACE(n);
-                SharedArray<float> in(q, n);
-                SharedArray<float> out(q, n);
-                std::vector<float> want(n);
-                for (std::size_t i = 0; i < n; ++i)
-                {
-                    in.get()[i] = value_at<float>(i);
-                    out.get()[i] = -1.0f;
-                    want[i] = value_at<float>(i) * 2.0f + 1.0f;
-                }
+                Launch::map(h, shape, n, [](float x) { return x * 2.0f + 1.0f; },
+                            out_ptr, in_ptr);
+            }).wait();
 
-                const Launch::Shape1D shape = gpu_like_shape(q, n, 4);
-                ASSERT_EQ(shape.vector_steps, n / 4);
-                ASSERT_FALSE(shape.flat);
-
-                const float* in_ptr = in.get();
-                float* out_ptr = out.get();
-                q.submit([&](sycl::handler& h)
-                {
-                    Launch::map(h, shape, n, [](float x) { return x * 2.0f + 1.0f; },
-                                out_ptr, in_ptr);
-                }).wait();
-
-                EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
-            }
+            EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_LaunchWidePass,
+                                 ::testing::Values(1, 3, 4, 5, 127, 1000, 1023, K_LARGE_COUNT));
 
         /** @brief Tests that a grid-stride map without a wide pass updates every element exactly once. */
         TEST_F(Medium_LaunchShapes, TheGridStrideLoopVisitsEveryElementOnce)
         {
             sycl::queue& q = queue();
             const std::size_t n = K_LARGE_COUNT;
-
             SharedArray<float> data(q, n);
-            std::vector<float> want(n);
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                data.get()[i] = value_at<float>(i);
-                want[i] = value_at<float>(i) + 1.0f;
-            }
+            fill_from(data, n, [](std::size_t i) { return value_at<float>(i); });
+            const std::vector<float> want =
+                vector_from<float>(n, [](std::size_t i) { return value_at<float>(i) + 1.0f; });
 
             const Launch::Shape1D shape = gpu_like_shape(q, n, 1);
             ASSERT_EQ(shape.vector_steps, std::size_t{0});
@@ -158,73 +182,72 @@ namespace SushiBLAS
             EXPECT_EQ(count_mismatches(data.get(), want), std::size_t{0});
         }
 
-        /** @brief Tests that a fused in-place update gives the host result when it takes the wide pass. */
-        TEST_F(Medium_LaunchShapes, AFusedUpdateTakesTheWidePass)
+        /// @brief Runs a fused in-place update at one element count.
+        class Medium_LaunchFusedUpdate : public LaunchAtCount
+        {
+        };
+
+        /** @brief Tests that a fused in-place update gives the host result. */
+        TEST_P(Medium_LaunchFusedUpdate, AFusedUpdateTakesTheWidePass)
         {
             sycl::queue& q = queue();
+            const std::size_t n = GetParam();
+            SharedArray<float> first(q, n);
+            SharedArray<float> second(q, n);
+            fill_from(first, n, [](std::size_t i) { return value_at<float>(i); });
+            fill_from(second, n, [](std::size_t i) { return value_at<float>(i + 7); });
+            const std::vector<float> want_first = vector_from<float>(
+                n, [](std::size_t i) { return value_at<float>(i + 7) * 2.0f; });
+            const std::vector<float> want_second = vector_from<float>(
+                n, [](std::size_t i) { return value_at<float>(i) * 3.0f; });
 
-            for (const std::size_t n : {std::size_t{5}, std::size_t{1023}, K_LARGE_COUNT})
+            const std::array<float*, 2> ptrs{first.get(), second.get()};
+            q.submit([&](sycl::handler& h)
             {
-                SCOPED_TRACE(n);
-                SharedArray<float> first(q, n);
-                SharedArray<float> second(q, n);
-                std::vector<float> want_first(n);
-                std::vector<float> want_second(n);
-                for (std::size_t i = 0; i < n; ++i)
+                Launch::zip_inplace(h, gpu_like_shape(q, n, 4), n, ptrs, [](float& a, float& b)
                 {
-                    first.get()[i] = value_at<float>(i);
-                    second.get()[i] = value_at<float>(i + 7);
-                    want_first[i] = value_at<float>(i + 7) * 2.0f;
-                    want_second[i] = value_at<float>(i) * 3.0f;
-                }
+                    const float held = a;
+                    a = b * 2.0f;
+                    b = held * 3.0f;
+                });
+            }).wait();
 
-                const Launch::Shape1D shape = gpu_like_shape(q, n, 4);
-                ASSERT_EQ(shape.vector_steps, n / 4);
-
-                const std::array<float*, 2> ptrs{first.get(), second.get()};
-                q.submit([&](sycl::handler& h)
-                {
-                    Launch::zip_inplace(h, shape, n, ptrs, [](float& a, float& b)
-                    {
-                        const float held = a;
-                        a = b * 2.0f;
-                        b = held * 3.0f;
-                    });
-                }).wait();
-
-                EXPECT_EQ(count_mismatches(first.get(), want_first), std::size_t{0});
-                EXPECT_EQ(count_mismatches(second.get(), want_second), std::size_t{0});
-            }
+            EXPECT_EQ(count_mismatches(first.get(), want_first), std::size_t{0});
+            EXPECT_EQ(count_mismatches(second.get(), want_second), std::size_t{0});
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_LaunchFusedUpdate,
+                                 ::testing::Values(5, 1023, K_LARGE_COUNT));
+
+        /// @brief Runs an indexed call at one element count.
+        class Medium_LaunchIndexed : public LaunchAtCount
+        {
+        };
 
         /** @brief Tests that indexed calls its operation for every index of a grid-stride shape. */
-        TEST_F(Medium_LaunchShapes, IndexedCoversEveryIndexInAGridStrideShape)
+        TEST_P(Medium_LaunchIndexed, IndexedCoversEveryIndexInAGridStrideShape)
         {
             sycl::queue& q = queue();
+            const std::size_t n = GetParam();
+            SharedArray<std::size_t> out(q, n);
+            fill_from(out, n, [](std::size_t) { return std::numeric_limits<std::size_t>::max(); });
+            const std::vector<std::size_t> want =
+                vector_from<std::size_t>(n, [](std::size_t i) { return i; });
 
-            for (const std::size_t n : {std::size_t{1}, std::size_t{1023}, K_LARGE_COUNT})
+            const Launch::Shape1D shape = gpu_like_shape(q, n, 1);
+            ASSERT_FALSE(shape.flat);
+
+            std::size_t* out_ptr = out.get();
+            q.submit([&](sycl::handler& h)
             {
-                SCOPED_TRACE(n);
-                SharedArray<std::size_t> out(q, n);
-                std::vector<std::size_t> want(n);
-                for (std::size_t i = 0; i < n; ++i)
-                {
-                    out.get()[i] = std::numeric_limits<std::size_t>::max();
-                    want[i] = i;
-                }
+                Launch::indexed(h, shape, n, [out_ptr](std::size_t i) { out_ptr[i] = i; });
+            }).wait();
 
-                const Launch::Shape1D shape = gpu_like_shape(q, n, 1);
-                ASSERT_FALSE(shape.flat);
-
-                std::size_t* out_ptr = out.get();
-                q.submit([&](sycl::handler& h)
-                {
-                    Launch::indexed(h, shape, n, [out_ptr](std::size_t i) { out_ptr[i] = i; });
-                }).wait();
-
-                EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
-            }
+            EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_LaunchIndexed,
+                                 ::testing::Values(1, 1023, K_LARGE_COUNT));
 
         /** @brief Tests that a type of vector width one writes every element of a shape that asks for a wide pass. */
         TEST_F(Medium_LaunchShapes, AWidthOneTypeIgnoresAWidePass)
@@ -237,14 +260,12 @@ namespace SushiBLAS
             const std::size_t n = K_LARGE_COUNT;
             SharedArray<Element> in(q, n);
             SharedArray<Element> out(q, n);
-            std::vector<Element> want(n);
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                in.get()[i] = Element(value_at<float>(i), 2.0f);
-                out.get()[i] = Element(-1.0f, -1.0f);
-                want[i] = Element(value_at<float>(i) + 1.0f, 2.0f);
-            }
+            fill_from(in, n, [](std::size_t i) { return Element(value_at<float>(i), 2.0f); });
+            fill_from(out, n, [](std::size_t) { return Element(-1.0f, -1.0f); });
+            const std::vector<Element> want = vector_from<Element>(
+                n, [](std::size_t i) { return Element(value_at<float>(i) + 1.0f, 2.0f); });
 
+            // The promise is about a requested wide pass, so the request is forced here.
             Launch::Shape1D shape = gpu_like_shape(q, n, 1);
             shape.vector_steps = n / 4;
 
@@ -260,42 +281,43 @@ namespace SushiBLAS
             EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
         }
 
+        /// @brief Runs the queue form of map at one element count.
+        class Medium_LaunchQueueForm : public LaunchAtCount
+        {
+        };
+
         /** @brief Tests that the queue form of map writes the same bits as the shape form given the planned shape. */
-        TEST_F(Medium_LaunchShapes, TheQueueFormMatchesTheShapeItPlans)
+        TEST_P(Medium_LaunchQueueForm, TheQueueFormMatchesTheShapeItPlans)
         {
             sycl::queue& q = queue();
+            const std::size_t n = GetParam();
+            SharedArray<float> in(q, n);
+            SharedArray<float> by_queue(q, n);
+            SharedArray<float> by_shape(q, n);
+            fill_from(in, n, [](std::size_t i) { return value_at<float>(i); });
+            fill_from(by_queue, n, [](std::size_t) { return -1.0f; });
+            fill_from(by_shape, n, [](std::size_t) { return -2.0f; });
 
-            for (const std::size_t n : {std::size_t{5}, std::size_t{1023}, K_LARGE_COUNT})
+            const float* in_ptr = in.get();
+            float* queue_ptr = by_queue.get();
+            float* shape_ptr = by_shape.get();
+            const bool aligned = Launch::vector_aligned(in_ptr, queue_ptr, shape_ptr);
+            ASSERT_TRUE(aligned);
+
+            const auto op = [](float x) { return x * 2.0f + 1.0f; };
+            q.submit([&](sycl::handler& h)
             {
-                SCOPED_TRACE(n);
-                SharedArray<float> in(q, n);
-                SharedArray<float> by_queue(q, n);
-                SharedArray<float> by_shape(q, n);
-                for (std::size_t i = 0; i < n; ++i)
-                {
-                    in.get()[i] = value_at<float>(i);
-                    by_queue.get()[i] = -1.0f;
-                    by_shape.get()[i] = -2.0f;
-                }
+                Launch::map(h, q, n, aligned, op, queue_ptr, in_ptr);
+            }).wait();
+            q.submit([&](sycl::handler& h)
+            {
+                Launch::map(h, Launch::plan<float>(q, n, aligned), n, op, shape_ptr, in_ptr);
+            }).wait();
 
-                const float* in_ptr = in.get();
-                float* queue_ptr = by_queue.get();
-                float* shape_ptr = by_shape.get();
-                const bool aligned = Launch::vector_aligned(in_ptr, queue_ptr, shape_ptr);
-                ASSERT_TRUE(aligned);
-
-                const auto op = [](float x) { return x * 2.0f + 1.0f; };
-                q.submit([&](sycl::handler& h)
-                {
-                    Launch::map(h, q, n, aligned, op, queue_ptr, in_ptr);
-                }).wait();
-                q.submit([&](sycl::handler& h)
-                {
-                    Launch::map(h, Launch::plan<float>(q, n, aligned), n, op, shape_ptr, in_ptr);
-                }).wait();
-
-                EXPECT_EQ(0, std::memcmp(queue_ptr, shape_ptr, n * sizeof(float)));
-            }
+            EXPECT_EQ(0, std::memcmp(queue_ptr, shape_ptr, n * sizeof(float)));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_LaunchQueueForm,
+                                 ::testing::Values(5, 1023, K_LARGE_COUNT));
     } // namespace Test
 } // namespace SushiBLAS

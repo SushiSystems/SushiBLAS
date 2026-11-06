@@ -37,48 +37,60 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_SubmittedEvents, ADefaultValueHoldsNoEvent)
-        {
-            const Device::SubmittedEvents events;
-
-            EXPECT_TRUE(events.empty());
-            EXPECT_TRUE(events.events().empty());
-        }
-
+        /** @brief Tests that an event converts to a value holding exactly that event. */
         TEST(Small_SubmittedEvents, AnEventConvertsToAValueHoldingOneEvent)
         {
-            const Device::SubmittedEvents events = sycl::event();
+            const sycl::event event;
 
-            EXPECT_EQ(events.events().size(), std::size_t{1});
+            const Device::SubmittedEvents events = event;
+
+            ASSERT_EQ(events.events().size(), std::size_t{1});
+            EXPECT_TRUE(events.events()[0] == event);
         }
 
+        /** @brief Tests that appended events follow the first one in submission order. */
         TEST(Small_SubmittedEvents, AppendKeepsSubmissionOrder)
         {
-            Device::SubmittedEvents events(sycl::event{});
-            events.append(sycl::event{});
-            Device::SubmittedEvents later(std::vector<sycl::event>(2));
+            const sycl::event first;
+            const sycl::event second;
+            const sycl::event third;
+            const sycl::event fourth;
+            Device::SubmittedEvents events(first);
+            events.append(second);
+            Device::SubmittedEvents later(std::vector<sycl::event>{third, fourth});
             events.append(later);
 
-            EXPECT_EQ(events.events().size(), std::size_t{4});
+            const std::vector<sycl::event>& held = events.events();
+
+            ASSERT_EQ(held.size(), std::size_t{4});
+            EXPECT_TRUE(held[0] == first);
+            EXPECT_TRUE(held[1] == second);
+            EXPECT_TRUE(held[2] == third);
+            EXPECT_TRUE(held[3] == fourth);
         }
 
-        TEST(Small_SubmittedEvents, AValueConvertsToTheLastEventOrToAnEmptyOne)
+        /** @brief Tests that a value converts to the last event it holds. */
+        TEST(Small_SubmittedEvents, AValueConvertsToTheLastEvent)
         {
-            const Device::SubmittedEvents none;
-            sycl::event from_none = none;
-            const Device::SubmittedEvents some(std::vector<sycl::event>(3));
-            sycl::event from_some = some;
+            const sycl::event first;
+            const sycl::event last;
+            const Device::SubmittedEvents some(std::vector<sycl::event>{first, last});
 
-            EXPECT_NO_THROW(from_none.wait());
-            EXPECT_NO_THROW(from_some.wait());
+            const sycl::event converted = some;
+
+            EXPECT_TRUE(converted == last);
+            EXPECT_FALSE(converted == first);
         }
 
-        TEST(Small_SubmittedEvents, WaitOnAnEmptyValueReturns)
+        /** @brief Tests that a value holding no event converts to an event that is already complete. */
+        TEST(Small_SubmittedEvents, AnEmptyValueConvertsToACompleteEvent)
         {
             const Device::SubmittedEvents none;
 
-            EXPECT_NO_THROW(none.wait());
-            EXPECT_NO_THROW(none.wait_and_throw());
+            const sycl::event converted = none;
+
+            EXPECT_EQ(converted.get_info<sycl::info::event::command_execution_status>(),
+                      sycl::info::event_command_status::complete);
         }
     } // namespace Test
 } // namespace SushiBLAS

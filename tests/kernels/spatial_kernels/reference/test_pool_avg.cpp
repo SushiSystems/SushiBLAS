@@ -27,7 +27,9 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
+#include <functional>
 #include <cstdint>
 #include <numeric>
 #include <vector>
@@ -35,13 +37,23 @@
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/spatial_kernels/reference/pool_avg.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/tolerance.hpp"
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Returns the sum of |a[i] * b[i]|, the magnitude a dot product's rounding bound scales with. */
+            double sum_of_absolute_products(const std::vector<double>& a, const std::vector<double>& b)
+            {
+                return std::inner_product(a.begin(), a.end(), b.begin(), 0.0, std::plus<double>(),
+                                          [](double left, double right) { return std::abs(left * right); });
+            }
+        } // namespace
+
         TEST(Small_ReferencePoolAvg, AveragesEachWindowOverItsFullArea)
         {
             Spatial::ConvGeometry geometry;
@@ -60,7 +72,7 @@ namespace SushiBLAS
 
         TEST(Small_ReferencePoolAvg, TheBackwardIsTheAdjoint)
         {
-            // A window area of 6 makes each average a sixth; the dot products agree to rounding.
+            // A window area of 6 makes each average a sixth, so the dot products agree within a sum-of-products bound.
             const Spatial::WindowSpan span = nhwc_span(2, 7, 6, 2, uneven_geometry(), 1);
             const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
             const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
@@ -70,9 +82,11 @@ namespace SushiBLAS
             Kernels::Reference::pool_avg(span, x.data(), y.data());
             Kernels::Reference::pool_avg_backward(span, dy.data(), dx.data());
 
-            EXPECT_NEAR(std::inner_product(y.begin(), y.end(), dy.begin(), 0.0),
-                        std::inner_product(x.begin(), x.end(), dx.begin(), 0.0),
-                        absolute_tolerance<double>(1048576));
+            const double lhs = std::inner_product(y.begin(), y.end(), dy.begin(), 0.0);
+            const double rhs = std::inner_product(x.begin(), x.end(), dx.begin(), 0.0);
+            const double magnitude = sum_of_absolute_products(y, dy) + sum_of_absolute_products(x, dx);
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<double>(
+                lhs, rhs, magnitude, y.size() + x.size())));
         }
     } // namespace Test
 } // namespace SushiBLAS

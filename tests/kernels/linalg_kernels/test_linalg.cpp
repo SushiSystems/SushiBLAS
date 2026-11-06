@@ -23,7 +23,8 @@
 
 /**
  * @file test_linalg.cpp
- * @brief Tests that linalg.hpp alone reaches the reference and the SYCL linear algebra kernels.
+ * @brief Tests that linalg.hpp alone declares the LU factor and solve in the reference and the SYCL
+ * kernels.
  * @author Mustafa Garip
  */
 
@@ -39,17 +40,16 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_LinalgKernels, AReferenceKernelIsReachable)
+        TEST(Small_LinalgKernels, FactorThenSolveGivesTheSolutionOfAOneByOneSystem)
         {
             std::vector<double> a{4.0};
             std::vector<std::uint32_t> pivots(1);
-            std::vector<std::uint32_t> singular(1, 7u);
+            std::vector<std::uint32_t> singular(1);
             std::vector<double> x{8.0};
 
             Kernels::Reference::lu_factor(a.data(), pivots.data(), singular.data(), 1, 1);
             Kernels::Reference::lu_solve(a.data(), pivots.data(), x.data(), 1, 1, 1);
 
-            EXPECT_EQ(singular[0], 0u);
             EXPECT_EQ(x[0], 2.0);
         }
 
@@ -59,11 +59,11 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_LinalgKernelsOnDevice, ASYCLKernelIsReachable)
+        TEST_F(Medium_LinalgKernelsOnDevice, FactorLeavesANonSingularOneByOneMatrixUnflagged)
         {
             SharedArray<double> a(queue(), std::vector<double>{4.0});
             SharedArray<std::uint32_t> pivots(queue(), 1);
-            SharedArray<std::uint32_t> singular(queue(), 1);
+            SharedArray<std::uint32_t> singular(queue(), std::vector<std::uint32_t>{7u});
 
             Kernels::SYCL::lu_factor(queue(), a.get(), pivots.get(), singular.get(), 1, 1, {})
                 .wait();

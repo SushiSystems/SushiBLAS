@@ -34,6 +34,8 @@
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
+#include <string>
+#include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/sparse_assembly/sparse_assembly.hpp>
@@ -68,6 +70,39 @@ namespace SushiBLAS
             /// @brief A column count one INT32 index cannot address: 2^31 + 5.
             constexpr int64_t K_COLS_PAST_INT32 = (int64_t{1} << 31) + 5;
 
+            /// @brief Holds the number of triplets of the sample given in parts.
+            constexpr std::size_t K_PART_COUNT = 11;
+
+            /// @brief Names an index width and a base the sample is stored in.
+            struct SampleRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the base of the stored indices.
+                IndexBase base;
+                /// @brief Holds the check of the sample in the row's index width.
+                void (*expect_assembles)(IndexBase);
+            };
+
+            /// @brief Holds the arguments of one call to assemble_csr that must be refused.
+            struct RefusedRow
+            {
+                /// @brief Names the row in the test report.
+                const char* name;
+                /// @brief Holds the row count.
+                int64_t rows;
+                /// @brief Holds the column count.
+                int64_t cols;
+                /// @brief Holds the first index of the base.
+                int64_t first_index;
+                /// @brief Holds the row index of each triplet.
+                std::vector<int32_t> row_indices;
+                /// @brief Holds the column index of each triplet.
+                std::vector<int32_t> column_indices;
+                /// @brief Holds the value of each triplet.
+                std::vector<float> values;
+            };
+
             /** @brief Returns the CSR arrays of host triplets, stored in Index with base. */
             template<typename Index, typename T>
             [[nodiscard]] HostCsr<Index, T> assemble(const HostTriplets<T>& host, IndexBase base)
@@ -79,12 +114,10 @@ namespace SushiBLAS
             }
 
             /** @brief Assembles FLOAT32 triplets with INT32 indices and drops the arrays. */
-            void assemble_and_drop(int64_t rows, int64_t cols, int64_t first_index,
-                                   const std::vector<int32_t>& row_indices,
-                                   const std::vector<int32_t>& column_indices,
-                                   const std::vector<float>& values)
+            void assemble_and_drop(const RefusedRow& row)
             {
-                (void)assemble_csr(rows, cols, first_index, row_indices, column_indices, values);
+                (void)assemble_csr(row.rows, row.cols, row.first_index, row.row_indices,
+                                   row.column_indices, row.values);
             }
 
             /** @brief Returns the one value three triplets on the pair (0, 0) assemble to. */
@@ -136,41 +169,132 @@ namespace SushiBLAS
                 std::rotate(host.values.begin(), host.values.begin() + places, host.values.end());
                 return host;
             }
+
+            /** @brief Returns the dense image of the triplets: one summed value per pair. */
+            [[nodiscard]] std::vector<float> dense_of(const HostTriplets<float>& host)
+            {
+                const std::size_t cols = static_cast<std::size_t>(host.cols);
+                std::vector<float> dense(static_cast<std::size_t>(host.rows) * cols, 0.0f);
+                for (std::size_t k = 0; k < host.values.size(); ++k)
+                {
+                    dense[static_cast<std::size_t>(host.row_indices[k]) * cols +
+                          static_cast<std::size_t>(host.column_indices[k])] += host.values[k];
+                }
+                return dense;
+            }
+
+            /** @brief Returns the dense image of the CSR arrays of a zero-based matrix. */
+            [[nodiscard]] std::vector<float> dense_of(const HostCsr<int32_t, float>& csr,
+                                                      std::size_t rows, std::size_t cols)
+            {
+                std::vector<float> dense(rows * cols, 0.0f);
+                for (std::size_t row = 0; row < rows; ++row)
+                {
+                    for (int32_t entry = csr.row_offsets[row]; entry < csr.row_offsets[row + 1];
+                         ++entry)
+                    {
+                        dense[row * cols + static_cast<std::size_t>(csr.column_indices[entry])] =
+                            csr.values[static_cast<std::size_t>(entry)];
+                    }
+                }
+                return dense;
+            }
+
+            /** @brief Returns the number of distinct (row, column) pairs the triplets name. */
+            [[nodiscard]] std::size_t distinct_pairs_of(const HostTriplets<float>& host)
+            {
+                std::vector<std::pair<int32_t, int32_t>> pairs;
+                for (std::size_t k = 0; k < host.values.size(); ++k)
+                    pairs.emplace_back(static_cast<int32_t>(host.row_indices[k]),
+                                       static_cast<int32_t>(host.column_indices[k]));
+                std::sort(pairs.begin(), pairs.end());
+                return static_cast<std::size_t>(std::unique(pairs.begin(), pairs.end()) -
+                                                pairs.begin());
+            }
+
+            /** @brief Returns whether the columns of every row of csr strictly ascend. */
+            [[nodiscard]] bool rows_ascend_strictly(const HostCsr<int32_t, float>& csr)
+            {
+                for (std::size_t row = 0; row + 1 < csr.row_offsets.size(); ++row)
+                {
+                    for (int32_t entry = csr.row_offsets[row] + 1; entry < csr.row_offsets[row + 1];
+                         ++entry)
+                    {
+                        if (csr.column_indices[entry - 1] >= csr.column_indices[entry])
+                            return false;
+                    }
+                }
+                return true;
+            }
+
+            /** @brief Returns the matrix whose rows are checked for order. */
+            [[nodiscard]] HostTriplets<float> ordered_matrix()
+            {
+                return integer_valued_matrix<float>(K_ORDERED_ROWS, K_ORDERED_COLS,
+                                                    K_ORDERED_PER_ROW, K_ORDERED_SEED);
+            }
+
+            /** @brief Names a test case after its row. */
+            template<typename Row>
+            std::string row_name(const ::testing::TestParamInfo<Row>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
 
-        TEST(Medium_SparseAssembly, TheSampleTripletsGiveTheSampleArraysUnderBothBases)
+        /// @brief Runs the sample in one index width and one base.
+        class Small_SparseAssemblySample : public ::testing::TestWithParam<SampleRow>
         {
-            for (const IndexBase base : K_BOTH_BASES)
-            {
-                expect_sample_assembles<int32_t>(base);
-                expect_sample_assembles<int64_t>(base);
-            }
+        };
+
+        /** @brief Tests that the sample triplets assemble to the sample arrays. */
+        TEST_P(Small_SparseAssemblySample, TheSampleTripletsGiveTheSampleArrays)
+        {
+            GetParam().expect_assembles(GetParam().base);
         }
 
-        TEST(Medium_SparseAssembly, AnEntryGivenInPartsIsAddedWhereverThePartsArrive)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_SparseAssemblySample,
+            ::testing::Values(
+                SampleRow{"Int32ZeroBased", IndexBase::Zero, &expect_sample_assembles<int32_t>},
+                SampleRow{"Int32OneBased", IndexBase::One, &expect_sample_assembles<int32_t>},
+                SampleRow{"Int64ZeroBased", IndexBase::Zero, &expect_sample_assembles<int64_t>},
+                SampleRow{"Int64OneBased", IndexBase::One, &expect_sample_assembles<int64_t>}),
+            row_name<SampleRow>);
+
+        /// @brief Runs the sample given in parts at one rotation of its triplets.
+        class Small_SparseAssemblyRotation : public ::testing::TestWithParam<std::size_t>
+        {
+        };
+
+        /** @brief Tests that an entry given in parts is added wherever its parts arrive. */
+        TEST_P(Small_SparseAssemblyRotation, AnEntryGivenInPartsIsAddedWhereverThePartsArrive)
         {
             const HostTriplets<float> parts = sample_in_parts();
+            ASSERT_EQ(parts.values.size(), K_PART_COUNT);
 
-            for (std::size_t shift = 0; shift < parts.values.size(); ++shift)
-            {
-                SCOPED_TRACE(shift);
-                expect_sample(assemble<int32_t, float>(rotated(parts, shift), IndexBase::Zero),
-                              IndexBase::Zero);
-            }
+            expect_sample(assemble<int32_t, float>(rotated(parts, GetParam()), IndexBase::Zero),
+                          IndexBase::Zero);
         }
 
-        TEST(Medium_SparseAssembly, ARepeatedPairInFloat32IsSummedInDouble)
+        INSTANTIATE_TEST_SUITE_P(, Small_SparseAssemblyRotation,
+                                 ::testing::Range<std::size_t>(0, K_PART_COUNT));
+
+        /** @brief Tests that a repeated FLOAT32 pair is summed in double. */
+        TEST(Small_SparseAssembly, ARepeatedPairInFloat32IsSummedInDouble)
         {
             // Left to right in FLOAT32, 16777216 + 1 rounds back to 16777216 and the sum is 0.
             EXPECT_EQ(folded_triple<float>(16777216.0f, 1.0f, -16777216.0f), 1.0f);
         }
 
-        TEST(Medium_SparseAssembly, ARepeatedPairInFloat64IsSummedWithItsRoundingErrors)
+        /** @brief Tests that a repeated FLOAT64 pair is summed with compensation. */
+        TEST(Small_SparseAssembly, ARepeatedPairInFloat64IsSummedWithItsRoundingErrors)
         {
             EXPECT_EQ(folded_triple<double>(1e16, 1.0, -1e16), 1.0);
         }
 
-        TEST(Medium_SparseAssembly, APairThatCancelsStaysAStoredZero)
+        /** @brief Tests that a pair that cancels stays a stored zero. */
+        TEST(Small_SparseAssembly, APairThatCancelsStaysAStoredZero)
         {
             const HostCsr<int32_t, float> csr =
                 assemble_csr<int32_t, float>(2, 3, 0, {1, 1}, {2, 2}, {1.0f, -1.0f});
@@ -180,7 +304,8 @@ namespace SushiBLAS
             EXPECT_EQ(csr.values, (std::vector<float>{0.0f}));
         }
 
-        TEST(Medium_SparseAssembly, APairGivenOnceKeepsANaNAndItsBits)
+        /** @brief Tests that a pair given once keeps a NaN and its payload bit for bit. */
+        TEST(Small_SparseAssembly, APairGivenOnceKeepsANaNAndItsBits)
         {
             float nan = 0.0f;
             std::memcpy(&nan, &K_NAN_BITS, sizeof(nan));
@@ -196,124 +321,134 @@ namespace SushiBLAS
             EXPECT_EQ(csr.values[0], 2.0f);
         }
 
-        TEST(Medium_SparseAssembly, AMatrixWithoutTripletsHasEqualOffsets)
+        /// @brief Runs a case in one index base.
+        class Small_SparseAssemblyBase : public ::testing::TestWithParam<IndexBase>
         {
-            for (const IndexBase base : K_BOTH_BASES)
-            {
-                const int64_t first = Core::first_index(base);
-                const HostCsr<int64_t, double> csr =
-                    assemble_csr<int64_t, double>(3, 4, first, {}, {}, {});
+        };
 
-                EXPECT_EQ(csr.row_offsets, std::vector<int64_t>(4, first));
-                EXPECT_TRUE(csr.column_indices.empty());
-                EXPECT_TRUE(csr.values.empty());
-            }
+        /** @brief Tests that a matrix without triplets has equal offsets. */
+        TEST_P(Small_SparseAssemblyBase, AMatrixWithoutTripletsHasEqualOffsets)
+        {
+            const int64_t first = Core::first_index(GetParam());
+
+            const HostCsr<int64_t, double> csr =
+                assemble_csr<int64_t, double>(3, 4, first, {}, {}, {});
+
+            EXPECT_EQ(csr.row_offsets, std::vector<int64_t>(4, first));
+            EXPECT_TRUE(csr.column_indices.empty());
+            EXPECT_TRUE(csr.values.empty());
         }
 
-        TEST(Medium_SparseAssembly, AMatrixWithoutRowsHasOneOffset)
+        /** @brief Tests that a matrix without rows has one offset. */
+        TEST_P(Small_SparseAssemblyBase, AMatrixWithoutRowsHasOneOffset)
         {
-            for (const IndexBase base : K_BOTH_BASES)
-            {
-                const int64_t first = Core::first_index(base);
-                const HostCsr<int64_t, double> csr =
-                    assemble_csr<int64_t, double>(0, 0, first, {}, {}, {});
+            const int64_t first = Core::first_index(GetParam());
 
-                EXPECT_EQ(csr.row_offsets, std::vector<int64_t>(1, first));
-            }
+            const HostCsr<int64_t, double> csr =
+                assemble_csr<int64_t, double>(0, 0, first, {}, {}, {});
+
+            EXPECT_EQ(csr.row_offsets, std::vector<int64_t>(1, first));
         }
 
-        TEST(Medium_SparseAssembly, EveryRowAscendsStrictlyAndHoldsTheSumOfItsTriplets)
+        INSTANTIATE_TEST_SUITE_P(, Small_SparseAssemblyBase,
+                                 ::testing::Values(IndexBase::Zero, IndexBase::One));
+
+        /** @brief Tests that the offsets of a matrix start at zero and end at the stored count. */
+        TEST(Small_SparseAssembly, TheOffsetsFrameTheStoredValues)
         {
-            const HostTriplets<float> host = integer_valued_matrix<float>(
-                K_ORDERED_ROWS, K_ORDERED_COLS, K_ORDERED_PER_ROW, K_ORDERED_SEED);
+            const HostTriplets<float> host = ordered_matrix();
+
+            const HostCsr<int32_t, float> csr = assemble<int32_t, float>(host, IndexBase::Zero);
+
+            ASSERT_EQ(csr.row_offsets.size(), static_cast<std::size_t>(host.rows) + 1);
+            EXPECT_EQ(csr.row_offsets.front(), 0);
+            EXPECT_EQ(static_cast<std::size_t>(csr.row_offsets.back()), csr.values.size());
+        }
+
+        /** @brief Tests that the columns of every row ascend strictly. */
+        TEST(Small_SparseAssembly, EveryRowAscendsStrictly)
+        {
+            const HostCsr<int32_t, float> csr =
+                assemble<int32_t, float>(ordered_matrix(), IndexBase::Zero);
+
+            EXPECT_TRUE(rows_ascend_strictly(csr));
+        }
+
+        /** @brief Tests that every stored entry holds the sum of the triplets on its pair. */
+        TEST(Small_SparseAssembly, EveryEntryHoldsTheSumOfItsTriplets)
+        {
+            const HostTriplets<float> host = ordered_matrix();
+
             const HostCsr<int32_t, float> csr = assemble<int32_t, float>(host, IndexBase::Zero);
 
             // Sums of integers in [-3, 3] are exact, so the dense image has one value per pair.
-            const std::size_t cols = static_cast<std::size_t>(host.cols);
-            std::vector<float> dense(static_cast<std::size_t>(host.rows) * cols, 0.0f);
-            std::vector<bool> named(dense.size(), false);
-            for (std::size_t k = 0; k < host.values.size(); ++k)
-            {
-                const std::size_t slot = static_cast<std::size_t>(host.row_indices[k]) * cols +
-                                         static_cast<std::size_t>(host.column_indices[k]);
-                dense[slot] += host.values[k];
-                named[slot] = true;
-            }
-
-            ASSERT_EQ(csr.row_offsets.size(), static_cast<std::size_t>(host.rows) + 1);
-            ASSERT_EQ(csr.row_offsets.front(), 0);
-            ASSERT_EQ(static_cast<std::size_t>(csr.row_offsets.back()), csr.values.size());
-
-            std::size_t stored = 0;
-            for (std::size_t row = 0; row < static_cast<std::size_t>(host.rows); ++row)
-            {
-                ASSERT_LE(csr.row_offsets[row], csr.row_offsets[row + 1]) << "row " << row;
-                const std::size_t begin = static_cast<std::size_t>(csr.row_offsets[row]);
-                const std::size_t end = static_cast<std::size_t>(csr.row_offsets[row + 1]);
-
-                for (std::size_t entry = begin; entry < end; ++entry)
-                {
-                    const std::size_t column = static_cast<std::size_t>(csr.column_indices[entry]);
-                    if (entry > begin)
-                        EXPECT_LT(csr.column_indices[entry - 1], csr.column_indices[entry])
-                            << "row " << row;
-                    EXPECT_TRUE(named[row * cols + column]) << "row " << row;
-                    EXPECT_EQ(csr.values[entry], dense[row * cols + column]) << "row " << row;
-                    ++stored;
-                }
-            }
-
-            const std::ptrdiff_t pairs = std::count(named.begin(), named.end(), true);
-            EXPECT_EQ(stored, static_cast<std::size_t>(pairs));
+            EXPECT_EQ(dense_of(csr, static_cast<std::size_t>(host.rows),
+                               static_cast<std::size_t>(host.cols)),
+                      dense_of(host));
         }
 
-        TEST(Medium_SparseAssembly, ANegativeExtentThrows)
+        /** @brief Tests that every pair the triplets name is stored once. */
+        TEST(Small_SparseAssembly, EveryPairIsStoredOnce)
         {
-            EXPECT_THROW(assemble_and_drop(-1, 5, 0, {}, {}, {}),
-                         std::runtime_error);
-            EXPECT_THROW(assemble_and_drop(4, -1, 0, {}, {}, {}),
-                         std::runtime_error);
+            const HostTriplets<float> host = ordered_matrix();
+
+            const HostCsr<int32_t, float> csr = assemble<int32_t, float>(host, IndexBase::Zero);
+
+            EXPECT_EQ(csr.values.size(), distinct_pairs_of(host));
         }
 
-        TEST(Medium_SparseAssembly, TripletArraysOfDifferentLengthsThrow)
+        /** @brief Tests that a negative extent is refused. */
+        TEST(Small_SparseAssembly, ANegativeExtentThrows)
         {
-            EXPECT_THROW(assemble_and_drop(4, 5, 0, {0, 1}, {0}, {1.0f, 2.0f}),
-                         std::runtime_error);
-            EXPECT_THROW(assemble_and_drop(4, 5, 0, {0, 1}, {0, 1}, {1.0f}),
-                         std::runtime_error);
+            EXPECT_THROW(assemble_and_drop({"Rows", -1, 5, 0, {}, {}, {}}), std::runtime_error);
+            EXPECT_THROW(assemble_and_drop({"Columns", 4, -1, 0, {}, {}, {}}), std::runtime_error);
         }
 
-        TEST(Medium_SparseAssembly, ATripletOutsideTheMatrixThrows)
+        /** @brief Tests that triplet arrays of different lengths are refused. */
+        TEST(Small_SparseAssembly, TripletArraysOfDifferentLengthsThrow)
         {
-            EXPECT_THROW(assemble_and_drop(4, 5, 0, {4}, {0}, {1.0f}),
+            EXPECT_THROW(assemble_and_drop({"Columns", 4, 5, 0, {0, 1}, {0}, {1.0f, 2.0f}}),
                          std::runtime_error);
-            EXPECT_THROW(assemble_and_drop(4, 5, 0, {0}, {5}, {1.0f}),
-                         std::runtime_error);
-            EXPECT_THROW(assemble_and_drop(4, 5, 1, {1}, {0}, {1.0f}),
-                         std::runtime_error);
-            EXPECT_THROW(assemble_and_drop(4, 5, 1, {5}, {1}, {1.0f}),
+            EXPECT_THROW(assemble_and_drop({"Values", 4, 5, 0, {0, 1}, {0, 1}, {1.0f}}),
                          std::runtime_error);
         }
 
-        TEST(Medium_SparseAssembly, AColumnCountPastTheIndexTypeThrows)
+        /** @brief Tests that a triplet outside the matrix is refused in both bases. */
+        TEST(Small_SparseAssembly, ATripletOutsideTheMatrixThrows)
         {
-            EXPECT_THROW(assemble_and_drop(1, K_COLS_PAST_INT32, 0, {}, {}, {}),
+            EXPECT_THROW(assemble_and_drop({"Row", 4, 5, 0, {4}, {0}, {1.0f}}),
+                         std::runtime_error);
+            EXPECT_THROW(assemble_and_drop({"Column", 4, 5, 0, {0}, {5}, {1.0f}}),
+                         std::runtime_error);
+            EXPECT_THROW(assemble_and_drop({"RowOneBased", 4, 5, 1, {5}, {1}, {1.0f}}),
+                         std::runtime_error);
+            EXPECT_THROW(assemble_and_drop({"ColumnOneBased", 4, 5, 1, {1}, {0}, {1.0f}}),
                          std::runtime_error);
         }
 
-        TEST(Medium_SparseAssembly, DistinctPositionsInsideTheVectorAreAccepted)
+        /** @brief Tests that a column count past the index type is refused. */
+        TEST(Small_SparseAssembly, AColumnCountPastTheIndexTypeThrows)
+        {
+            EXPECT_THROW(assemble_and_drop({"Columns", 1, K_COLS_PAST_INT32, 0, {}, {}, {}}),
+                         std::runtime_error);
+        }
+
+        /** @brief Tests that distinct positions inside the vector are accepted. */
+        TEST(Small_SparseAssembly, DistinctPositionsInsideTheVectorAreAccepted)
         {
             EXPECT_NO_THROW(require_distinct_positions<int32_t>(8, 0, {6, 1, 4}));
             EXPECT_NO_THROW(require_distinct_positions<int64_t>(8, 1, {7, 2, 5}));
         }
 
-        TEST(Medium_SparseAssembly, ARepeatedPositionThrows)
+        /** @brief Tests that a repeated position is refused. */
+        TEST(Small_SparseAssembly, ARepeatedPositionThrows)
         {
             EXPECT_THROW(require_distinct_positions<int32_t>(8, 0, {6, 1, 6}),
                          std::runtime_error);
         }
 
-        TEST(Medium_SparseAssembly, APositionOutsideTheVectorThrows)
+        /** @brief Tests that a position outside the vector is refused in both bases. */
+        TEST(Small_SparseAssembly, APositionOutsideTheVectorThrows)
         {
             EXPECT_THROW(require_distinct_positions<int32_t>(8, 0, {6, 8, 4}),
                          std::runtime_error);

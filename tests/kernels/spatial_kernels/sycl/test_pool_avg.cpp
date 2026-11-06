@@ -69,28 +69,36 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SYCLPoolAvg, MatchesTheReference)
+        TEST_F(Medium_SYCLPoolAvg, ForwardEqualsTheReferenceBitForBit)
         {
-            // Each window sum is an exact integer, so the forward quotients agree bit for bit.
+            // Each window sum is an exact integer and both kernels divide it by the same area, so the quotients agree.
             const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
             const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
-            const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
             const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
-            const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
             const SharedArray<double> device_x(queue(), x);
-            const SharedArray<double> device_dy(queue(), dy);
             SharedArray<double> device_y(queue(), outputs);
-            SharedArray<double> device_dx(queue(), inputs);
             std::vector<double> y(outputs);
-            std::vector<double> dx(inputs);
 
             Kernels::SYCL::pool_avg(queue(), span, device_x.get(), device_y.get(), {}).wait();
-            Kernels::SYCL::pool_avg_backward(queue(), span, device_dy.get(), device_dx.get(),
-                                             {}).wait();
             Kernels::Reference::pool_avg(span, x.data(), y.data());
-            Kernels::Reference::pool_avg_backward(span, dy.data(), dx.data());
 
             EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLPoolAvg, BackwardMatchesTheReferenceWithinItsRoundings)
+        {
+            // Each element sums six quotients dy / 6, which round, so the kernels agree within a bound.
+            const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
+            const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
+            const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
+            const SharedArray<double> device_dy(queue(), dy);
+            SharedArray<double> device_dx(queue(), inputs);
+            std::vector<double> dx(inputs);
+
+            Kernels::SYCL::pool_avg_backward(queue(), span, device_dy.get(), device_dx.get(),
+                                             {}).wait();
+            Kernels::Reference::pool_avg_backward(span, dy.data(), dx.data());
+
             expect_values_near(device_dx.values(), dx, absolute_tolerance<double>(K_BACKWARD_ROUNDINGS, K_BACKWARD_MAGNITUDE));
         }
     } // namespace Test

@@ -19,4 +19,4 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         test_launch_1d.cpp
     COMPILE_CHECKS
-        test_launch_log_category.cpp)
+        compile_launch_log_category.cpp)

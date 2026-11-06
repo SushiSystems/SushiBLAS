@@ -29,7 +29,9 @@
 
 #include <SushiBLAS/linalg_kernels/sycl/lu.hpp>
 
+#include <string>
 #include <vector>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -56,6 +58,46 @@ namespace SushiBLAS
                 }
                 return out;
             }
+
+            /** @brief Returns a batch whose matrix 2 repeats its first row, so a pivot vanishes once n > 1. */
+            std::vector<double> batch_with_a_repeated_row(std::size_t batch, std::size_t n,
+                                                          unsigned seed)
+            {
+                std::vector<double> a = values(batch * n * n, seed);
+                if (n > 1)
+                    std::copy(a.begin() + 2 * n * n, a.begin() + 2 * n * n + n,
+                              a.begin() + 2 * n * n + n);
+                return a;
+            }
+
+            /** @brief Returns a batch of matrices whose diagonal outweighs each row. */
+            std::vector<double> dominant_batch(std::size_t batch, std::size_t n, unsigned seed)
+            {
+                std::vector<double> a = values(batch * n * n, seed);
+                for (std::size_t b = 0; b < batch; ++b)
+                    for (std::size_t i = 0; i < n; ++i)
+                        a[b * n * n + i * n + i] += static_cast<double>(n);
+                return a;
+            }
+
+            /** @brief One order the factor is run at. */
+            struct FactorRow
+            {
+                    const char* name; /**< The row's suffix. */
+                    std::size_t n;    /**< The order of each matrix. */
+            };
+
+            /** @brief Returns the orders: one, small and larger than a block. */
+            std::vector<FactorRow> factor_rows()
+            {
+                return {{"OrderOne", 1}, {"OrderSeven", 7}, {"OrderSeventy", 70}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string factor_row_name(const ::testing::TestParamInfo<FactorRow>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
 
         /** @brief Runs the kernels on the host CPU queue. */
@@ -64,45 +106,44 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SYCLLU, FactorEqualsTheReferenceWithASingularMatrixInTheBatch)
+        /** @brief Runs the factor on the host CPU queue, one order at a time. */
+        class Medium_SYCLLUFactor : public HostDeviceTest, public ::testing::WithParamInterface<FactorRow>
         {
-            for (const std::size_t n : {std::size_t{1}, std::size_t{7}, std::size_t{70}})
-            {
-                SCOPED_TRACE(n);
-                constexpr std::size_t K_BATCH = 4;
-                std::vector<double> a = values(K_BATCH * n * n, 31);
-                // Matrix 2 repeats its first row, so a pivot vanishes once n > 1.
-                if (n > 1)
-                    for (std::size_t j = 0; j < n; ++j)
-                        a[2 * n * n + n + j] = a[2 * n * n + j];
-                std::vector<double> expected = a;
-                std::vector<std::uint32_t> expected_pivots(K_BATCH * n);
-                std::vector<std::uint32_t> expected_singular(K_BATCH);
-                Kernels::Reference::lu_factor(expected.data(), expected_pivots.data(),
-                                              expected_singular.data(), n, K_BATCH);
 
-                SharedArray<double> device_a(queue(), a);
-                SharedArray<std::uint32_t> pivots(queue(), K_BATCH * n);
-                SharedArray<std::uint32_t> singular(queue(), K_BATCH);
-                Kernels::SYCL::lu_factor(queue(), device_a.get(), pivots.get(), singular.get(), n,
-                                         K_BATCH, {})
-                    .wait();
+        };
 
-                EXPECT_EQ(singular.values(), expected_singular);
-                EXPECT_EQ(pivots.values(), expected_pivots);
-                EXPECT_EQ(device_a.values(), expected);
-            }
+        TEST_P(Medium_SYCLLUFactor, FactorEqualsTheReferenceWithASingularMatrixInTheBatch)
+        {
+            const std::size_t n = GetParam().n;
+            constexpr std::size_t K_BATCH = 4;
+            std::vector<double> a = batch_with_a_repeated_row(K_BATCH, n, 31);
+            std::vector<double> expected = a;
+            std::vector<std::uint32_t> expected_pivots(K_BATCH * n);
+            std::vector<std::uint32_t> expected_singular(K_BATCH);
+            Kernels::Reference::lu_factor(expected.data(), expected_pivots.data(),
+                                          expected_singular.data(), n, K_BATCH);
+
+            SharedArray<double> device_a(queue(), a);
+            SharedArray<std::uint32_t> pivots(queue(), K_BATCH * n);
+            SharedArray<std::uint32_t> singular(queue(), K_BATCH);
+            Kernels::SYCL::lu_factor(queue(), device_a.get(), pivots.get(), singular.get(), n,
+                                     K_BATCH, {})
+                .wait();
+
+            EXPECT_EQ(singular.values(), expected_singular);
+            EXPECT_EQ(pivots.values(), expected_pivots);
+            EXPECT_EQ(device_a.values(), expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLLUFactor, ::testing::ValuesIn(factor_rows()),
+                                 factor_row_name);
 
         TEST_F(Medium_SYCLLU, SolveEqualsTheReference)
         {
             constexpr std::size_t K_N = 9;
             constexpr std::size_t K_RHS = 3;
             constexpr std::size_t K_BATCH = 2;
-            std::vector<double> a = values(K_BATCH * K_N * K_N, 32);
-            for (std::size_t b = 0; b < K_BATCH; ++b)
-                for (std::size_t i = 0; i < K_N; ++i)
-                    a[b * K_N * K_N + i * K_N + i] += static_cast<double>(K_N);
+            std::vector<double> a = dominant_batch(K_BATCH, K_N, 32);
             std::vector<std::uint32_t> pivots(K_BATCH * K_N);
             std::vector<std::uint32_t> singular(K_BATCH);
             Kernels::Reference::lu_factor(a.data(), pivots.data(), singular.data(), K_N, K_BATCH);

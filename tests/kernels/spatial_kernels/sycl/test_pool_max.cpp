@@ -50,32 +50,63 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SYCLPoolMax, MatchesTheReference)
+        TEST_F(Medium_SYCLPoolMax, ForwardValuesMatchTheReference)
         {
             // Every value is a small integer, so both kernels compute without rounding.
+            const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
+            const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
+            const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), outputs);
+            SharedArray<int64_t> device_index(queue(), outputs);
+            std::vector<double> y(outputs);
+            std::vector<int64_t> index(outputs);
+
+            Kernels::SYCL::pool_max(queue(), span, device_x.get(), device_y.get(),
+                                    device_index.get(), {}).wait();
+            Kernels::Reference::pool_max(span, x.data(), y.data(), index.data());
+
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        TEST_F(Medium_SYCLPoolMax, RecordedIndicesMatchTheReference)
+        {
+            const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
+            const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
+            const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), outputs);
+            SharedArray<int64_t> device_index(queue(), outputs);
+            std::vector<double> y(outputs);
+            std::vector<int64_t> index(outputs);
+
+            Kernels::SYCL::pool_max(queue(), span, device_x.get(), device_y.get(),
+                                    device_index.get(), {}).wait();
+            Kernels::Reference::pool_max(span, x.data(), y.data(), index.data());
+
+            EXPECT_EQ(device_index.values(), index);
+        }
+
+        TEST_F(Medium_SYCLPoolMax, BackwardMatchesTheReferenceGivenTheSameIndices)
+        {
+            // The reference indices feed both backward passes, so only the backward is compared.
             const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
             const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
             const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
             const std::vector<double> x = small_integers<double>(span.input_elements(), 1);
             const std::vector<double> dy = small_integers<double>(span.output_elements(), 2);
-            const SharedArray<double> device_x(queue(), x);
-            const SharedArray<double> device_dy(queue(), dy);
-            SharedArray<double> device_y(queue(), outputs);
-            SharedArray<int64_t> device_index(queue(), outputs);
-            SharedArray<double> device_dx(queue(), inputs);
             std::vector<double> y(outputs);
             std::vector<int64_t> index(outputs);
+            Kernels::Reference::pool_max(span, x.data(), y.data(), index.data());
+            const SharedArray<double> device_dy(queue(), dy);
+            const SharedArray<int64_t> device_index(queue(), index);
+            SharedArray<double> device_dx(queue(), inputs);
             std::vector<double> dx(inputs);
 
-            Kernels::SYCL::pool_max(queue(), span, device_x.get(), device_y.get(),
-                                    device_index.get(), {}).wait();
             Kernels::SYCL::pool_max_backward(queue(), span, device_dy.get(), device_index.get(),
                                              device_dx.get(), {}).wait();
-            Kernels::Reference::pool_max(span, x.data(), y.data(), index.data());
             Kernels::Reference::pool_max_backward(span, dy.data(), index.data(), dx.data());
 
-            EXPECT_EQ(device_y.values(), y);
-            EXPECT_EQ(device_index.values(), index);
             EXPECT_EQ(device_dx.values(), dx);
         }
     } // namespace Test

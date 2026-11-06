@@ -34,9 +34,9 @@
 #include <cstdint>
 #include <memory>
 #include <numeric>
-#include <random>
-#include <utility>
 #include <optional>
+#include <random>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,8 +47,11 @@
 #include <SushiRuntime/api/graph/dynamic_graph.hpp>
 #include <SushiRuntime/api/graph/graph.hpp>
 #include <SushiRuntime/api/runtime/runtime.hpp>
+#include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
+#include <SushiRuntime/core/determinism.hpp>
 #include <SushiRuntime/core/error.hpp>
+#include <SushiRuntime/report/node_event_record.hpp>
 
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
 #include <SushiBLAS/test_runner/run_observer_capture.hpp>
@@ -67,14 +70,63 @@ namespace SushiBLAS
         {
             using GraphPrimitives::counting_sort;
             using GraphPrimitives::prefix_scan;
+            using SushiRuntime::Determinism;
             using SushiRuntime::LateCount;
+            using SushiRuntime::NodeEventRecord;
             using SushiRuntime::Runtime;
+            using Words = SushiRuntime::Buffer<std::uint32_t>;
+            using Window = GraphPrimitives::CountingSortWindow;
 
             /// @brief Holds a value no sort of these tests writes.
             constexpr std::uint32_t K_CANARY = 0xDEADBEEFu;
 
             /// @brief Holds the nodes one radix digit records.
             constexpr std::size_t K_NODES_PER_DIGIT = 4;
+
+            /// @brief Holds the element count of the seeded duplicate keys.
+            constexpr std::size_t K_DUPLICATE_COUNT = 4000;
+
+            /// @brief Holds the key range of the seeded duplicate keys.
+            constexpr std::size_t K_DUPLICATE_KEY_RANGE = 32;
+
+            /// @brief Holds the element count of the sorts whose dispatches are captured.
+            constexpr std::size_t K_CAPTURED_COUNT = 300;
+
+            /// @brief Holds the key range of the sorts whose dispatches are captured.
+            constexpr std::size_t K_CAPTURED_KEY_RANGE = 50;
+
+            /// @brief Holds the element count of the sort run once per step on new keys.
+            constexpr std::size_t K_STEP_COUNT = 500;
+
+            /// @brief Holds the key range of the sort run once per step on new keys.
+            constexpr std::size_t K_STEP_KEY_RANGE = 20;
+
+            /// @brief Holds the key range of the sorts whose node labels are read.
+            constexpr std::size_t K_LABEL_KEY_RANGE = 4;
+
+            /// @brief Holds the element count of the device-sized sort.
+            constexpr std::size_t K_DEVICE_COUNT_CAPACITY = 1000;
+
+            /// @brief Holds the key range capacity of the device-sized sort.
+            constexpr std::size_t K_DEVICE_KEY_CAPACITY = std::size_t{1} << 17;
+
+            /// @brief Holds the buckets the device-sized keys fall in.
+            constexpr std::size_t K_DEVICE_BUCKETS = 32;
+
+            /// @brief Holds the words the device-sized digest reads: indices, offsets and total.
+            constexpr std::size_t K_DEVICE_PACKED = K_DEVICE_COUNT_CAPACITY + K_DEVICE_BUCKETS + 2;
+
+            /// @brief Holds the window the window tests place every operand at.
+            constexpr Window K_WINDOW{7, 5, 3, 1, 2};
+
+            /// @brief Holds the spare elements past each window of the window tests.
+            constexpr std::size_t K_WINDOW_TAIL = 3;
+
+            /// @brief Holds the element count of the window probe sort.
+            constexpr std::size_t K_PROBE_COUNT = 600;
+
+            /// @brief Holds the key range of the window probe sort.
+            constexpr std::size_t K_PROBE_KEY_RANGE = 300;
 
             /** @brief Holds a stable host sort by key and the buckets it implies. */
             struct HostReference
@@ -137,142 +189,670 @@ namespace SushiBLAS
                     key = draw(generator);
                 return keys;
             }
+
+            /** @brief Returns the seeded keys of 32 buckets the stability tests sort. */
+            std::vector<std::uint32_t> duplicate_keys()
+            {
+                return seeded_keys(K_DUPLICATE_COUNT, K_DUPLICATE_KEY_RANGE, 20260916);
+            }
+
+            /** @brief Returns 4000 seeded keys from 0x100 to 0x400, all of low byte 0. */
+            std::vector<std::uint32_t> low_digit_tied_keys()
+            {
+                const std::array<std::uint32_t, 4> alphabet = {0x0100u, 0x0200u, 0x0300u, 0x0400u};
+                std::mt19937 generator(20260917);
+                std::uniform_int_distribution<std::size_t> pick(0, alphabet.size() - 1);
+                std::vector<std::uint32_t> keys(K_DUPLICATE_COUNT);
+                for (std::uint32_t& key : keys)
+                    key = alphabet[pick(generator)];
+                return keys;
+            }
+
+            /** @brief Returns the words 0, 1, ..., count - 1. */
+            std::vector<std::uint32_t> ascending_words(std::size_t count)
+            {
+                std::vector<std::uint32_t> words(count);
+                std::iota(words.begin(), words.end(), std::uint32_t{0});
+                return words;
+            }
+
+            /** @brief Returns count keys that cycle through [0, key_range). */
+            std::vector<std::uint32_t> cycled_keys(std::size_t count, std::size_t key_range)
+            {
+                std::vector<std::uint32_t> keys(count);
+                for (std::size_t i = 0; i < count; ++i)
+                    keys[i] = static_cast<std::uint32_t>(i % key_range);
+                return keys;
+            }
+
+            /** @brief Returns the keys the repeated sort sorts on run step. */
+            std::vector<std::uint32_t> step_keys(std::uint32_t step)
+            {
+                std::vector<std::uint32_t> keys(K_STEP_COUNT);
+                for (std::size_t i = 0; i < K_STEP_COUNT; ++i)
+                    keys[i] = static_cast<std::uint32_t>((i * 7 + step * 3) % K_STEP_KEY_RANGE);
+                return keys;
+            }
+
+            /** @brief Returns the keys of the device-sized sort, spread over its 32 buckets. */
+            std::vector<std::uint32_t> device_sized_keys()
+            {
+                std::vector<std::uint32_t> keys(K_DEVICE_COUNT_CAPACITY);
+                for (std::size_t i = 0; i < K_DEVICE_COUNT_CAPACITY; ++i)
+                    keys[i] = static_cast<std::uint32_t>((i * 7u + i / 13u) % K_DEVICE_BUCKETS);
+                return keys;
+            }
+
+            /** @brief Returns the exclusive sums of values, then their total. */
+            std::vector<std::uint32_t> exclusive_sums(const std::vector<std::uint32_t>& values)
+            {
+                std::vector<std::uint32_t> sums(values.size() + 1, 0);
+                std::partial_sum(values.begin(), values.end(), sums.begin() + 1);
+                return sums;
+            }
+
+            /** @brief Returns a buffer of size elements, each holding value. */
+            Words filled(Runtime& runtime, std::size_t size, std::uint32_t value)
+            {
+                Words buffer = runtime.buffer<std::uint32_t>(size).value();
+                std::fill(buffer.data(), buffer.data() + size, value);
+                return buffer;
+            }
+
+            /** @brief Copies values into buffer from element offset on. */
+            void load(const Words& buffer, const std::vector<std::uint32_t>& values,
+                      std::size_t offset = 0)
+            {
+                std::copy(values.begin(), values.end(), buffer.data() + offset);
+            }
+
+            /** @brief Returns elements [offset, offset + count) of buffer. */
+            std::vector<std::uint32_t> words_of(const Words& buffer, std::size_t offset,
+                                                std::size_t count)
+            {
+                return std::vector<std::uint32_t>(buffer.data() + offset,
+                                                  buffer.data() + offset + count);
+            }
+
+            /** @brief Holds the five buffers of one counting_sort() call. */
+            struct SortOperands
+            {
+                Words keys;    /**< Keys, zero until a test loads its own. */
+                Words indices; /**< Sorted order, K_CANARY until the sort writes it. */
+                Words offsets; /**< Bucket starts, K_CANARY until the sort writes them. */
+                Words total;   /**< Element count, K_CANARY until the sort writes it. */
+                Words counts;  /**< Bucket sizes, K_CANARY until the sort writes them. */
+            };
+
+            /**
+             * @brief Returns operands placed at window for count keys over key_range buckets.
+             * @param tail Spare elements past each operand's window, left at their first value.
+             */
+            SortOperands operands_for(Runtime& runtime, std::size_t count, std::size_t key_range,
+                                      std::size_t tail, const Window& window = Window{})
+            {
+                return SortOperands{
+                    filled(runtime, std::max<std::size_t>(window.keys_offset + count + tail, 1),
+                           0u),
+                    filled(runtime, window.indices_offset + count + tail, K_CANARY),
+                    filled(runtime, window.offsets_offset + key_range + 1 + tail, K_CANARY),
+                    filled(runtime, window.total_offset + 1 + tail, K_CANARY),
+                    filled(runtime, window.counts_offset + key_range + tail, K_CANARY)};
+            }
+
+            /** @brief Records counting_sort() over operands; the call must be accepted. */
+            void record_sort(SushiRuntime::Recorder& recorder, const SortOperands& operands,
+                             const LateCount& count, const LateCount& key_range,
+                             const Words* counts = nullptr, const Window& window = Window{},
+                             const std::optional<GraphPrimitives::PrimitiveOptions>& options =
+                                 std::nullopt)
+            {
+                counting_sort(recorder, operands.keys, operands.indices, operands.offsets,
+                              operands.total, count, key_range, counts, window, options)
+                    .value();
+            }
+
+            /** @brief Holds what one sort wrote into the windows of its outputs. */
+            struct SortOutcome
+            {
+                std::vector<std::uint32_t> indices;  /**< The count sorted indices. */
+                std::vector<std::uint32_t> offsets;  /**< The key_range + 1 bucket starts. */
+                std::vector<std::uint32_t> counts;   /**< The key_range bucket sizes. */
+                std::uint32_t total = 0;             /**< The element count written. */
+                std::vector<std::uint32_t> past_end; /**< First word past each output. */
+            };
+
+            /** @brief Returns the output windows of operands after a sort of count keys. */
+            SortOutcome outcome_of(const SortOperands& operands, std::size_t count,
+                                   std::size_t key_range, const Window& window = Window{})
+            {
+                return SortOutcome{words_of(operands.indices, window.indices_offset, count),
+                                   words_of(operands.offsets, window.offsets_offset, key_range + 1),
+                                   words_of(operands.counts, window.counts_offset, key_range),
+                                   operands.total[window.total_offset],
+                                   {}};
+            }
+
+            /**
+             * @brief Returns the first word past the indices, offsets, counts and total windows.
+             * @pre Each operand holds at least one element past its window.
+             */
+            std::vector<std::uint32_t> words_past(const SortOperands& operands, std::size_t count,
+                                                  std::size_t key_range, const Window& window)
+            {
+                return {operands.indices[window.indices_offset + count],
+                        operands.offsets[window.offsets_offset + key_range + 1],
+                        operands.counts[window.counts_offset + key_range],
+                        operands.total[window.total_offset + 1]};
+            }
+
+            /**
+             * @brief Returns the word before each output window: indices, offsets, counts, total.
+             * @pre Every output offset of window is at least one.
+             */
+            std::vector<std::uint32_t> words_before(const SortOperands& operands,
+                                                    const Window& window)
+            {
+                return {operands.indices[window.indices_offset - 1],
+                        operands.offsets[window.offsets_offset - 1],
+                        operands.counts[window.counts_offset - 1],
+                        operands.total[window.total_offset - 1]};
+            }
+
+            /**
+             * @brief Sorts keys over key_range once, counts included, and returns what it wrote.
+             *
+             * Every output has one K_CANARY element past its end, which past_end returns.
+             */
+            SortOutcome sort_once(Runtime& runtime, const std::vector<std::uint32_t>& keys,
+                                  std::size_t key_range)
+            {
+                const SortOperands operands = operands_for(runtime, keys.size(), key_range, 1);
+                load(operands.keys, keys);
+
+                auto graph = runtime.graph();
+                record_sort(graph.recorder(), operands, LateCount::fixed(keys.size()),
+                            LateCount::fixed(key_range), &operands.counts);
+                graph.run().value();
+
+                SortOutcome outcome = outcome_of(operands, keys.size(), key_range);
+                outcome.past_end = words_past(operands, keys.size(), key_range, Window{});
+                return outcome;
+            }
+
+            /** @brief Holds what each run of a series wrote beside what the host expects of it. */
+            struct RunSeries
+            {
+                std::vector<std::vector<std::uint32_t>> indices;          /**< Indices per run. */
+                std::vector<std::vector<std::uint32_t>> expected_indices; /**< Host indices. */
+                std::vector<std::vector<std::uint32_t>> offsets;          /**< Offsets per run. */
+                std::vector<std::vector<std::uint32_t>> expected_offsets; /**< Host offsets. */
+                std::vector<std::uint32_t> totals;                        /**< Total per run. */
+                std::vector<std::uint32_t> expected_totals;               /**< Key count per run. */
+            };
+
+            /** @brief Appends what operands hold after a sort of host_keys over key_range. */
+            void append_run(RunSeries& series, const SortOperands& operands,
+                            const std::vector<std::uint32_t>& host_keys, std::size_t key_range)
+            {
+                const HostReference reference = host_counting_sort(host_keys, key_range);
+                series.indices.push_back(words_of(operands.indices, 0, host_keys.size()));
+                series.expected_indices.push_back(reference.indices);
+                series.offsets.push_back(words_of(operands.offsets, 0, key_range + 1));
+                series.expected_offsets.push_back(reference.offsets);
+                series.totals.push_back(operands.total[0]);
+                series.expected_totals.push_back(static_cast<std::uint32_t>(host_keys.size()));
+            }
+
+            /** @brief Holds the live element count and key range of one run. */
+            struct LiveSize
+            {
+                std::size_t count;     /**< Live element count. */
+                std::size_t key_range; /**< Live key range. */
+            };
+
+            /** @brief Returns the seed of the keys a run of size sorts. */
+            unsigned seed_of(const LiveSize& size)
+            {
+                return static_cast<unsigned>(size.count * 31 + size.key_range);
+            }
+
+            /** @brief Holds one sort recorded once with late-bound sizes and run at several. */
+            class LateBoundSort final
+            {
+                public:
+                    /** @brief Records one sort whose sizes read what run_each() sets. */
+                    LateBoundSort(Runtime& runtime, std::size_t count_capacity,
+                                  std::size_t key_capacity)
+                        : live_(std::make_shared<LiveSize>(LiveSize{0, 0})),
+                          operands_(operands_for(runtime, count_capacity, key_capacity, 0)),
+                          graph_(runtime.graph())
+                    {
+                        const std::shared_ptr<LiveSize> live = live_;
+                        record_sort(graph_.recorder(), operands_,
+                                    LateCount::from_host(count_capacity,
+                                                         [live]() { return live->count; }),
+                                    LateCount::from_host(key_capacity,
+                                                         [live]() { return live->key_range; }));
+                    }
+
+                    /** @brief Runs the sort once per size, each on seeded keys of that size. */
+                    RunSeries run_each(const std::vector<LiveSize>& sizes)
+                    {
+                        RunSeries series;
+                        for (const LiveSize& size : sizes)
+                        {
+                            *live_ = size;
+                            const std::vector<std::uint32_t> host_keys =
+                                seeded_keys(size.count, size.key_range, seed_of(size));
+                            load(operands_.keys, host_keys);
+                            graph_.run().value();
+                            append_run(series, operands_, host_keys, size.key_range);
+                        }
+                        return series;
+                    }
+
+                    /** @brief Returns how many times the recorded graph compiled. */
+                    [[nodiscard]] std::size_t compile_count() const
+                    {
+                        return graph_.compile_count();
+                    }
+
+                private:
+                    std::shared_ptr<LiveSize> live_; /**< Size the providers read. */
+                    SortOperands operands_;          /**< Buffers of the sort. */
+                    SushiRuntime::Graph graph_;      /**< Graph holding the sort. */
+            };
+
+            /** @brief Returns the sizes the late-bound replay runs at: small, large, small. */
+            std::vector<LiveSize> changing_sizes()
+            {
+                return {LiveSize{10, 4}, LiveSize{1500, 60000}, LiveSize{3, 2}};
+            }
+
+            /** @brief Holds the sort and the scan each run of a two-region DynamicGraph left. */
+            struct RegionSeries
+            {
+                RunSeries sort;                                       /**< Sort per run. */
+                std::vector<std::vector<std::uint32_t>> scan_offsets; /**< Scan per run. */
+                std::vector<std::vector<std::uint32_t>> expected_scan_offsets; /**< Host scan. */
+                std::vector<std::uint32_t> scan_totals;               /**< Scan total per run. */
+                std::vector<std::uint32_t> expected_scan_totals;      /**< Host total per run. */
+            };
+
+            /** @brief Records a sort and a scan of its keys in two regions and runs two sizes. */
+            RegionSeries replay_regions(Runtime& runtime)
+            {
+                constexpr std::size_t K_COUNT_CAPACITY = 700;
+                constexpr std::size_t K_KEY_CAPACITY = 1000;
+                const auto live = std::make_shared<LiveSize>(LiveSize{0, 0});
+                const SortOperands operands =
+                    operands_for(runtime, K_COUNT_CAPACITY, K_KEY_CAPACITY, 0);
+                const Words scan_offsets = filled(runtime, K_COUNT_CAPACITY + 1, K_CANARY);
+                const Words scan_total = filled(runtime, 1, K_CANARY);
+                const LateCount count =
+                    LateCount::from_host(K_COUNT_CAPACITY, [live]() { return live->count; });
+                const LateCount key_range =
+                    LateCount::from_host(K_KEY_CAPACITY, [live]() { return live->key_range; });
+
+                auto world = runtime.dynamic_graph();
+                record_sort(world.region(1).recorder(), operands, count, key_range);
+                prefix_scan(world.region(2).recorder(), operands.keys, scan_offsets, scan_total,
+                            count).value();
+
+                RegionSeries series;
+                for (const LiveSize& size : {LiveSize{300, 200}, LiveSize{700, 1000}})
+                {
+                    *live = size;
+                    const std::vector<std::uint32_t> host_keys =
+                        seeded_keys(size.count, size.key_range, seed_of(size));
+                    load(operands.keys, host_keys);
+                    world.run().value();
+
+                    append_run(series.sort, operands, host_keys, size.key_range);
+                    const std::vector<std::uint32_t> sums = exclusive_sums(host_keys);
+                    series.scan_offsets.push_back(words_of(scan_offsets, 0, size.count + 1));
+                    series.expected_scan_offsets.push_back(sums);
+                    series.scan_totals.push_back(scan_total[0]);
+                    series.expected_scan_totals.push_back(sums.back());
+                }
+                return series;
+            }
+
+            /** @brief Runs one fixed sort of 500 keys four times, on new keys each run. */
+            RunSeries sort_each_step(Runtime& runtime)
+            {
+                constexpr std::uint32_t K_STEPS = 4;
+                const SortOperands operands =
+                    operands_for(runtime, K_STEP_COUNT, K_STEP_KEY_RANGE, 0);
+
+                auto graph = runtime.graph();
+                record_sort(graph.recorder(), operands, LateCount::fixed(K_STEP_COUNT),
+                            LateCount::fixed(K_STEP_KEY_RANGE));
+
+                RunSeries series;
+                for (std::uint32_t step = 0; step < K_STEPS; ++step)
+                {
+                    const std::vector<std::uint32_t> host_keys = step_keys(step);
+                    load(operands.keys, host_keys);
+                    graph.run().value();
+                    append_run(series, operands, host_keys, K_STEP_KEY_RANGE);
+                }
+                return series;
+            }
+
+            /** @brief Holds the dispatches of a captured sort and the rules it recorded. */
+            struct CapturedSort
+            {
+                std::vector<NodeEventRecord> events; /**< One record per dispatch, in order. */
+                std::size_t rules = 0;               /**< Rules the call recorded. */
+            };
+
+            /** @brief Runs a sort of 300 keys over 50 buckets, counts included, for steps steps. */
+            CapturedSort capture_sort(Runtime& runtime, std::size_t steps)
+            {
+                const SortOperands operands =
+                    operands_for(runtime, K_CAPTURED_COUNT, K_CAPTURED_KEY_RANGE, 0);
+                load(operands.keys, cycled_keys(K_CAPTURED_COUNT, K_CAPTURED_KEY_RANGE));
+
+                auto graph = runtime.graph();
+                const RunObserverCapture capture(runtime);
+                record_sort(graph.recorder(), operands, LateCount::fixed(K_CAPTURED_COUNT),
+                            LateCount::fixed(K_CAPTURED_KEY_RANGE), &operands.counts);
+                graph.run(steps).value();
+                return CapturedSort{capture.records(), graph.recorder().rule_count()};
+            }
+
+            /** @brief Returns how many distinct node indices events carry. */
+            std::size_t distinct_node_indices(const std::vector<NodeEventRecord>& events)
+            {
+                std::set<std::uint32_t> indices;
+                for (const NodeEventRecord& record : events)
+                    indices.insert(record.node_index);
+                return indices.size();
+            }
+
+            /** @brief Returns the dispatches of each invocation, up to the highest seen. */
+            std::vector<std::size_t>
+            dispatches_per_invocation(const std::vector<NodeEventRecord>& events)
+            {
+                std::vector<std::size_t> per_invocation;
+                for (const NodeEventRecord& record : events)
+                {
+                    if (record.invocation >= per_invocation.size())
+                        per_invocation.resize(record.invocation + std::size_t{1}, 0);
+                    ++per_invocation[record.invocation];
+                }
+                return per_invocation;
+            }
+
+            /** @brief Holds what a sort over windows and one over compact buffers wrote. */
+            struct WindowRun
+            {
+                SortOutcome windowed;             /**< Output windows of the windowed sort. */
+                SortOutcome compact;              /**< Outputs of the compact sort. */
+                std::vector<std::uint32_t> around; /**< Words before, then past, each window. */
+            };
+
+            /** @brief Sorts 3000 seeded keys at K_WINDOW and on compact buffers. */
+            WindowRun sort_windowed_and_compact(Runtime& runtime)
+            {
+                constexpr std::size_t K_COUNT = 3000;
+                constexpr std::size_t K_KEY_RANGE = 1000;
+                const std::vector<std::uint32_t> host = seeded_keys(K_COUNT, K_KEY_RANGE, 18u);
+                const SortOperands wide =
+                    operands_for(runtime, K_COUNT, K_KEY_RANGE, K_WINDOW_TAIL, K_WINDOW);
+                const SortOperands compact = operands_for(runtime, K_COUNT, K_KEY_RANGE, 0);
+                load(wide.keys, host, K_WINDOW.keys_offset);
+                load(compact.keys, host);
+
+                auto graph = runtime.graph();
+                record_sort(graph.recorder(), wide, LateCount::fixed(K_COUNT),
+                            LateCount::fixed(K_KEY_RANGE), &wide.counts, K_WINDOW);
+                record_sort(graph.recorder(), compact, LateCount::fixed(K_COUNT),
+                            LateCount::fixed(K_KEY_RANGE), &compact.counts);
+                graph.run().value();
+
+                std::vector<std::uint32_t> around = words_before(wide, K_WINDOW);
+                const std::vector<std::uint32_t> past =
+                    words_past(wide, K_COUNT, K_KEY_RANGE, K_WINDOW);
+                around.insert(around.end(), past.begin(), past.end());
+                return WindowRun{outcome_of(wide, K_COUNT, K_KEY_RANGE, K_WINDOW),
+                                 outcome_of(compact, K_COUNT, K_KEY_RANGE), around};
+            }
+
+            /** @brief Returns the stage names a call over key_range records, in order. */
+            std::vector<std::string> stages_for(std::size_t key_range, bool with_counts)
+            {
+                std::vector<std::string> stages = {"resolve"};
+                const std::size_t digits = GraphPrimitives::Detail::radix_digit_count(key_range);
+                for (std::size_t d = 0; d < digits; ++d)
+                    stages.insert(stages.end(),
+                                  {"histogram", "column_scan", "bin_base", "placement"});
+                stages.push_back("offsets");
+                if (with_counts)
+                    stages.push_back("counts");
+                return stages;
+            }
+
+            /** @brief Returns a graph holding one sort of 8 keys over 4 buckets with options. */
+            SushiRuntime::Graph labelled_sort(
+                Runtime& runtime, const SortOperands& operands, bool with_counts,
+                const std::optional<GraphPrimitives::PrimitiveOptions>& options)
+            {
+                auto graph = runtime.graph();
+                record_sort(graph.recorder(), operands, LateCount::fixed(8),
+                            LateCount::fixed(K_LABEL_KEY_RANGE),
+                            with_counts ? &operands.counts : nullptr, Window{}, options);
+                return graph;
+            }
+
+            /** @brief Adds a node that packs the outputs of the device-sized sort. */
+            void add_packer(SushiRuntime::Graph& graph, const Words& indices, const Words& offsets,
+                            const Words& total, const Words& packed)
+            {
+                const std::uint32_t* ip = indices.data();
+                const std::uint32_t* op = offsets.data();
+                const std::uint32_t* tp = total.data();
+                std::uint32_t* pp = packed.data();
+                graph.add(K_DEVICE_PACKED, SushiRuntime::Reads(indices, offsets, total),
+                          SushiRuntime::Writes(packed),
+                          [ip, op, tp, pp](std::size_t i)
+                          {
+                              if (i < K_DEVICE_COUNT_CAPACITY)
+                                  pp[i] = ip[i];
+                              else if (i < K_DEVICE_COUNT_CAPACITY + K_DEVICE_BUCKETS + 1)
+                                  pp[i] = op[i - K_DEVICE_COUNT_CAPACITY];
+                              else
+                                  pp[i] = tp[0];
+                          });
+            }
+
+            /// @brief Names a key range capacity and the nodes a call over it records.
+            struct NodeCountRow
+            {
+                /// @brief Holds the key range capacity.
+                std::size_t key_capacity;
+                /// @brief Holds the nodes recorded: the resolver, four per digit and the offsets.
+                std::size_t nodes;
+            };
+
+            /// @brief Names one live key range below a capacity of 2^17.
+            struct LiveRangeRow
+            {
+                /// @brief Holds the live key range.
+                std::size_t key_range;
+            };
+
+            /// @brief Names one pass of a captured sort and the width it launches at.
+            struct WidthRow
+            {
+                /// @brief Holds the pass, in dispatch order.
+                std::size_t pass;
+                /// @brief Holds the width the pass launches and works over.
+                std::uint32_t width;
+            };
+
+            /// @brief Names one combination of operand sizes counting_sort() refuses.
+            struct MisSizedRow
+            {
+                /// @brief Holds the size of the indices buffer.
+                std::size_t indices;
+                /// @brief Holds the size of the offsets buffer.
+                std::size_t offsets;
+                /// @brief Holds the size of the total buffer.
+                std::size_t total;
+                /// @brief Holds the element count; the keys buffer holds eight.
+                std::size_t count;
+                /// @brief Holds the key range.
+                std::size_t key_range;
+                /// @brief Holds the size of the counts buffer, or nothing for no counts.
+                std::optional<std::size_t> counts;
+                /// @brief Holds why the call is refused.
+                const char* reason;
+            };
+
+            /** @brief Records a sort of eight keys over the operand sizes of row. */
+            SushiRuntime::Result<void> record_mis_sized(Runtime& runtime,
+                                                        SushiRuntime::Graph& graph,
+                                                        const MisSizedRow& row)
+            {
+                const Words keys = filled(runtime, 8, 0u);
+                const Words indices = filled(runtime, row.indices, 0u);
+                const Words offsets = filled(runtime, row.offsets, 0u);
+                const Words total = filled(runtime, row.total, 0u);
+                const Words counts = filled(runtime, row.counts.value_or(0), 0u);
+                return counting_sort(graph.recorder(), keys, indices, offsets, total,
+                                     LateCount::fixed(row.count), LateCount::fixed(row.key_range),
+                                     row.counts ? &counts : nullptr);
+            }
+
+            /// @brief Names a window that passes one operand's buffer, and that operand.
+            struct WindowPastRow
+            {
+                /// @brief Holds the window.
+                Window window;
+                /// @brief Holds the name the refusal must give.
+                const char* operand;
+            };
+
+            /// @brief Names a region of one operand and whether a writer of it waits.
+            struct ProbeRow
+            {
+                /// @brief Holds the operand the region lies in.
+                Words SortOperands::*operand;
+                /// @brief Holds the first element of the region.
+                std::size_t offset;
+                /// @brief Holds the elements of the region.
+                std::size_t count;
+                /// @brief Holds whether a writer of the region waits for the sort.
+                bool ordered;
+            };
+
+            /// @brief Names a set of options that names nothing.
+            struct OptionsRow
+            {
+                /// @brief Holds the options.
+                GraphPrimitives::PrimitiveOptions options;
+                /// @brief Holds what is wrong with them.
+                const char* fault;
+            };
         } // namespace
 
-        /** @brief Tests stability against std::stable_sort on seeded duplicate keys. */
+        /** @brief Tests that duplicate keys come out in the order std::stable_sort gives. */
         TEST(Medium_GraphPrimitivesCountingSort, StableAgainstHostReferenceOnDuplicateKeys)
         {
-            constexpr std::size_t K_COUNT = 4000;
-            constexpr std::size_t K_KEY_RANGE = 32;
-
-            const std::vector<std::uint32_t> host_keys =
-                seeded_keys(K_COUNT, K_KEY_RANGE, 20260916);
-            const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
-            ASSERT_NE(unstable_order(host_keys), reference.indices)
+            const std::vector<std::uint32_t> keys = duplicate_keys();
+            const HostReference reference = host_counting_sort(keys, K_DUPLICATE_KEY_RANGE);
+            ASSERT_NE(unstable_order(keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT + 1).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                keys[i] = host_keys[i];
-            indices[K_COUNT] = K_CANARY;
-            offsets[K_KEY_RANGE + 1] = K_CANARY;
-            counts[K_KEY_RANGE] = K_CANARY;
+            EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).indices, reference.indices);
+        }
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &counts)
-                .value();
-            graph.run().value();
+        /** @brief Tests that the bucket offsets of duplicate keys equal the host's. */
+        TEST(Medium_GraphPrimitivesCountingSort, DuplicateKeysGiveTheHostBucketOffsets)
+        {
+            const std::vector<std::uint32_t> keys = duplicate_keys();
 
-            EXPECT_EQ(total[0], K_COUNT);
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                ASSERT_EQ(indices[i], reference.indices[i]) << "i = " << i;
-            for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
-                ASSERT_EQ(offsets[k], reference.offsets[k]) << "k = " << k;
-            for (std::size_t k = 0; k < K_KEY_RANGE; ++k)
-                ASSERT_EQ(counts[k], reference.counts[k]) << "k = " << k;
-            EXPECT_EQ(indices[K_COUNT], K_CANARY);
-            EXPECT_EQ(offsets[K_KEY_RANGE + 1], K_CANARY);
-            EXPECT_EQ(counts[K_KEY_RANGE], K_CANARY);
+            auto runtime = Runtime::create().value();
+            EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).offsets,
+                      host_counting_sort(keys, K_DUPLICATE_KEY_RANGE).offsets);
+        }
+
+        /** @brief Tests that the bucket counts of duplicate keys equal the host's. */
+        TEST(Medium_GraphPrimitivesCountingSort, DuplicateKeysGiveTheHostBucketCounts)
+        {
+            const std::vector<std::uint32_t> keys = duplicate_keys();
+
+            auto runtime = Runtime::create().value();
+            EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).counts,
+                      host_counting_sort(keys, K_DUPLICATE_KEY_RANGE).counts);
+        }
+
+        /** @brief Tests that the total holds the element count. */
+        TEST(Medium_GraphPrimitivesCountingSort, TotalHoldsTheElementCount)
+        {
+            auto runtime = Runtime::create().value();
+            EXPECT_EQ(sort_once(runtime, duplicate_keys(), K_DUPLICATE_KEY_RANGE).total,
+                      K_DUPLICATE_COUNT);
+        }
+
+        /** @brief Tests that the sort writes nothing past indices, offsets, counts or total. */
+        TEST(Medium_GraphPrimitivesCountingSort, NothingIsWrittenPastTheOutputs)
+        {
+            auto runtime = Runtime::create().value();
+            EXPECT_EQ(sort_once(runtime, duplicate_keys(), K_DUPLICATE_KEY_RANGE).past_end,
+                      std::vector<std::uint32_t>(4, K_CANARY));
         }
 
         /** @brief Tests stability across digits when every key shares the same low byte. */
         TEST(Medium_GraphPrimitivesCountingSort, StableAcrossDigitsWhenTheLowDigitTies)
         {
-            constexpr std::size_t K_COUNT = 4000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
-            const std::vector<std::uint32_t> alphabet = {0x0100u, 0x0200u, 0x0300u, 0x0400u};
-
-            std::mt19937 generator(20260917);
-            std::uniform_int_distribution<std::size_t> pick(0, alphabet.size() - 1);
-            std::vector<std::uint32_t> host_keys(K_COUNT);
-            for (std::uint32_t& key : host_keys)
-                key = alphabet[pick(generator)];
-
-            const HostReference reference = host_counting_sort(host_keys, K_KEY_CAPACITY);
-            ASSERT_NE(unstable_order(host_keys), reference.indices)
+            const std::vector<std::uint32_t> keys = low_digit_tied_keys();
+            const HostReference reference = host_counting_sort(keys, K_KEY_CAPACITY);
+            ASSERT_NE(unstable_order(keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                keys[i] = host_keys[i];
+            const SortOutcome sorted = sort_once(runtime, keys, K_KEY_CAPACITY);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_CAPACITY)).value();
-            graph.run().value();
-
-            EXPECT_EQ(total[0], K_COUNT);
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                ASSERT_EQ(indices[i], reference.indices[i]) << "i = " << i;
-            for (const std::uint32_t k : alphabet)
-                ASSERT_EQ(offsets[k], reference.offsets[k]) << "k = " << k;
+            EXPECT_EQ(sorted.indices, reference.indices);
+            EXPECT_EQ(sorted.offsets, reference.offsets);
+            EXPECT_EQ(sorted.total, keys.size());
         }
 
-        /** @brief Tests 10^6 seeded elements over a 2^20 key range against the host reference. */
+        /** @brief Tests 2^17 seeded elements over a 2^20 key range against the host reference. */
         TEST(Medium_GraphPrimitivesCountingSort, LargeRandomCaseAgainstHostReference)
         {
-            constexpr std::size_t K_COUNT = 1000000;
+            // 2^17 keys fill 512 tiles, more than the 256 bins of a digit, over three digits.
+            constexpr std::size_t K_COUNT = std::size_t{1} << 17;
             constexpr std::size_t K_KEY_RANGE = std::size_t{1} << 20;
-
-            const std::vector<std::uint32_t> host_keys =
-                seeded_keys(K_COUNT, K_KEY_RANGE, 20260918);
+            const std::vector<std::uint32_t> keys = seeded_keys(K_COUNT, K_KEY_RANGE, 20260918);
+            const HostReference reference = host_counting_sort(keys, K_KEY_RANGE);
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                keys[i] = host_keys[i];
+            const SortOutcome sorted = sort_once(runtime, keys, K_KEY_RANGE);
 
-            const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
-
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
-            graph.run().value();
-
-            EXPECT_EQ(total[0], K_COUNT);
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                ASSERT_EQ(indices[i], reference.indices[i]) << "i = " << i;
-            for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
-                ASSERT_EQ(offsets[k], reference.offsets[k]) << "k = " << k;
+            EXPECT_EQ(sorted.indices, reference.indices);
+            EXPECT_EQ(sorted.offsets, reference.offsets);
+            EXPECT_EQ(sorted.total, K_COUNT);
         }
 
         /** @brief Tests that equal keys keep the input order, since every element ties. */
         TEST(Medium_GraphPrimitivesCountingSort, AllKeysEqualKeepsInputOrder)
         {
             constexpr std::size_t K_COUNT = 777;
-            constexpr std::size_t K_KEY_RANGE = 4;
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                keys[i] = 2;
+            const SortOutcome sorted =
+                sort_once(runtime, std::vector<std::uint32_t>(K_COUNT, 2u), 4);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
-            graph.run().value();
-
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                ASSERT_EQ(indices[i], i) << "i = " << i;
-            EXPECT_EQ(offsets[2], 0u);
-            EXPECT_EQ(offsets[3], K_COUNT);
-            EXPECT_EQ(total[0], K_COUNT);
+            EXPECT_EQ(sorted.indices, ascending_words(K_COUNT));
+            EXPECT_EQ(sorted.offsets, (std::vector<std::uint32_t>{0, 0, 0, 777, 777}));
+            EXPECT_EQ(sorted.total, K_COUNT);
         }
 
         /** @brief Tests one element, the smallest input that runs every pass. */
@@ -302,184 +882,121 @@ namespace SushiBLAS
             constexpr std::size_t K_KEY_RANGE = 16;
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(1).value();
-            auto indices = runtime.buffer<std::uint32_t>(1).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            for (std::size_t k = 0; k < offsets.size(); ++k)
-                offsets[k] = K_CANARY;
-            for (std::size_t k = 0; k < counts.size(); ++k)
-                counts[k] = K_CANARY;
-            total[0] = K_CANARY;
+            const SortOutcome sorted = sort_once(runtime, {}, K_KEY_RANGE);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(0),
-                          LateCount::fixed(K_KEY_RANGE), &counts).value();
-            graph.run().value();
-
-            EXPECT_EQ(total[0], 0u);
-            for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
-                EXPECT_EQ(offsets[k], 0u) << "k = " << k;
-            for (std::size_t k = 0; k < K_KEY_RANGE; ++k)
-                EXPECT_EQ(counts[k], 0u) << "k = " << k;
-            EXPECT_EQ(offsets[K_KEY_RANGE + 1], K_CANARY);
-            EXPECT_EQ(counts[K_KEY_RANGE], K_CANARY);
+            EXPECT_EQ(sorted.total, 0u);
+            EXPECT_EQ(sorted.offsets, std::vector<std::uint32_t>(K_KEY_RANGE + 1, 0u));
+            EXPECT_EQ(sorted.counts, std::vector<std::uint32_t>(K_KEY_RANGE, 0u));
+            EXPECT_EQ(sorted.past_end, std::vector<std::uint32_t>(4, K_CANARY));
         }
 
         /** @brief Tests the largest key of a 2^20 range, which sets bit 19. */
         TEST(Medium_GraphPrimitivesCountingSort, MaximumKeyOfA20BitRange)
         {
             constexpr std::size_t K_KEY_RANGE = std::size_t{1} << 20;
-            const auto largest = static_cast<std::uint32_t>(K_KEY_RANGE - 1);
-            const std::vector<std::uint32_t> host_keys = {largest, 0, largest, 1, 0};
-            const std::size_t count = host_keys.size();
+            constexpr auto K_LARGEST = static_cast<std::uint32_t>(K_KEY_RANGE - 1);
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(count).value();
-            auto indices = runtime.buffer<std::uint32_t>(count).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            for (std::size_t i = 0; i < count; ++i)
-                keys[i] = host_keys[i];
+            const SortOutcome sorted =
+                sort_once(runtime, {K_LARGEST, 0, K_LARGEST, 1, 0}, K_KEY_RANGE);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(count), LateCount::fixed(K_KEY_RANGE)).value();
-            graph.run().value();
-
-            const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
-            for (std::size_t i = 0; i < count; ++i)
-                ASSERT_EQ(indices[i], reference.indices[i]) << "i = " << i;
-            EXPECT_EQ(offsets[K_KEY_RANGE - 1], 3u);
-            EXPECT_EQ(offsets[K_KEY_RANGE], 5u);
+            EXPECT_EQ(sorted.indices, (std::vector<std::uint32_t>{1, 4, 3, 0, 2}));
+            EXPECT_EQ(sorted.offsets[K_KEY_RANGE - 1], 3u);
+            EXPECT_EQ(sorted.offsets[K_KEY_RANGE], 5u);
         }
 
-        /** @brief Tests that each extra digit the key capacity needs records four more nodes. */
-        TEST(Medium_GraphPrimitivesCountingSort, DigitCountFollowsKeyRangeCapacity)
+        /// @brief Records a sort over one key range capacity.
+        class Medium_GraphPrimitivesCountingSortCapacity
+            : public ::testing::TestWithParam<NodeCountRow>
         {
-            const auto nodes_for = [](std::size_t key_capacity) -> std::size_t
-            {
-                constexpr std::size_t K_COUNT = 10;
-                auto runtime = Runtime::create().value();
-                auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-                auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-                auto offsets = runtime.buffer<std::uint32_t>(key_capacity + 1).value();
-                auto total = runtime.buffer<std::uint32_t>(1).value();
-                for (std::size_t i = 0; i < K_COUNT; ++i)
-                    keys[i] = 0;
+        };
 
-                auto graph = runtime.graph();
-                const RunObserverCapture capture(runtime);
-                counting_sort(graph.recorder(), keys, indices, offsets, total,
-                              LateCount::fixed(K_COUNT), LateCount::fixed(key_capacity)).value();
-                graph.run().value();
-                const auto events = capture.records();
-                EXPECT_EQ(events.size(), graph.recorder().node_count());
-                return events.size();
-            };
+        /** @brief Tests that each extra digit the key capacity needs records four more nodes. */
+        TEST_P(Medium_GraphPrimitivesCountingSortCapacity, DigitCountFollowsKeyRangeCapacity)
+        {
+            constexpr std::size_t K_COUNT = 10;
+            const NodeCountRow& row = GetParam();
 
-            const std::size_t two_digits = nodes_for(std::size_t{1} << 16);
-            const std::size_t three_digits = nodes_for(std::size_t{1} << 20);
-            EXPECT_EQ(three_digits - two_digits, K_NODES_PER_DIGIT)
-                << "2^20 needs three digit passes, 2^16 needs two";
-            EXPECT_EQ(two_digits, 2 * K_NODES_PER_DIGIT + 2)
-                << "two digits, the resolver and the offsets pass";
+            auto runtime = Runtime::create().value();
+            const SortOperands operands = operands_for(runtime, K_COUNT, row.key_capacity, 0);
+            auto graph = runtime.graph();
+            record_sort(graph.recorder(), operands, LateCount::fixed(K_COUNT),
+                        LateCount::fixed(row.key_capacity));
+
+            EXPECT_EQ(graph.recorder().node_count(), row.nodes);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesCountingSortCapacity,
+            ::testing::Values(NodeCountRow{std::size_t{1} << 8, 1 * K_NODES_PER_DIGIT + 2},
+                              NodeCountRow{std::size_t{1} << 16, 2 * K_NODES_PER_DIGIT + 2},
+                              NodeCountRow{std::size_t{1} << 20, 3 * K_NODES_PER_DIGIT + 2}));
+
+        /** @brief Tests that a run dispatches each recorded node of the sort once. */
+        TEST(Medium_GraphPrimitivesCountingSort, EachRecordedNodeDispatchesOncePerRun)
+        {
+            constexpr std::size_t K_COUNT = 10;
+            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 20;
+
+            auto runtime = Runtime::create().value();
+            const SortOperands operands = operands_for(runtime, K_COUNT, K_KEY_CAPACITY, 0);
+            auto graph = runtime.graph();
+            const RunObserverCapture capture(runtime);
+            record_sort(graph.recorder(), operands, LateCount::fixed(K_COUNT),
+                        LateCount::fixed(K_KEY_CAPACITY));
+            graph.run().value();
+
+            EXPECT_EQ(capture.records().size(), graph.recorder().node_count());
+        }
+
+        /** @brief Tests that each run of a late-bound sort sorts at the sizes it reads. */
+        TEST(Medium_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeSortsEveryRun)
+        {
+            auto runtime = Runtime::create().value();
+            LateBoundSort sort(runtime, 2000, std::size_t{1} << 16);
+            const RunSeries series = sort.run_each(changing_sizes());
+
+            EXPECT_EQ(series.indices, series.expected_indices);
+            EXPECT_EQ(series.offsets, series.expected_offsets);
+            EXPECT_EQ(series.totals, series.expected_totals);
         }
 
         /** @brief Tests that a count and a key range that change between runs keep one compile. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeKeepsOneCompile)
         {
-            constexpr std::size_t K_COUNT_CAPACITY = 2000;
-            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
-
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
+            LateBoundSort sort(runtime, 2000, std::size_t{1} << 16);
+            static_cast<void>(sort.run_each(changing_sizes()));
 
-            std::size_t live_n = 10;
-            std::size_t live_key_range = 4;
-            const LateCount count =
-                LateCount::from_host(K_COUNT_CAPACITY, [&live_n]() { return live_n; });
-            const LateCount key_range = LateCount::from_host(
-                K_KEY_CAPACITY, [&live_key_range]() { return live_key_range; });
-
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total, count, key_range)
-                .value();
-
-            const auto run_and_check = [&](std::size_t n, std::size_t range)
-            {
-                live_n = n;
-                live_key_range = range;
-                const std::vector<std::uint32_t> host_keys =
-                    seeded_keys(n, range, static_cast<unsigned>(n * 31 + range));
-                for (std::size_t i = 0; i < n; ++i)
-                    keys[i] = host_keys[i];
-
-                graph.run().value();
-
-                const HostReference reference = host_counting_sort(host_keys, range);
-                for (std::size_t i = 0; i < n; ++i)
-                    ASSERT_EQ(indices[i], reference.indices[i])
-                        << "n = " << n << ", key_range = " << range << ", i = " << i;
-                EXPECT_EQ(total[0], n);
-                for (std::size_t k = 0; k <= range; ++k)
-                    ASSERT_EQ(offsets[k], reference.offsets[k])
-                        << "n = " << n << ", key_range = " << range << ", k = " << k;
-            };
-
-            run_and_check(10, 4);
-            run_and_check(1500, 60000);
-            run_and_check(3, 2);
-
-            EXPECT_EQ(graph.compile_count(), 1u)
+            EXPECT_EQ(sort.compile_count(), 1u)
                 << "a live count or key range change between runs must not trigger a recompile";
         }
 
-        /** @brief Tests that live key ranges of one, two and three digits all end in indices. */
-        TEST(Medium_GraphPrimitivesCountingSort, LiveKeyRangeBelowCapacityLandsInIndices)
+        /// @brief Sorts at one live key range below a capacity of 2^17.
+        class Medium_GraphPrimitivesCountingSortLiveKeyRange
+            : public ::testing::TestWithParam<LiveRangeRow>
         {
+        };
+
+        /** @brief Tests that a live key range of one, two or three digits ends in indices. */
+        TEST_P(Medium_GraphPrimitivesCountingSortLiveKeyRange,
+               LiveKeyRangeBelowCapacityLandsInIndices)
+        {
+            // 2^17 needs three digits; the rows below it need three, two, one and one.
             constexpr std::size_t K_COUNT = 3000;
-            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 24;
+            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 17;
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
+            LateBoundSort sort(runtime, K_COUNT, K_KEY_CAPACITY);
+            const RunSeries series = sort.run_each({LiveSize{K_COUNT, GetParam().key_range}});
 
-            std::size_t live_key_range = 0;
-            const LateCount key_range = LateCount::from_host(
-                K_KEY_CAPACITY, [&live_key_range]() { return live_key_range; });
-
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), key_range).value();
-
-            for (std::size_t range : {std::size_t{200}, std::size_t{40000}, std::size_t{5000000},
-                                      std::size_t{3}})
-            {
-                live_key_range = range;
-                const std::vector<std::uint32_t> host_keys =
-                    seeded_keys(K_COUNT, range, static_cast<unsigned>(range));
-                for (std::size_t i = 0; i < K_COUNT; ++i)
-                    keys[i] = host_keys[i];
-
-                graph.run().value();
-
-                const HostReference reference = host_counting_sort(host_keys, range);
-                for (std::size_t i = 0; i < K_COUNT; ++i)
-                    ASSERT_EQ(indices[i], reference.indices[i])
-                        << "key_range = " << range << ", i = " << i;
-                for (std::size_t k = 0; k <= range; ++k)
-                    ASSERT_EQ(offsets[k], reference.offsets[k])
-                        << "key_range = " << range << ", k = " << k;
-            }
-            EXPECT_EQ(graph.compile_count(), 1u);
+            EXPECT_EQ(series.indices, series.expected_indices);
+            EXPECT_EQ(series.offsets, series.expected_offsets);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesCountingSortLiveKeyRange,
+                                 ::testing::Values(LiveRangeRow{100000}, LiveRangeRow{40000},
+                                                   LiveRangeRow{200}, LiveRangeRow{3}));
 
         /** @brief Tests that the digits above the live key range do not run. */
         TEST(Medium_GraphPrimitivesCountingSort, DigitsAboveTheLiveKeyRangeDoNotRun)
@@ -488,245 +1005,134 @@ namespace SushiBLAS
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-
+            const SortOperands operands = operands_for(runtime, K_COUNT, K_KEY_CAPACITY, 0);
             // One digit puts 0x0101 between 0 and 2; a second digit would put it last.
-            keys[0] = 0x0101;
-            keys[1] = 2;
-            keys[2] = 0;
-            keys[3] = 3;
+            load(operands.keys, {0x0101, 2, 0, 3});
 
             auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT),
-                          LateCount::from_host(K_KEY_CAPACITY, []() { return std::size_t{4}; }))
-                .value();
+            record_sort(graph.recorder(), operands, LateCount::fixed(K_COUNT),
+                        LateCount::from_host(K_KEY_CAPACITY, []() { return std::size_t{4}; }));
             graph.run().value();
 
-            const std::vector<std::uint32_t> one_digit_order = {2, 0, 1, 3};
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                EXPECT_EQ(indices[i], one_digit_order[i]) << "i = " << i;
+            EXPECT_EQ(words_of(operands.indices, 0, K_COUNT),
+                      (std::vector<std::uint32_t>{2, 0, 1, 3}));
         }
 
-        /** @brief Tests that a DynamicGraph region records the sort and the scan as a Graph. */
-        TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordScanAndCountingSort)
+        /** @brief Tests that a DynamicGraph region records the sort as a Graph does. */
+        TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordCountingSort)
         {
-            constexpr std::size_t K_COUNT_CAPACITY = 700;
-            constexpr std::size_t K_KEY_CAPACITY = 1000;
-
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto scan_offsets = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY + 1).value();
-            auto scan_total = runtime.buffer<std::uint32_t>(1).value();
+            const RegionSeries series = replay_regions(runtime);
 
-            std::size_t live_n = 0;
-            std::size_t live_key_range = 0;
-            const LateCount count =
-                LateCount::from_host(K_COUNT_CAPACITY, [&live_n]() { return live_n; });
-            const LateCount key_range = LateCount::from_host(
-                K_KEY_CAPACITY, [&live_key_range]() { return live_key_range; });
+            EXPECT_EQ(series.sort.indices, series.sort.expected_indices);
+            EXPECT_EQ(series.sort.offsets, series.sort.expected_offsets);
+        }
 
-            auto world = runtime.dynamic_graph();
-            counting_sort(world.region(1).recorder(), keys, indices, offsets, total, count,
-                          key_range).value();
-            prefix_scan(world.region(2).recorder(), keys, scan_offsets, scan_total, count).value();
+        /** @brief Tests that a DynamicGraph region records the scan beside the sort. */
+        TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordPrefixScan)
+        {
+            auto runtime = Runtime::create().value();
+            const RegionSeries series = replay_regions(runtime);
 
-            for (const auto& live : {std::pair<std::size_t, std::size_t>{300, 200},
-                                     std::pair<std::size_t, std::size_t>{700, 1000}})
-            {
-                live_n = live.first;
-                live_key_range = live.second;
-                const std::vector<std::uint32_t> host_keys =
-                    seeded_keys(live_n, live_key_range, static_cast<unsigned>(live_n));
-                for (std::size_t i = 0; i < live_n; ++i)
-                    keys[i] = host_keys[i];
-
-                world.run().value();
-
-                const HostReference reference = host_counting_sort(host_keys, live_key_range);
-                for (std::size_t i = 0; i < live_n; ++i)
-                    ASSERT_EQ(indices[i], reference.indices[i])
-                        << "n = " << live_n << ", i = " << i;
-                for (std::size_t k = 0; k <= live_key_range; ++k)
-                    ASSERT_EQ(offsets[k], reference.offsets[k])
-                        << "n = " << live_n << ", k = " << k;
-                std::uint32_t running = 0;
-                for (std::size_t i = 0; i < live_n; ++i)
-                {
-                    ASSERT_EQ(scan_offsets[i], running) << "n = " << live_n << ", i = " << i;
-                    running += host_keys[i];
-                }
-                EXPECT_EQ(scan_offsets[live_n], running);
-                EXPECT_EQ(scan_total[0], running);
-            }
+            EXPECT_EQ(series.scan_offsets, series.expected_scan_offsets);
+            EXPECT_EQ(series.scan_totals, series.expected_scan_totals);
         }
 
         /** @brief Tests that each run sorts the keys as they stand when it runs. */
         TEST(Medium_GraphPrimitivesCountingSort, EachRunSortsItsOwnKeys)
         {
-            constexpr std::size_t K_COUNT = 500;
-            constexpr std::size_t K_KEY_RANGE = 20;
-            constexpr std::uint32_t K_STEPS = 4;
-
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const RunSeries series = sort_each_step(runtime);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
-
-            for (std::uint32_t step = 0; step < K_STEPS; ++step)
-            {
-                std::vector<std::uint32_t> host_keys(K_COUNT);
-                for (std::size_t i = 0; i < K_COUNT; ++i)
-                {
-                    host_keys[i] = static_cast<std::uint32_t>((i * 7 + step * 3) % K_KEY_RANGE);
-                    keys[i] = host_keys[i];
-                }
-
-                graph.run().value();
-
-                const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
-                for (std::size_t i = 0; i < K_COUNT; ++i)
-                    ASSERT_EQ(indices[i], reference.indices[i])
-                        << "step " << step << ", i = " << i;
-                for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
-                    ASSERT_EQ(offsets[k], reference.offsets[k])
-                        << "step " << step << ", k = " << k;
-            }
+            EXPECT_EQ(series.indices, series.expected_indices);
+            EXPECT_EQ(series.offsets, series.expected_offsets);
         }
 
         /** @brief Tests that every node of one call shares one node_index on every step. */
         TEST(Medium_GraphPrimitivesCountingSort, SharesOneNodeIndexAcrossStepsAndPasses)
         {
+            auto runtime = Runtime::create().value();
+            const CapturedSort captured = capture_sort(runtime, 4);
+
+            EXPECT_EQ(captured.rules, 1u);
+            EXPECT_EQ(distinct_node_indices(captured.events), 1u)
+                << "every pass of one counting_sort() call must share one node_index";
+        }
+
+        /** @brief Tests that every step of a multi-step run dispatches every pass once. */
+        TEST(Medium_GraphPrimitivesCountingSort, EveryStepRunsEveryPass)
+        {
             // One digit records the resolver, four digit passes, the offsets and the counts.
-            constexpr std::size_t K_COUNT_CAPACITY = 300;
-            constexpr std::size_t K_KEY_CAPACITY = 50;
             constexpr std::size_t K_EXPECTED_PASSES = K_NODES_PER_DIGIT + 3;
             constexpr std::size_t K_STEPS = 4;
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY).value();
-            for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
-                keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
+            const CapturedSort captured = capture_sort(runtime, K_STEPS);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
-                          &counts).value();
-            EXPECT_EQ(graph.recorder().rule_count(), 1u);
-
-            graph.run(K_STEPS).value();
-            const auto events = capture.records();
-
-            ASSERT_EQ(events.size(), K_EXPECTED_PASSES * K_STEPS);
-
-            const std::uint32_t node_index = events.front().node_index;
-            std::vector<std::size_t> per_invocation(K_STEPS, 0);
-            for (const auto& record : events)
-            {
-                EXPECT_EQ(record.node_index, node_index)
-                    << "every pass of one counting_sort() call must share one node_index";
-                ASSERT_LT(record.invocation, K_STEPS);
-                ++per_invocation[record.invocation];
-            }
-            for (std::size_t step = 0; step < K_STEPS; ++step)
-                EXPECT_EQ(per_invocation[step], K_EXPECTED_PASSES) << "step " << step;
+            EXPECT_EQ(dispatches_per_invocation(captured.events),
+                      std::vector<std::size_t>(K_STEPS, K_EXPECTED_PASSES));
         }
+
+        /// @brief Reads one pass of a captured sort.
+        class Medium_GraphPrimitivesCountingSortNodeWidth
+            : public ::testing::TestWithParam<WidthRow>
+        {
+        };
 
         /** @brief Tests that each node launches at the width its pass has in the plan. */
-        TEST(Medium_GraphPrimitivesCountingSort, NodeWidthsMatchThePlan)
+        TEST_P(Medium_GraphPrimitivesCountingSortNodeWidth, NodeWidthsMatchThePlan)
         {
-            // Resolver, histogram, column scan, bin base, placement, offsets, counts.
-            constexpr std::size_t K_COUNT_CAPACITY = 300;
-            constexpr std::size_t K_KEY_CAPACITY = 50;
-            const auto bins =
-                static_cast<std::uint32_t>(GraphPrimitives::Detail::K_RADIX_DIGIT_BINS);
-            const std::vector<std::uint32_t> expected_widths = {1u, 2u, bins, 1u, 2u, 51u, 50u};
+            const WidthRow& row = GetParam();
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY).value();
-            for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
-                keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
+            const CapturedSort captured = capture_sort(runtime, 1);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
-                          &counts).value();
-
-            graph.run().value();
-            const auto events = capture.records();
-
-            ASSERT_EQ(events.size(), expected_widths.size());
-            for (std::size_t i = 0; i < expected_widths.size(); ++i)
-            {
-                EXPECT_EQ(events[i].launched_width, expected_widths[i])
-                    << "pass " << i;
-                EXPECT_EQ(events[i].live_width, expected_widths[i]) << "pass " << i;
-            }
+            ASSERT_EQ(captured.events.size(), 7u);
+            EXPECT_EQ(captured.events[row.pass].launched_width, row.width);
+            EXPECT_EQ(captured.events[row.pass].live_width, row.width);
         }
 
-        /** @brief Tests that broken size rules are refused with invalid_graph. */
-        TEST(Medium_GraphPrimitivesCountingSort, RejectsMisSizedArguments)
+        // Resolver, histogram, column scan, bin base, placement, offsets, counts.
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesCountingSortNodeWidth,
+            ::testing::Values(
+                WidthRow{0, 1u}, WidthRow{1, 2u},
+                WidthRow{2,
+                         static_cast<std::uint32_t>(GraphPrimitives::Detail::K_RADIX_DIGIT_BINS)},
+                WidthRow{3, 1u}, WidthRow{4, 2u}, WidthRow{5, 51u}, WidthRow{6, 50u}));
+
+        /// @brief Records a sort over one refused set of operand sizes.
+        class Medium_GraphPrimitivesCountingSortMisSized
+            : public ::testing::TestWithParam<MisSizedRow>
         {
-            using Words = SushiRuntime::Buffer<std::uint32_t>;
+        };
 
+        /** @brief Tests that a broken size rule is refused with invalid_graph. */
+        TEST_P(Medium_GraphPrimitivesCountingSortMisSized, RejectsMisSizedArguments)
+        {
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(8).value();
-            auto indices = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(5).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto small = runtime.buffer<std::uint32_t>(3).value();
-            auto empty = runtime.buffer<std::uint32_t>(0).value();
-
             auto graph = runtime.graph();
-            const auto refused_code = [&graph, &keys](const Words& i, const Words& o,
-                                                      const Words& t, std::size_t n,
-                                                      std::size_t range, const Words* c)
-            {
-                const SushiRuntime::Result<void> recorded =
-                    counting_sort(graph.recorder(), keys, i, o, t, LateCount::fixed(n),
-                                  LateCount::fixed(range), c);
-                if (recorded)
-                    return std::optional<SushiRuntime::ErrorCode>();
+            const SushiRuntime::Result<void> recorded =
+                record_mis_sized(runtime, graph, GetParam());
 
-                return std::optional<SushiRuntime::ErrorCode>(recorded.error().code);
-            };
-            const auto invalid = SushiRuntime::ErrorCode::InvalidGraph;
-
-            EXPECT_EQ(refused_code(indices, offsets, total, 8, 0, nullptr), invalid)
-                << "a key range capacity of zero has no bucket";
-            EXPECT_EQ(refused_code(indices, offsets, total, 9, 4, nullptr), invalid)
-                << "nine keys do not fit a buffer of eight";
-            EXPECT_EQ(refused_code(small, offsets, total, 8, 4, nullptr), invalid)
-                << "three indices cannot hold eight elements";
-            EXPECT_EQ(refused_code(indices, small, total, 8, 4, nullptr), invalid)
-                << "three offsets cannot hold four buckets and the sentinel";
-            EXPECT_EQ(refused_code(indices, offsets, empty, 8, 4, nullptr), invalid)
-                << "an empty total cannot receive the count";
-            EXPECT_EQ(refused_code(indices, offsets, total, 8, 4, &small), invalid)
-                << "three counts cannot hold four buckets";
+            ASSERT_FALSE(recorded.has_value()) << GetParam().reason;
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
             EXPECT_EQ(graph.recorder().node_count(), 0u);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesCountingSortMisSized,
+            ::testing::Values(
+                MisSizedRow{8, 5, 1, 8, 0, std::nullopt,
+                            "a key range capacity of zero has no bucket"},
+                MisSizedRow{8, 5, 1, 9, 4, std::nullopt, "nine keys do not fit a buffer of eight"},
+                MisSizedRow{3, 5, 1, 8, 4, std::nullopt,
+                            "three indices cannot hold eight elements"},
+                MisSizedRow{8, 3, 1, 8, 4, std::nullopt,
+                            "three offsets cannot hold four buckets and the sentinel"},
+                MisSizedRow{8, 5, 0, 8, 4, std::nullopt, "an empty total cannot receive the count"},
+                MisSizedRow{8, 5, 1, 8, 4, std::size_t{3},
+                            "three counts cannot hold four buckets"}));
 
         /** @brief Tests that a live element count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
@@ -764,282 +1170,227 @@ namespace SushiBLAS
         {
             using namespace DeviceSized;
 
-            constexpr std::size_t K_COUNT_CAPACITY = 1000;
-            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 17;
-            constexpr std::size_t K_BUCKETS = 32;
-            constexpr std::size_t K_PACKED = K_COUNT_CAPACITY + K_BUCKETS + 2;
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
-                Harness harness(runtime, K_COUNT_CAPACITY);
-                auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-                auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
-                auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
-                auto total = runtime.buffer<std::uint32_t>(1).value();
-                auto packed = runtime.buffer<std::uint32_t>(K_PACKED).value();
-                for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
-                {
-                    keys[i] = static_cast<std::uint32_t>((i * 7u + i / 13u) % K_BUCKETS);
-                    indices[i] = 0;
-                }
+                Harness harness(runtime, K_DEVICE_COUNT_CAPACITY);
+                const SortOperands operands =
+                    operands_for(runtime, K_DEVICE_COUNT_CAPACITY, K_DEVICE_KEY_CAPACITY, 0);
+                const Words packed = filled(runtime, K_DEVICE_PACKED, 0u);
+                load(operands.keys, device_sized_keys());
+                load(operands.indices, std::vector<std::uint32_t>(K_DEVICE_COUNT_CAPACITY, 0u));
 
                 // The live key range changes every step, so one, two and three digits all run.
-                const std::array<std::size_t, 4> ranges{K_BUCKETS, 300, 70000, K_KEY_CAPACITY};
+                const std::array<std::size_t, 4> ranges{K_DEVICE_BUCKETS, 300, 70000,
+                                                        K_DEVICE_KEY_CAPACITY};
                 auto tick = std::make_shared<std::size_t>(0);
                 const LateCount key_range = LateCount::from_host(
-                    K_KEY_CAPACITY, [ranges, tick] { return ranges[(*tick)++ % ranges.size()]; });
+                    K_DEVICE_KEY_CAPACITY,
+                    [ranges, tick] { return ranges[(*tick)++ % ranges.size()]; });
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
-                GraphPrimitives::counting_sort(graph.recorder(), keys, indices, offsets, total,
-                                               harness.device_count(K_COUNT_CAPACITY), key_range)
-                    .value();
-
-                const std::uint32_t* ip = indices.data();
-                const std::uint32_t* op = offsets.data();
-                const std::uint32_t* tp = total.data();
-                std::uint32_t* pp = packed.data();
-                graph.add(K_PACKED, Reads(indices, offsets, total), Writes(packed),
-                          [ip, op, tp, pp](std::size_t i)
-                          {
-                              if (i < K_COUNT_CAPACITY)
-                                  pp[i] = ip[i];
-                              else if (i < K_COUNT_CAPACITY + K_BUCKETS + 1)
-                                  pp[i] = op[i - K_COUNT_CAPACITY];
-                              else
-                                  pp[i] = tp[0];
-                          });
-                harness.add_digest(graph, packed, K_PACKED);
+                record_sort(graph.recorder(), operands,
+                            harness.device_count(K_DEVICE_COUNT_CAPACITY), key_range);
+                add_packer(graph, operands.indices, operands.offsets, operands.total, packed);
+                harness.add_digest(graph, packed, K_DEVICE_PACKED);
                 return harness.record(graph);
             });
         }
-        /** @brief Tests that a sort over windows equals one over compact buffers. */
+
+        /** @brief Tests that a sort over windows writes what one over compact buffers writes. */
         TEST(Medium_GraphPrimitivesCountingSort, WindowMatchesACompactBufferExactly)
         {
-            constexpr std::size_t K_COUNT = 3000;
-            constexpr std::size_t K_KEY_RANGE = 1000;
-            constexpr std::size_t K_TAIL = 3;
-            const GraphPrimitives::CountingSortWindow window{7, 5, 3, 1, 2};
-            const std::vector<std::uint32_t> host = seeded_keys(K_COUNT, K_KEY_RANGE, 18u);
-
             auto runtime = Runtime::create().value();
-            const auto filled = [&runtime](std::size_t size, std::uint32_t value)
-            {
-                auto buffer = runtime.buffer<std::uint32_t>(size).value();
-                for (std::size_t i = 0; i < size; ++i)
-                    buffer[i] = value;
-                return buffer;
-            };
-            auto wide_keys = filled(window.keys_offset + K_COUNT + K_TAIL, 0u);
-            auto wide_indices = filled(window.indices_offset + K_COUNT + K_TAIL, K_CANARY);
-            auto wide_offsets = filled(window.offsets_offset + K_KEY_RANGE + 1 + K_TAIL, K_CANARY);
-            auto wide_total = filled(window.total_offset + K_TAIL, K_CANARY);
-            auto wide_counts = filled(window.counts_offset + K_KEY_RANGE + K_TAIL, K_CANARY);
-            auto keys = filled(K_COUNT, 0u);
-            auto indices = filled(K_COUNT, K_CANARY);
-            auto offsets = filled(K_KEY_RANGE + 1, K_CANARY);
-            auto total = filled(1, K_CANARY);
-            auto counts = filled(K_KEY_RANGE, K_CANARY);
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-            {
-                keys[i] = host[i];
-                wide_keys[window.keys_offset + i] = host[i];
-            }
+            const WindowRun run = sort_windowed_and_compact(runtime);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), wide_keys, wide_indices, wide_offsets, wide_total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &wide_counts,
-                          window).value();
-            counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &counts)
-                .value();
-            graph.run().value();
-
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-                ASSERT_EQ(wide_indices[window.indices_offset + i], indices[i]) << "index " << i;
-            for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
-                ASSERT_EQ(wide_offsets[window.offsets_offset + k], offsets[k]) << "bucket " << k;
-            for (std::size_t k = 0; k < K_KEY_RANGE; ++k)
-                ASSERT_EQ(wide_counts[window.counts_offset + k], counts[k]) << "bucket " << k;
-            EXPECT_EQ(wide_total[window.total_offset], total[0]);
-            EXPECT_EQ(wide_indices[window.indices_offset - 1], K_CANARY);
-            EXPECT_EQ(wide_indices[window.indices_offset + K_COUNT], K_CANARY);
-            EXPECT_EQ(wide_offsets[window.offsets_offset - 1], K_CANARY);
-            EXPECT_EQ(wide_counts[window.counts_offset - 1], K_CANARY);
-            EXPECT_EQ(wide_total[window.total_offset - 1], K_CANARY);
+            EXPECT_EQ(run.windowed.indices, run.compact.indices);
+            EXPECT_EQ(run.windowed.offsets, run.compact.offsets);
+            EXPECT_EQ(run.windowed.counts, run.compact.counts);
+            EXPECT_EQ(run.windowed.total, run.compact.total);
         }
+
+        /** @brief Tests that a sort over windows writes nothing just before or past each window. */
+        TEST(Medium_GraphPrimitivesCountingSort, WindowLeavesTheElementsAroundItUntouched)
+        {
+            auto runtime = Runtime::create().value();
+            const WindowRun run = sort_windowed_and_compact(runtime);
+
+            EXPECT_EQ(run.around, std::vector<std::uint32_t>(8, K_CANARY));
+        }
+
+        /// @brief Probes one region of one operand of a sort at K_WINDOW.
+        class Medium_GraphPrimitivesCountingSortWindowProbe
+            : public ::testing::TestWithParam<ProbeRow>
+        {
+        };
 
         /** @brief Tests that a writer of an operand waits only when it hits the window. */
-        TEST(Medium_GraphPrimitivesCountingSort, WindowOrdersOnlyOverlappingWriters)
+        TEST_P(Medium_GraphPrimitivesCountingSortWindowProbe, WindowOrdersOnlyOverlappingWriters)
         {
-            using WindowProbe::region_of;
-            constexpr std::size_t K_COUNT = 600;
-            constexpr std::size_t K_KEY_RANGE = 300;
-            constexpr std::size_t K_TAIL = 3;
-            const GraphPrimitives::CountingSortWindow window{7, 5, 3, 1, 2};
+            const ProbeRow& row = GetParam();
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(window.keys_offset + K_COUNT + K_TAIL)
-                            .value();
-            auto indices =
-                runtime.buffer<std::uint32_t>(window.indices_offset + K_COUNT + K_TAIL).value();
-            auto offsets =
-                runtime.buffer<std::uint32_t>(window.offsets_offset + K_KEY_RANGE + 1 + K_TAIL)
-                    .value();
-            auto total = runtime.buffer<std::uint32_t>(window.total_offset + K_TAIL).value();
-            auto counts =
-                runtime.buffer<std::uint32_t>(window.counts_offset + K_KEY_RANGE + K_TAIL).value();
-            for (std::size_t i = 0; i < keys.size(); ++i)
-                keys[i] = 0;
+            const SortOperands operands =
+                operands_for(runtime, K_PROBE_COUNT, K_PROBE_KEY_RANGE, K_WINDOW_TAIL, K_WINDOW);
+            auto graph = runtime.graph();
+            record_sort(graph.recorder(), operands, LateCount::fixed(K_PROBE_COUNT),
+                        LateCount::fixed(K_PROBE_KEY_RANGE), &operands.counts, K_WINDOW);
+            const std::size_t waits = WindowProbe::predecessors_of_write(
+                graph, WindowProbe::region_of(operands.*row.operand, row.offset, row.count));
 
-            const auto predecessors = [&](const SushiRuntime::BufferRegion& written)
-            {
-                auto graph = runtime.graph();
-                counting_sort(graph.recorder(), keys, indices, offsets, total,
-                              LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &counts,
-                              window).value();
-                return WindowProbe::predecessors_of_write(graph, written);
-            };
-
-            const std::size_t keys_end = window.keys_offset + K_COUNT;
-            const std::size_t indices_end = window.indices_offset + K_COUNT;
-            const std::size_t offsets_end = window.offsets_offset + K_KEY_RANGE + 1;
-            const std::size_t counts_end = window.counts_offset + K_KEY_RANGE;
-            EXPECT_EQ(predecessors(region_of(keys, 0, window.keys_offset)), 0u);
-            EXPECT_EQ(predecessors(region_of(keys, keys_end, K_TAIL)), 0u);
-            EXPECT_GT(predecessors(region_of(keys, window.keys_offset, 1)), 0u);
-            EXPECT_EQ(predecessors(region_of(indices, indices_end, K_TAIL)), 0u);
-            EXPECT_GT(predecessors(region_of(indices, indices_end - 1, 1)), 0u);
-            EXPECT_EQ(predecessors(region_of(offsets, 0, window.offsets_offset)), 0u);
-            EXPECT_GT(predecessors(region_of(offsets, offsets_end - 1, 1)), 0u);
-            EXPECT_EQ(predecessors(region_of(total, window.total_offset + 1, 1)), 0u);
-            EXPECT_GT(predecessors(region_of(total, window.total_offset, 1)), 0u);
-            EXPECT_EQ(predecessors(region_of(counts, counts_end, K_TAIL)), 0u);
-            EXPECT_GT(predecessors(region_of(counts, window.counts_offset, 1)), 0u);
+            EXPECT_EQ(waits > 0, row.ordered) << "the writer waits for " << waits << " nodes";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesCountingSortWindowProbe,
+            ::testing::Values(
+                ProbeRow{&SortOperands::keys, 0, K_WINDOW.keys_offset, false},
+                ProbeRow{&SortOperands::keys, K_WINDOW.keys_offset + K_PROBE_COUNT, K_WINDOW_TAIL,
+                         false},
+                ProbeRow{&SortOperands::keys, K_WINDOW.keys_offset, 1, true},
+                ProbeRow{&SortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT,
+                         K_WINDOW_TAIL, false},
+                ProbeRow{&SortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT - 1, 1,
+                         true},
+                ProbeRow{&SortOperands::offsets, 0, K_WINDOW.offsets_offset, false},
+                ProbeRow{&SortOperands::offsets, K_WINDOW.offsets_offset + K_PROBE_KEY_RANGE, 1,
+                         true},
+                ProbeRow{&SortOperands::total, K_WINDOW.total_offset + 1, 1, false},
+                ProbeRow{&SortOperands::total, K_WINDOW.total_offset, 1, true},
+                ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset + K_PROBE_KEY_RANGE,
+                         K_WINDOW_TAIL, false},
+                ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset, 1, true}));
+
+        /// @brief Records a sort whose window passes one operand's buffer.
+        class Medium_GraphPrimitivesCountingSortWindowPast
+            : public ::testing::TestWithParam<WindowPastRow>
+        {
+        };
 
         /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST(Medium_GraphPrimitivesCountingSort, RejectsAWindowPastItsBuffer)
+        TEST_P(Medium_GraphPrimitivesCountingSortWindowPast, RejectsAWindowPastItsBuffer)
         {
+            const WindowPastRow& row = GetParam();
+
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(8).value();
-            auto indices = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(5).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(4).value();
-
-            const struct
-            {
-                GraphPrimitives::CountingSortWindow window;
-                const char* operand;
-            } cases[] = {{{1, 0, 0, 0, 0}, "keys"},
-                         {{0, 1, 0, 0, 0}, "indices"},
-                         {{0, 0, 1, 0, 0}, "offsets"},
-                         {{0, 0, 0, 1, 0}, "total"},
-                         {{0, 0, 0, 0, 1}, "counts"}};
-
+            const SortOperands operands = operands_for(runtime, 8, 4, 0);
             auto graph = runtime.graph();
-            for (const auto& refused : cases)
-            {
-                const SushiRuntime::Result<void> recorded = counting_sort(
-                    graph.recorder(), keys, indices, offsets, total, LateCount::fixed(8),
-                    LateCount::fixed(4), &counts, refused.window);
-                ASSERT_FALSE(recorded.has_value()) << refused.operand;
-                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
-                    << recorded.error().message;
-            }
+            const SushiRuntime::Result<void> recorded = counting_sort(
+                graph.recorder(), operands.keys, operands.indices, operands.offsets,
+                operands.total, LateCount::fixed(8), LateCount::fixed(4), &operands.counts,
+                row.window);
+
+            ASSERT_FALSE(recorded.has_value()) << row.operand;
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_NE(recorded.error().message.find(row.operand), std::string::npos)
+                << recorded.error().message;
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
 
-        /** @brief Tests that a named call names its nodes by stage and states their class. */
-        TEST(Medium_GraphPrimitivesCountingSort, NamedCallNamesItsNodesAndStatesTheirClass)
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesCountingSortWindowPast,
+                                 ::testing::Values(WindowPastRow{{1, 0, 0, 0, 0}, "keys"},
+                                                   WindowPastRow{{0, 1, 0, 0, 0}, "indices"},
+                                                   WindowPastRow{{0, 0, 1, 0, 0}, "offsets"},
+                                                   WindowPastRow{{0, 0, 0, 1, 0}, "total"},
+                                                   WindowPastRow{{0, 0, 0, 0, 1}, "counts"}));
+
+        /// @brief Records a named sort with or without counts.
+        class Medium_GraphPrimitivesCountingSortNamedCall : public ::testing::TestWithParam<bool>
         {
-            constexpr std::size_t K_KEY_RANGE = 4;
-            const GraphPrimitives::PrimitiveOptions options{
-                "sort", SushiRuntime::Determinism::Bitwise};
+        };
+
+        /** @brief Tests that a named call names its nodes "sort.<stage>" in recording order. */
+        TEST_P(Medium_GraphPrimitivesCountingSortNamedCall, NamedCallNamesItsNodesByStage)
+        {
+            const bool with_counts = GetParam();
+            const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
 
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(8).value();
-            auto indices = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE).value();
+            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            auto graph = labelled_sort(runtime, operands, with_counts, options);
 
-            std::vector<std::string> stages = {"resolve"};
-            const std::size_t digits = GraphPrimitives::Detail::radix_digit_count(K_KEY_RANGE);
-            for (std::size_t d = 0; d < digits; ++d)
-                for (const char* stage : {"histogram", "column_scan", "bin_base", "placement"})
-                    stages.push_back(stage);
-            stages.push_back("offsets");
-
-            auto without_counts = runtime.graph();
-            counting_sort(without_counts.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(8), LateCount::fixed(K_KEY_RANGE), nullptr,
-                          GraphPrimitives::CountingSortWindow{}, options).value();
-            EXPECT_EQ(PlanLabels::names_of(without_counts), PlanLabels::staged("sort", stages));
-
-            stages.push_back("counts");
-            auto with_counts = runtime.graph();
-            counting_sort(with_counts.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(8), LateCount::fixed(K_KEY_RANGE), &counts,
-                          GraphPrimitives::CountingSortWindow{}, options).value();
-            EXPECT_EQ(PlanLabels::names_of(with_counts), PlanLabels::staged("sort", stages));
-
-            for (auto* graph : {&without_counts, &with_counts})
-                for (const auto determinism : PlanLabels::determinisms_of(*graph))
-                    EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
+            EXPECT_EQ(PlanLabels::names_of(graph),
+                      PlanLabels::staged("sort", stages_for(K_LABEL_KEY_RANGE, with_counts)));
         }
 
-        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        /** @brief Tests that a named call gives every node the class its options state. */
+        TEST_P(Medium_GraphPrimitivesCountingSortNamedCall, NamedCallStatesTheClassOfEveryNode)
+        {
+            const bool with_counts = GetParam();
+            const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
+
+            auto runtime = Runtime::create().value();
+            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            auto graph = labelled_sort(runtime, operands, with_counts, options);
+
+            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+                      std::vector<Determinism>(stages_for(K_LABEL_KEY_RANGE, with_counts).size(),
+                                               Determinism::Bitwise));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesCountingSortNamedCall, ::testing::Bool());
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed. */
         TEST(Medium_GraphPrimitivesCountingSort, UnnamedCallKeepsItsNodesUnnamed)
         {
-            constexpr std::size_t K_KEY_RANGE = 4;
-
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(8).value();
-            auto indices = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
             const std::string unnamed = PlanLabels::unnamed_name(runtime);
+            auto graph = labelled_sort(runtime, operands, false, std::nullopt);
 
-            auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(8),
-                          LateCount::fixed(K_KEY_RANGE)).value();
-
-            const std::size_t digits = GraphPrimitives::Detail::radix_digit_count(K_KEY_RANGE);
-            const std::size_t expected = 1 + digits * K_NODES_PER_DIGIT + 1;
-            EXPECT_EQ(PlanLabels::names_of(graph), std::vector<std::string>(expected, unnamed));
-            for (const auto determinism : PlanLabels::determinisms_of(graph))
-                EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+            EXPECT_EQ(PlanLabels::names_of(graph),
+                      std::vector<std::string>(stages_for(K_LABEL_KEY_RANGE, false).size(),
+                                               unnamed));
         }
 
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST(Medium_GraphPrimitivesCountingSort, RejectsOptionsThatNameNothing)
+        /** @brief Tests that a call with no options leaves the class of every node Unstated. */
+        TEST(Medium_GraphPrimitivesCountingSort, UnnamedCallLeavesEveryClassUnstated)
         {
             auto runtime = Runtime::create().value();
-            auto keys = runtime.buffer<std::uint32_t>(8).value();
-            auto indices = runtime.buffer<std::uint32_t>(8).value();
-            auto offsets = runtime.buffer<std::uint32_t>(5).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            const GraphPrimitives::PrimitiveOptions unnamed{};
-            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
-                                                              SushiRuntime::Determinism::Bitwise};
-            const GraphPrimitives::PrimitiveOptions bad_class{
-                "sort", static_cast<SushiRuntime::Determinism>(250)};
+            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            auto graph = labelled_sort(runtime, operands, false, std::nullopt);
 
+            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+                      std::vector<Determinism>(stages_for(K_LABEL_KEY_RANGE, false).size(),
+                                               Determinism::Unstated));
+        }
+
+        /// @brief Records a sort with one set of options that names nothing.
+        class Medium_GraphPrimitivesCountingSortOptions
+            : public ::testing::TestWithParam<OptionsRow>
+        {
+        };
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST_P(Medium_GraphPrimitivesCountingSortOptions, RejectsOptionsThatNameNothing)
+        {
+            const OptionsRow& row = GetParam();
+
+            auto runtime = Runtime::create().value();
+            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
             auto graph = runtime.graph();
-            for (const auto& options : {unnamed, null_name, bad_class})
-            {
-                const SushiRuntime::Result<void> recorded = counting_sort(
-                    graph.recorder(), keys, indices, offsets, total, LateCount::fixed(8),
-                    LateCount::fixed(4), nullptr, GraphPrimitives::CountingSortWindow{}, options);
-                ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-                EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                    << recorded.error().message;
-            }
+            const SushiRuntime::Result<void> recorded = counting_sort(
+                graph.recorder(), operands.keys, operands.indices, operands.offsets,
+                operands.total, LateCount::fixed(8), LateCount::fixed(K_LABEL_KEY_RANGE), nullptr,
+                Window{}, row.options);
+
+            ASSERT_FALSE(recorded.has_value())
+                << row.fault << ": the call recorded instead of refusing";
+            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
+                << recorded.error().message;
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GraphPrimitivesCountingSortOptions,
+            ::testing::Values(
+                OptionsRow{GraphPrimitives::PrimitiveOptions{}, "no name"},
+                OptionsRow{
+                    GraphPrimitives::PrimitiveOptions{std::string_view{}, Determinism::Bitwise},
+                    "a null name"},
+                OptionsRow{GraphPrimitives::PrimitiveOptions{"sort", static_cast<Determinism>(250)},
+                           "an unknown class"}));
 
     } // namespace Test
 } // namespace SushiBLAS

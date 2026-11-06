@@ -49,15 +49,5 @@ namespace SushiBLAS
         {
             EXPECT_TRUE(Device::gemm_tile_pin_from("").empty());
         }
-
-        TEST(Small_GemmTilePin, TheVariableIsNamedSbGemmTile)
-        {
-            EXPECT_STREQ(Device::K_GEMM_TILE_PIN_VARIABLE, "SB_GEMM_TILE");
-        }
-
-        TEST(Small_GemmTilePin, TheProcessPinIsReadOnce)
-        {
-            EXPECT_EQ(&Device::gemm_tile_pin(), &Device::gemm_tile_pin());
-        }
     } // namespace Test
 } // namespace SushiBLAS

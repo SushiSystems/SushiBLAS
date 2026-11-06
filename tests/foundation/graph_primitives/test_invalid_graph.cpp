@@ -39,7 +39,8 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_GraphPrimitivesInvalidGraph, CarriesTheInvalidGraphCodeAndTheMessage)
+        /** @brief Tests that an InvalidGraph refusal carries its code and its message. */
+        TEST(Small_GraphPrimitivesInvalidGraph, CarriesTheInvalidGraphCodeAndTheMessage)
         {
             const SushiRuntime::Result<void> refused =
                 GraphPrimitives::Detail::invalid_graph("count exceeds the capacity");
@@ -49,6 +50,7 @@ namespace SushiBLAS
             EXPECT_EQ(refused.error().message, std::string("count exceeds the capacity"));
         }
 
+        /** @brief Tests that a recorder that has recorded nothing reports no failure. */
         TEST(Medium_GraphPrimitivesInvalidGraph, AFreshRecorderHasNothingToReport)
         {
             auto runtime = SushiRuntime::Runtime::create().value();

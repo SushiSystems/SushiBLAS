@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -49,14 +50,31 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs spmv on the host CPU queue. */
-        class Medium_SYCLSparseSpmv : public HostDeviceTest
+        namespace
+        {
+            /** @brief One form of the spmv. */
+            struct FormRow
+            {
+                    const char* name; /**< The row's suffix. */
+                    bool transposed;  /**< Whether op(A) is the transpose. */
+            };
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string form_row_name(const ::testing::TestParamInfo<FormRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs spmv on the host CPU queue, one form at a time. */
+        class Medium_SYCLSparseSpmv : public HostDeviceTest, public ::testing::WithParamInterface<FormRow>
         {
 
         };
 
-        TEST_F(Medium_SYCLSparseSpmv, MatchesTheReferencePlainAndTransposed)
+        TEST_P(Medium_SYCLSparseSpmv, MatchesTheReferencePlainAndTransposed)
         {
+            const bool transposed = GetParam().transposed;
             // Every value is a small integer, so both kernels compute without rounding.
             const int64_t rows = 311;
             const int64_t cols = 257;
@@ -68,27 +86,28 @@ namespace SushiBLAS
                                                               offsets.get(), columns.get()};
             const Kernels::CsrPattern<int64_t> host_pattern{rows, cols, a.nnz(), 0,
                                                             a.offsets.data(), a.columns.data()};
-            for (const bool transposed : {false, true})
-            {
-                SCOPED_TRACE(transposed);
-                const int64_t outputs = transposed ? cols : rows;
-                const std::size_t blocks = Kernels::SYCL::scatter_blocks(
-                    Device::profile_for(queue()), outputs, a.nnz());
-                SharedArray<Kernels::Accumulator<double>> partials(
-                    queue(), blocks * static_cast<std::size_t>(outputs));
-                const std::vector<double> x = small_integers<double>(transposed ? rows : cols, 2);
-                std::vector<double> y = small_integers<double>(outputs, 3);
-                const SharedArray<double> device_x(queue(), x);
-                SharedArray<double> device_y(queue(), y);
+            const int64_t outputs = transposed ? cols : rows;
+            const std::size_t blocks = Kernels::SYCL::scatter_blocks(
+                Device::profile_for(queue()), outputs, a.nnz());
+            SharedArray<Kernels::Accumulator<double>> partials(
+                queue(), blocks * static_cast<std::size_t>(outputs));
+            const std::vector<double> x = small_integers<double>(transposed ? rows : cols, 2);
+            std::vector<double> y = small_integers<double>(outputs, 3);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), y);
 
-                Kernels::SYCL::spmv(queue(), transpose_of(transposed), device_pattern,
-                                    values.get(), 2.0, device_x.get(), 1, -1.0, device_y.get(), 1,
-                                    partials.get(), blocks, {}).wait();
-                Kernels::Reference::spmv(transpose_of(transposed), host_pattern, a.values.data(),
-                                         2.0, x.data(), 1, -1.0, y.data(), 1);
+            Kernels::SYCL::spmv(queue(), transpose_of(transposed), device_pattern, values.get(),
+                                2.0, device_x.get(), 1, -1.0, device_y.get(), 1, partials.get(),
+                                blocks, {}).wait();
+            Kernels::Reference::spmv(transpose_of(transposed), host_pattern, a.values.data(), 2.0,
+                                     x.data(), 1, -1.0, y.data(), 1);
 
-                EXPECT_EQ(device_y.values(), y);
-            }
+            EXPECT_EQ(device_y.values(), y);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSparseSpmv,
+                                 ::testing::Values(FormRow{"Plain", false},
+                                                   FormRow{"Transposed", true}),
+                                 form_row_name);
     } // namespace Test
 } // namespace SushiBLAS

@@ -65,6 +65,15 @@ namespace SushiBLAS
                 return out;
             }
 
+            /** @brief Returns a non-symmetric matrix whose diagonal outweighs each row. */
+            std::vector<double> dominant_matrix(unsigned seed)
+            {
+                std::vector<double> a = values(K_N * K_N, seed);
+                for (std::size_t i = 0; i < K_N; ++i)
+                    a[i * K_N + i] += static_cast<double>(K_N);
+                return a;
+            }
+
             /** @brief Holds what one device solve wrote. */
             struct DeviceSolve
             {
@@ -106,9 +115,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_SYCLGmres, EqualsTheReferenceWithRestartsAndBlocks)
         {
-            std::vector<double> a = values(K_N * K_N, 41);
-            for (std::size_t i = 0; i < K_N; ++i)
-                a[i * K_N + i] += static_cast<double>(K_N);
+            const std::vector<double> a = dominant_matrix(41);
             const std::vector<double> b = values(K_N, 42);
             Kernels::GmresSettings settings;
             settings.restart = 4;
@@ -123,7 +130,7 @@ namespace SushiBLAS
 
             const DeviceSolve got = run_device(queue(), a, b, settings);
 
-            EXPECT_LE(got.residual, K_SOLVE_TOLERANCE);
+            EXPECT_LE(got.residual, settings.relative_tolerance);
             EXPECT_EQ(got.iterations, expected_iterations);
             EXPECT_EQ(got.residual, expected_residual);
             EXPECT_EQ(got.x, expected);
@@ -131,9 +138,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_SYCLGmres, TwoRunsAgreeBitForBit)
         {
-            std::vector<double> a = values(K_N * K_N, 43);
-            for (std::size_t i = 0; i < K_N; ++i)
-                a[i * K_N + i] += static_cast<double>(K_N);
+            const std::vector<double> a = dominant_matrix(43);
             const std::vector<double> b = values(K_N, 44);
             const Kernels::GmresSettings settings;
 

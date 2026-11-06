@@ -37,6 +37,32 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Two integer vectors and the exact value of their dot product. */
+            struct IntegerDot
+            {
+                    std::vector<double> a;   /**< The left vector. */
+                    std::vector<double> b;   /**< The right vector. */
+                    double expected = 0.0;   /**< The dot product, exact in double. */
+            };
+
+            /** @brief Builds a and b from the residues of the index modulo 7 and 5, and their exact dot. */
+            IntegerDot small_integer_dot(std::size_t n)
+            {
+                IntegerDot out;
+                out.a.resize(n);
+                out.b.resize(n);
+                for (std::size_t i = 0; i < n; ++i)
+                {
+                    out.a[i] = static_cast<double>(i % 7) - 3.0;
+                    out.b[i] = static_cast<double>(i % 5) - 2.0;
+                    out.expected += out.a[i] * out.b[i];
+                }
+                return out;
+            }
+        } // namespace
+
         TEST(Small_ChunkedDot, CountsTheChunksOfALength)
         {
             EXPECT_EQ(Kernels::dot_chunks(0), 0u);
@@ -62,17 +88,9 @@ namespace SushiBLAS
         TEST(Small_ChunkedDot, GivesTheExactDotOfSmallIntegers)
         {
             const std::size_t n = 3 * Kernels::K_DOT_CHUNK + 7;
-            std::vector<double> a(n);
-            std::vector<double> b(n);
-            double expected = 0.0;
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                a[i] = static_cast<double>(i % 7) - 3.0;
-                b[i] = static_cast<double>(i % 5) - 2.0;
-                expected += a[i] * b[i];
-            }
+            const IntegerDot dot = small_integer_dot(n);
 
-            EXPECT_EQ(Kernels::chunked_dot(a.data(), b.data(), n), expected);
+            EXPECT_EQ(Kernels::chunked_dot(dot.a.data(), dot.b.data(), n), dot.expected);
         }
     } // namespace Test
 } // namespace SushiBLAS

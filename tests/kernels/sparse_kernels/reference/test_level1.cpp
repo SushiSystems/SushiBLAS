@@ -60,35 +60,67 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{14.0, 10.0, 10.0, 12.0, 16.0}));
         }
 
-        TEST(Small_ReferenceSparseLevel1, DotiSumsTheProductsAndConjugatesWhenAsked)
+        namespace
         {
-            const std::vector<std::complex<double>> x{{1.0, 1.0}, {0.0, 2.0}, {1.0, 0.0}};
+            /** @brief Returns the complex stored values the doti tests multiply. */
+            std::vector<std::complex<double>> doti_values()
+            {
+                return {{1.0, 1.0}, {0.0, 2.0}, {1.0, 0.0}};
+            }
+        } // namespace
+
+        TEST(Small_ReferenceSparseLevel1, DotiSumsTheProducts)
+        {
+            const std::vector<std::complex<double>> x = doti_values();
             const std::vector<std::complex<double>> y(5, std::complex<double>(1.0, 0.0));
             std::complex<double> plain;
-            std::complex<double> conjugated;
 
             Ref::doti(x.data(), positions(), y.data(), 1, &plain);
+
+            EXPECT_EQ(plain, std::complex<double>(2.0, 3.0));
+        }
+
+        TEST(Small_ReferenceSparseLevel1, DotiConjugatesTheStoredValuesWhenAsked)
+        {
+            const std::vector<std::complex<double>> x = doti_values();
+            const std::vector<std::complex<double>> y(5, std::complex<double>(1.0, 0.0));
+            std::complex<double> conjugated;
+
             Ref::doti<std::complex<double>, int64_t, Kernels::Conjugated>(
                 x.data(), positions(), y.data(), 1, &conjugated);
 
-            EXPECT_EQ(plain, std::complex<double>(2.0, 3.0));
             EXPECT_EQ(conjugated, std::complex<double>(2.0, -3.0));
         }
 
-        TEST(Small_ReferenceSparseLevel1, GatherScatterAndGatherWithZero)
+        TEST(Small_ReferenceSparseLevel1, GthrCopiesTheNamedPositionsIntoTheStoredValues)
         {
-            std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0};
+            const std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0};
             std::vector<double> x(3, 0.0);
 
             Ref::gthr(y.data(), 1, positions(), x.data());
+
             EXPECT_EQ(x, (std::vector<double>{3.0, 0.0, 4.0}));
+        }
+
+        TEST(Small_ReferenceSparseLevel1, GthrzCopiesTheNamedPositionsAndZeroesThem)
+        {
+            std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0};
+            std::vector<double> x(3, -1.0);
 
             Ref::gthrz(y.data(), 1, positions(), x.data());
+
             EXPECT_EQ(x, (std::vector<double>{3.0, 0.0, 4.0}));
             EXPECT_EQ(y, (std::vector<double>{0.0, 1.0, 2.0, 0.0, 0.0}));
+        }
+
+        TEST(Small_ReferenceSparseLevel1, SctrWritesTheStoredValuesIntoTheNamedPositions)
+        {
+            const std::vector<double> x{7.0, 8.0, 9.0};
+            std::vector<double> y(5, -1.0);
 
             Ref::sctr(x.data(), positions(), y.data(), 1);
-            EXPECT_EQ(y, (std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0}));
+
+            EXPECT_EQ(y, (std::vector<double>{8.0, -1.0, -1.0, 7.0, 9.0}));
         }
 
         TEST(Small_ReferenceSparseLevel1, RotiRotatesTheStoredPairs)

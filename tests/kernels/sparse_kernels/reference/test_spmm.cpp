@@ -23,10 +23,12 @@
 
 /**
  * @file test_spmm.cpp
- * @brief Tests the reference spmm column by column against the reference spmv, in both layouts.
+ * @brief Tests the reference spmm column by column against a dense product, in both layouts and
+ * both forms.
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -44,50 +46,95 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSpmm, EachColumnOfCIsAProductOfTheMatrixWithAColumnOfB)
+        namespace
         {
+            /** @brief One layout and one form of the spmm. */
+            struct SpmmRow
+            {
+                    const char* name;    /**< The row's suffix. */
+                    Core::Layout layout; /**< The layout of B and C. */
+                    bool transposed;     /**< Whether op(A) is the transpose. */
+            };
+
+            /** @brief Returns the four combinations of layout and form. */
+            std::vector<SpmmRow> spmm_rows()
+            {
+                return {{"RowMajorPlain", Core::Layout::RowMajor, false},
+                        {"RowMajorTransposed", Core::Layout::RowMajor, true},
+                        {"ColumnMajorPlain", Core::Layout::ColumnMajor, false},
+                        {"ColumnMajorTransposed", Core::Layout::ColumnMajor, true}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string spmm_row_name(const ::testing::TestParamInfo<SpmmRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Returns column j of a row-major dense matrix of rows rows and nrhs columns. */
+            std::vector<double> column_of(const std::vector<double>& dense, int64_t rows,
+                                          int64_t nrhs, int64_t j)
+            {
+                std::vector<double> out(static_cast<std::size_t>(rows));
+                for (int64_t i = 0; i < rows; ++i)
+                    out[static_cast<std::size_t>(i)] = element(dense, nrhs, i, j);
+                return out;
+            }
+
+            /** @brief Returns 2 op(A) B + C computed one column at a time with the dense oracle, row-major. */
+            std::vector<double> dense_product(const IntegerCsr& a, bool transposed,
+                                              const std::vector<double>& b,
+                                              const std::vector<double>& c, int64_t nrhs)
+            {
+                const int64_t in_rows = transposed ? a.rows : a.cols;
+                const int64_t out_rows = transposed ? a.cols : a.rows;
+                std::vector<double> expected(static_cast<std::size_t>(out_rows * nrhs));
+                for (int64_t j = 0; j < nrhs; ++j)
+                {
+                    const std::vector<double> product = dense_matvec(
+                        a.dense(), a.rows, a.cols, transposed, 2.0, column_of(b, in_rows, nrhs, j),
+                        1.0, column_of(c, out_rows, nrhs, j));
+                    for (int64_t i = 0; i < out_rows; ++i)
+                        expected[static_cast<std::size_t>(i * nrhs + j)] =
+                            product[static_cast<std::size_t>(i)];
+                }
+                return expected;
+            }
+        } // namespace
+
+        /** @brief Runs the reference spmm one layout and form at a time. */
+        class Small_ReferenceSpmm : public ::testing::TestWithParam<SpmmRow>
+        {
+
+        };
+
+        TEST_P(Small_ReferenceSpmm, EachColumnOfCIsAProductOfTheMatrixWithAColumnOfB)
+        {
+            const SpmmRow& row = GetParam();
             const int64_t rows = 7;
             const int64_t cols = 6;
             const int64_t nrhs = 3;
             const IntegerCsr a = integer_csr(rows, cols, 2, false);
             const Kernels::CsrPattern<int64_t> pattern{rows, cols, a.nnz(), 0, a.offsets.data(),
                                                        a.columns.data()};
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool transposed : {false, true})
-                {
-                    SCOPED_TRACE(transposed);
-                    const int64_t in_rows = transposed ? rows : cols;
-                    const int64_t out_rows = transposed ? cols : rows;
-                    const std::vector<double> b = small_integers<double>(in_rows * nrhs, 3);
-                    const std::vector<double> c = small_integers<double>(out_rows * nrhs, 4);
-                    std::vector<double> expected(static_cast<std::size_t>(out_rows * nrhs));
-                    for (int64_t j = 0; j < nrhs; ++j)
-                    {
-                        std::vector<double> b_column(static_cast<std::size_t>(in_rows));
-                        std::vector<double> c_column(static_cast<std::size_t>(out_rows));
-                        for (int64_t i = 0; i < in_rows; ++i)
-                            b_column[static_cast<std::size_t>(i)] = element(b, nrhs, i, j);
-                        for (int64_t i = 0; i < out_rows; ++i)
-                            c_column[static_cast<std::size_t>(i)] = element(c, nrhs, i, j);
-                        const std::vector<double> product = dense_matvec(
-                            a.dense(), rows, cols, transposed, 2.0, b_column, 1.0, c_column);
-                        for (int64_t i = 0; i < out_rows; ++i)
-                            expected[static_cast<std::size_t>(i * nrhs + j)] =
-                                product[static_cast<std::size_t>(i)];
-                    }
-                    const bool row_major = (layout == Core::Layout::RowMajor);
-                    const std::vector<double> stored_b = in_layout(b, in_rows, nrhs, layout);
-                    std::vector<double> stored_c = in_layout(c, out_rows, nrhs, layout);
+            const int64_t in_rows = row.transposed ? rows : cols;
+            const int64_t out_rows = row.transposed ? cols : rows;
+            const std::vector<double> b = small_integers<double>(in_rows * nrhs, 3);
+            const std::vector<double> c = small_integers<double>(out_rows * nrhs, 4);
+            const std::vector<double> expected = dense_product(a, row.transposed, b, c, nrhs);
+            const bool row_major = (row.layout == Core::Layout::RowMajor);
+            const std::vector<double> stored_b = in_layout(b, in_rows, nrhs, row.layout);
+            std::vector<double> stored_c = in_layout(c, out_rows, nrhs, row.layout);
 
-                    Kernels::Reference::spmm(layout, transpose_of(transposed), pattern,
-                                             a.values.data(), nrhs, 2.0, stored_b.data(),
-                                             row_major ? nrhs : in_rows, 1.0, stored_c.data(),
-                                             row_major ? nrhs : out_rows);
+            Kernels::Reference::spmm(row.layout, transpose_of(row.transposed), pattern,
+                                     a.values.data(), nrhs, 2.0, stored_b.data(),
+                                     row_major ? nrhs : in_rows, 1.0, stored_c.data(),
+                                     row_major ? nrhs : out_rows);
 
-                    EXPECT_EQ(stored_c, in_layout(expected, out_rows, nrhs, layout));
-                }
-            }
+            EXPECT_EQ(stored_c, in_layout(expected, out_rows, nrhs, row.layout));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceSpmm, ::testing::ValuesIn(spmm_rows()),
+                                 spmm_row_name);
     } // namespace Test
 } // namespace SushiBLAS
