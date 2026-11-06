@@ -35,8 +35,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE random
-    TESTS
-        test_random_log_category.cpp
     DEVICE_TESTS
         test_dispatch.cpp
         test_random/test_constant.cpp
@@ -49,4 +47,6 @@ sushiblas_add_test_program(
         test_random/test_shuffle.cpp
         test_random/test_uniform.cpp
     DEVICE_BENCHMARKS
-        benchmark_random.cpp)
+        benchmark_random.cpp
+    COMPILE_CHECKS
+        test_random_log_category.cpp)

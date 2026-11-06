@@ -32,9 +32,6 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
-#include <SushiBLAS/host_device/host_device_test.hpp>
-#include <SushiBLAS/host_device/shared_array.hpp>
 
 namespace SushiBLAS
 {
@@ -52,22 +49,6 @@ namespace SushiBLAS
                                      a.data(), 2, y.data(), 1, 0.0, out.data(), 1);
 
             EXPECT_EQ(out, (std::vector<double>{3.0, 4.0}));
-        }
-
-        /** @brief Runs a kernel reached through blas.hpp on the host CPU queue. */
-        class Medium_BlasKernelsOnDevice : public HostDeviceTest
-        {
-
-        };
-
-        TEST_F(Medium_BlasKernelsOnDevice, ASYCLKernelIsReachable)
-        {
-            const SharedArray<float> x(queue(), std::vector<float>{1.0f, 2.0f});
-            SharedArray<float> y(queue(), std::vector<float>{10.0f, 20.0f});
-
-            Kernels::SYCL::axpy<float>(queue(), 2, 2.0f, x.get(), 1, y.get(), 1, {}).wait();
-
-            EXPECT_EQ(y.values(), (std::vector<float>{12.0f, 24.0f}));
         }
     } // namespace Test
 } // namespace SushiBLAS

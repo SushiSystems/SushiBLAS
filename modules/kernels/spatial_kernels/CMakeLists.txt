@@ -36,4 +36,5 @@ sushiblas_add_test_program(
         sycl/test_upsample.cpp
         sycl/test_window_dot.cpp
         sycl/test_window_dot_weights.cpp
+    COMPILE_CHECKS
         test_spatial.cpp)

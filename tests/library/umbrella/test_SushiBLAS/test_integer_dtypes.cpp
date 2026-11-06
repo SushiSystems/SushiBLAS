@@ -86,23 +86,6 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that constant fills an integer tensor exactly.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
-        {
-            auto a = engine->create_tensor({4}, Core::DataType::Int32);
-            auto b = engine->create_tensor({4}, Core::DataType::Int64);
-
-            SushiBLAS::RandomOps(recorder(), engine->rng()).constant(a, 7.0);
-            SushiBLAS::RandomOps(recorder(), engine->rng()).constant(b, 1234567890.0);
-            recording->run().value();
-
-            EXPECT_EQ(std::vector<int32_t>(4, 7), read_i32(a));
-            EXPECT_EQ(std::vector<int64_t>(4, 1234567890), read_i64(b));
-        }
-
-        /**
          * @brief Tests that copy moves integer elements.
          * @see tests/library/umbrella/README.md
          */
@@ -300,24 +283,6 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that the ordering comparisons still refuse complex operands.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
-        {
-            auto a = engine->create_tensor({4}, Core::DataType::Complex32);
-            auto b = engine->create_tensor({4}, Core::DataType::Complex32);
-            auto r = engine->create_tensor({4}, Core::DataType::Complex32);
-
-            EXPECT_THROW(SushiBLAS::LogicOps(recorder()).less(a, b, r), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::LogicOps(recorder()).greater(a, b, r), std::invalid_argument);
-
-            // Equality has no such problem and must still work.
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).equal(a, b, r));
-            recording->run().value();
-        }
-
-        /**
          * @brief Tests that a UINT32 tensor is created at four bytes an element and holds the
          *        values written to it, including one above the INT32 range.
          * @see tests/library/umbrella/README.md
@@ -335,34 +300,5 @@ namespace SushiBLAS
 
             EXPECT_EQ(written, SushiBLAS::IO().to_vector<uint32_t>(t));
         }
-
-        /**
-         * @brief Tests that operations which compute refuse a UINT32 operand by name before they
-         *        record a task.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, OperationsRefuseAUInt32Operand)
-        {
-            GraphProbe probe;
-
-            auto a = engine->create_tensor({4}, Core::DataType::UInt32);
-            auto b = engine->create_tensor({4}, Core::DataType::UInt32);
-            auto f = engine->create_tensor({4}, Core::DataType::Float32);
-            auto r = engine->create_tensor({4}, Core::DataType::UInt32);
-
-            EXPECT_THROW(SushiBLAS::BLASOps(probe.recorder()).copy(a, b), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::RandomOps(probe.recorder(), engine->rng()).constant(a, 1.0),
-                         std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::LogicOps(probe.recorder()).less(a, b, r),
-                         std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).exp(a),
-                         std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).convert(a, f),
-                         std::invalid_argument);
-
-            EXPECT_EQ(0u, probe.take_recorded_count())
-                << "A rejected op must throw before it records a task.";
-        }
-
     } // namespace Test
 } // namespace SushiBLAS

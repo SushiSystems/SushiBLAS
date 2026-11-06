@@ -101,51 +101,12 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Medium_SparseTypes, IndexBaseKeepsItsValuesInOneByte)
-        {
-            EXPECT_EQ(static_cast<int>(IndexBase::Zero), 221);
-            EXPECT_EQ(static_cast<int>(IndexBase::One), 222);
-            EXPECT_EQ(sizeof(IndexBase), std::size_t{1});
-        }
-
         TEST(Medium_SparseTypes, IsValidRefusesAValueOutsideTheEnumeration)
         {
             EXPECT_TRUE(Core::is_valid(IndexBase::Zero));
             EXPECT_TRUE(Core::is_valid(IndexBase::One));
             EXPECT_FALSE(Core::is_valid(static_cast<IndexBase>(0)));
             EXPECT_FALSE(Core::is_valid(static_cast<IndexBase>(255)));
-        }
-
-        TEST(Medium_SparseTypes, FirstIndexIsTheStoredValueOfPositionZero)
-        {
-            EXPECT_EQ(Core::first_index(IndexBase::Zero), 0);
-            EXPECT_EQ(Core::first_index(IndexBase::One), 1);
-        }
-
-        TEST(Medium_SparseTypes, ToStringNamesBothBasesAndAnUnknownValue)
-        {
-            EXPECT_STREQ(Core::to_string(IndexBase::Zero), "ZERO");
-            EXPECT_STREQ(Core::to_string(IndexBase::One), "ONE");
-            EXPECT_STREQ(Core::to_string(static_cast<IndexBase>(0)), "UNKNOWN");
-        }
-
-        TEST(Medium_SparseTypes, ADefaultSparseVectorIsEmptyAndZeroBased)
-        {
-            const SparseVector vector;
-
-            EXPECT_EQ(vector.size, 0);
-            EXPECT_EQ(vector.nnz(), 0);
-            EXPECT_EQ(vector.index_base, IndexBase::Zero);
-        }
-
-        TEST(Medium_SparseTypes, ADefaultSparseMatrixIsEmptyAndZeroBased)
-        {
-            const SparseMatrix matrix;
-
-            EXPECT_EQ(matrix.rows, 0);
-            EXPECT_EQ(matrix.cols, 0);
-            EXPECT_EQ(matrix.nnz(), 0);
-            EXPECT_EQ(matrix.index_base, IndexBase::Zero);
         }
 
         TEST(Medium_SparseTypes, ASparseVectorReportsTheDtypesOfItsTensors)

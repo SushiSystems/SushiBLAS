@@ -54,7 +54,6 @@ namespace SushiBLAS
         }
 
         class Medium_MeanSpatialTest : public SushiBLASTest {};
-        class Medium_AxisSpanTest : public SushiBLASTest {};
 
         /**
          * @brief Tests that mean_spatial folds the two middle axes into one result per (n, c).
@@ -149,40 +148,5 @@ namespace SushiBLAS
             ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
             EXPECT_NEAR(got[0], static_cast<float>(expected), absolute_tolerance<float>(16));
         }
-
-        /**
-         * @brief Tests that a span with no second segment axis reduces as it always did.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_F(Medium_AxisSpanTest, ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid)
-        {
-            constexpr int64_t R = 6, K = 7;
-            const std::size_t total = static_cast<std::size_t>(R * K);
-
-            std::vector<float> src(total);
-            for (std::size_t i = 0; i < total; ++i)
-                src[i] = static_cast<float>(i);
-
-            auto in = engine->create_tensor({R, K});
-            auto out = engine->create_tensor({R});
-            fill_tensor(in, src);
-
-            SushiBLAS::ReductionOps(recorder()).sum_along(in, 1, out);
-            recording->run().value();
-
-            const std::vector<float> got = read_back(out);
-            ASSERT_EQ(got.size(), static_cast<std::size_t>(R));
-
-            for (int64_t r = 0; r < R; ++r)
-            {
-                double acc = 0.0;
-                for (int64_t k = 0; k < K; ++k)
-                    acc += static_cast<double>(src[static_cast<std::size_t>(r * K + k)]);
-
-                EXPECT_NEAR(got[static_cast<std::size_t>(r)],
-                            static_cast<float>(acc), absolute_tolerance<float>(16)) << "at row " << r;
-            }
-        }
-
     } // namespace Test
 } // namespace SushiBLAS

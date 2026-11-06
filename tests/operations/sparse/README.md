@@ -26,9 +26,6 @@ the benchmark section of `tests/README.md` describes them.
 
 ## test_sparse/test_sparse_recording.cpp
 
-Three properties of a sparse task, whose operand is three tensors and not one:
-`ARecordedTaskComputesItsResult`, `AMatrixDestroyedBeforeExecuteIsKept`, and
-`AProductIsOrderedBehindTheTaskThatWroteItsValues`, which asserts on the recorded graph that a
-product depends on the task that wrote the matrix's `values` and on no task it reads nothing
-from. `TheSameCallsReplayIntoASecondGraph`
-records the same calls through a second recorder.
+`AProductIsOrderedBehindTheTaskThatWroteItsValues` asserts on the recorded graph, for a sparse task
+whose operand is three tensors and not one, that a product depends on the task that wrote the
+matrix's `values` and on no task it reads nothing from.

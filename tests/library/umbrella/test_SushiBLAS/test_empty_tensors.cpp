@@ -62,19 +62,6 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Tests that add over empty tensors records no task and does not throw.
-         */
-        TEST_F(Medium_EmptyTensorTest, AddOfEmptyTensorsIsANoOp)
-        {
-            Tensor a = empty_tensor();
-            Tensor b = empty_tensor();
-            Tensor c = empty_tensor();
-
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c));
-            EXPECT_TRUE(graph_is_empty());
-        }
-
-        /**
          * @brief Tests that exp of an empty tensor records no task and does not throw.
          */
         TEST_F(Medium_EmptyTensorTest, ExpOfAnEmptyTensorIsANoOp)

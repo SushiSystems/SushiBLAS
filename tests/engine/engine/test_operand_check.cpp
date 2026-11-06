@@ -297,12 +297,6 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(bound.narrow<float>()(3.0f), 1.0f);
         }
 
-        TEST_F(Medium_OperandCheckTest, APlainFunctorPassesThroughNarrowFor)
-        {
-            const auto f = [](float x) { return x; };
-            EXPECT_EQ(&Dispatch::Detail::narrow_for(Dispatch::ElementTag<float>{}, f), &f);
-        }
-
         TEST_F(Medium_OperandCheckTest, TensorRejectsNegativeDimension)
         {
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {-1, 2}), std::runtime_error);
@@ -324,12 +318,6 @@ namespace SushiBLAS
         {
             auto t = make_tensor({2, 3});
             EXPECT_THROW(t.transpose(-1, 0), std::runtime_error);
-        }
-
-        TEST_F(Medium_OperandCheckTest, TransposeRejectsDimensionIndexAtRank)
-        {
-            auto t = make_tensor({2, 3});
-            EXPECT_THROW(t.transpose(0, 2), std::runtime_error);
         }
 
         TEST_F(Medium_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
@@ -357,6 +345,5 @@ namespace SushiBLAS
             EXPECT_EQ(Device::profile_for(q).supports_fp16,
                       q.get_device().has(sycl::aspect::fp16));
         }
-
     } // namespace Test
 } // namespace SushiBLAS

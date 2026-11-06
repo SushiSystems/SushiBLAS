@@ -29,20 +29,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/data/tensor/test_tensor_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/engine/test_engine_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/engine/engine/test_operand_check.cpp"
 count = 9
 backlog = "RW-133"
@@ -64,27 +50,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/engine/functor_map/test_functor_map_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/operands/test_operands_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/profiling/test_profiling_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/foundation/arithmetic/test_complex_arithmetic.cpp"
 count = 1
 backlog = "RW-133"
@@ -93,13 +58,6 @@ backlog = "RW-133"
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/foundation/core/test_sushiblas_log_project.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/launch/test_launch_log_category.cpp"
 count = 1
 backlog = "RW-133"
 
@@ -155,20 +113,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/foundation/test_runner/test_test_runner_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_kernels/test_blas_kernels_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp"
 count = 1
 backlog = "RW-133"
@@ -183,13 +127,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_seam_kernels/test_blas_seam_kernels_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_conjugation.cpp"
 count = 2
 backlog = "RW-133"
@@ -198,13 +135,6 @@ backlog = "RW-133"
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_givens.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_seam_kernels/test_modified_givens.cpp"
 count = 1
 backlog = "RW-133"
 
@@ -232,13 +162,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/kernels/sparse_kernels/test_sparse_kernels_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/library/umbrella/test_SushiBLAS/test_regression.cpp"
 count = 1
 backlog = "RW-133"
@@ -260,41 +183,7 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/operations/elementwise/test_elementwise_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/operations/experimental/test_dense_operand.cpp"
 count = 1
 backlog = "RW-133"
 
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/operations/io/test_io_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/operations/logic/test_logic_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/operations/random/test_random_log_category.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/operations/reductions/test_reductions_log_category.cpp"
-count = 1
-backlog = "RW-133"

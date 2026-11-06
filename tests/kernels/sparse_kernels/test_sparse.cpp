@@ -23,35 +23,8 @@
 
 /**
  * @file test_sparse.cpp
- * @brief Tests that sparse.hpp alone reaches the structure checks and both kinds of kernel.
+ * @brief Checks at compile time that the umbrella header compiles on its own; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
-
-#include <cstdint>
-#include <vector>
-#include <gtest/gtest.h>
-
-namespace SushiBLAS
-{
-    namespace Test
-    {
-        TEST(Small_SparseKernels, TheStructureCheckAndAReferenceKernelAreReachable)
-        {
-            const std::vector<int64_t> offsets{0, 1, 2};
-            const std::vector<int64_t> columns{1, 0};
-            const std::vector<double> values{2.0, 3.0};
-            const Kernels::CsrPattern<int64_t> pattern{2, 2, 2, 0, offsets.data(), columns.data()};
-            const std::vector<double> x{1.0, 1.0};
-            std::vector<double> y{0.0, 0.0};
-
-            Kernels::Reference::spmv(Core::Transpose::NoTrans, pattern, values.data(), 1.0,
-                                     x.data(), 1, 0.0, y.data(), 1);
-
-            EXPECT_EQ(Kernels::Reference::find_defect(pattern),
-                      Kernels::Reference::StructureDefect::None);
-            EXPECT_EQ(y, (std::vector<double>{2.0, 3.0}));
-        }
-    } // namespace Test
-} // namespace SushiBLAS

@@ -16,7 +16,6 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE functor_map
     TESTS
-        test_functor_map_log_category.cpp
         test_read_binding/test_include_order.cpp
         test_scalar.cpp
         test_scalar_binding.cpp
@@ -25,4 +24,6 @@ sushiblas_add_test_program(
         test_map_task.cpp
         test_read_binding/test_read_binding.cpp
         test_update_binding.cpp
-        test_write_binding.cpp)
+        test_write_binding.cpp
+    COMPILE_CHECKS
+        test_functor_map_log_category.cpp)

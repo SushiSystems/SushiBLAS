@@ -28,8 +28,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE logic
-    TESTS
-        test_logic_log_category.cpp
     DEVICE_TESTS
         test_dispatch.cpp
         test_logic/test_all.cpp
@@ -44,4 +42,6 @@ sushiblas_add_test_program(
         test_logic/test_logical_or.cpp
         test_logic/test_logical_xor.cpp
         test_logic/test_not_equal.cpp
-        test_logic/test_where.cpp)
+        test_logic/test_where.cpp
+    COMPILE_CHECKS
+        test_logic_log_category.cpp)

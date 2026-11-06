@@ -57,15 +57,6 @@ namespace
     /// @brief Holds positive infinity.
     const float K_INF = std::numeric_limits<float>::infinity();
 
-    /// @brief Holds the element count of the large case.
-    constexpr size_t K_LARGE_SIZE = 1000;
-
-    /// @brief Holds the input every element of the large case carries.
-    constexpr float K_LARGE_INPUT = 1.0f;
-
-    /// @brief Holds exp(1), the expectation for K_LARGE_INPUT.
-    constexpr double K_LARGE_EXPECTED = 2.718281828459045;
-
     /// @brief Holds exp of {-1, 0, 0.5, 2}.
     const std::vector<double> K_FLOAT64_EXPECTED = {0.36787944117144233, 1.0, 1.6487212707001282, 7.38905609893065};
 
@@ -97,17 +88,6 @@ TEST_F(Medium_ExpTest, PositiveInfinity)
     recording->run().value();
 
     expect_tensor(t, {K_INF});
-}
-
-TEST_F(Medium_ExpTest, ThousandElements)
-{
-    auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
-    fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
-
-    SushiBLAS::ElementwiseOps(recorder()).exp(t);
-    recording->run().value();
-
-    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_ExpTest, Float64)

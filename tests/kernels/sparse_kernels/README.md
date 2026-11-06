@@ -22,4 +22,3 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/test_sptrsv.cpp` | Tests the SYCL sptrsv against the reference sptrsv for every flag on the host device |
 | `test_csr_pattern.cpp` | Tests that a CsrPattern reads its rows and columns under either index base |
 | `test_index_list.cpp` | Tests that an IndexList reads the dense positions of its entries under either base |
-| `test_sparse.cpp` | Tests that sparse.hpp alone reaches the structure checks and both kinds of kernel |

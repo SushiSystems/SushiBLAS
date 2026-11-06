@@ -13,7 +13,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | --- | --- | --- | --- |
 | T1 | `tests/support/tolerance.hpp` in use: `expect_tensor` and every tolerance constant moved onto it |  | done |
 | T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | todo |
-| T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | todo |
+| T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | done |
 | T4 | Benchmarks moved to the benchmark runner |  | todo |
 | T5 | The defects of this report, each with a test that fails first, and the pages corrected |  | done |
 | T6 | The CLI tests on sushicore's in-memory runner and console | sushicore T1 | done |

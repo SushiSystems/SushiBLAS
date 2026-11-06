@@ -6,13 +6,10 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date
 
 import pytest
-from typer.testing import CliRunner
 
-from sushiblas import cli
 from sushiblas.aliases import K_ALIASES
 
 pytestmark = pytest.mark.small
@@ -28,22 +25,6 @@ def test_the_old_word_runs_the_new_command(commands, word):
     assert commands.invoke(word).exit_code == K_DOCS_EXIT_CODE
     assert [command.argv[1:] for command in commands.runner.commands] == [
         (".config/doxygen/Doxyfile",)]
-
-
-def test_the_old_word_is_absent_from_help():
-    """The help screen lists docs and leaves doxygen out."""
-    listed = [line.split()[0] for line in CliRunner().invoke(cli.app, ["--help"]).output.splitlines()
-              if line.startswith("  ") and not line.startswith("   ")]
-    assert "docs" in listed
-    assert "doxygen" not in listed
-
-
-def test_the_old_word_is_absent_from_describe():
-    """The catalogue lists docs and leaves doxygen out."""
-    document = json.loads(CliRunner().invoke(cli.app, ["--describe"]).output)
-    names = [command["name"] for command in document["commands"]]
-    assert "docs" in names
-    assert "doxygen" not in names
 
 
 @pytest.mark.parametrize("old", list(K_OLD_SPELLINGS))

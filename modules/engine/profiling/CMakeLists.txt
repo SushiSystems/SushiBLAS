@@ -25,6 +25,7 @@ sushiblas_add_test_program(
         test_blas_environment.cpp
         test_ceilings.cpp
         test_ceilings_file.cpp
-        test_profiling_log_category.cpp
     DEVICE_TESTS
-        test_profiler_parts.cpp)
+        test_profiler_parts.cpp
+    COMPILE_CHECKS
+        test_profiling_log_category.cpp)

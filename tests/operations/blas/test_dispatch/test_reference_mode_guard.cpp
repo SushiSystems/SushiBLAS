@@ -59,9 +59,6 @@ namespace
     /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
     /// for a product of small integers.
     constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
-
-    /// @brief The operation name the guard's message carries.
-    const std::string K_GEMM_NAME = "blas.lvl3.gemm";
 } // namespace
 
 /// @brief Fixture for the ForceReference host-pointer guard tests.
@@ -129,27 +126,6 @@ class Medium_ReferenceModeGuardTest : public SushiBLASTest
         }
 };
 
-TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
-{
-    std::optional<Tensor> a = make_device_a();
-    if (!a)
-        GTEST_SKIP() << "This device offers no device-only USM.";
-    const Tensor b = make_shared_b();
-    Tensor c = engine->create_tensor({2, 2});
-
-    set_mode(ExecutionMode::ForceReference);
-    try
-    {
-        SushiBLAS::BLASOps(recorder()).gemm(*a, b, c);
-        FAIL() << "ForceReference must refuse a device-only operand.";
-    }
-    catch (const std::invalid_argument& e)
-    {
-        const std::string message = e.what();
-        EXPECT_NE(message.find(K_GEMM_NAME), std::string::npos) << message;
-    }
-}
-
 TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue)
 {
     std::optional<Tensor> bias = make_device_tensor({2});
@@ -166,23 +142,6 @@ TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclare
                                         "test.gemm_device_bias", "test.gemm_device_bias"_op,
                                         Dispatch::gemm_epilogue(epilogue).reads(*bias)),
                  std::invalid_argument);
-}
-
-TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSYCL)
-{
-    const Tensor a = make_shared_a();
-    const Tensor b = make_shared_b();
-
-    const std::vector<float> reference = run_gemm(ExecutionMode::ForceReference, a, b);
-    const std::vector<float> device = run_gemm(ExecutionMode::ForceSYCL, a, b);
-
-    ASSERT_EQ(K_PRODUCT.size(), reference.size());
-    ASSERT_EQ(K_PRODUCT.size(), device.size());
-    for (std::size_t i = 0; i < K_PRODUCT.size(); ++i)
-    {
-        EXPECT_NEAR(K_PRODUCT[i], reference[i], K_TOLERANCE) << "element " << i;
-        EXPECT_NEAR(device[i], reference[i], K_TOLERANCE) << "element " << i;
-    }
 }
 
 TEST_F(Medium_ReferenceModeGuardTest, ForceSYCLGemmRunsOnADeviceOperand)

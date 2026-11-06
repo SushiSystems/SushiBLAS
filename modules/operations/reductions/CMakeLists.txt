@@ -34,8 +34,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE reductions
-    TESTS
-        test_reductions_log_category.cpp
     DEVICE_TESTS
         test_arg_reduction.cpp
         test_centred_reduction.cpp
@@ -50,4 +48,6 @@ sushiblas_add_test_program(
         test_reductions/test_scratch_buffer.cpp
         test_reductions/test_sum_edge_cases.cpp
     DEVICE_BENCHMARKS
-        benchmark_reductions.cpp)
+        benchmark_reductions.cpp
+    COMPILE_CHECKS
+        test_reductions_log_category.cpp)

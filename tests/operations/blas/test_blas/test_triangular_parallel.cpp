@@ -148,9 +148,6 @@ namespace SushiBLAS
             /// @brief Holds the order of the HALF system of test_blas_half_accumulation.cpp.
             constexpr int64_t K_HALF_ORDER = 64;
 
-            /// @brief Holds the right-hand-side vectors of the HALF system.
-            constexpr int64_t K_HALF_VECTORS = 3;
-
             /// @brief Holds the block widths the HALF system is solved at.
             constexpr int64_t K_HALF_WIDTHS[] = {8, K_HALF_ORDER};
 
@@ -1842,31 +1839,6 @@ namespace SushiBLAS
                     return read_buffer<sycl::half>(B);
                 }
         };
-
-        /**
-         * @brief Tests that a blocked HALF solve carries its solution in FLOAT32 at every width.
-         */
-        TEST_F(Medium_TriangularParallelHalf, ABlockedHalfSolveCarriesTheSolutionInFloat)
-        {
-            const std::vector<sycl::half> a = unit_lower_values();
-
-            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
-            {
-                SCOPED_TRACE(Core::to_string(side));
-                const bool left = (side == Core::Side::Left);
-                const int64_t rows = left ? K_HALF_ORDER : K_HALF_VECTORS;
-                const int64_t cols = left ? K_HALF_VECTORS : K_HALF_ORDER;
-                const std::vector<sycl::half> b = right_hand_side_values(rows * cols);
-                const std::vector<sycl::half> expected =
-                    substitute_in_float(side, rows, cols, a, b);
-
-                for (const int64_t width : K_HALF_WIDTHS)
-                {
-                    SCOPED_TRACE(::testing::Message() << "block width " << width);
-                    expect_same_bits(solve_with_kernel(side, rows, cols, a, b, width), expected);
-                }
-            }
-        }
 
         /**
          * @brief Tests that a blocked HALF TPSV carries its solution in FLOAT32 at every width.

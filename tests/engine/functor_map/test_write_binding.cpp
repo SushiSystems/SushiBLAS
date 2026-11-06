@@ -279,32 +279,6 @@ namespace SushiBLAS
             }), 1));
         }
 
-        TEST_F(Medium_WriteBinding, ALaterReaderWaitsForTheTaskThatWritesTheTensor)
-        {
-            GraphProbe probe;
-            const Tensor r = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
-            Tensor w = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
-            Tensor out = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
-            const auto fn = [](float, const float*, float*) {};
-
-            record_task(probe.recorder(),
-                        Dispatch::bind_writes(Dispatch::bind_reads(fn, Dispatch::read_as_element(r)),
-                                              Dispatch::write_as_element(w)),
-                        "writer");
-            record_task(probe.recorder(),
-                        Dispatch::bind_writes(Dispatch::bind_reads(fn, Dispatch::read_as_element(w)),
-                                              Dispatch::write_as_element(out)),
-                        "reader");
-
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{2});
-            EXPECT_EQ((*tasks)[0].dependency_count, std::size_t{0});
-            EXPECT_EQ((*tasks)[1].dependency_count, std::size_t{1});
-            EXPECT_EQ((*tasks)[0].reads.size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].writes.size(), std::size_t{1});
-        }
-
         TEST_F(Medium_WriteBinding, ATensorReadAndWrittenIsDeclaredOnceAsEach)
         {
             GraphProbe probe;

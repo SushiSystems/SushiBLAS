@@ -46,9 +46,6 @@ namespace SushiBLAS
         /** @brief Holds the row-major strides of K_DIMS: {3 * 4, 4, 1}. */
         const std::vector<int64_t> K_ROW_MAJOR_STRIDES{12, 4, 1};
 
-        /** @brief Holds K_DIMS regrouped as a 6x4 matrix. */
-        const std::vector<int64_t> K_RESHAPED{6, 4};
-
         /** @brief Supplies a row-major engine. */
         class Medium_RuntimeShapes : public SushiBLASTest
         {
@@ -82,25 +79,6 @@ namespace SushiBLAS
             const std::vector<int64_t> negative{2, -3};
 
             EXPECT_THROW((void)engine->create_tensor(negative), std::runtime_error);
-        }
-
-        TEST_F(Medium_RuntimeShapes, ReshapeTakesAVectorShape)
-        {
-            const Tensor t = engine->create_tensor(K_DIMS);
-            const Tensor r = t.reshape(K_RESHAPED);
-
-            ASSERT_EQ(r.rank, 2);
-            EXPECT_EQ(r.shape[0], K_RESHAPED[0]);
-            EXPECT_EQ(r.shape[1], K_RESHAPED[1]);
-            EXPECT_EQ(r.num_elements, K_ELEMENTS);
-        }
-
-        TEST_F(Medium_RuntimeShapes, ReshapeRejectsAnotherElementCount)
-        {
-            const Tensor t = engine->create_tensor(K_DIMS);
-            const std::vector<int64_t> wrong{5, 5};
-
-            EXPECT_THROW((void)t.reshape(wrong), std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS

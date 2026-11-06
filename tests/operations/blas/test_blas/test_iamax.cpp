@@ -36,47 +36,7 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 using namespace SushiBLAS::Test;
 
-namespace
-{
-    /** @brief Reads a scalar INT64 tensor back to the host. */
-    int64_t index_of(const SushiBLAS::Tensor& t)
-    {
-        int64_t host = -1;
-        SushiBLAS::Test::TestEnvironment::queue()
-            .memcpy(&host, t.data(), sizeof(int64_t)).wait();
-        return host;
-    }
-}
-
 class Medium_IAMAXTest : public SushiBLASTest {};
-
-TEST_F(Medium_IAMAXTest, SimpleIAMAX)
-{
-    auto X = engine->create_tensor({4});
-    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
-
-    fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
-
-    SushiBLAS::BLASOps(recorder()).iamax(X, R);
-    recording->run().value();
-
-    // Largest magnitude is |-5| at index 1. Zero-based, as the C++ BLAS bindings are.
-    EXPECT_EQ(1, index_of(R));
-}
-
-TEST_F(Medium_IAMAXTest, TiesGoToTheLowestIndex)
-{
-    auto X = engine->create_tensor({5});
-    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
-
-    fill_tensor(X, {2.0f, -7.0f, 1.0f, 7.0f, 0.0f});
-
-    SushiBLAS::BLASOps(recorder()).iamax(X, R);
-    recording->run().value();
-
-    // |-7| and |7| tie, and BLAS specifies the first. See tests/operations/blas/README.md.
-    EXPECT_EQ(1, index_of(R));
-}
 
 /**
  * @brief Tests that iamax rejects a result tensor too narrow to hold the index.

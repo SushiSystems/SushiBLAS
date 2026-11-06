@@ -130,16 +130,6 @@ namespace SushiBLAS
         TYPED_TEST_SUITE(Medium_IntegerArithmeticTest, IntegerTypes, DefaultTypeNames);
 
         /**
-         * @brief Tests that add wraps on overflow.
-         */
-        TYPED_TEST(Medium_IntegerArithmeticTest, AddWrapsAroundOnOverflow)
-        {
-            const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
-                                              { ew.add(a, b, c); });
-            EXPECT_EQ(TestFixture::Case::sum(), got);
-        }
-
-        /**
          * @brief Tests sub on hand values.
          */
         TYPED_TEST(Medium_IntegerArithmeticTest, SubtractsElementwise)
@@ -147,16 +137,6 @@ namespace SushiBLAS
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.sub(a, b, c); });
             EXPECT_EQ(TestFixture::Case::difference(), got);
-        }
-
-        /**
-         * @brief Tests that mul wraps when MIN is multiplied by -1.
-         */
-        TYPED_TEST(Medium_IntegerArithmeticTest, MulWrapsAroundOnOverflow)
-        {
-            const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
-                                              { ew.mul(a, b, c); });
-            EXPECT_EQ(TestFixture::Case::product(), got);
         }
 
         /**
@@ -226,28 +206,6 @@ namespace SushiBLAS
                 SushiBLAS::ElementwiseOps(probe.recorder()).clamp(t, K_CLAMP_HIGH, K_CLAMP_LOW),
                 std::invalid_argument);
             EXPECT_EQ(0u, probe.take_recorded_count());
-        }
-
-        /**
-         * @brief Tests that the safe_ew_add functor wraps MAX + 1 to MIN.
-         */
-        TYPED_TEST(Medium_IntegerArithmeticTest, SafeAddFunctorWrapsAroundOnOverflow)
-        {
-            using Int = TypeParam;
-            using Case = typename TestFixture::Case;
-            auto a = this->template create_initialized_tensor<Int>({2}, {Case::K_MAX, 7});
-            auto b = this->template create_initialized_tensor<Int>({2}, {1, 5});
-            auto c = this->engine->create_tensor({2}, sushiblas_dtype<Int>());
-
-            Dispatch::execute_binary<Dispatch::Domain::RealAndIntegral>(
-                this->recorder(), a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
-                [](auto x, auto y)
-                {
-                    return Dispatch::safe_ew_add(x, y);
-                });
-            this->recording->run().value();
-
-            EXPECT_EQ((std::vector<Int>{Case::K_MIN, 12}), read_tensor<Int>(c));
         }
 
         /// @brief Runs the double scalar parameter case.

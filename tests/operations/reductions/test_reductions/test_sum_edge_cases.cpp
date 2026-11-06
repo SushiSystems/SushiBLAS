@@ -91,23 +91,6 @@ class Medium_SumEdgeCasesTest : public SushiBLASTest
             expect_tensor(min, {expected.min}, K_TOLERANCE);
         }
 
-        /**
-         * @brief Reduces values with sum and mean only and checks both results.
-         */
-        void expect_sum_and_mean(const std::vector<float>& values, float expected_sum, float expected_mean)
-        {
-            auto t = engine->create_tensor({static_cast<int64_t>(values.size())});
-            fill_tensor(t, values);
-
-            auto sum = engine->create_tensor({1});
-            auto mean = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(recorder()).sum(t, sum);
-            SushiBLAS::ReductionOps(recorder()).mean(t, mean);
-            recording->run().value();
-
-            expect_tensor(sum, {expected_sum}, K_TOLERANCE);
-            expect_tensor(mean, {expected_mean}, K_TOLERANCE);
-        }
 };
 
 TEST_F(Medium_SumEdgeCasesTest, SingleElement)
@@ -133,11 +116,6 @@ TEST_F(Medium_SumEdgeCasesTest, AllEqual)
 TEST_F(Medium_SumEdgeCasesTest, NegativeZeros)
 {
     expect_reductions({-0.0f, -0.0f, -0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
-}
-
-TEST_F(Medium_SumEdgeCasesTest, NaNPropagatesThroughSumAndMean)
-{
-    expect_sum_and_mean({1.0f, K_NAN, 2.0f}, K_NAN, K_NAN);
 }
 
 TEST_F(Medium_SumEdgeCasesTest, NaNPropagatesThroughEveryReduction)

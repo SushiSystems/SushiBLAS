@@ -41,11 +41,6 @@ error, which would be off by a factor of H, of W or of N.
 `ConcatPlacesEachSourceAtItsOffset` uses two pixels, so a source that ignored its column stride
 would still pass the first pixel and fail the second.
 
-`TheyAreEachOthersBackward` is the property the autograd rule stands on: the gradient of a
-concat is a slice at the same offset and of the same width. It is written as one round trip
-through the offset the second source occupies, so an off-by-one in either direction shows up
-and does not cancel.
-
 `AStridedSourceIsAddressedThroughItsStrides` builds its source through `Tensor`'s
 stride-explicit constructor, the same public seam `test_tensor_view.cpp` exercises: a
 `[1,2,2,2]` view over a `[1,2,2,4]` parent whose channel stride is 2, so it sees the parent's

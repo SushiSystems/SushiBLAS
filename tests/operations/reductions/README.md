@@ -192,11 +192,6 @@ cooperative shape. Both shapes compute their segment's base address, and both ha
 computation changed, so covering only the item-per-segment shape would leave half the change
 untested.
 
-`ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid`: every existing caller sets five members of
-`AxisSpan` and so gets `segments2 = 1`, `segment_stride2 = 0` by default. If
-the fold index is decomposed wrongly at that default, every row-wise reduction in the library
-is wrong, and this is the cheapest place in the suite to see it.
-
 ## test_reductions/test_reduction_determinism.cpp
 
 The folding reductions were rebuilt for two properties: a bit-identical answer on every run,
@@ -257,6 +252,6 @@ must be right and both must be stable run to run.
 
 ## test_reductions/test_reductions.cpp
 
-`ArgMax` and `ArgMin` write an INT64 result, not one of the input's own dtype. `argmax` answers
+`argmax` and `argmin` write an INT64 result, not one of the input's own dtype. `argmax` answers
 with an index, and an index stored in a float stops being exact past 2^24 (past 2048 in HALF).
 The index is compared exactly for the same reason: it is either right or wrong.

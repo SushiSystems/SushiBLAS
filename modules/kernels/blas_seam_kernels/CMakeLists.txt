@@ -16,7 +16,6 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE blas_seam_kernels
     TESTS
-        test_blas_seam_kernels_log_category.cpp
         level3/test_channel_bias_epilogue.cpp
         level3/test_gemm_epilogue.cpp
         level3/test_gemm_tile_catalog.cpp
@@ -41,4 +40,6 @@ sushiblas_add_test_program(
         sycl/level3/test_gemm_accessed_packed.cpp
         sycl/level3/test_gemm_joint_matrix.cpp
         sycl/level3/test_gemm_packed.cpp
-        sycl/level3/test_packed_product.cpp)
+        sycl/level3/test_packed_product.cpp
+    COMPILE_CHECKS
+        test_blas_seam_kernels_log_category.cpp)

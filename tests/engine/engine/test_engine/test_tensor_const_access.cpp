@@ -71,25 +71,5 @@ namespace SushiBLAS
             Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
             expect_same_addresses(t);
         }
-
-        TEST_F(Medium_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddressOnAnOffsetView)
-        {
-            Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
-            Tensor view = t.slice(0, 1, 3);
-            ASSERT_GT(view.storage_offset, 0);
-            expect_same_addresses(view);
-
-            const Tensor& const_view = view;
-            EXPECT_EQ(static_cast<const char*>(const_view.data()),
-                      static_cast<const char*>(static_cast<const Tensor&>(t).data()) + view.storage_offset * 4);
-        }
-
-        TEST_F(Medium_TensorConstAccessTest, DataOrNullIsNullWithoutStorage)
-        {
-            Tensor t;
-            const Tensor& view = t;
-            EXPECT_EQ(t.data_or_null(), nullptr);
-            EXPECT_EQ(view.data_or_null(), nullptr);
-        }
     } // namespace Test
 } // namespace SushiBLAS

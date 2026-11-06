@@ -46,13 +46,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        namespace
-        {
-            /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one;
-            /// every expectation is a small integer.
-            constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
-        } // namespace
-
         /**
          * @brief Records sparse calls on FLOAT32 operands with INT32 indices and reads the graph.
          */
@@ -104,129 +97,7 @@ namespace SushiBLAS
                 {
                     return TestEnvironment::live_allocation_count();
                 }
-
-                /**
-                 * @brief Expects the one task record adds to compute what verify compares.
-                 * @param record Callable `(TaskRecorder&) -> TaskHandle` that records one task.
-                 * @param verify Callable `() -> void` comparing the task's output with the host
-                 *        formula; it runs after the probe has run the task.
-                 */
-                template<typename Record, typename Verify>
-                void expect_task_computes(const char* routine, Record&& record, Verify&& verify)
-                {
-                    SCOPED_TRACE(routine);
-
-                    GraphProbe probe(ExecutionMode::ForceSYCL);
-                    ASSERT_TRUE(record(probe.recorder()).is_valid());
-
-                    ASSERT_EQ(1u, probe.recorded_count());
-                    const auto tasks = probe.recorded_tasks();
-                    ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                    ASSERT_EQ(1u, tasks->size());
-                    EXPECT_EQ(0u, (*tasks)[0].dependency_count);
-
-                    const SushiRuntime::Result<void> ran = probe.execute();
-                    ASSERT_TRUE(ran.has_value()) << ran.error().message;
-                    verify();
-                }
         };
-
-        TEST_F(Medium_SparseRecording, ARecordedTaskComputesItsResult)
-        {
-            const std::vector<float> four = {1.0f, 2.0f, 3.0f, 4.0f};
-            const std::vector<float> five = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-            const std::vector<float> transposed = {25.0f, 9.0f, 12.0f, 2.0f, 43.0f};
-
-            {
-                const SparseBuilder builder(engine->tensor_factory());
-                const SparseVector x = builder.vector_from_entries(
-                    8, std::vector<int32_t>{6, 1, 4}, std::vector<float>{10.0f, 20.0f, 30.0f});
-                const Tensor y = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f});
-                Tensor result = vector_of({0.0f});
-                expect_task_computes("doti",
-                    [&](TaskRecorder& r) { return SparseOps(r).doti(x, y, result); },
-                    [&] { expect_tensor(result, std::vector<float>{260.0f}, K_TOLERANCE); });
-            }
-
-            {
-                const SparseMatrix A = sample();
-                const Tensor x = vector_of(five);
-                Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                expect_task_computes("spmv under NO_TRANS",
-                    [&](TaskRecorder& r) { return SparseOps(r).spmv(A, x, y); },
-                    [&] { expect_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE); });
-            }
-
-            {
-                const SparseMatrix A = sample();
-                const Tensor x = vector_of(four);
-                Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
-                expect_task_computes("spmv under TRANS",
-                    [&](TaskRecorder& r)
-                    {
-                        return SparseOps(r).spmv(A, x, y, Core::Transpose::Trans);
-                    },
-                    [&] { expect_tensor(y, transposed, K_TOLERANCE); });
-            }
-
-            {
-                const SparseMatrix A = lower_triangle();
-                const Tensor x = vector_of(four);
-                Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                expect_task_computes("spsymv",
-                    [&](TaskRecorder& r)
-                    {
-                        return SparseOps(r).spsymv(A, x, y, Core::Uplo::Lower);
-                    },
-                    [&] { expect_tensor(y, std::vector<float>{28, 19, 51, 59}, K_TOLERANCE); });
-            }
-
-            {
-                // Column 0 of B is (1, 2, 3, 4) and column 1 is zero, row by row.
-                const SparseMatrix A = sample();
-                const Tensor B =
-                    create_initialized_tensor<float>({4, 2}, {1, 0, 2, 0, 3, 0, 4, 0});
-                Tensor C = create_initialized_tensor<float>({5, 2}, std::vector<float>(10, 0.0f));
-                expect_task_computes("spmm under TRANS",
-                    [&](TaskRecorder& r)
-                    {
-                        return SparseOps(r).spmm(A, B, C, Core::Transpose::Trans);
-                    },
-                    [&]
-                    {
-                        expect_tensor(C, std::vector<float>{25, 0, 9, 0, 12, 0, 2, 0, 43, 0},
-                                      K_TOLERANCE);
-                    });
-            }
-
-            {
-                const SparseMatrix A = lower_triangle();
-                Tensor b = vector_of({2.0f, 7.0f, 23.0f, 59.0f});
-                expect_task_computes("sptrsv",
-                    [&](TaskRecorder& r) { return SparseOps(r).sptrsv(A, b, Core::Uplo::Lower); },
-                    [&] { expect_tensor(b, four, K_TOLERANCE); });
-            }
-        }
-
-        TEST_F(Medium_SparseRecording, AMatrixDestroyedBeforeExecuteIsKept)
-        {
-            const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
-            Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-            std::size_t live_with_matrix = 0;
-
-            {
-                const SparseMatrix A = sample();
-                live_with_matrix = live_allocations();
-                SparseOps(recorder()).spmv(A, x, y);
-            }
-
-            EXPECT_GE(live_allocations(), live_with_matrix)
-                << "The recorded task is the last holder of the three arrays and must keep them.";
-
-            recording->run().value();
-
-            expect_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
-        }
 
         TEST_F(Medium_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
         {
@@ -263,26 +134,6 @@ namespace SushiBLAS
                 EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "The product reads nothing the first task wrote.";
             }
-        }
-
-        TEST_F(Medium_SparseRecording, TheSameCallsReplayIntoASecondGraph)
-        {
-            const SparseMatrix A = sample();
-            const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f});
-            const std::vector<float> expected = {25.0f, 9.0f, 12.0f, 2.0f, 43.0f};
-
-            GraphProbe first;
-            GraphProbe second;
-            Tensor y_first = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
-            Tensor y_second = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
-
-            SparseOps(first.recorder()).spmv(A, x, y_first, Core::Transpose::Trans);
-            SparseOps(second.recorder()).spmv(A, x, y_second, Core::Transpose::Trans);
-            first.execute().value();
-            second.execute().value();
-
-            expect_tensor(y_first, expected, K_TOLERANCE);
-            EXPECT_EQ(read_tensor<float>(y_first), read_tensor<float>(y_second));
         }
     } // namespace Test
 } // namespace SushiBLAS

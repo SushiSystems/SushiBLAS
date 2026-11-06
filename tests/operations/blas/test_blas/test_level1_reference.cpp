@@ -55,98 +55,6 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Medium_Level1ReferenceTest, AsumSumsAbsoluteValues)
-        {
-            const std::vector<float> K_EXPECTED = {10.0f};
-
-            auto x = create_initialized_tensor<float>({4}, {1.0f, -2.0f, 3.0f, -4.0f});
-            auto result = engine->create_tensor({1});
-
-            SushiBLAS::BLASOps(recorder()).asum(x, result);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, AxpyAddsScaledX)
-        {
-            const std::vector<float> K_EXPECTED = {12.0f, 24.0f, 36.0f};
-
-            auto x = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto y = create_initialized_tensor<float>({3}, {10.0f, 20.0f, 30.0f});
-
-            SushiBLAS::BLASOps(recorder()).axpy(2.0, x, y);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, CopyOverwritesEveryElement)
-        {
-            const std::vector<float> K_EXPECTED = {1.5f, -2.5f, 3.5f};
-
-            auto x = create_initialized_tensor<float>({3}, {1.5f, -2.5f, 3.5f});
-            auto y = create_initialized_tensor<float>({3}, {999.0f, 999.0f, 999.0f});
-
-            SushiBLAS::BLASOps(recorder()).copy(x, y);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, DotSumsElementwiseProducts)
-        {
-            const std::vector<float> K_EXPECTED = {12.0f};
-
-            auto x = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto y = create_initialized_tensor<float>({3}, {4.0f, -5.0f, 6.0f});
-            auto result = engine->create_tensor({1});
-
-            SushiBLAS::BLASOps(recorder()).dot(x, y, result);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, IamaxReturnsTheFirstIndexOfATie)
-        {
-            const std::vector<float> K_EXPECTED_INDEX = {1.0f};
-
-            auto x = create_initialized_tensor<float>({4}, {1.0f, -3.0f, 3.0f, 2.0f});
-            auto result = engine->create_tensor({1}, Core::DataType::Int64);
-
-            SushiBLAS::BLASOps(recorder()).iamax(x, result);
-            recording->run().value();
-
-            expect_tensor_equal(result, K_EXPECTED_INDEX);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, IamaxFindsANegativeMaximumAtTheEnd)
-        {
-            const std::vector<float> K_EXPECTED_INDEX = {3.0f};
-
-            auto x = create_initialized_tensor<float>({4}, {0.5f, -1.0f, 2.0f, -7.0f});
-            auto result = engine->create_tensor({1}, Core::DataType::Int64);
-
-            SushiBLAS::BLASOps(recorder()).iamax(x, result);
-            recording->run().value();
-
-            expect_tensor_equal(result, K_EXPECTED_INDEX);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, Nrm2ReturnsTheEuclideanNorm)
-        {
-            const std::vector<float> K_EXPECTED = {7.0f};
-
-            auto x = create_initialized_tensor<float>({3}, {2.0f, -3.0f, 6.0f});
-            auto result = engine->create_tensor({1});
-
-            SushiBLAS::BLASOps(recorder()).nrm2(x, result);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
-        }
-
         TEST_F(Medium_Level1ReferenceTest, RotAppliesThePlaneRotation)
         {
             const std::vector<float> K_EXPECTED_X = {3.0f, 4.4f};
@@ -156,33 +64,6 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({2}, {3.0f, 4.0f});
 
             SushiBLAS::BLASOps(recorder()).rot(x, y, 0.6, 0.8);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(x, K_EXPECTED_X, K_TOLERANCE);
-            EXPECT_TENSOR_NEAR(y, K_EXPECTED_Y, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, ScalMultipliesEveryElement)
-        {
-            const std::vector<float> K_EXPECTED = {-1.0f, 2.0f, -3.0f};
-
-            auto x = create_initialized_tensor<float>({3}, {2.0f, -4.0f, 6.0f});
-
-            SushiBLAS::BLASOps(recorder()).scal(-0.5, x);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level1ReferenceTest, SwapExchangesBothVectors)
-        {
-            const std::vector<float> K_EXPECTED_X = {7.0f, 8.0f, 9.0f};
-            const std::vector<float> K_EXPECTED_Y = {1.0f, 2.0f, 3.0f};
-
-            auto x = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto y = create_initialized_tensor<float>({3}, {7.0f, 8.0f, 9.0f});
-
-            SushiBLAS::BLASOps(recorder()).swap(x, y);
             recording->run().value();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED_X, K_TOLERANCE);

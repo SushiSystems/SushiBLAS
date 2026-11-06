@@ -1070,28 +1070,5 @@ namespace SushiBLAS
                 expect_same_bytes(read_tensor<float>(C), c.values);
             }
         }
-
-        /**
-         * @brief Tests that the tile a record-time refusal measures is the tile of the dtype,
-         *        and that an integer dtype demands nothing.
-         */
-        TEST(Medium_Syr2kTile, TheRecordedDemandIsTheTileOfTheDtype)
-        {
-            using Kernels::SYCL::Syr2kTile;
-
-            const Device::LocalTileDemand single =
-                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Float32);
-            EXPECT_EQ(Syr2kTile::demand<float>().local_bytes, single.local_bytes);
-            EXPECT_EQ(Syr2kTile::demand<float>().work_group_items, single.work_group_items);
-
-            const Device::LocalTileDemand wide =
-                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Complex64);
-            EXPECT_EQ(Syr2kTile::demand<std::complex<double>>().local_bytes, wide.local_bytes);
-            EXPECT_GT(wide.local_bytes, single.local_bytes);
-
-            const Device::LocalTileDemand none =
-                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Int32);
-            EXPECT_EQ(std::size_t{0}, none.local_bytes);
-        }
     } // namespace Test
 } // namespace SushiBLAS

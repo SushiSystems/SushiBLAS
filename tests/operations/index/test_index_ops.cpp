@@ -612,36 +612,6 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Medium_IndexOps, ANodeThatStatesNoClassReadsUnstated)
-        {
-            set_mode(ExecutionMode::ForceReference);
-            IndexOps index(recorder());
-            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-
-            index.for_each(4,
-                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                 Dispatch::write_as<float>(out)),
-                           OperationOptions{"silent"});
-
-            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
-            ASSERT_TRUE(plan);
-            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
-            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Unstated);
-        }
-
-        TEST_F(Medium_IndexOps, AnEmptyNameIsRefused)
-        {
-            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-            IndexOps index(recorder());
-
-            EXPECT_THROW(index.for_each(4,
-                                        Dispatch::bind_writes(
-                                            [](std::size_t i, float* p) { p[i] = 1.0f; },
-                                            Dispatch::write_as<float>(out)),
-                                        OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
-        }
-
         TEST_F(Medium_IndexOps, ACountTensorThatIsNeitherUInt32NorInt32InHostMemoryIsRefused)
         {
             Tensor out = engine->create_tensor({4}, Core::DataType::Float32);

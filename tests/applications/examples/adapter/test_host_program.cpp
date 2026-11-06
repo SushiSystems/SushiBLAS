@@ -68,19 +68,5 @@ namespace HostProgram
             EXPECT_EQ(result.values, (std::vector<float>{3, 2, 5, 4}));
             EXPECT_EQ(sum, 14.0f);
         }
-
-        TEST(Medium_HostProgram, MismatchedShapesAreAnInvalidRequest)
-        {
-            BackendHandle backend;
-            ASSERT_EQ(create_backend(backend).code, StatusCode::Ok);
-            const Matrix a{2, 3, {1, 2, 3, 4, 5, 6}};
-            const Matrix b{2, 2, {1, 0, 0, 1}};
-            const Matrix offset{2, 2, {0, 0, 0, 0}};
-            Matrix result;
-            float sum = 0;
-
-            EXPECT_EQ(multiply_add(*backend, a, b, offset, result, sum).code,
-                      StatusCode::InvalidRequest);
-        }
     } // namespace Test
 } // namespace HostProgram

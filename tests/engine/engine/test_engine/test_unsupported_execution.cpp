@@ -100,22 +100,6 @@ namespace SushiBLAS
             EXPECT_STREQ(from_literal.what(), "device");
         }
 
-        TEST(Medium_UnsupportedExecution, IsCaughtAsItselfAndAsInvalidArgument)
-        {
-            const auto raise = [] { throw UnsupportedExecution("refused"); };
-
-            EXPECT_THROW(raise(), UnsupportedExecution);
-            EXPECT_THROW(raise(), std::invalid_argument);
-            EXPECT_EQ(outcome_of(raise), Outcome::UnsupportedExecution);
-        }
-
-        TEST(Medium_UnsupportedExecution, APlainInvalidArgumentIsNotCaughtAsIt)
-        {
-            const auto raise = [] { throw std::invalid_argument("wrong operand"); };
-
-            EXPECT_EQ(outcome_of(raise), Outcome::InvalidArgument);
-        }
-
         TEST(Medium_UnsupportedExecution, TheExecutionHelperThrowsItNamingTheOperation)
         {
             const auto raise = []
@@ -132,22 +116,6 @@ namespace SushiBLAS
             {
                 EXPECT_STREQ(refusal.what(), "op: cannot run under a mode");
             }
-        }
-
-        TEST(Medium_UnsupportedExecution, TheOperandAndDtypeHelpersDoNotThrowIt)
-        {
-            const auto wrong_operand = []
-            {
-                Dispatch::Detail::throw_operand_error("op", "x", "has rank {}", 3);
-            };
-            const auto wrong_dtype = []
-            {
-                Dispatch::Detail::throw_dtype_error("Elementwise operation", "sqrt",
-                                                    Core::DataType::Int32);
-            };
-
-            EXPECT_EQ(outcome_of(wrong_operand), Outcome::InvalidArgument);
-            EXPECT_EQ(outcome_of(wrong_dtype), Outcome::InvalidArgument);
         }
 
         /** @brief Records calls on an engine and reports how each one ended. */

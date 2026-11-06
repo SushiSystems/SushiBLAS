@@ -18,8 +18,6 @@ the benchmark section of `tests/README.md` describes them.
 | `benchmark_level1.cpp` | Times nine level 1 routines, axpy to iamax, and prints GB/s per vector length |
 | `benchmark_triangular.cpp` | Times the triangular and symmetric BLAS routines in both layouts, in GFLOP/s per size |
 | `test_band_operand.cpp` | Tests the record-time checks on a band operand and on a triangle band operand |
-| `test_blas/test_asum.cpp` | Tests BLASOps::asum against fixed expected values |
-| `test_blas/test_axpy.cpp` | Tests BLASOps::axpy against fixed expected values |
 | `test_blas/test_blas_band.cpp` | Tests the band routines against hand-computed results, their dense siblings and each other's kernels |
 | `test_blas/test_blas_complex.cpp` | Tests the conjugating BLAS routines, CONJ_TRANS and their forwards on a real tensor |
 | `test_blas/test_blas_half_accumulation.cpp` | Tests that HALF GEMM, SYRK, GEMV, DOT, ASUM and NRM2 accumulate in FLOAT32 on both kernels, and that HALF TRSM and TRSV carry their solution in FLOAT32 |
@@ -27,37 +25,20 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_blas_structured_validation.cpp` | Tests what the band, packed and rotation routines refuse at record time, and the forwards of the Hermitian routines on a real tensor |
 | `test_blas/test_blas_symmetric_bits.cpp` | Tests that the unconjugated reference kernels equal a plain host loop bit for bit |
 | `test_blas/test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations and of tensor creation |
-| `test_blas/test_copy.cpp` | Tests BLASOps::copy against fixed expected values |
-| `test_blas/test_dot.cpp` | Tests BLASOps::dot against fixed expected values |
 | `test_blas/test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
-| `test_blas/test_gemv.cpp` | Tests BLASOps::gemv against fixed expected values |
-| `test_blas/test_ger.cpp` | Tests BLASOps::ger against fixed expected values |
 | `test_blas/test_iamax.cpp` | Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64 |
 | `test_blas/test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and HALF accumulation |
 | `test_blas/test_level1_reference.cpp` | Tests the BLAS Level 1 reference kernels against hand-computed results |
 | `test_blas/test_level2_reference.cpp` | Tests the BLAS Level 2 reference kernels against hand-computed results |
 | `test_blas/test_level2_sycl_parity.cpp` | Tests that the GEMV and SYMV kernels stay within their rounding bound of a double-precision truth, and that the SYCL kernels repeat to the bit |
-| `test_blas/test_nrm2.cpp` | Tests BLASOps::nrm2 against fixed expected values |
 | `test_blas/test_packed_symm.cpp` | Tests SYMM and HEMM on the packed product against the reference kernel |
 | `test_blas/test_packed_syrk.cpp` | Tests SYRK and HERK on the packed product against the reference kernel |
-| `test_blas/test_rot.cpp` | Tests BLASOps::rot against fixed expected values |
 | `test_blas/test_rotg.cpp` | Tests rotg against hand-computed rotations, across both kernels and inside a graph |
 | `test_blas/test_rotm.cpp` | Tests rotm on each flag, on strided and empty vectors, across kernels and after rotmg |
 | `test_blas/test_rotmg.cpp` | Tests rotmg on its four outcomes, on both rescalings and across both kernels |
-| `test_blas/test_scal.cpp` | Tests BLASOps::scal against fixed expected values |
-| `test_blas/test_swap.cpp` | Tests BLASOps::swap against fixed expected values |
 | `test_blas/test_symm.cpp` | Tests symm and hemm against hand-computed products, gemm on the full matrix and refusals |
-| `test_blas/test_symv.cpp` | Tests BLASOps::symv against fixed expected values |
-| `test_blas/test_syr.cpp` | Tests BLASOps::syr against fixed expected values |
-| `test_blas/test_syr2.cpp` | Tests BLASOps::syr2 against fixed expected values |
 | `test_blas/test_syr2k.cpp` | Tests syr2k and her2k against hand-computed updates, a host integer loop, a truth and refusals |
-| `test_blas/test_syrk.cpp` | Tests BLASOps::syrk against the reference kernel over dtypes, layouts and triangles |
-| `test_blas/test_syrk_trsm_parity.cpp` | Tests SYRK and TRSM SYCL kernels against the reference ones at multi-tile sizes |
 | `test_blas/test_triangular_parallel.cpp` | Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
-| `test_blas/test_trmv.cpp` | Tests BLASOps::trmv against fixed expected values |
-| `test_blas/test_trsm.cpp` | Tests BLASOps::trsm in row-major and column-major layouts |
-| `test_blas/test_trsm_reference.cpp` | Tests the TRSM reference kernel against hand-computed solutions |
-| `test_blas/test_trsv.cpp` | Tests BLASOps::trsv on a 3x3 lower-triangular system |
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings |
@@ -246,79 +227,12 @@ hoped, with a comment reading "Wait, different sizes!", because there was no int
 allocate instead. It then asserted `EXPECT_TRUE(true)`, so nothing checked the operation's
 answer. Now the result has a dtype that fits it, and the index is read back and compared.
 
-`TiesGoToTheLowestIndex`: BLAS specifies the first of two tied magnitudes. The reference and
-SYCL kernels both scan in ascending order and only replace on a strict improvement, which makes
-that reproducible and not incidental.
-
 `RejectsAResultTensorTooNarrowToHoldTheIndex` pins the defect the INT64 dtype was added for.
 `iamax` writes eight bytes; a FLOAT32 result element is four. With tensors packed into an arena
 the neighbouring four bytes belong to something else, and `Tensor::region()` declared a
 four-byte write, so the dependency tracker did not order anything against the corruption
 either. Nothing can detect that from outside, which is why the fix is a refusal and not a
 repair: a result tensor that cannot hold the answer is rejected at record time, by name.
-
-## test_blas/test_syr.cpp
-
-With x = `[1, 2, 3]`, `x * x^T` is
-
-```
-[1 2 3]
-[2 4 6]
-[3 6 9]
-```
-
-and since the call passes `Core::Uplo::Lower` only the lower triangle of A is updated, so A in
-row-major order is
-
-```
-[1 0 0]
-[2 4 0]
-[3 6 9]
-```
-
-## test_blas/test_syr2.cpp
-
-The update is `A + alpha * x * y^T + alpha * y * x^T` on the lower triangle. Y is `[1, 0, 0]`
-to make the result easy to check. `x * y^T` and `y * x^T` are
-
-```
-[1 0 0]      [1 2 3]
-[2 0 0]      [0 0 0]
-[3 0 0]      [0 0 0]
-```
-
-and their sum is `[2 2 3; 2 0 0; 3 0 0]`. The lower-triangle update only writes the entries
-with i >= j, so the matrix the test expects is
-
-```
-[2 0 0]
-[2 0 0]
-[3 0 0]
-```
-
-## test_blas/test_trsm.cpp
-
-`SimpleTRSM` solves `A * X = B` with A = `[2 0; 1 2]` and B = `[4 6; 4 7]`, row-major:
-
-```
-2*x11 = 4            => x11 = 2
-2*x12 = 6            => x12 = 3
-1*x11 + 2*x21 = 4    => x21 = 1
-1*x12 + 2*x22 = 7    => x22 = 2
-```
-
-so X, which overwrites B, is `[2 3; 1 2]`.
-
-`SimpleTRSMColumnMajor` solves with the upper-triangular A = `[2 1; 0 2]` and the same B:
-
-```
-2*x21 = 4            => x21 = 2
-2*x22 = 7            => x22 = 3.5
-2*x11 + 1*x21 = 4    => x11 = 1
-2*x12 + 1*x22 = 6    => x12 = 1.25
-```
-
-so X is `[1.00 1.25; 2.00 3.50]`, which is `[1.0, 2.0, 1.25, 3.5]` in column-major memory.
 
 ## The `Medium_Level2SyclParityTest` fixture
 
@@ -337,10 +251,6 @@ can reach and is where the epilogue is instantiated in the consumer's own transl
 
 `bits_of` exists because the identity check is about the generated arithmetic being unchanged;
 see "Comparing floats by bit pattern".
-
-`AColumnChannelBiasMatchesAPlainRowVectorBroadcast`: at `(0, 1)` the channel is the column,
-which is what the NHWC convolution GEMM `[N*H*W, C_in*R*S] x [C_in*R*S, C_out]` produces and
-what the existing `GEMM_BIAS` row-vector broadcast already does.
 
 `ARowChannelBiasBroadcastsDownTheOtherAxis`: at `(1, 0)` the channel is the row, the NCHW
 orientation. The bias vector is the same as in the column test, so the two expectations differ

@@ -779,23 +779,5 @@ namespace SushiBLAS
             EXPECT_EQ(offset_before + 1, engine->rng().reserve(0).offset);
             recording->run().value();
         }
-
-        /** @brief Tests that two ForceReference runs of normal from one seed write equal bits. */
-        TEST_F(Medium_RandomReference, TheSameSeedGivesTheSameReferenceStreamTwice)
-        {
-            const Operation fill = [](RandomOps& random, Tensor& t)
-            {
-                random.normal(t, K_NORMAL_MEAN, K_NORMAL_STDDEV);
-            };
-            const std::vector<float> unwritten(static_cast<std::size_t>(K_ELEMENTS), K_UNWRITTEN);
-
-            const std::vector<float> first = run_under(ExecutionMode::ForceReference, K_SEED,
-                                                       {K_ELEMENTS}, unwritten, fill);
-            const std::vector<float> second = run_under(ExecutionMode::ForceReference, K_SEED,
-                                                        {K_ELEMENTS}, unwritten, fill);
-
-            EXPECT_EQ(count_holding(first, K_UNWRITTEN), std::size_t{0});
-            expect_equal_bits(first, second);
-        }
     } // namespace Test
 } // namespace SushiBLAS

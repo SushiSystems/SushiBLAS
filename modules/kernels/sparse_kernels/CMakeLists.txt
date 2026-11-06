@@ -20,7 +20,6 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE sparse_kernels
     TESTS
-        test_sparse_kernels_log_category.cpp
         reference/test_level1.cpp
         reference/test_spmm.cpp
         reference/test_spmv.cpp
@@ -29,11 +28,13 @@ sushiblas_add_test_program(
         reference/test_structure.cpp
         test_csr_pattern.cpp
         test_index_list.cpp
-        test_sparse.cpp
     DEVICE_TESTS
         sycl/test_level1.cpp
         sycl/test_row_blocks.cpp
         sycl/test_spmm.cpp
         sycl/test_spmv.cpp
         sycl/test_spsymv.cpp
-        sycl/test_sptrsv.cpp)
+        sycl/test_sptrsv.cpp
+    COMPILE_CHECKS
+        test_sparse_kernels_log_category.cpp
+        test_sparse.cpp)

@@ -110,36 +110,5 @@ namespace SushiBLAS
                                                       5, -3, 9,
                                                       6, -1, 12}), absolute_tolerance<float>(16));
         }
-
-        /** @brief Tests that a reduction's scratch returns to the pool and is lent again. */
-        TEST_F(Medium_OperandLifetime, AScratchReturnsToThePoolWithItsTask)
-        {
-            constexpr int64_t K_ELEMENTS =
-                static_cast<int64_t>(Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS) + 1;
-
-            auto values = create_initialized_tensor<float>(
-                {K_ELEMENTS}, std::vector<float>(static_cast<std::size_t>(K_ELEMENTS), 1.0f));
-            auto total = engine->create_tensor({1}, Core::DataType::Float32);
-
-            ScratchPool& pool = engine->scratch_pool();
-            const std::size_t outstanding_before = live_allocations() - pool.idle_block_count();
-
-            SushiBLAS::ReductionOps(recorder()).sum(values, total);
-            recording->run().value();
-
-            EXPECT_EQ(outstanding_before, live_allocations() - pool.idle_block_count())
-                << "Every allocation the sum made must be idle in the pool or freed.";
-            EXPECT_TENSOR_NEAR(total, (std::vector<float>{static_cast<float>(K_ELEMENTS)}),
-                               absolute_tolerance<float>(2048));
-
-            const std::size_t live_after_first = live_allocations();
-            const std::size_t idle_after_first = pool.idle_block_count();
-
-            SushiBLAS::ReductionOps(recorder()).sum(values, total);
-            recording->run().value();
-
-            EXPECT_EQ(live_after_first, live_allocations());
-            EXPECT_EQ(idle_after_first, pool.idle_block_count());
-        }
     } // namespace Test
 } // namespace SushiBLAS

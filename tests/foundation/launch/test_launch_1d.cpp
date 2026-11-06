@@ -297,19 +297,5 @@ namespace SushiBLAS
                 EXPECT_EQ(0, std::memcmp(queue_ptr, shape_ptr, n * sizeof(float)));
             }
         }
-
-        /** @brief Tests that a local tile fits a device only when its bytes and its work-group both fit. */
-        TEST_F(Medium_LaunchShapes, ALocalTileFitsOnlyWhereBothLimitsHold)
-        {
-            Device::Profile profile;
-            profile.local_mem_bytes = 4096;
-            profile.max_work_group_size = 64;
-
-            EXPECT_TRUE(Device::hosts_local_tile(profile, Device::LocalTileDemand{4096, 64}));
-            EXPECT_TRUE(Device::hosts_local_tile(profile, Device::LocalTileDemand{}));
-            EXPECT_FALSE(Device::hosts_local_tile(profile, Device::LocalTileDemand{4097, 64}));
-            EXPECT_FALSE(Device::hosts_local_tile(profile, Device::LocalTileDemand{4096, 65}));
-        }
-
     } // namespace Test
 } // namespace SushiBLAS

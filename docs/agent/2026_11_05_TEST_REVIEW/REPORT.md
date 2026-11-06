@@ -70,6 +70,12 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 ## Dispatches
 
 dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
+dispatch: J16 T1 tolerances (tests outside operations) — sonnet medium, 1 round, passed after lead fix of one bound, rung 1
+dispatch: J16 T1 tolerances (tests/operations) — sonnet medium, 1 round, passed after lead fix of two half bounds, rung 1
+dispatch: J16 T6 CLI seam and tests — sonnet medium, 1 round, passed after lead replaced its click import, rung 1
+dispatch: J16 T7 device-math rows — sonnet low, 1 round, passed after lead fixed one macro, rung 1
+dispatch: J16 T5 defects — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T3 duplicate deletions — sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
 
 ## Totals
 

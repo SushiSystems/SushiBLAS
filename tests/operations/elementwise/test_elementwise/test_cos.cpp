@@ -60,15 +60,6 @@ namespace
     /// @brief Holds a quiet NaN, the expectation for an input outside the domain.
     const float K_NAN = std::numeric_limits<float>::quiet_NaN();
 
-    /// @brief Holds the element count of the large case.
-    constexpr size_t K_LARGE_SIZE = 1000;
-
-    /// @brief Holds the input every element of the large case carries.
-    constexpr float K_LARGE_INPUT = 1.0f;
-
-    /// @brief Holds cos(1), the expectation for K_LARGE_INPUT.
-    constexpr double K_LARGE_EXPECTED = 0.5403023058681398;
-
     /// @brief Holds cos of {-1, 0, 0.5, 2}.
     const std::vector<double> K_FLOAT64_EXPECTED = {0.5403023058681398, 1.0, 0.8775825618903728, -0.4161468365471424};
 
@@ -100,17 +91,6 @@ TEST_F(Medium_CosTest, PositiveInfinity)
     recording->run().value();
 
     expect_tensor(t, {K_NAN});
-}
-
-TEST_F(Medium_CosTest, ThousandElements)
-{
-    auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
-    fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
-
-    SushiBLAS::ElementwiseOps(recorder()).cos(t);
-    recording->run().value();
-
-    expect_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
 TEST_F(Medium_CosTest, Float64)

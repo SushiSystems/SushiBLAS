@@ -21,7 +21,6 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE engine
     TESTS
-        test_engine_log_category.cpp
         test_dispatch.cpp
         test_late_count_hold.cpp
         test_operand_set.cpp
@@ -45,4 +44,6 @@ sushiblas_add_test_program(
         test_operand_check.cpp
         test_rng_stream.cpp
         test_task_handle.cpp
-        test_task_recorder.cpp)
+        test_task_recorder.cpp
+    COMPILE_CHECKS
+        test_engine_log_category.cpp)

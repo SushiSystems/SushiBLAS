@@ -108,12 +108,6 @@ value that was there is the value that returns".
 device, the element type, the element count and the operands' alignment, none of which change
 between two runs in one process. Two identical fused updates must agree exactly, not nearly.
 
-`RNGMetadataSlotsAreInRangeAndRoundTrip` pins a bug. The random dispatch wrote the seed to slot
-10 and the offset to slot 11 of an eight-slot array. `TaskDescription::set_parameter` ignores an
-out-of-range index without a word, so every random task recorded a zero seed and a zero offset.
-With the slots in range these read back exactly, including a seed whose value would not survive
-the round trip through a double.
-
 `ATypedTaskReportsTheFamilyItsCallerDeclared`: the family string is what a caller outside BLAS
 needs from this seam. An operation recorded by the spatial domain must not be reported as a
 BLAS operation when its dtype is refused. It is pinned here and not in the spatial tests
@@ -129,9 +123,6 @@ as operations are added.
 
 `ElementWidthsAndNamesAreDeclared`: the rest of the file depends on these widths. They are
 cheap to assert, and a memory planner sizes an arena from them.
-
-`ConstantFillsAnIntegerTensorExactly`: the value is stored exactly, well past where a float
-would have started rounding.
 
 `CopyMovesIntegerElements`: `copy` is the one BLAS operation that takes `Domain::All`, because
 it does no arithmetic to what it moves.
@@ -150,14 +141,7 @@ answer. 16,777,217 is the first integer a float cannot represent.
 supported list must refuse an integer operand at record time, before anything is queued, and
 the message must name the operation and the dtype and not an enum ordinal.
 
-`OrderingComparisonsStillRejectComplex`: widening the comparisons to integers must not have
-undone the refusal of complex operands.
-
 ## test_SushiBLAS/test_task_dependencies.cpp
-
-`ARecordedTaskComputesItsResult` records one operation of each recording seam on a `GraphProbe`,
-reads from the plan that it is one task with no dependency, runs it and compares the output with
-the host formula.
 
 A task body receives the events of the tasks it depends on and must order its own device work
 behind them. No test checks that at run time: the runtime's plan view holds no body, so a test
@@ -171,18 +155,14 @@ A task holds raw pointers into its operands, and the recorder retains the storag
 allocations around the record and execute calls. `ATaskKeepsItsInputAllocatedUntilItHasRun`
 destroys an input tensor after the record call and checks its allocation lives until the task
 ran. `AnEpilogueOperandIsKept` does the same for a tensor declared through
-`Dispatch::gemm_epilogue`. `AScratchReturnsToThePoolWithItsTask` runs a reduction twice and
-checks that its scratch block is idle in the pool after the first run and lent again in the
-second.
+`Dispatch::gemm_epilogue`.
 
 ## test_SushiBLAS/test_regression.cpp
 
 ### SyrkAcceptsHalfDtype
 
 SYRK's oneMKL-backed implementation threw for `sycl::half`, because oneMKL has no half-precision
-SYRK. The SB-2 port to the tiling kernel lifted that restriction. The typed suite in
-`tests/operations/blas/test_blas/test_syrk.cpp` covers float, double and complex only, so nothing else
-would catch a return of the restriction.
+SYRK. The SB-2 port to the tiling kernel lifted that restriction. This test is what catches a return of the restriction at the umbrella.
 
 ### GemmColumnMajorOperandsUseColumnStrides
 
@@ -206,18 +186,6 @@ A (3x2) = [[1,2],[3,4],[5,6]]   column-major [1,3,5,2,4,6],   lda = 3
 B (2x2) = [[1,0],[1,1]]         column-major [1,1,0,1],       ldb = 2
 A*B     = [[3,2],[7,4],[11,6]]  column-major [3,7,11,2,4,6],  ldc = 3
 ```
-
-### SetSeedRewindsTheRNGStream
-
-Setting the seed, now `RandomOps::set_seed`, set the seed and left the RNG offset where earlier
-draws had pushed it. The
-offset only grows, and every RNG kernel mixes (seed, offset) into Philox, so re-seeding an engine
-that had already drawn did not reproduce its stream. Two generators seeded alike on one engine
-produced different data.
-
-The test compares bytes, not values within a tolerance. A reproduced stream is the same bits or
-it is not reproduced. A third draw with a different seed checks that the reset did not collapse
-every seed onto one stream.
 
 ### Fp64Level1ScalarsAreNotNarrowedToFloat
 
@@ -284,32 +252,6 @@ compared, for a reader who wants to see the behaviour as well.
 The nrm2 sentinels check values near 1e38 and 1e-40. The absolute tolerance `expect_tensor`
 applies means nothing there: 1e-4 of absolute slack accepts any answer against 2e38 and rejects
 every answer at 5e-40. The sentinels compare relative error, so they read the raw number.
-
-### Nrm2DoesNotOverflowNearTheFloatMaximum
-
-nrm2 computed the naive two-norm: square, sum, square root. For any fp32 element past about
-1.8e19 the square overflows to infinity long before the norm does. The compensated-fold work made
-the summation accurate and left the squaring unsafe.
-
-The input is an ordinary one. Gradient-norm clipping calls nrm2, and a gradient that has already
-exploded is the vector whose squares overflow. The mechanism meant to rescue the run returned
-`inf` and ended it.
-
-The test input is {1.2e38, 1.6e38}. Its norm is 2e38, inside fp32's range, while 1.2e38 squared
-is 1.44e76. Both entry points are checked: `ReductionOps::nrm2`, the deterministic folding
-reduction, and `Level1::nrm2`, a Level 1 kernel pair. They are separate implementations
-and both had the defect.
-
-### Nrm2DoesNotUnderflowOnDenormalInput
-
-This is the mirror of the overflow, and the reason the scale has to move down as well as up. An
-fp32 element below about 1e-22 squares to zero, so the naive form returned exactly 0 for a vector
-of denormals whose true norm is an ordinary denormal.
-
-The input is {3e-40, 4e-40}. Both are denormal (fp32's smallest normal is about 1.18e-38), both
-have denormal resolution to spare, and the true norm of 5e-40 is representable. The tolerance is
-1% on purpose: a denormal has few significand bits left and the two entry points round
-differently. Anything within 1% is the right answer and not the zero the naive form produced.
 
 ### Nrm2UsesTheModulusOfAComplexElement
 

@@ -23,21 +23,14 @@
 
 /**
  * @file test_blas_kernels_log_category.cpp
- * @brief Tests that K_BLAS_KERNELS_LOG_CATEGORY names the blas_kernels module of SushiBLAS.
+ * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Small_BlasKernelsLogCategory, TheCategoryIsNamedAfterTheModule)
-        {
-            static_assert(K_BLAS_KERNELS_LOG_CATEGORY.module() == "blas_kernels", "the folder name of the module");
-            static_assert(K_BLAS_KERNELS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-        }
-    } // namespace Test
+    static_assert(K_BLAS_KERNELS_LOG_CATEGORY.module() == "blas_kernels", "the folder name of the module");
+    static_assert(K_BLAS_KERNELS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
 } // namespace SushiBLAS

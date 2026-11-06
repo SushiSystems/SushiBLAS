@@ -23,21 +23,14 @@
 
 /**
  * @file test_test_runner_log_category.cpp
- * @brief Tests that K_TEST_RUNNER_LOG_CATEGORY names the test_runner module of SushiBLAS.
+ * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
 #include <SushiBLAS/test_runner/test_runner_log_category.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Small_TestRunnerLogCategory, TheCategoryIsNamedAfterTheModule)
-        {
-            static_assert(K_TEST_RUNNER_LOG_CATEGORY.module() == "test_runner", "the folder name of the module");
-            static_assert(K_TEST_RUNNER_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-        }
-    } // namespace Test
+    static_assert(K_TEST_RUNNER_LOG_CATEGORY.module() == "test_runner", "the folder name of the module");
+    static_assert(K_TEST_RUNNER_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
 } // namespace SushiBLAS

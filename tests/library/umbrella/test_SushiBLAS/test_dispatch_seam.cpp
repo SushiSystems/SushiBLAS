@@ -635,23 +635,6 @@ TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
         std::invalid_argument);
 }
 
-TEST_F(Medium_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
-{
-    // The seed and offset slots read back exactly. See tests/library/umbrella/README.md.
-    constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
-    constexpr uint64_t kOffset = 42;
-
-    constexpr int K_SLOTS = static_cast<int>(sb::TaskDescription::K_MAX_PARAMETERS);
-    static_assert(sb::Dispatch::K_RNG_SEED_PARAM < K_SLOTS);
-    static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < K_SLOTS);
-
-    sb::TaskDescription description;
-    sb::Dispatch::set_rng_params(description, kSeed, kOffset);
-
-    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
-    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
-}
-
 TEST_F(Medium_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
     sb::TaskDescription description;
@@ -779,42 +762,6 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
 }
 
 /**
- * @brief Tests that a task keeps the storage of a tensor its functor declared.
- * @see tests/library/umbrella/README.md
- */
-TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
-{
-
-    auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-    std::optional<sb::Tensor> factor(create_initialized_tensor<float>({1}, {2.0f}));
-
-    record_scaled(recorder(), y, *factor);
-
-    const size_t live_before = TestEnvironment::live_allocation_count();
-    factor.reset();
-    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
-
-    recording->run().value();
-    expect_tensor_equal(y, {2.0f, 4.0f, 6.0f, 8.0f});
-}
-
-/**
- * @brief Tests that a read declared in another type than the operation's reaches the functor typed.
- * @see tests/library/umbrella/README.md
- */
-TEST_F(Medium_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
-{
-    const GatedUpdate update = run_gated_update(sb::ExecutionMode::Auto);
-
-    std::vector<double> expected = update.theta;
-    for (size_t i = 0; i < expected.size(); ++i)
-        expected[i] = update.theta[i] + static_cast<double>(K_GATED_STEP) * update.gradient[i];
-
-    expect_same_bits(update.gated, update.theta, "the parameter whose gate is set");
-    expect_same_bits(update.stepped, expected, "the parameter whose gate is clear");
-}
-
-/**
  * @brief Tests that each of the other six functor seams hands a declared read to its functor.
  * @see tests/library/umbrella/README.md
  */
@@ -878,21 +825,6 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
     expect_tensor_equal(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f});
     expect_tensor_equal(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f});
     expect_tensor_equal(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f});
-}
-
-/**
- * @brief Tests that a seam refuses a declared read of a tensor the operation writes.
- * @see tests/library/umbrella/README.md
- */
-TEST_F(Medium_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
-{
-    GraphProbe probe;
-    auto y = engine->create_tensor({4});
-
-    const std::string message = refusal_of([&] { record_scaled(probe.recorder(), y, y); });
-
-    EXPECT_NE(message.find("'read 0'"), std::string::npos) << message;
-    EXPECT_EQ(0u, probe.take_recorded_count());
 }
 
 /**

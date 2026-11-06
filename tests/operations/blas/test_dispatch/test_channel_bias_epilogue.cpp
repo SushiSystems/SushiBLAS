@@ -89,30 +89,6 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Medium_ChannelBiasEpilogueTest, AColumnChannelBiasMatchesAPlainRowVectorBroadcast)
-        {
-            // (0, 1): the channel is the column. See tests/operations/blas/README.md.
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-
-            const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
-
-            set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
-                                   Core::Transpose::NoTrans, 1.0, 0.0,
-                                   "test.gemm_channel_bias_col",
-                                   "test.gemm_channel_bias_col"_op,
-                                   Dispatch::gemm_epilogue(epilogue).reads(bias));
-            recording->run().value();
-
-            // [[1,2,3],[4,5,6],[5,7,9]] + bias[col] = [1,-8,3] down every row.
-            EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
-                                                      5, -3, 9,
-                                                      6, -1, 12}), absolute_tolerance<float>(16));
-        }
-
         TEST_F(Medium_ChannelBiasEpilogueTest, ARowChannelBiasBroadcastsDownTheOtherAxis)
         {
             // (1, 0): the channel is the row, as in NCHW. See tests/operations/blas/README.md.
@@ -255,6 +231,5 @@ namespace SushiBLAS
                                                       5, 9, 15,
                                                       6, 11, 18}), absolute_tolerance<float>(16));
         }
-
     } // namespace Test
 } // namespace SushiBLAS

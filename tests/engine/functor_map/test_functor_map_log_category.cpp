@@ -23,21 +23,14 @@
 
 /**
  * @file test_functor_map_log_category.cpp
- * @brief Tests that K_FUNCTOR_MAP_LOG_CATEGORY names the functor_map module of SushiBLAS.
+ * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
 #include <SushiBLAS/functor_map/functor_map_log_category.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Small_FunctorMapLogCategory, TheCategoryIsNamedAfterTheModule)
-        {
-            static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.module() == "functor_map", "the folder name of the module");
-            static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-        }
-    } // namespace Test
+    static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.module() == "functor_map", "the folder name of the module");
+    static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
 } // namespace SushiBLAS

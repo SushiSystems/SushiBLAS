@@ -362,19 +362,10 @@ namespace SushiBLAS
             EXPECT_TRUE(holds(text, "FLOAT32")) << text;
         }
 
-        TEST_F(Medium_MathValidationTest, SumWithPositiveInfinityIsPositiveInfinity)
-        {
-            const float inf = std::numeric_limits<float>::infinity();
-            const float value = sum_of({inf, 1.0f, 2.0f});
-            EXPECT_TRUE(std::isinf(value));
-            EXPECT_GT(value, 0.0f);
-        }
-
         TEST_F(Medium_MathValidationTest, SumOfOppositeInfinitiesIsNaN)
         {
             const float inf = std::numeric_limits<float>::infinity();
             EXPECT_TRUE(std::isnan(sum_of({inf, -inf})));
         }
-
     } // namespace Test
 } // namespace SushiBLAS

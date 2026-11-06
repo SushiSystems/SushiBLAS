@@ -56,38 +56,6 @@ namespace SushiBLAS
                 TensorFactory factory_{TestEnvironment::runtime()};
         };
 
-        /** @brief Tests that a shape with a zero dimension keeps its rank and allocates nothing. */
-        TEST_F(Medium_TensorFactoryTest, AZeroDimensionGivesATensorWithoutStorage)
-        {
-            const std::vector<int64_t> dims = {0, 3};
-            const std::size_t live_before = TestEnvironment::live_allocation_count();
-
-            const Tensor tensor = factory_.create(span_of(dims));
-
-            EXPECT_TRUE(tensor.storage == nullptr);
-            EXPECT_EQ(0, tensor.num_elements);
-            EXPECT_EQ(2, tensor.rank);
-            EXPECT_EQ(0, tensor.shape[0]);
-            EXPECT_EQ(3, tensor.shape[1]);
-            EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
-        }
-
-        /** @brief Tests that the storage reports the device index the factory was asked for. */
-        TEST_F(Medium_TensorFactoryTest, TheDeviceIndexReachesTheStorage)
-        {
-            const std::vector<int64_t> dims = {4};
-
-            for (std::size_t device = 0; device < TestEnvironment::device_count(); ++device)
-            {
-                SCOPED_TRACE(device);
-                const Tensor tensor = factory_.create(span_of(dims), Core::DataType::Float32,
-                                                      SushiRuntime::Residency::Shared, device);
-
-                ASSERT_TRUE(tensor.storage != nullptr);
-                EXPECT_EQ(device, tensor.storage->device_index());
-            }
-        }
-
         /** @brief Tests that a device index past the last queue throws, for an empty shape too. */
         TEST_F(Medium_TensorFactoryTest, ADeviceIndexOutOfRangeThrows)
         {
@@ -119,30 +87,6 @@ namespace SushiBLAS
             EXPECT_EQ(from_braces.shape, from_span.shape);
             EXPECT_EQ(from_braces.strides, from_vector.strides);
             EXPECT_EQ(from_braces.strides, from_span.strides);
-        }
-
-        /** @brief Tests that a column-major engine creates column-major tensors. */
-        TEST_F(Medium_TensorFactoryTest, EngineCreateTensorUsesTheEngineLayout)
-        {
-            reinit_engine(Core::Layout::ColumnMajor);
-
-            const Tensor tensor = engine->create_tensor({2, 3});
-
-            EXPECT_EQ(Core::Layout::ColumnMajor, engine->tensor_factory().layout());
-            EXPECT_EQ(Core::Layout::ColumnMajor, tensor.layout);
-            EXPECT_EQ(1, tensor.strides[0]);
-            EXPECT_EQ(2, tensor.strides[1]);
-        }
-
-        /** @brief Tests that twelve requested bytes are stored as whole alignment units. */
-        TEST_F(Medium_TensorFactoryTest, StorageSizeIsRoundedUpToTheAlignment)
-        {
-            const Tensor tensor = engine->create_tensor({3}, Core::DataType::Float32);
-
-            ASSERT_TRUE(tensor.storage != nullptr);
-            const std::size_t stored_bytes = tensor.storage->size_bytes();
-            EXPECT_EQ(0u, stored_bytes % K_STORAGE_ALIGNMENT);
-            EXPECT_GE(stored_bytes, std::size_t{12});
         }
     } // namespace Test
 } // namespace SushiBLAS

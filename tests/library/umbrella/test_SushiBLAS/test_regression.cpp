@@ -95,38 +95,6 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that re-seeding an engine that has drawn reproduces the stream bit for bit.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_Sentinel, SetSeedRewindsTheRNGStream)
-        {
-            constexpr size_t kN = 64;
-
-            auto draw = [&](uint64_t seed)
-            {
-                auto t = engine->create_tensor({static_cast<int64_t>(kN)});
-                SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
-                SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, 0.0, 1.0);
-                recording->run().value();
-
-                std::vector<float> host(kN);
-                auto& q = TestEnvironment::queue();
-                q.memcpy(host.data(), t.data(), kN * sizeof(float)).wait();
-                return host;
-            };
-
-            const auto first = draw(20260803);
-            const auto second = draw(20260803);   // same seed, but the engine has now drawn once
-            const auto other = draw(20260804);
-
-            EXPECT_EQ(0, std::memcmp(first.data(), second.data(), kN * sizeof(float)))
-                << "Re-seeding with the same value must reproduce the stream exactly.";
-            EXPECT_NE(0, std::memcmp(first.data(), other.data(), kN * sizeof(float)))
-                << "A different seed must still produce a different stream - the reset must "
-                   "not have collapsed every seed onto one.";
-        }
-
-        /**
          * @brief Tests that fp64 AXPY and SCAL apply their scalar at fp64 precision.
          * @see tests/library/umbrella/README.md
          */
@@ -333,76 +301,6 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that both nrm2 entry points stay finite for elements whose squares overflow fp32.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
-        {
-            // The norm is 2e38, inside fp32's range; 1.2e38 squared is 1.44e76, outside it.
-            const std::vector<float> data = {1.2e38f, 1.6e38f};
-            const float expected = 2.0e38f;
-
-            auto x = create_initialized_tensor<float>({2}, data);
-            auto reduction_result = engine->create_tensor({1});
-            auto level1_result = engine->create_tensor({1});
-
-            SushiBLAS::ReductionOps(recorder()).nrm2(x, reduction_result);
-            SushiBLAS::BLASOps(recorder()).nrm2(x, level1_result);
-            recording->run().value();
-
-            const std::pair<const char*, Tensor> answers[] = {
-                {"reductions().nrm2", reduction_result},
-                {"blas().nrm2", level1_result}};
-
-            for (const auto& [label, result] : answers)
-            {
-                const float got = scalar_of(result);
-                ASSERT_TRUE(std::isfinite(got))
-                    << label << " returned " << got << " for a vector whose true norm is "
-                    << expected << ". The naive sqrt(sum(x*x)) overflows here; the scaling "
-                       "form BLAS specifies does not.";
-                EXPECT_NEAR(got / expected, 1.0f, absolute_tolerance<float>(16)) << label;
-            }
-        }
-
-        /**
-         * @brief Tests that both nrm2 entry points return a non-zero norm for denormal input.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
-        {
-            // Both elements are denormal and their norm, 5e-40, is representable.
-            const std::vector<float> data = {3.0e-40f, 4.0e-40f};
-            const float expected = 5.0e-40f;
-
-            ASSERT_FALSE(std::isnormal(data[0])) << "the test input must actually be denormal";
-
-            auto x = create_initialized_tensor<float>({2}, data);
-            auto reduction_result = engine->create_tensor({1});
-            auto level1_result = engine->create_tensor({1});
-
-            SushiBLAS::ReductionOps(recorder()).nrm2(x, reduction_result);
-            SushiBLAS::BLASOps(recorder()).nrm2(x, level1_result);
-            recording->run().value();
-
-            const std::pair<const char*, Tensor> answers[] = {
-                {"reductions().nrm2", reduction_result},
-                {"blas().nrm2", level1_result}};
-
-            for (const auto& [label, result] : answers)
-            {
-                const float got = scalar_of(result);
-                ASSERT_GT(got, 0.0f)
-                    << label << " returned " << got << " for a vector whose true norm is "
-                    << expected << ". Squaring a denormal underflows to zero; dividing by a "
-                       "scale first does not.";
-
-                // The tolerance is about 1.6% as the two entry points round a denormal differently.
-                EXPECT_NEAR(got / expected, 1.0f, absolute_tolerance<float>(16384)) << label;
-            }
-        }
-
-        /**
          * @brief Tests that Level 1 nrm2 takes the modulus of a complex element.
          * @see tests/library/umbrella/README.md
          */
@@ -420,6 +318,5 @@ namespace SushiBLAS
             EXPECT_NEAR(scalar_of(result), 5.0f, absolute_tolerance<float>(128))
                 << "A complex 2-norm must use the modulus, not BLAS's |Re| + |Im|.";
         }
-
     } // namespace Test
 } // namespace SushiBLAS

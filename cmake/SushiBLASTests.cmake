@@ -223,19 +223,21 @@ endfunction()
 #   sushiblas_add_test_program(MODULE <module>
 #       [QUARANTINED <Suite.Case>...]
 #       [TESTS <file>...] [DEVICE_TESTS <file>...]
-#       [BENCHMARKS <file>...] [DEVICE_BENCHMARKS <file>...])
+#       [BENCHMARKS <file>...] [DEVICE_BENCHMARKS <file>...]
+#       [COMPILE_CHECKS <file>...])
 #
 # Each file is given relative to tests/<tier>/<module>/, the module's mirror. TESTS and
 # DEVICE_TESTS become the object library `sushiblas_<module>_test_objects`, linked into the
 # program `sushiblas_<tier>_tests`, when SB_BUILD_TESTS is on; each of
 # BENCHMARKS and DEVICE_BENCHMARKS becomes a program named after its file when
 # SB_BUILD_BENCHMARKS is on. The DEVICE_ lists name the files that instantiate a kernel.
+# COMPILE_CHECKS become `sushiblas_<module>_compile_checks`, compiled and never run.
 function(sushiblas_add_test_program)
     cmake_parse_arguments(ARG "" "MODULE"
-        "QUARANTINED;TESTS;DEVICE_TESTS;BENCHMARKS;DEVICE_BENCHMARKS" ${ARGN})
+        "QUARANTINED;TESTS;DEVICE_TESTS;BENCHMARKS;DEVICE_BENCHMARKS;COMPILE_CHECKS" ${ARGN})
     if("${ARG_MODULE}" STREQUAL ""
        OR (NOT ARG_TESTS AND NOT ARG_DEVICE_TESTS AND NOT ARG_BENCHMARKS
-           AND NOT ARG_DEVICE_BENCHMARKS))
+           AND NOT ARG_DEVICE_BENCHMARKS AND NOT ARG_COMPILE_CHECKS))
         message(FATAL_ERROR
             "sushiblas_add_test_program(): MODULE and a test or benchmark list are required.")
     endif()
@@ -253,6 +255,15 @@ function(sushiblas_add_test_program)
             QUARANTINED ${ARG_QUARANTINED}
             TEST_SOURCES ${test_sources}
             DEVICE_TEST_SOURCES ${device_test_sources})
+    endif()
+
+    # A compile check holds static_asserts only: the build compiles it and no test runner lists it.
+    if(SB_BUILD_TESTS AND ARG_COMPILE_CHECKS)
+        set(target "sushiblas_${ARG_MODULE}_compile_checks")
+        sushiblas_paths_under(compile_sources "${mirror}" ${ARG_COMPILE_CHECKS})
+        add_library(${target} OBJECT ${compile_sources})
+        sushiblas_configure_test_target(${target})
+        sushiblas_apply_sycl(${target})
     endif()
 
     if(SB_BUILD_BENCHMARKS)

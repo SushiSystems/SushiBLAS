@@ -44,10 +44,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief Seed of the uniform draw test.
-            constexpr uint64_t K_UNIFORM_SEED = 20261005;
-            /// @brief Number of uniform draws checked against the upper bound.
-            constexpr int64_t K_UNIFORM_DRAWS = 100000;
             /// @brief A Poisson mean above K_MAX_POISSON_LAMBDA.
             constexpr double K_LAMBDA_ABOVE_CAP = 2.0e7;
             /// @brief A negative Poisson mean.
@@ -166,22 +162,6 @@ namespace SushiBLAS
 
             EXPECT_TRUE(std::isnan(out.data_as<float>()[0]));
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_NAN_INDEX);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, UniformNeverReturnsItsUpperBound)
-        {
-            auto t = engine->create_tensor({K_UNIFORM_DRAWS}, Core::DataType::Float32);
-
-            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(K_UNIFORM_SEED);
-            SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, 0.0, 1.0);
-            recording->run().value();
-
-            const float* p = t.data_as<float>();
-            for (int64_t i = 0; i < K_UNIFORM_DRAWS; ++i)
-            {
-                ASSERT_GE(p[i], 0.0f) << "at index " << i;
-                ASSERT_LT(p[i], 1.0f) << "at index " << i;
-            }
         }
 
         TEST_F(Medium_SpatialRandomIOValidationTest, PoissonRefusesALambdaAboveTheCap)

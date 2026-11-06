@@ -107,15 +107,6 @@ namespace SushiBLAS
         SB_TYPED_TEST_SUITE(Small_ModifiedGivens, ModifiedGivensTypes);
 
         /**
-         * @brief Tests at compile time the four hand values of the reference routine.
-         */
-        TYPED_TEST(Small_ModifiedGivens, TheHandValuesHoldAtCompileTime)
-        {
-            static_assert(modified_givens_matches_hand_values<TypeParam>(),
-                          "modified_givens gives the values worked by hand.");
-        }
-
-        /**
          * @brief Tests the four outcomes of xROTMG and which parameters each one stores.
          */
         TYPED_TEST(Small_ModifiedGivens, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)

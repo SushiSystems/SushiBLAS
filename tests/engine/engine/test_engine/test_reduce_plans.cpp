@@ -49,9 +49,6 @@ namespace SushiBLAS
             /// @brief Holds the element count of the injected-plan cases.
             constexpr std::size_t K_ELEMENTS = 1000;
 
-            /// @brief Holds an element count below the work-items of a three-by-eight plan.
-            constexpr std::size_t K_FEW_ELEMENTS = 17;
-
             /// @brief Holds an element count past the CPU's two-stage threshold.
             constexpr std::size_t K_TWO_STAGE_ELEMENTS = 100000;
 
@@ -118,33 +115,6 @@ namespace SushiBLAS
                     return read_tensor<int64_t>(out)[0];
                 }
         };
-
-        /**
-         * @brief Tests that every element is folded once under each injected geometry.
-         */
-        TEST_F(Medium_ReducePlans, AnInjectedTwoStagePlanFoldsEveryElement)
-        {
-            std::vector<int64_t> values(K_ELEMENTS);
-            int64_t expected = 0;
-            int64_t expected_few = 0;
-            for (std::size_t i = 0; i < K_ELEMENTS; ++i)
-            {
-                values[i] = static_cast<int64_t>(i) * 3 - 500;
-                expected += values[i];
-                if (i < K_FEW_ELEMENTS)
-                    expected_few += values[i];
-            }
-
-            auto in = create_initialized_tensor<int64_t>(
-                {static_cast<int64_t>(K_ELEMENTS)}, values);
-
-            EXPECT_EQ(expected, planned_sum(in, K_ELEMENTS, Reduce::Plan{3, 8}));
-            EXPECT_EQ(expected, planned_sum(in, K_ELEMENTS, Reduce::Plan{2, 4}));
-            EXPECT_EQ(expected, planned_sum(in, K_ELEMENTS, Reduce::Plan{0, 1}));
-
-            // Seventeen elements leave seven of the twenty-four work-items with nothing to fold.
-            EXPECT_EQ(expected_few, planned_sum(in, K_FEW_ELEMENTS, Reduce::Plan{3, 8}));
-        }
 
         /**
          * @brief Tests that a two-stage geometry and the single pass elect the same index.

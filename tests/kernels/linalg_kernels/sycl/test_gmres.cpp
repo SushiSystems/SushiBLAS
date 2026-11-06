@@ -144,20 +144,5 @@ namespace SushiBLAS
             EXPECT_EQ(first.iterations, second.iterations);
             EXPECT_EQ(first.residual, second.residual);
         }
-
-        TEST_F(Medium_SYCLGmres, AZeroRightHandSideGivesZero)
-        {
-            std::vector<double> a = values(K_N * K_N, 45);
-            for (std::size_t i = 0; i < K_N; ++i)
-                a[i * K_N + i] += static_cast<double>(K_N);
-            const Kernels::GmresSettings settings;
-
-            const DeviceSolve got =
-                run_device(queue(), a, std::vector<double>(K_N, 0.0), settings);
-
-            EXPECT_EQ(got.x, std::vector<double>(K_N, 0.0));
-            EXPECT_EQ(got.iterations, 0u);
-            EXPECT_EQ(got.residual, 0.0);
-        }
     } // namespace Test
 } // namespace SushiBLAS

@@ -89,23 +89,5 @@ namespace SushiBLAS
             EXPECT_TRUE(fixture.run_succeeds());
             EXPECT_TRUE(fixture.is_empty());
         }
-
-        TEST_F(Medium_RecordingFixture, DiscardDropsTheTasksAndCountsThem)
-        {
-            RecordingFixture fixture(*engine);
-            record_nothing(fixture);
-            record_nothing(fixture);
-
-            EXPECT_EQ(fixture.discard(), std::size_t{2});
-            EXPECT_TRUE(fixture.is_empty());
-        }
-
-        TEST_F(Medium_RecordingFixture, TheRecorderBorrowsTheModeOfTheEngine)
-        {
-            engine->set_mode(ExecutionMode::ForceReference);
-            RecordingFixture fixture(*engine);
-
-            EXPECT_EQ(fixture.recorder().mode(), ExecutionMode::ForceReference);
-        }
     } // namespace Test
 } // namespace SushiBLAS

@@ -58,16 +58,6 @@ namespace SushiBLAS
                 return {};
             }
 
-            /** @brief Returns whether any fact of a record is named @p name. */
-            bool has_fact(const std::vector<SushiProfiler::Fact>& facts, const std::string& name)
-            {
-                for (const SushiProfiler::Fact& fact : facts)
-                {
-                    if (fact.name == name)
-                        return true;
-                }
-                return false;
-            }
         } // namespace
 
         TEST(Small_RegisterProfilerParts, AddsTheContributorToTheRegistry)
@@ -104,19 +94,6 @@ namespace SushiBLAS
                 Profiling::register_profiler_parts(second_registry, no_devices(), "");
 
             EXPECT_EQ(second_registry.contributors().size(), std::size_t{1});
-        }
-
-        TEST(Small_RegisterProfilerParts, TheContributorStatesItsFactsWhileThePartsLive)
-        {
-            SushiProfiler::Registry registry;
-            const Profiling::SushiBLASProfilerParts parts =
-                Profiling::register_profiler_parts(registry, no_devices(), "");
-
-            const SushiProfiler::RecordFacts first = SushiProfiler::gather_facts(registry.contributors());
-            const SushiProfiler::RecordFacts second = SushiProfiler::gather_facts(registry.contributors());
-
-            EXPECT_TRUE(has_fact(first.build, "sushiblas.version"));
-            EXPECT_EQ(first.build, second.build);
         }
 
         namespace

@@ -148,27 +148,6 @@ namespace SushiBLAS
                     << "second source, element " << i;
         }
 
-        TEST_F(Medium_SpatialChannelsTest, TheyAreEachOthersBackward)
-        {
-            // Concat's gradient is a slice at the same offset. See the test README.
-            auto a = patterned(1, 2, 2, 3, 3);
-            auto b = patterned(1, 2, 2, 4, 11);
-
-            auto c = filled(1, 2, 2, 7, -1.0f);
-            SushiBLAS::SpatialOps(recorder()).concat_channels(a, c, 0);
-            SushiBLAS::SpatialOps(recorder()).concat_channels(b, c, 3);
-
-            auto a_grad = filled(1, 2, 2, 3, 0.0f);
-            SushiBLAS::SpatialOps(recorder()).slice_channels(c, 0, a_grad);
-            recording->run().value();
-
-            const float* expected = a.data_as<float>();
-            const float* got = a_grad.data_as<float>();
-            for (int64_t i = 0; i < a.num_elements; ++i)
-                EXPECT_EQ(channels_float_bits(got[i]), channels_float_bits(expected[i]))
-                    << "element " << i;
-        }
-
         TEST_F(Medium_SpatialChannelsTest, ARangeThatRunsPastTheChannelCountIsRefused)
         {
             auto three = filled(1, 2, 2, 3, 1.0f);
@@ -321,6 +300,5 @@ namespace SushiBLAS
             expect_named([&] { spatial.concat_channels(three, five, -1); },
                          "spatial.concat_channels", "dst");
         }
-
     } // namespace Test
 } // namespace SushiBLAS
