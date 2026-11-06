@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -50,6 +51,10 @@ TEST_F(Medium_DistributionsTest, LogNormal)
     for (int i = 0; i < N; ++i) {
         EXPECT_GT(ptr[i], 0.0f);
     }
+
+    // The draws must not all be equal.
+    const auto [lowest, highest] = std::minmax_element(ptr, ptr + N);
+    EXPECT_LT(*lowest, *highest);
 }
 
 TEST_F(Medium_DistributionsTest, Exponential) 
@@ -64,6 +69,10 @@ TEST_F(Medium_DistributionsTest, Exponential)
     for (int i = 0; i < N; ++i) {
         EXPECT_GE(ptr[i], 0.0f);
     }
+
+    // The draws must not all be equal.
+    const auto [lowest, highest] = std::minmax_element(ptr, ptr + N);
+    EXPECT_LT(*lowest, *highest);
 }
 
 TEST_F(Medium_DistributionsTest, Poisson) 
@@ -79,6 +88,10 @@ TEST_F(Medium_DistributionsTest, Poisson)
         EXPECT_GE(ptr[i], 0.0f);
         EXPECT_EQ(ptr[i], std::floor(ptr[i]));
     }
+
+    // The draws must not all be equal.
+    const auto [lowest, highest] = std::minmax_element(ptr, ptr + N);
+    EXPECT_LT(*lowest, *highest);
 }
 
 TEST_F(Medium_DistributionsTest, Bernoulli) 

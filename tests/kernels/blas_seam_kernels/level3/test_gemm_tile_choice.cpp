@@ -164,7 +164,7 @@ namespace SushiBLAS
                 EXPECT_NE(modeled(profile, square(2048)), Kernels::GemmTileRole::Wide);
         }
 
-        TEST(Small_GemmTileChoice, AWorkGroupOfPartialSubGroupsIsNeverReturned)
+        TEST(Small_GemmTileChoice, OnlyShapesOfWholeSubGroupsAreReturned)
         {
             // Only Wide's 128 work-items are whole sub-groups of 128.
             Device::Profile profile = gfx90a();

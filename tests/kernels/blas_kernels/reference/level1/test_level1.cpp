@@ -117,7 +117,8 @@ namespace SushiBLAS
         TEST(Small_ReferenceLevel1, IamaxReturnsTheFirstLargestMagnitude)
         {
             const std::vector<double> x{1.0, -7.0, 7.0, 2.0};
-            const std::vector<std::complex<float>> z{{1.0f, 1.0f}, {0.0f, -3.0f}, {2.0f, 0.5f}};
+            // abs1 is 6, 5 and 2; the modulus is 4.24, 5 and 1.41, so only abs1 picks index 0.
+            const std::vector<std::complex<float>> z{{3.0f, 3.0f}, {0.0f, -5.0f}, {1.0f, 1.0f}};
             int64_t real_index = -1;
             int64_t complex_index = -1;
 
@@ -125,7 +126,7 @@ namespace SushiBLAS
             Ref::iamax<std::complex<float>>(3, z.data(), 1, &complex_index);
 
             EXPECT_EQ(real_index, int64_t{1});
-            EXPECT_EQ(complex_index, int64_t{1});
+            EXPECT_EQ(complex_index, int64_t{0});
         }
 
         TEST(Small_ReferenceLevel1, AbsOneAddsTheMagnitudesOfBothParts)

@@ -13,7 +13,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `level3/test_gemm_tile_catalog.cpp` | Tests the sizes and the stable names of the tiled GEMM's catalog shapes |
 | `level3/test_gemm_tile_choice.cpp` | Tests the tile chooser of the tiled GEMM on fake device profiles |
 | `level3/test_gemm_tile_shape.cpp` | Tests the sizes GemmTileShape derives from its four parameters |
-| `level3/test_gemm_tile_table.cpp` | Tests that the measured GEMM tile table holds only entries a chooser can match |
+| `level3/test_gemm_tile_table.cpp` | Tests that the GEMM tile chooser never matches a table entry to an unknown architecture |
 | `level3/test_packed_product_plan.cpp` | Tests the register block, the default blocking and the plan of a packed product |
 | `reference/level3/test_gemm.cpp` | Tests the reference gemm against a dense loop, with transposes, batches and an epilogue |
 | `sycl/level3/test_gemm.cpp` | Tests the unpacked SYCL gemm against the reference gemm on the host device |

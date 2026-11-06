@@ -15,9 +15,9 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | todo |
 | T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | todo |
 | T4 | Benchmarks moved to the benchmark runner |  | todo |
-| T5 | The defects of this report, each with a test that fails first, and the pages corrected |  | todo |
+| T5 | The defects of this report, each with a test that fails first, and the pages corrected |  | done |
 | T6 | The CLI tests on sushicore's in-memory runner and console | sushicore T1 | done |
-| T7 | The device-math float and double rows taken from SushiEngine `Small_KernelMath` |  | todo |
+| T7 | The device-math float and double rows taken from SushiEngine `Small_KernelMath` |  | done |
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
 | M1 | the tests of `applications` (6 files): 3 rewrite, 5 split, 4 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M2 | the tests of `cli` (8 files): 56 rewrite, 18 resize, 1 split, 13 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |

@@ -547,6 +547,8 @@ namespace SushiBLAS
             if (s == 0)
                 GTEST_SKIP() << "no order up to " << K_LARGEST_SEAM_ORDER
                              << " selects the packed kernel; cache_bytes=" << profile.cache_bytes;
+            ASSERT_TRUE(Kernels::selects_packed_product<TypeParam>(profile, s, s, s))
+                << "the profile does not choose the packed kernel for the order " << s;
 
             for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
             {

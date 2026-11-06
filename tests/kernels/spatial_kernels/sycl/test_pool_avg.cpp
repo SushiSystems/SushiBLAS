@@ -38,12 +38,31 @@
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /// @brief Holds the rounded operations of one backward element: six divisions and five additions, rounded up.
+            constexpr std::size_t K_BACKWARD_ROUNDINGS = 12;
+
+            /// @brief Holds the largest magnitude on that path: the sum of six quotients of dy / 6 with |dy| at most 3.
+            constexpr double K_BACKWARD_MAGNITUDE = 3.0;
+
+            /** @brief Expects every element of got within tolerance of the one of want. */
+            void expect_values_near(const std::vector<double>& got, const std::vector<double>& want,
+                                    double tolerance)
+            {
+                ASSERT_EQ(got.size(), want.size());
+                for (std::size_t i = 0; i < got.size(); ++i)
+                    EXPECT_NEAR(got[i], want[i], tolerance) << "element " << i;
+            }
+        } // namespace
+
         /** @brief Runs the kernel on the host CPU queue. */
         class Medium_SYCLPoolAvg : public HostDeviceTest
         {
@@ -52,7 +71,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_SYCLPoolAvg, MatchesTheReference)
         {
-            // Every value is a small integer, so both kernels compute without rounding.
+            // Each window sum is an exact integer, so the forward quotients agree bit for bit.
             const Spatial::WindowSpan span = nhwc_span(2, 9, 8, 3, uneven_geometry(), 1);
             const std::size_t outputs = static_cast<std::size_t>(span.output_elements());
             const std::size_t inputs = static_cast<std::size_t>(span.input_elements());
@@ -72,7 +91,7 @@ namespace SushiBLAS
             Kernels::Reference::pool_avg_backward(span, dy.data(), dx.data());
 
             EXPECT_EQ(device_y.values(), y);
-            EXPECT_EQ(device_dx.values(), dx);
+            expect_values_near(device_dx.values(), dx, absolute_tolerance<double>(K_BACKWARD_ROUNDINGS, K_BACKWARD_MAGNITUDE));
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -112,7 +112,7 @@ namespace SushiBLAS
             Kernels::SYCL::Detail::state_applied_gemm_tile_pin(choice, 64, 64, 64);
             Kernels::SYCL::Detail::state_applied_gemm_tile_pin(choice, 128, 128, 128);
 
-            EXPECT_LE(capture.count(SushiLog::LogLevel::Info, "selects the"), std::size_t{1});
+            EXPECT_EQ(capture.count(SushiLog::LogLevel::Info, "selects the"), std::size_t{1});
         }
 
         TEST(Medium_GemmFallbackLog, APinThatWasNotAppliedStatesNothing)

@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <new>
 #include <array>
 #include <complex>
 #include <limits>
@@ -39,6 +38,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/host_device/shared_array.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
@@ -47,9 +47,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief Holds the alignment, in bytes, of every array a test launches over. */
-            inline constexpr std::size_t K_TEST_ALIGNMENT = 128;
-
             /** @brief Holds the element count at which every work-item of a GPU-like grid loops over its stride. */
             inline constexpr std::size_t K_LARGE_COUNT = 100000;
 
@@ -64,48 +61,6 @@ namespace SushiBLAS
                 profile.compute_units = 1;
                 return Launch::plan_for(profile, n, width);
             }
-
-            /**
-             * @brief Owns one 128-byte aligned shared USM array and frees it with `sycl::free`.
-             * @tparam T The element type; trivially copyable.
-             */
-            template<typename T>
-            class SharedArray final
-            {
-                public:
-                    /** @brief Allocates count elements on the device of q. */
-                    SharedArray(sycl::queue& q, std::size_t count)
-                        : queue_(q),
-                          data_(sycl::aligned_alloc_shared<T>(K_TEST_ALIGNMENT, count, q))
-                    {
-                        if (data_ == nullptr)
-                            throw std::bad_alloc();
-                    }
-
-                    /** @brief Frees the array. */
-                    ~SharedArray()
-                    {
-                        sycl::free(data_, queue_);
-                    }
-
-                    SharedArray(const SharedArray&) = delete;
-                    SharedArray& operator=(const SharedArray&) = delete;
-                    SharedArray(SharedArray&&) = delete;
-                    SharedArray& operator=(SharedArray&&) = delete;
-
-                    /** @brief Returns the first element. */
-                    [[nodiscard]] T* get() const noexcept
-                    {
-                        return data_;
-                    }
-
-                private:
-                    /** @brief The queue whose context owns the array. */
-                    sycl::queue& queue_;
-
-                    /** @brief The first element. */
-                    T* data_;
-            };
 
             /** @brief Returns the i-th generated input value, an integer below K_VALUE_PERIOD. */
             template<typename T>

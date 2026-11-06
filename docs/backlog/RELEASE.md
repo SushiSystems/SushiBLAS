@@ -11,3 +11,4 @@
 
 | ID | Origin | Symptom | Workaround | Fix | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- |
+| KI-30 | dependency | The sushiblas package prefix holds a SushiRuntime without report/run_observer.hpp | Reinstall SushiRuntime into the prefix before sb test --package | none, an install fault outside this repository | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |

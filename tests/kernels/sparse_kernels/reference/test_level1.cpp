@@ -96,10 +96,11 @@ namespace SushiBLAS
             std::vector<double> x{1.0, 2.0, 3.0};
             std::vector<double> y{10.0, 20.0, 30.0, 40.0, 50.0};
 
-            Ref::roti(x.data(), positions(), y.data(), 1, 0.0, 1.0);
+            Ref::roti(x.data(), positions(), y.data(), 1, 2.0, 1.0);
 
-            EXPECT_EQ(x, (std::vector<double>{40.0, 10.0, 50.0}));
-            EXPECT_EQ(y, (std::vector<double>{-2.0, 20.0, 30.0, -1.0, -3.0}));
+            // x' = 2x + y and y' = 2y - x on the pairs (1, 40), (2, 10) and (3, 50).
+            EXPECT_EQ(x, (std::vector<double>{42.0, 14.0, 56.0}));
+            EXPECT_EQ(y, (std::vector<double>{18.0, 20.0, 30.0, 79.0, 97.0}));
         }
     } // namespace Test
 } // namespace SushiBLAS

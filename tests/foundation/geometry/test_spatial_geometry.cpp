@@ -36,7 +36,7 @@ namespace SushiBLAS
     {
         using Spatial::output_extent;
 
-        TEST(Medium_SpatialGeometry, TheOrdinaryCasesMatchTheFormula)
+        TEST(Small_SpatialGeometry, TheOrdinaryCasesMatchTheFormula)
         {
             // ResNet-18's stem: 224 -> 112, 7x7 stride 2 pad 3.
             EXPECT_EQ(output_extent(224, 3, 3, 1, 7, 2), 112);
@@ -48,7 +48,7 @@ namespace SushiBLAS
             EXPECT_EQ(output_extent(32, 0, 0, 1, 3, 1), 30);
         }
 
-        TEST(Medium_SpatialGeometry, DilationWidensTheKernelWithoutWideningTheOutput)
+        TEST(Small_SpatialGeometry, DilationWidensTheKernelWithoutWideningTheOutput)
         {
             // A dilated 3x3 covers 5 rows, so "same" needs 2 either side.
             EXPECT_EQ(output_extent(32, 2, 2, 2, 3, 1), 32);
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(output_extent(32, 0, 0, 4, 3, 1), 24);
         }
 
-        TEST(Medium_SpatialGeometry, AsymmetricPaddingIsWhatHoldsYoloTinysLastPool)
+        TEST(Small_SpatialGeometry, AsymmetricPaddingIsWhatHoldsYoloTinysLastPool)
         {
             // Bottom and right padding keep 13x13 at 13x13. See the test README.
             EXPECT_EQ(output_extent(13, 0, 1, 1, 2, 1), 13);
@@ -65,21 +65,21 @@ namespace SushiBLAS
             EXPECT_EQ(output_extent(13, 0, 0, 1, 2, 1), 12);
         }
 
-        TEST(Medium_SpatialGeometry, NonSquareAndAnisotropicGeometryIsExpressible)
+        TEST(Small_SpatialGeometry, NonSquareAndAnisotropicGeometryIsExpressible)
         {
             // Height and width are independent, so a 1x7 kernel at stride (1,2) is no special case.
             EXPECT_EQ(output_extent(20, 0, 0, 1, 1, 1), 20);
             EXPECT_EQ(output_extent(20, 3, 3, 1, 7, 2), 10);
         }
 
-        TEST(Medium_SpatialGeometry, AWindowWiderThanThePaddedInputYieldsNoOutputRatherThanANegativeOne)
+        TEST(Small_SpatialGeometry, AWindowWiderThanThePaddedInputYieldsNoOutputRatherThanANegativeOne)
         {
             // A negative numerator is answered with zero. See tests/foundation/geometry/README.md.
             EXPECT_EQ(output_extent(3, 0, 0, 1, 5, 1), 0);
             EXPECT_EQ(output_extent(3, 0, 0, 4, 3, 1), 0);
         }
 
-        TEST(Medium_SpatialGeometry, WindowSpanDerivesItsOwnCounts)
+        TEST(Small_SpatialGeometry, WindowSpanDerivesItsOwnCounts)
         {
             Spatial::WindowSpan span;
             span.batch = 2;
@@ -94,7 +94,7 @@ namespace SushiBLAS
             EXPECT_EQ(span.column_elements(), 2 * 4 * 5 * 3 * 3 * 3);
         }
 
-        TEST(Medium_SpatialGeometry, TheDefaultGeometryIsTheIdentityWindow)
+        TEST(Small_SpatialGeometry, TheDefaultGeometryIsTheIdentityWindow)
         {
             // A default geometry maps every extent to itself. See the test README.
             const Spatial::ConvGeometry g;

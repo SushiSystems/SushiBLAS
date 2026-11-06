@@ -103,8 +103,8 @@ namespace SushiBLAS
         } // namespace
 
         /**
-         * @brief Tests that every side and flag of TRSM decodes to the substitution of its row
-         *        in DESIGN_BLAS_L3, section 7.4.
+         * @brief Tests that every side and flag of TRSM decodes to its substitution loop of
+         *        sycl/level3/triangular_system.hpp.
          */
         TEST(Medium_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
         {

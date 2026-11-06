@@ -1046,7 +1046,7 @@ namespace SushiBLAS
 
                     /**
                      * @brief Expects every step of a solved real system to leave a residual within
-                     *        the bound of DESIGN_BLAS_L3, section 7.6.
+                     *        the rounding bound of the step's accumulation.
                      * @param x The solution a kernel of mode wrote over b.
                      */
                     void expect_residual_within_bound(const HostSolve<T>& system,
@@ -1771,7 +1771,7 @@ namespace SushiBLAS
 
                 /**
                  * @brief Returns the host solution of the unit-lower system, summed and carried in
-                 *        float, subtracting in the order of DESIGN_BLAS_L3, section 7.2.
+                 *        float, subtracting in the order of the kernel's substitution.
                  * @return Each solved element rounded once to HALF.
                  */
                 [[nodiscard]] static std::vector<sycl::half> substitute_in_float(

@@ -23,34 +23,56 @@
 
 /**
  * @file test_gemm_tile_table.cpp
- * @brief Tests that the measured GEMM tile table holds only entries a chooser can match.
+ * @brief Tests that the GEMM tile chooser matches a table entry only by a known architecture.
  * @author Mustafa Garip
  */
 
-#include <cstddef>
+#include <array>
+#include <cstdint>
 #include <gtest/gtest.h>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_table.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_GemmTileTable, NoEntryNamesAnUnknownArchitecture)
+        namespace
         {
-            for (const Kernels::GemmTileEntry& entry : Kernels::K_GEMM_TILE_TABLE)
-                EXPECT_NE(entry.architecture, Device::Architecture::Unknown);
-        }
+            /** @brief Returns the profile of a GPU whose architecture is not known. */
+            [[nodiscard]] Device::Profile unknown_gpu()
+            {
+                Device::Profile p;
+                p.is_cpu = false;
+                p.has_dedicated_local_memory = true;
+                p.architecture = Device::Architecture::Unknown;
+                p.compute_units = 16;
+                p.local_mem_bytes = 32 * 1024;
+                p.local_mem_per_compute_unit = 32 * 1024;
+                p.max_work_group_size = 1024;
+                p.sub_group_size = 16;
+                return p;
+            }
+        } // namespace
 
-        TEST(Small_GemmTileTable, NoTwoEntriesShareAKey)
+        TEST(Small_GemmTileTable, AnEntryNamingAnUnknownArchitectureNeverMatchesAnUnknownDevice)
         {
-            const auto& table = Kernels::K_GEMM_TILE_TABLE;
-            for (std::size_t i = 0; i < table.size(); ++i)
-                for (std::size_t j = i + 1; j < table.size(); ++j)
-                    EXPECT_FALSE(table[i].architecture == table[j].architecture &&
-                                 table[i].dtype == table[j].dtype &&
-                                 table[i].size_class == table[j].size_class)
-                        << "entries " << i << " and " << j;
+            const Kernels::GemmTileProduct product{2048, 2048, 2048, 1, Core::DataType::Float32};
+            const std::array<Kernels::GemmTileEntry, 0> empty{};
+            const std::array<Kernels::GemmTileEntry, 1> table = {Kernels::GemmTileEntry{
+                Device::Architecture::Unknown, Core::DataType::Float32,
+                Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact}};
+
+            const Kernels::GemmTileChoice modeled = Kernels::choose_gemm_tile(
+                unknown_gpu(), Kernels::gemm_tile_traits<float>(), product, "", empty);
+            const Kernels::GemmTileChoice tabled = Kernels::choose_gemm_tile(
+                unknown_gpu(), Kernels::gemm_tile_traits<float>(), product, "", table);
+
+            EXPECT_NE(modeled.role, Kernels::GemmTileRole::Compact);
+            EXPECT_EQ(tabled.role, modeled.role);
         }
     } // namespace Test
 } // namespace SushiBLAS

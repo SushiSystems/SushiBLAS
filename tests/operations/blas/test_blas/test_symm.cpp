@@ -42,6 +42,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -775,7 +776,7 @@ namespace SushiBLAS
                 SushiBLAS::BLASOps(recorder()).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
                 FAIL() << "ForceReference must refuse a device-only operand.";
             }
-            catch (const std::invalid_argument& e)
+            catch (const UnsupportedExecution& e)
             {
                 const std::string message = e.what();
                 EXPECT_NE(message.find("blas.lvl3.symm"), std::string::npos) << message;

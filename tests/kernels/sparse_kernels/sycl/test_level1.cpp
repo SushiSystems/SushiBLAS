@@ -73,12 +73,12 @@ namespace SushiBLAS
             SharedArray<double> device_y(queue(), y);
 
             Kernels::SYCL::axpyi(queue(), 3.0, device_x.get(), list, device_y.get(), 1, {}).wait();
-            Kernels::SYCL::roti(queue(), device_x.get(), list, device_y.get(), 1, 0.0, 1.0,
+            Kernels::SYCL::roti(queue(), device_x.get(), list, device_y.get(), 1, 2.0, 1.0,
                                 {}).wait();
             Kernels::SYCL::gthrz(queue(), device_y.get(), 1, list, device_x.get(), {}).wait();
             Kernels::SYCL::sctr(queue(), device_x.get(), list, device_y.get(), 1, {}).wait();
             Kernels::Reference::axpyi(3.0, x.data(), list, y.data(), 1);
-            Kernels::Reference::roti(x.data(), list, y.data(), 1, 0.0, 1.0);
+            Kernels::Reference::roti(x.data(), list, y.data(), 1, 2.0, 1.0);
             Kernels::Reference::gthrz(y.data(), 1, list, x.data());
             Kernels::Reference::sctr(x.data(), list, y.data(), 1);
 

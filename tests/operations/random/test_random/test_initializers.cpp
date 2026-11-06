@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -62,6 +64,10 @@ TEST_F(Medium_InitializersTest, XavierNormal)
     for (int i = 0; i < N * N; ++i) {
         EXPECT_FALSE(std::isnan(ptr[i]));
     }
+
+    // The draws must not all be equal.
+    const auto [lowest, highest] = std::minmax_element(ptr, ptr + N * N);
+    EXPECT_LT(*lowest, *highest);
 }
 
 TEST_F(Medium_InitializersTest, HeUniform) 
@@ -89,4 +95,8 @@ TEST_F(Medium_InitializersTest, HeNormal)
     for (int i = 0; i < N * N; ++i) {
         EXPECT_FALSE(std::isnan(ptr[i]));
     }
+
+    // The draws must not all be equal.
+    const auto [lowest, highest] = std::minmax_element(ptr, ptr + N * N);
+    EXPECT_LT(*lowest, *highest);
 }
