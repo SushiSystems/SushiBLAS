@@ -64,9 +64,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief Holds the tolerance of a result made of small whole numbers: it is exact.
-            constexpr double K_EXACT = 0.0;
-
             /// @brief Holds how many tasks each thread of the two-thread test records.
             constexpr std::size_t K_TASKS_PER_THREAD = 64;
         } // namespace
@@ -360,12 +357,12 @@ namespace SushiBLAS
                 entry.call();
             probe.execute().value();
 
-            EXPECT_TENSOR_NEAR(added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f}), K_EXACT);
-            EXPECT_TENSOR_NEAR(rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f}), K_EXACT);
-            EXPECT_TENSOR_NEAR(compared, (std::vector<float>{1.0f, 0.0f, 1.0f, 0.0f}), K_EXACT);
-            EXPECT_TENSOR_NEAR(total, (std::vector<float>{-2.0f}), K_EXACT);
-            EXPECT_TENSOR_NEAR(y, (std::vector<float>{3.0f, -2.0f, 9.0f, -4.0f}), K_EXACT);
-            EXPECT_TENSOR_NEAR(columns, signed_values, K_EXACT);
+            expect_tensor_equal(added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f}));
+            expect_tensor_equal(rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f}));
+            expect_tensor_equal(compared, (std::vector<float>{1.0f, 0.0f, 1.0f, 0.0f}));
+            expect_tensor_equal(total, (std::vector<float>{-2.0f}));
+            expect_tensor_equal(y, (std::vector<float>{3.0f, -2.0f, 9.0f, -4.0f}));
+            expect_tensor_equal(columns, signed_values);
 
             for (const float value : read_tensor<float>(drawn))
             {
@@ -399,10 +396,10 @@ namespace SushiBLAS
 
             const std::vector<float> expected_shifted = {2.0f, 6.0f, 12.0f, 20.0f};
             const std::vector<float> expected_total = {40.0f};
-            EXPECT_TENSOR_NEAR(first_outputs.shifted, expected_shifted, 1e-5);
-            EXPECT_TENSOR_NEAR(second_outputs.shifted, expected_shifted, 1e-5);
-            EXPECT_TENSOR_NEAR(first_outputs.total, expected_total, 1e-5);
-            EXPECT_TENSOR_NEAR(second_outputs.total, expected_total, 1e-5);
+            expect_tensor(first_outputs.shifted, expected_shifted, absolute_tolerance<float>(16));
+            expect_tensor(second_outputs.shifted, expected_shifted, absolute_tolerance<float>(16));
+            expect_tensor(first_outputs.total, expected_total, absolute_tolerance<float>(16));
+            expect_tensor(second_outputs.total, expected_total, absolute_tolerance<float>(16));
 
             EXPECT_EQ((std::vector<std::size_t>{0, 1, 1}), *first_counts)
                 << "mul has no producer; add reads mul's output and sum reads add's.";

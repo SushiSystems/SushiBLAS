@@ -42,6 +42,7 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -55,7 +56,7 @@ namespace SushiBLAS
         * Automatically handles USM memory types, data types, and synchronization.
         */
         template <typename T>
-        void assert_tensor_near(const Tensor& actual, const Tensor& expected, double tolerance = 1e-4)
+        void assert_tensor_near(const Tensor& actual, const Tensor& expected, double tolerance = K_DEFAULT_TOLERANCE)
         {
             ASSERT_EQ(actual.dtype, expected.dtype) << "Tensor data type mismatch.";
             ASSERT_EQ(actual.shape, expected.shape) << "Tensor shape mismatch.";
@@ -100,7 +101,7 @@ namespace SushiBLAS
             /**
              * @brief Expects one scalar to match its expectation, treating NaN and infinity exactly.
              * @param expected A NaN expects a NaN; an infinity expects the same infinity.
-             * @param tolerance Absolute tolerance for a finite expectation.
+             * @param tolerance Absolute tolerance for a finite expectation; zero compares for equality.
              * @param part Names the compared part in the failure message.
              */
             inline void expect_scalar_near(double actual, double expected, double tolerance,
@@ -110,6 +111,8 @@ namespace SushiBLAS
                     EXPECT_TRUE(std::isnan(actual)) << "Expected NaN (" << part << ") at index " << index << ", got " << actual;
                 else if (std::isinf(expected))
                     EXPECT_EQ(actual, expected) << "Infinity mismatch (" << part << ") at index " << index;
+                else if (tolerance == 0.0)
+                    EXPECT_EQ(actual, expected) << "Mismatch (" << part << ") at index " << index;
                 else
                     EXPECT_NEAR(actual, expected, tolerance) << "Mismatch (" << part << ") at index " << index;
             }
@@ -201,7 +204,7 @@ namespace SushiBLAS
         * A complex element must match on its real part and have a zero imaginary part. An integer
         * element is compared exactly. A NaN expectation expects a NaN.
         */
-        inline void expect_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = 1e-4)
+        inline void expect_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = K_DEFAULT_TOLERANCE)
         {
             Detail::expect_tensor_elements(tensor, expected, tolerance);
         }
@@ -211,9 +214,27 @@ namespace SushiBLAS
         * @tparam E double, std::complex<float> or std::complex<double>; a complex E checks both parts.
         */
         template <typename E>
-        void expect_tensor(const Tensor& tensor, const std::vector<E>& expected, double tolerance = 1e-4)
+        void expect_tensor(const Tensor& tensor, const std::vector<E>& expected, double tolerance = K_DEFAULT_TOLERANCE)
         {
             Detail::expect_tensor_elements(tensor, expected, tolerance);
+        }
+
+        /**
+        * @brief Expects a dense tensor to equal a flat host-side list of real expectations exactly.
+        */
+        inline void expect_tensor_equal(const Tensor& tensor, const std::vector<float>& expected)
+        {
+            Detail::expect_tensor_elements(tensor, expected, 0.0);
+        }
+
+        /**
+        * @brief Expects a dense tensor to equal a flat host-side list of double or complex expectations exactly.
+        * @tparam E double, std::complex<float> or std::complex<double>; a complex E checks both parts.
+        */
+        template <typename E>
+        void expect_tensor_equal(const Tensor& tensor, const std::vector<E>& expected)
+        {
+            Detail::expect_tensor_elements(tensor, expected, 0.0);
         }
     } // namespace Test
 } // namespace SushiBLAS

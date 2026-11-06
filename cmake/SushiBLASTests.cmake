@@ -42,6 +42,8 @@ function(sushiblas_configure_test_target target)
     target_link_libraries(${target} PRIVATE
         sushiblas
         sushiblas_internal_headers)
+    # tests/ is an include root, so a test reaches the shared helpers as "support/<name>.hpp".
+    target_include_directories(${target} PRIVATE "${PROJECT_SOURCE_DIR}/tests")
     sushiblas_apply_build_policy(${target})
     get_target_property(type ${target} TYPE)
     if(NOT type STREQUAL "EXECUTABLE")

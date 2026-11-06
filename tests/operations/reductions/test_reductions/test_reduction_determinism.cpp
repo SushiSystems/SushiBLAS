@@ -29,6 +29,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <vector>
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -37,6 +38,7 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -310,7 +312,7 @@ namespace SushiBLAS
                     << "). Equal errors mean the compensation is not running.";
 
                 // The result is within one ulp of the exact answer at this magnitude.
-                EXPECT_LT(got_err, exact * 1e-7)
+                EXPECT_LT(got_err, exact * static_cast<double>(std::numeric_limits<float>::epsilon()))
                     << "n = " << n << ": compensated summation should land within an ulp.";
             }
         }
@@ -358,8 +360,8 @@ namespace SushiBLAS
             }();
 
             // The two shapes sum in different orders. See tests/operations/reductions/README.md.
-            EXPECT_NEAR(static_cast<double>(scalar(out_tree)), exact, exact * 1e-6);
-            EXPECT_NEAR(static_cast<double>(scalar(out_seq)), exact, exact * 1e-6);
+            EXPECT_NEAR(static_cast<double>(scalar(out_tree)), exact, absolute_tolerance<float>(2, exact));
+            EXPECT_NEAR(static_cast<double>(scalar(out_seq)), exact, absolute_tolerance<float>(2, exact));
         }
 
     } // namespace Test

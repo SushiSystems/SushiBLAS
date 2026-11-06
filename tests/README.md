@@ -49,6 +49,12 @@ by size, and CTest stops a test that outlives the timeout of its size.
 | `medium` | Threads, localhost, files in a temporary folder, the OpenCL or another CPU SYCL device | 300 s |
 | `large` | A real GPU, or a run longer than `medium` allows | 900 s |
 
+The timeout is the point where CTest stops a hung test, not the time a test may take. The budget
+is far shorter: 100 ms for a `small` test, 5 s for a `medium` test after the shared fixture, and
+600 s of wall time for the whole `small` and `medium` run. `sb test` reads the times through
+`tools/testing/test_budget.py` and prints the budget line. No test is exempt from its limit, so the repository has no exemption
+file.
+
 A test's size is the prefix of its GoogleTest suite name: `Small_`, `Medium_` or `Large_`, as in
 `TEST(Small_ComplexArithmetic, ...)`. No build file lists sizes. Each program registers the three
 prefixes as three filters, each with its label and timeout, and a suite with none of them stops
@@ -95,6 +101,11 @@ A test program links the `sushiblas` library, GoogleTest and the include roots o
 modules, and takes the project's build policy. A test can therefore include a kernel from
 `modules/kernels/` and call it directly, and it sees more than a consumer does. `package/` is the
 one place that sees only the installed surface.
+
+`tests/` is an include root of every test target as well. `tests/support/` holds the headers every
+test may include as `"support/<name>.hpp"`. `tolerance.hpp` is copied from SushiSkills and derives a
+floating-point tolerance from a rounding bound; `tensor_expectations/tolerance_bounds.hpp` builds the
+absolute bounds a comparison takes on it, so no comparison spells a tolerance literal.
 
 ## Shared reasoning
 

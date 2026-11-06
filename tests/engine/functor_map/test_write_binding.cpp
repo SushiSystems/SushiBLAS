@@ -60,9 +60,6 @@ namespace SushiBLAS
             /// @brief Holds the element count of every dense tensor of this file.
             constexpr std::int64_t K_ELEMENTS = 4;
 
-            /// @brief Holds the tolerance of a value handed through unchanged: it is exact.
-            constexpr double K_EXACT = 0.0;
-
             /**
              * @brief Records one task the way a per-index seam does: checks and declares the
              *        reads of the bundle, then its writes, and records a body that does no work.
@@ -144,7 +141,7 @@ namespace SushiBLAS
                     .typed(Dispatch::ElementTag<double>{});
             kernel(1.5);
 
-            EXPECT_NEAR(seen_element, 1.5, K_EXACT);
+            EXPECT_EQ(seen_element, 1.5);
             EXPECT_EQ(seen_read, r.data_as<float>());
             EXPECT_EQ(seen_first, first.data_as<float>());
             EXPECT_EQ(seen_second, second.data_as<std::int64_t>());
@@ -198,7 +195,7 @@ namespace SushiBLAS
 
             EXPECT_EQ(seen_read, r.data_as<float>());
             EXPECT_EQ(seen_write, w.data_as<float>());
-            EXPECT_NEAR(seen_scalar, 2.0f, K_EXACT);
+            EXPECT_EQ(seen_scalar, 2.0f);
         }
 
         TEST_F(Medium_WriteBinding, TheKernelFunctorHoldsNoStorage)

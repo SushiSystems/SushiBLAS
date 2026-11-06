@@ -49,6 +49,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
@@ -77,17 +78,17 @@ namespace SushiBLAS
             /// @brief Element count of the fused update.
             constexpr int64_t K_FUSED_ELEMENTS = 100000;
 
-            /// @brief The FLOAT32 tolerance the exp, log, sqrt, sin and cos test files name.
-            constexpr double K_NAMED_FLOAT32_TOLERANCE = 1e-6;
+            /// @brief Absolute tolerance: 2 FLOAT32 roundings of a value of order one;
+            /// the exp, log, sqrt, sin and cos test files name it.
+            constexpr double K_NAMED_FLOAT32_TOLERANCE = absolute_tolerance<float>(2);
 
-            /// @brief The FLOAT64 tolerance the same five files name.
-            constexpr double K_NAMED_FLOAT64_TOLERANCE = 1e-12;
+            /// @brief Absolute tolerance: 1024 FLOAT64 roundings of a value of order one;
+            /// the same five files name it.
+            constexpr double K_NAMED_FLOAT64_TOLERANCE = absolute_tolerance<double>(1024);
 
-            /// @brief expect_tensor's default; every other math operation's value test uses it.
-            constexpr double K_DEFAULT_TOLERANCE = 1e-4;
-
-            /// @brief Absolute tolerance on a sum of small whole numbers: it is exact.
-            constexpr double K_EXACT_TOLERANCE = 0.0;
+            /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one;
+            /// expect_tensor's default, which every other math operation's value test uses.
+            constexpr double K_DEFAULT_TOLERANCE = absolute_tolerance<float>(128);
 
             /// @brief Lower clamp bound; it truncates to -1 for an integer element.
             constexpr double K_CLAMP_LOW = -1.3;
@@ -853,7 +854,7 @@ namespace SushiBLAS
                 EXPECT_NO_THROW(ElementwiseOps(probe.recorder()).add(*a, b, c));
                 probe.execute().value();
 
-                expect_tensor(c, {11.0f, 22.0f, 33.0f, 44.0f}, K_EXACT_TOLERANCE);
+                expect_tensor_equal(c, {11.0f, 22.0f, 33.0f, 44.0f});
             }
 
             GraphProbe reference(ExecutionMode::ForceReference);

@@ -35,6 +35,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
@@ -49,8 +50,9 @@ namespace
     /// @brief Holds 2^16 + 1, one element past a power-of-two work size.
     constexpr size_t K_LARGE_SIZE = 65537;
 
-    /// @brief Holds the absolute tolerance every finite expectation uses.
-    constexpr double K_TOLERANCE = 1e-5;
+    /// @brief Holds the absolute tolerance: 16 FLOAT32 roundings of a value of order one,
+    /// for every finite expectation.
+    constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 
     /// @brief Holds the four results one input is expected to reduce to.
     struct Expected

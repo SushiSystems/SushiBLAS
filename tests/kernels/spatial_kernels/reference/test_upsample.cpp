@@ -37,14 +37,15 @@
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/spatial_kernels/reference/upsample.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// Relative bound on the two sides of an adjoint identity, which add the same products in different orders.
-        constexpr double K_ADJOINT_TOLERANCE = 1e-12;
+        /// @brief Relative tolerance: 1024 double roundings per unit of magnitude.
+        constexpr double K_ADJOINT_TOLERANCE = absolute_tolerance<double>(1024);
 
         /** @brief Returns the span of an upsample of a dense NHWC input by scale_h x scale_w. */
         static Spatial::WindowSpan upsample_span(int64_t batch, int64_t height, int64_t width,

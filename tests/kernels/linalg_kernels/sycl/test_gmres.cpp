@@ -38,6 +38,7 @@
 #include <SushiBLAS/linalg_kernels/reference/gmres.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -47,6 +48,9 @@ namespace SushiBLAS
         {
             /// @brief The order of every test system.
             constexpr std::size_t K_N = 300;
+
+            /// @brief Absolute tolerance: 8192 double roundings of a value of order one.
+            constexpr double K_SOLVE_TOLERANCE = absolute_tolerance<double>(8192);
 
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
             std::vector<double> values(std::size_t count, unsigned seed)
@@ -109,7 +113,7 @@ namespace SushiBLAS
             Kernels::GmresSettings settings;
             settings.restart = 4;
             settings.block_size = 3;
-            settings.relative_tolerance = 1e-11;
+            settings.relative_tolerance = K_SOLVE_TOLERANCE;
 
             std::vector<double> expected(K_N, 0.0);
             std::uint32_t expected_iterations = 0;
@@ -119,7 +123,7 @@ namespace SushiBLAS
 
             const DeviceSolve got = run_device(queue(), a, b, settings);
 
-            EXPECT_LE(got.residual, 1e-11);
+            EXPECT_LE(got.residual, K_SOLVE_TOLERANCE);
             EXPECT_EQ(got.iterations, expected_iterations);
             EXPECT_EQ(got.residual, expected_residual);
             EXPECT_EQ(got.x, expected);

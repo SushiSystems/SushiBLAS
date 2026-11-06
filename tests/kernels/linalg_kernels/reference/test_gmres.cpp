@@ -37,6 +37,7 @@
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/linalg_kernels/gmres_workspace.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -46,6 +47,18 @@ namespace SushiBLAS
         {
             /// @brief The order of every test system.
             constexpr std::size_t K_N = 24;
+
+            /// @brief Absolute tolerance: 1024 double roundings of a value of order one.
+            constexpr double K_SOLVE_TOLERANCE = absolute_tolerance<double>(1024);
+
+            /// @brief Absolute tolerance: 65536 double roundings of a value of order one.
+            constexpr double K_COARSE_SOLVE_TOLERANCE = absolute_tolerance<double>(65536);
+
+            /// @brief Absolute tolerance: 8 double roundings of a value of order one.
+            constexpr double K_RESIDUAL_TOLERANCE = absolute_tolerance<double>(8);
+
+            /// @brief Absolute tolerance: 2 float roundings of a value of order one.
+            constexpr double K_WARM_START_TOLERANCE = absolute_tolerance<float>(2);
 
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
             std::vector<double> values(std::size_t count, unsigned seed)
@@ -145,15 +158,15 @@ namespace SushiBLAS
             const std::vector<double> a = dominant_matrix(21);
             const std::vector<double> b = values(K_N, 22);
             Kernels::GmresSettings settings;
-            settings.relative_tolerance = 1e-12;
+            settings.relative_tolerance = K_SOLVE_TOLERANCE;
 
             const Solve s = run(a, b, std::vector<double>(K_N, 0.0), settings);
 
             const std::vector<double> expected = direct_solve(a, b);
-            EXPECT_LE(s.residual, 1e-12);
+            EXPECT_LE(s.residual, K_SOLVE_TOLERANCE);
             EXPECT_GE(s.iterations, 1u);
             for (std::size_t i = 0; i < K_N; ++i)
-                EXPECT_NEAR(s.x[i], expected[i], 1e-10) << i;
+                EXPECT_NEAR(s.x[i], expected[i], K_COARSE_SOLVE_TOLERANCE) << i;
         }
 
         TEST(Small_ReferenceGmres, RestartsAndBlocksStillConverge)
@@ -163,14 +176,14 @@ namespace SushiBLAS
             Kernels::GmresSettings settings;
             settings.restart = 3;
             settings.block_size = 4;
-            settings.relative_tolerance = 1e-10;
+            settings.relative_tolerance = K_COARSE_SOLVE_TOLERANCE;
 
             const Solve s = run(a, b, std::vector<double>(K_N, 0.0), settings);
 
-            EXPECT_LE(s.residual, 1e-10);
-            // Three vectors per cycle cannot reach 1e-10 here in one cycle.
+            EXPECT_LE(s.residual, K_COARSE_SOLVE_TOLERANCE);
+            // Three vectors per cycle cannot reach the tolerance here in one cycle.
             EXPECT_GT(s.iterations, 3u);
-            EXPECT_NEAR(s.residual, true_residual(a, b, s.x), 1e-14);
+            EXPECT_NEAR(s.residual, true_residual(a, b, s.x), K_RESIDUAL_TOLERANCE);
         }
 
         TEST(Small_ReferenceGmres, ReportsTheTrueResidualWhenTheCapStopsIt)
@@ -180,13 +193,13 @@ namespace SushiBLAS
             Kernels::GmresSettings settings;
             settings.restart = 2;
             settings.max_iterations = 2;
-            settings.relative_tolerance = 1e-14;
+            settings.relative_tolerance = K_RESIDUAL_TOLERANCE;
 
             const Solve s = run(a, b, std::vector<double>(K_N, 0.0), settings);
 
             EXPECT_EQ(s.iterations, 2u);
-            EXPECT_GT(s.residual, 1e-14);
-            EXPECT_NEAR(s.residual, true_residual(a, b, s.x), 1e-14);
+            EXPECT_GT(s.residual, K_RESIDUAL_TOLERANCE);
+            EXPECT_NEAR(s.residual, true_residual(a, b, s.x), K_RESIDUAL_TOLERANCE);
         }
 
         TEST(Small_ReferenceGmres, AnExactWarmStartTakesNoIteration)
@@ -194,12 +207,12 @@ namespace SushiBLAS
             const std::vector<double> a = dominant_matrix(27);
             const std::vector<double> b = values(K_N, 28);
             Kernels::GmresSettings settings;
-            settings.relative_tolerance = 1e-6;
+            settings.relative_tolerance = K_WARM_START_TOLERANCE;
 
             const Solve s = run(a, b, direct_solve(a, b), settings);
 
             EXPECT_EQ(s.iterations, 0u);
-            EXPECT_LE(s.residual, 1e-6);
+            EXPECT_LE(s.residual, K_WARM_START_TOLERANCE);
         }
 
         TEST(Small_ReferenceGmres, AZeroRightHandSideGivesZero)

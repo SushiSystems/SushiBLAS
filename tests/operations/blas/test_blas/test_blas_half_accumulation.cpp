@@ -36,6 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -49,14 +50,16 @@ namespace SushiBLAS
         /// @brief The exact sum of K_REDUCTION_LENGTH products of one and one.
         constexpr double K_EXPECTED_SUM = 4096.0;
 
-        /// @brief Half the HALF spacing at 4096 (spacing 4); a sum stalled at 2048 is far outside it.
-        constexpr double K_HALF_ROUNDING_AT_SUM = 2.0;
+        /// @brief Absolute tolerance: the HALF unit roundoff times K_EXPECTED_SUM, half the spacing at
+        /// 4096; a sum stalled at 2048 is far outside it.
+        constexpr double K_HALF_ROUNDING_AT_SUM = K_HALF_UNIT_ROUNDOFF * K_EXPECTED_SUM;
 
         /// @brief The exact 2-norm of K_REDUCTION_LENGTH ones: sqrt(4096).
         constexpr double K_EXPECTED_NORM = 64.0;
 
-        /// @brief Half the HALF spacing at 64 (spacing 1/16); a norm stalled at sqrt(2048) is not.
-        constexpr double K_HALF_ROUNDING_AT_NORM = 0.03125;
+        /// @brief Absolute tolerance: the HALF unit roundoff times K_EXPECTED_NORM, half the spacing
+        /// at 64; a norm stalled at sqrt(2048) is outside it.
+        constexpr double K_HALF_ROUNDING_AT_NORM = K_HALF_UNIT_ROUNDOFF * K_EXPECTED_NORM;
 
         /// @brief Order of the unit-lower system the substitution cases solve.
         constexpr int64_t K_SYSTEM_ORDER = 64;

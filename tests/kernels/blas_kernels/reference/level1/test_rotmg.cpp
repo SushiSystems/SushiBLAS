@@ -32,13 +32,14 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_kernels/reference/level1/rotm.hpp>
 #include <SushiBLAS/blas_kernels/reference/level1/rotmg.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance of a component the transformation must zero.
-        constexpr double K_TOLERANCE = 1e-12;
+        /// @brief Absolute tolerance: 1024 double roundings of a value of order one.
+        constexpr double K_TOLERANCE = absolute_tolerance<double>(1024);
 
         TEST(Small_ReferenceRotmg, TheTransformationZeroesTheSecondComponent)
         {

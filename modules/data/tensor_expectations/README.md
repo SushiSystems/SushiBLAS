@@ -10,7 +10,8 @@ It depends on `core`, `tensor`, `test_runner` and GoogleTest. Its headers are in
 | --- | --- |
 | `scalar_dtype.hpp` | `sushiblas_dtype`, the `DataType` of a C++ element type |
 | `tensor_fill.hpp` | `fill_tensor`, `fill_random` and the generator `fill_random` draws from |
-| `tensor_comparison.hpp` | `expect_tensor`, `assert_tensor_near`, `EXPECT_TENSOR_NEAR` and `SB_ASSERT_TENSOR_NEAR` |
+| `tensor_comparison.hpp` | `expect_tensor`, `expect_tensor_equal`, `assert_tensor_near`, `EXPECT_TENSOR_NEAR` and `SB_ASSERT_TENSOR_NEAR` |
+| `tolerance_bounds.hpp` | `absolute_tolerance`, `half_absolute_tolerance` and `K_DEFAULT_TOLERANCE`, the absolute bounds a comparison takes |
 | `tensor_readback.hpp` | `read_tensor`, which copies a tensor's elements into a host vector |
 
 The fill, comparison and readback headers copy through `TestEnvironment::queue()` and wait, so a
@@ -43,9 +44,8 @@ binary runs the whole suite. Two calls in one test draw different values.
 
 A complex element takes two draws, the real part first and the imaginary part second.
 
-On a floating dtype the values lie in `[min_val, max_val]`, not `[min_val, max_val)`: the draw
-is a `float` below `max_val`, and rounding it to `HALF` (or to `float` from a nearby double)
-can land on `max_val` itself.
+On a floating dtype the values lie in `[min_val, max_val)`, the half-open range the standard
+distributions give, and the test asserts every value below `max_val`.
 
 On an integer dtype each draw is truncated toward zero. With the default range `(-1, 1)` every
 element is 0. A test that needs varied integers passes a wider range or uses `fill_tensor`.
@@ -68,5 +68,17 @@ On a complex tensor both parts are compared. A real expectation asks for a zero 
 A NaN expectation passes only on a NaN element, and an infinite expectation only on the same
 infinity. `EXPECT_NEAR` alone fails both, since the difference it computes is NaN.
 
+The default tolerance is `K_DEFAULT_TOLERANCE`, 128 float roundings of a value of order one.
+`expect_tensor_equal` compares every element for equality; it is how an exact result is checked.
+
 Integer elements are compared with `EXPECT_EQ`. An integer element is the expected value or it
 is not, and a tolerance would only hide an off-by-one.
+
+## tolerance_bounds.hpp
+
+A test never types an epsilon. `absolute_tolerance<Real>(operations, magnitude)` returns
+16 · operations · u · magnitude, where u is the unit roundoff of `Real` and 16 the threshold of
+`tests/support/tolerance.hpp`, the helper copied from SushiSkills that this header builds on.
+`half_absolute_tolerance` does the same for `sycl::half`, whose unit roundoff is 2^-11.
+The header includes `"support/tolerance.hpp"`, so only a test target, which has `tests/` as an
+include root, can include it.

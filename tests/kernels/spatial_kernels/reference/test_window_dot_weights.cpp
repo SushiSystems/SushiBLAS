@@ -38,14 +38,15 @@
 #include <SushiBLAS/spatial_kernels/reference/window_dot.hpp>
 #include <SushiBLAS/spatial_kernels/reference/window_dot_weights.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// Relative bound on the two sides of an adjoint identity, which add the same products in different orders.
-        constexpr double K_ADJOINT_TOLERANCE = 1e-12;
+        /// @brief Relative tolerance: 1024 double roundings per unit of magnitude.
+        constexpr double K_ADJOINT_TOLERANCE = absolute_tolerance<double>(1024);
 
         TEST(Small_ReferenceWindowDotWeights, PairsWithTheWindowProduct)
         {

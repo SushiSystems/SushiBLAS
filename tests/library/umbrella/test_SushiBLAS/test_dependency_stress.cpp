@@ -79,7 +79,7 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
     // writer = 32 * 2 * 2 = 128 everywhere; every reader = 32 * 128 * 2 = 8192.
     const std::vector<float> K_EXPECTED_READER(N * N, 8192.0f);
     for (int i = 0; i < num_readers; ++i)
-        expect_tensor(reader_outputs[i], K_EXPECTED_READER, 0.0);
+        expect_tensor_equal(reader_outputs[i], K_EXPECTED_READER);
 }
 
 /**
@@ -114,5 +114,5 @@ TEST_F(Medium_DependencyStressTest, ShardCollisionStress)
 
     // Every element of C_i is N * a_i * K_B_VALUE = 4 * a_i, exact in float.
     for (int i = 0; i < num_ops; ++i)
-        expect_tensor(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE), 0.0);
+        expect_tensor_equal(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE));
 }

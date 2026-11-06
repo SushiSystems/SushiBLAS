@@ -35,6 +35,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
@@ -71,11 +72,11 @@ namespace
     /// @brief Holds sqrt of {0.25, 1, 2, 9}.
     const std::vector<double> K_FLOAT64_EXPECTED = {0.5, 1.0, 1.4142135623730951, 3.0};
 
-    /// @brief Holds the absolute tolerance for FLOAT32 results.
-    constexpr double K_FLOAT32_TOLERANCE = 1e-6;
+    /// @brief Holds the absolute tolerance: 2 FLOAT32 roundings of a value of order one.
+    constexpr double K_FLOAT32_TOLERANCE = absolute_tolerance<float>(2);
 
-    /// @brief Holds the absolute tolerance for FLOAT64 results.
-    constexpr double K_FLOAT64_TOLERANCE = 1e-12;
+    /// @brief Holds the absolute tolerance: 1024 FLOAT64 roundings of a value of order one.
+    constexpr double K_FLOAT64_TOLERANCE = absolute_tolerance<double>(1024);
 }
 
 TEST_F(Medium_SqrtTest, ZeroInSingleElement)

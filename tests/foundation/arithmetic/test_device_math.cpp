@@ -31,13 +31,15 @@
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/arithmetic/device_math.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance of a double result against its hand value.
-        constexpr double K_TOLERANCE = 1e-12;
+        /// @brief Absolute tolerance: 1024 double roundings of a value of order one.
+        constexpr double K_TOLERANCE =
+            TestSupport::K_DEFAULT_THRESHOLD * 1024.0 * TestSupport::unit_roundoff<double>();
 
         TEST(Medium_DeviceMath, TheHostFunctionsGiveTheStandardResults)
         {

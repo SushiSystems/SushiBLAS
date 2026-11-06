@@ -47,6 +47,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -128,11 +129,13 @@ namespace SushiBLAS
             /// @brief Holds the gain of the single-vector orthogonal fill.
             constexpr double K_SINGLE_VECTOR_GAIN = 3.0;
 
-            /// @brief Holds the tolerance test_orthogonal.cpp allows a Gram entry at gain 1.
-            constexpr double K_GRAM_TOLERANCE = 1e-4;
+            /// @brief Holds the absolute tolerance: 128 FLOAT32 roundings of a value of order
+            /// one, for a Gram entry at gain 1.
+            constexpr double K_GRAM_TOLERANCE = absolute_tolerance<float>(128);
 
-            /// @brief Holds the tolerance test_orthogonal.cpp allows the norm of one vector.
-            constexpr double K_NORM_TOLERANCE = 1e-4;
+            /// @brief Holds the absolute tolerance: 128 FLOAT32 roundings of a value of order
+            /// one, for the norm of one vector.
+            constexpr double K_NORM_TOLERANCE = absolute_tolerance<float>(128);
 
             /// @brief Holds the largest radius a Box-Muller draw reaches in double.
             constexpr double K_BOX_MULLER_RADIUS = 9.0;
@@ -614,7 +617,7 @@ namespace SushiBLAS
                     expect_all_inside(draws.reference, K_LOWER_CUT, K_UPPER_CUT);
                     expect_all_inside(draws.device, K_LOWER_CUT, K_UPPER_CUT);
                     expect_within(draws.reference, draws.device,
-                                  Tolerance{by_precision<T>(1e-3, 1e-9), 0.0});
+                                  Tolerance{by_precision<T>(absolute_tolerance<float>(2048), absolute_tolerance<double>(1048576)), 0.0});
                 }
 
                 /** @brief Expects both paths of orthogonal to be orthonormal and to agree in T. */
@@ -634,7 +637,7 @@ namespace SushiBLAS
                     expect_orthonormal(draws.device, matrix.vectors, K_GAIN * K_GAIN,
                                        K_GRAM_TOLERANCE);
                     expect_within(draws.reference, draws.device,
-                                  Tolerance{by_precision<T>(1e-3, 1e-10) * K_GAIN, 0.0});
+                                  Tolerance{by_precision<T>(absolute_tolerance<float>(2048), absolute_tolerance<double>(65536)) * K_GAIN, 0.0});
                 }
         };
 
@@ -695,7 +698,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that truncated_normal stays in [-2, 2] on both paths, which differ by at
-         *        most 1e-3 in FLOAT32 and 1e-9 in FLOAT64.
+         *        most 2048 FLOAT32 roundings or 2^20 FLOAT64 roundings of a value of order one.
          */
         TEST_F(Medium_RandomReference, TruncatedNormalAgreesInsideItsBounds)
         {
@@ -705,7 +708,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that each path of orthogonal is orthonormal, and that the two differ by at
-         *        most 1e-3 in FLOAT32 and 1e-10 in FLOAT64.
+         *        most 2048 FLOAT32 roundings or 65536 FLOAT64 roundings of a value of order one, scaled by the gain.
          */
         TEST_F(Medium_RandomReference, BothOrthogonalPathsAreOrthonormal)
         {

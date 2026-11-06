@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <vector>
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -47,18 +48,9 @@ namespace SushiBLAS
             /** @brief The lengths every Level 1 reduction is checked at. */
             const std::vector<int64_t> K_LENGTHS = {1, 7, 1000, 100003};
 
-            /**
-             * @brief Allowed difference for dot and asum: none.
-             *
-             * Every x and y element is a multiple of 1/8 and 1/4 with magnitude at most 0.75 and
-             * 1.25, so each product and magnitude is a multiple of 1/32. At n = 100003 every
-             * partial sum stays below 100003 * 0.9375 < 2^17, where FLOAT32 holds every multiple
-             * of 1/32 exactly, so any combination order gives the exact sum.
-             */
-            constexpr double K_EXACT_TOLERANCE = 0.0;
-
             /** @brief Relative tolerance for nrm2: four FLOAT32 ulps for the square root and rescaling. */
-            constexpr double K_NRM2_RELATIVE_TOLERANCE = 4.0 * 1.1920928955078125e-7;
+            constexpr double K_NRM2_RELATIVE_TOLERANCE =
+                4.0 * static_cast<double>(std::numeric_limits<float>::epsilon());
 
             /** @brief Returns element i of the x operand: ((7i mod 13) - 6) / 8. */
             [[nodiscard]] float x_at(std::size_t i)
@@ -136,7 +128,10 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Tests dot against a double-precision host sum at every length.
+         * @brief Tests dot against a double-precision host sum at every length, compared for equality.
+         *
+         * Every product is a multiple of 1/32 and every partial sum stays below 2^17, where FLOAT32
+         * holds each multiple of 1/32 exactly, so any combination order gives the exact sum.
          * @see tests/operations/blas/README.md
          */
         TEST_F(Medium_Level1ParallelReductions, DotMatchesTheHostSum)
@@ -157,12 +152,12 @@ namespace SushiBLAS
                 SushiBLAS::BLASOps(recorder()).dot(x, y, r);
                 recording->run().value();
 
-                EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
+                EXPECT_EQ(static_cast<double>(read_scalar<float>(r)), expected);
             }
         }
 
         /**
-         * @brief Tests asum against a double-precision host sum at every length.
+         * @brief Tests asum against a double-precision host sum at every length, compared for equality as dot is.
          * @see tests/operations/blas/README.md
          */
         TEST_F(Medium_Level1ParallelReductions, AsumMatchesTheHostSum)
@@ -181,7 +176,7 @@ namespace SushiBLAS
                 SushiBLAS::BLASOps(recorder()).asum(x, r);
                 recording->run().value();
 
-                EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
+                EXPECT_EQ(static_cast<double>(read_scalar<float>(r)), expected);
             }
         }
 

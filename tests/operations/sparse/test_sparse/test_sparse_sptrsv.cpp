@@ -48,6 +48,7 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -58,14 +59,16 @@ namespace SushiBLAS
             /** @brief A host vector of expectations or of operand values. */
             using Wide = std::vector<std::complex<double>>;
 
-            /// @brief Absolute error allowed on an element of a hand-worked solution.
-            constexpr double K_SOLVE_TOLERANCE = 1e-4;
+            /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+            /// for an element of a hand-worked solution.
+            constexpr double K_SOLVE_TOLERANCE = absolute_tolerance<float>(128);
 
             /// @brief The least distance that counts as two solutions being different.
             constexpr double K_DISTINCT = 1e-2;
 
-            /// @brief Absolute error allowed on the HALF element a HALF solution misses by 2.4e-4.
-            constexpr double K_HALF_CARRY_TOLERANCE = 1e-5;
+            /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
+            /// below the 2.4e-4 a HALF-carried solution misses by.
+            constexpr double K_HALF_CARRY_TOLERANCE = absolute_tolerance<float>(16);
 
             /// @brief Order of the bidiagonal system; above one work-group on every device.
             constexpr int64_t K_LONG_ORDER = 5000;
@@ -228,6 +231,18 @@ namespace SushiBLAS
                         const std::complex<double> got = widened(actual[i]);
                         EXPECT_NEAR(got.real(), expected[i].real(), tolerance) << "element " << i;
                         EXPECT_NEAR(got.imag(), expected[i].imag(), tolerance) << "element " << i;
+                    }
+                }
+
+                /** @brief Expects every element to equal its host expectation exactly. */
+                static void expect_equal(const std::vector<T>& actual, const Wide& expected)
+                {
+                    ASSERT_EQ(actual.size(), expected.size());
+                    for (std::size_t i = 0; i < actual.size(); ++i)
+                    {
+                        const std::complex<double> got = widened(actual[i]);
+                        EXPECT_EQ(got.real(), expected[i].real()) << "element " << i;
+                        EXPECT_EQ(got.imag(), expected[i].imag()) << "element " << i;
                     }
                 }
         };
@@ -460,9 +475,9 @@ namespace SushiBLAS
             }
 
             for (const ExecutionMode mode : K_BOTH_MODES)
-                this->expect_near(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
-                                            Core::Transpose::NoTrans, Core::Diag::NonUnit, b),
-                                  x, 0.0);
+                this->expect_equal(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                                             Core::Transpose::NoTrans, Core::Diag::NonUnit, b),
+                                   x);
         }
 
         /**

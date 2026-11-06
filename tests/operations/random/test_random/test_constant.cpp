@@ -61,7 +61,7 @@ class Medium_ConstantTest : public SushiBLASTest
             auto t = engine->create_tensor({size}, dtype);
             SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, value);
             recording->run().value();
-            expect_tensor(t, std::vector<double>(static_cast<size_t>(size), value), 0.0);
+            expect_tensor_equal(t, std::vector<double>(static_cast<size_t>(size), value));
         }
 };
 

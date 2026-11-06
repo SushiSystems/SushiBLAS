@@ -363,7 +363,7 @@ namespace SushiBLAS
             auto target = engine->create_tensor({2, 2}, Core::DataType::Float32);
             ASSERT_EQ(SushiBLAS::IO().load(target, path), SushiBLAS::IOStatus::Ok);
 
-            EXPECT_TENSOR_NEAR(target, values, 0.0);
+            expect_tensor_equal(target, values);
         }
     } // namespace Test
 } // namespace SushiBLAS

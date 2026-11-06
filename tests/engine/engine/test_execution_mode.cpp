@@ -74,8 +74,8 @@ TEST_F(Medium_ExecutionModeTest, ForceReferenceAndForceSYCLAgreeOnAxpy)
     const std::vector<float> expected = {12.0f, 24.0f, 36.0f, 48.0f};
 
     const Tensor reference = run_axpy(*engine, ExecutionMode::ForceReference);
-    expect_tensor(reference, expected, 1e-6);
+    expect_tensor(reference, expected, absolute_tolerance<float>(2));
 
     const Tensor device = run_axpy(*engine, ExecutionMode::ForceSYCL);
-    expect_tensor(device, expected, 1e-6);
+    expect_tensor(device, expected, absolute_tolerance<float>(2));
 }

@@ -35,6 +35,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
@@ -68,11 +69,11 @@ namespace
     /// @brief Holds exp of {-1, 0, 0.5, 2}.
     const std::vector<double> K_FLOAT64_EXPECTED = {0.36787944117144233, 1.0, 1.6487212707001282, 7.38905609893065};
 
-    /// @brief Holds the absolute tolerance for FLOAT32 results.
-    constexpr double K_FLOAT32_TOLERANCE = 1e-6;
+    /// @brief Holds the absolute tolerance: 2 FLOAT32 roundings of a value of order one.
+    constexpr double K_FLOAT32_TOLERANCE = absolute_tolerance<float>(2);
 
-    /// @brief Holds the absolute tolerance for FLOAT64 results.
-    constexpr double K_FLOAT64_TOLERANCE = 1e-12;
+    /// @brief Holds the absolute tolerance: 1024 FLOAT64 roundings of a value of order one.
+    constexpr double K_FLOAT64_TOLERANCE = absolute_tolerance<double>(1024);
 }
 
 TEST_F(Medium_ExpTest, ZeroInSingleElement)

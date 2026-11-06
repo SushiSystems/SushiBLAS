@@ -183,16 +183,15 @@ namespace SushiBLAS
                                   strides, wide.dtype, 0, wide.layout);
                 }
 
-                /** @brief Expects every element within tolerance of its host expectation. */
-                static void expect_near(const std::vector<T>& actual, const Wide& expected,
-                                        double tolerance)
+                /** @brief Expects every element to equal its host expectation exactly. */
+                static void expect_equal(const std::vector<T>& actual, const Wide& expected)
                 {
                     ASSERT_EQ(actual.size(), expected.size());
                     for (std::size_t i = 0; i < actual.size(); ++i)
                     {
                         const std::complex<double> got = widened(actual[i]);
-                        EXPECT_NEAR(got.real(), expected[i].real(), tolerance) << "element " << i;
-                        EXPECT_NEAR(got.imag(), expected[i].imag(), tolerance) << "element " << i;
+                        EXPECT_EQ(got.real(), expected[i].real()) << "element " << i;
+                        EXPECT_EQ(got.imag(), expected[i].imag()) << "element " << i;
                     }
                 }
 
@@ -217,8 +216,7 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).axpyi(2.0, on.x, on.y);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.y), reals({1, 42, 3, 4, 65, 6, 27, 8}),
-                                      0.0);
+                    this->expect_equal(read_tensor<T>(on.y), reals({1, 42, 3, 4, 65, 6, 27, 8}));
                 }
             }
         }
@@ -237,7 +235,7 @@ namespace SushiBLAS
                         // 10 * 7 + 20 * 2 + 30 * 5.
                         SparseOps(this->recorder()).doti(on.x, on.y, on.result);
                         this->recording->run().value();
-                        this->expect_near(read_tensor<T>(on.result), reals({260}), 0.0);
+                        this->expect_equal(read_tensor<T>(on.result), reals({260}));
                         continue;
                     }
 
@@ -279,13 +277,13 @@ namespace SushiBLAS
 
                     if (Core::is_complex_v<T>)
                     {
-                        this->expect_near(read_tensor<T>(on.result), {{-5.0, 10.0}}, 0.0);
-                        this->expect_near(read_tensor<T>(conjugated), {{11.0, -2.0}}, 0.0);
+                        this->expect_equal(read_tensor<T>(on.result), {{-5.0, 10.0}});
+                        this->expect_equal(read_tensor<T>(conjugated), {{11.0, -2.0}});
                     }
                     else
                     {
-                        this->expect_near(read_tensor<T>(on.result), reals({3}), 0.0);
-                        this->expect_near(read_tensor<T>(conjugated), reals({3}), 0.0);
+                        this->expect_equal(read_tensor<T>(on.result), reals({3}));
+                        this->expect_equal(read_tensor<T>(conjugated), reals({3}));
                     }
                 }
             }
@@ -329,8 +327,8 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).gthr(on.y, on.x);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
-                    this->expect_near(read_tensor<T>(on.y), reals({1, 2, 3, 4, 5, 6, 7, 8}), 0.0);
+                    this->expect_equal(read_tensor<T>(on.x.values), reals({7, 2, 5}));
+                    this->expect_equal(read_tensor<T>(on.y), reals({1, 2, 3, 4, 5, 6, 7, 8}));
                 }
             }
         }
@@ -347,8 +345,8 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).gthrz(on.y, on.x);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
-                    this->expect_near(read_tensor<T>(on.y), reals({1, 0, 3, 4, 0, 6, 0, 8}), 0.0);
+                    this->expect_equal(read_tensor<T>(on.x.values), reals({7, 2, 5}));
+                    this->expect_equal(read_tensor<T>(on.y), reals({1, 0, 3, 4, 0, 6, 0, 8}));
                 }
             }
         }
@@ -365,9 +363,8 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).sctr(on.x, on.y);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.y), reals({1, 20, 3, 4, 30, 6, 10, 8}),
-                                      0.0);
-                    this->expect_near(read_tensor<T>(on.x.values), sample_entries(), 0.0);
+                    this->expect_equal(read_tensor<T>(on.y), reals({1, 20, 3, 4, 30, 6, 10, 8}));
+                    this->expect_equal(read_tensor<T>(on.x.values), sample_entries());
                 }
             }
         }
@@ -385,9 +382,9 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).roti(on.x, on.y, 0.25, 0.5);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.x.values), reals({6, 6, 10}), 0.0);
-                    this->expect_near(read_tensor<T>(on.y),
-                                      reals({1, -9.5, 3, 4, -13.75, 6, -3.25, 8}), 0.0);
+                    this->expect_equal(read_tensor<T>(on.x.values), reals({6, 6, 10}));
+                    this->expect_equal(read_tensor<T>(on.y),
+                                       reals({1, -9.5, 3, 4, -13.75, 6, -3.25, 8}));
                 }
             }
         }
@@ -419,7 +416,7 @@ namespace SushiBLAS
                     SparseOps(this->recorder()).axpyi(2.0, x, y);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(wide), expected, 0.0);
+                    this->expect_equal(read_tensor<T>(wide), expected);
                 }
             }
         }
@@ -443,8 +440,8 @@ namespace SushiBLAS
                     ops.dotui(on.x, on.y, on.result);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(on.y), dense, 0.0);
-                    this->expect_near(read_tensor<T>(on.result), reals({0}), 0.0);
+                    this->expect_equal(read_tensor<T>(on.y), dense);
+                    this->expect_equal(read_tensor<T>(on.result), reals({0}));
                 }
             }
         }
@@ -475,7 +472,7 @@ namespace SushiBLAS
                 SparseOps(this->recorder()).dotui(on.x, on.y, on.result);
                 this->recording->run().value();
 
-                this->expect_near(read_tensor<T>(on.result), reals({sum}), 0.0);
+                this->expect_equal(read_tensor<T>(on.result), reals({sum}));
             }
         }
 
@@ -500,7 +497,7 @@ namespace SushiBLAS
                 SparseOps(recorder()).axpyi(3.0, on.x, on.y);
                 recording->run().value();
 
-                expect_near(read_tensor<sycl::half>(on.y), expected, 0.0);
+                expect_equal(read_tensor<sycl::half>(on.y), expected);
             }
         }
 

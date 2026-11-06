@@ -36,6 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -184,7 +185,7 @@ namespace SushiBLAS
             for (int64_t i = 0; i < out.num_elements; ++i)
                 EXPECT_FLOAT_EQ(got[i], share) << "element " << i;
 
-            // Each (n, c) plane sums back to 1.0 within 1e-6. See the test README.
+            // Each (n, c) plane sums back to 1.0 within 2 FLOAT32 roundings. See the test README.
             for (int64_t n = 0; n < N; ++n)
             {
                 for (int64_t c = 0; c < C; ++c)
@@ -195,7 +196,7 @@ namespace SushiBLAS
                         for (int64_t w = 0; w < W; ++w)
                             total += got[((n * H + h) * W + w) * C + c];
                     }
-                    EXPECT_NEAR(total, 1.0f, 1e-6f) << "plane (n " << n << ", c " << c << ")";
+                    EXPECT_NEAR(total, 1.0f, absolute_tolerance<float>(2)) << "plane (n " << n << ", c " << c << ")";
                 }
             }
         }

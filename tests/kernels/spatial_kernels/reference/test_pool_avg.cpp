@@ -35,6 +35,7 @@
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/spatial_kernels/reference/pool_avg.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../nhwc_span.hpp"
 
 namespace SushiBLAS
@@ -70,7 +71,8 @@ namespace SushiBLAS
             Kernels::Reference::pool_avg_backward(span, dy.data(), dx.data());
 
             EXPECT_NEAR(std::inner_product(y.begin(), y.end(), dy.begin(), 0.0),
-                        std::inner_product(x.begin(), x.end(), dx.begin(), 0.0), 1e-9);
+                        std::inner_product(x.begin(), x.end(), dx.begin(), 0.0),
+                        absolute_tolerance<double>(1048576));
         }
     } // namespace Test
 } // namespace SushiBLAS

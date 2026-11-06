@@ -48,6 +48,7 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
@@ -98,7 +99,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Sum)
     SushiBLAS::ReductionOps(this->recorder()).sum(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Mean) 
@@ -113,7 +114,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Mean)
     SushiBLAS::ReductionOps(this->recorder()).mean(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Max) 
@@ -129,7 +130,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Max)
     SushiBLAS::ReductionOps(this->recorder()).max(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Min) 
@@ -145,7 +146,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Min)
     SushiBLAS::ReductionOps(this->recorder()).min(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, ArgMax) 
@@ -163,7 +164,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, ArgMax)
     SushiBLAS::ReductionOps(this->recorder()).argmax(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
+    expect_tensor_equal(res, {static_cast<float>(expected)});
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, ArgMin) 
@@ -181,7 +182,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, ArgMin)
     SushiBLAS::ReductionOps(this->recorder()).argmin(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
+    expect_tensor_equal(res, {static_cast<float>(expected)});
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Var) 
@@ -196,7 +197,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Var)
     SushiBLAS::ReductionOps(this->recorder()).var(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Std) 
@@ -211,7 +212,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Std)
     SushiBLAS::ReductionOps(this->recorder()).std(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Prod) 
@@ -226,7 +227,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Prod)
     SushiBLAS::ReductionOps(this->recorder()).prod(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, LogSumExp) 
@@ -241,7 +242,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, LogSumExp)
     SushiBLAS::ReductionOps(this->recorder()).logsumexp(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Asum) 
@@ -256,7 +257,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Asum)
     SushiBLAS::ReductionOps(this->recorder()).asum(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 TYPED_TEST(Medium_ReductionOpsTyped, Nrm2) 
@@ -271,7 +272,7 @@ TYPED_TEST(Medium_ReductionOpsTyped, Nrm2)
     SushiBLAS::ReductionOps(this->recorder()).nrm2(t, res);
     this->recording->run().value();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
 }
 
 namespace
@@ -294,8 +295,9 @@ namespace
     /// @brief Holds how many units in the last place of the element type a moment may be off by.
     constexpr long double K_MOMENT_ULPS = 4.0L;
 
-    /// @brief Holds the absolute tolerance of the finite logsumexp expectation.
-    constexpr double K_LOGSUMEXP_TOLERANCE = 1e-3;
+    /// @brief Holds the absolute tolerance: 2048 FLOAT32 roundings of a value of order one,
+    /// for the finite logsumexp expectation.
+    constexpr double K_LOGSUMEXP_TOLERANCE = absolute_tolerance<float>(2048);
 
     /// @brief Holds a value as hi + lo, where lo is the rounding error of hi.
     struct Paired

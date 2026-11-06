@@ -122,7 +122,8 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).axpy(2.0, x, y);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({12, 24, 36, 48}), 1e-5);
+            EXPECT_TENSOR_NEAR(y, std::vector<float>({12, 24, 36, 48}),
+                               absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(x, "axpy x"));
             EXPECT_TRUE(padding_intact(y, "axpy y"));
         }
@@ -135,7 +136,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).scal(3.0, x);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(x, std::vector<float>({3, 6, 9, 12}), 1e-5);
+            EXPECT_TENSOR_NEAR(x, std::vector<float>({3, 6, 9, 12}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(x, "scal x"));
         }
 
@@ -149,7 +150,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).copy(x, y);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({5, 6, 7, 8}), 1e-5);
+            EXPECT_TENSOR_NEAR(y, std::vector<float>({5, 6, 7, 8}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(x, "copy x"));
             EXPECT_TRUE(padding_intact(y, "copy y"));
         }
@@ -169,7 +170,7 @@ namespace SushiBLAS
             recording->run().value();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({206, 415}), 1e-4);
+            EXPECT_TENSOR_NEAR(y, std::vector<float>({206, 415}), K_DEFAULT_TOLERANCE);
             EXPECT_TRUE(padding_intact(A, "gemv A"));
             EXPECT_TRUE(padding_intact(x, "gemv x"));
             EXPECT_TRUE(padding_intact(y, "gemv y"));
@@ -188,7 +189,8 @@ namespace SushiBLAS
             recording->run().value();
 
             // A += x y^T = {{10,20,30},{20,40,60}}
-            EXPECT_TENSOR_NEAR(A, std::vector<float>({11, 21, 31, 21, 41, 61}), 1e-4);
+            EXPECT_TENSOR_NEAR(A, std::vector<float>({11, 21, 31, 21, 41, 61}),
+                               K_DEFAULT_TOLERANCE);
             EXPECT_TRUE(padding_intact(x, "ger x"));
             EXPECT_TRUE(padding_intact(y, "ger y"));
             EXPECT_TRUE(padding_intact(A, "ger A"));
@@ -206,7 +208,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(C, std::vector<float>({1, 2, 3, 4}), 1e-4);
+            EXPECT_TENSOR_NEAR(C, std::vector<float>({1, 2, 3, 4}), K_DEFAULT_TOLERANCE);
             EXPECT_TRUE(padding_intact(A, "gemm A"));
             EXPECT_TRUE(padding_intact(B, "gemm B"));
             EXPECT_TRUE(padding_intact(C, "gemm C"));
@@ -225,7 +227,8 @@ namespace SushiBLAS
             SushiBLAS::ElementwiseOps(recorder()).neg(C);         // unary in-place seam
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(C, std::vector<float>({-11, -12, -13, -14}), 1e-5);
+            EXPECT_TENSOR_NEAR(C, std::vector<float>({-11, -12, -13, -14}),
+                               absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(A, "add A"));
             EXPECT_TRUE(padding_intact(B, "add B"));
             EXPECT_TRUE(padding_intact(C, "add/neg C"));
@@ -239,7 +242,7 @@ namespace SushiBLAS
             SushiBLAS::NonLinearOps(recorder()).relu(t);          // forward seam
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(t, std::vector<float>({0, 0, 1, 2}), 1e-5);
+            EXPECT_TENSOR_NEAR(t, std::vector<float>({0, 0, 1, 2}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(t, "relu t"));
         }
 
@@ -255,7 +258,7 @@ namespace SushiBLAS
             SushiBLAS::NonLinearOps(recorder()).relu_backward(dy, x, dx);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(dx, std::vector<float>({0, 0, 1, 1}), 1e-5);
+            EXPECT_TENSOR_NEAR(dx, std::vector<float>({0, 0, 1, 1}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(dy, "relu_backward dy"));
             EXPECT_TRUE(padding_intact(x, "relu_backward x"));
             EXPECT_TRUE(padding_intact(dx, "relu_backward dx"));
@@ -273,7 +276,7 @@ namespace SushiBLAS
             SushiBLAS::LogicOps(recorder()).greater(A, B, R);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(R, std::vector<float>({0, 1, 1, 1}), 1e-5);
+            EXPECT_TENSOR_NEAR(R, std::vector<float>({0, 1, 1, 1}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(A, "greater A"));
             EXPECT_TRUE(padding_intact(B, "greater B"));
             EXPECT_TRUE(padding_intact(R, "greater R"));
@@ -289,7 +292,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum(t, r);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(r, std::vector<float>({10}), 1e-5);
+            EXPECT_TENSOR_NEAR(r, std::vector<float>({10}), absolute_tolerance<float>(16));
             EXPECT_TRUE(padding_intact(t, "sum t"));
             EXPECT_TRUE(padding_intact(r, "sum result"));
         }
@@ -304,7 +307,7 @@ namespace SushiBLAS
                 .uniform(u, 0.0, 1.0); // the Philox dispatch path
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(c, std::vector<float>(8, 7.0f), 1e-6);
+            EXPECT_TENSOR_NEAR(c, std::vector<float>(8, 7.0f), absolute_tolerance<float>(2));
             EXPECT_TRUE(padding_intact(c, "constant"));
             EXPECT_TRUE(padding_intact(u, "uniform"));
 

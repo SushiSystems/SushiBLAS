@@ -44,6 +44,7 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -57,8 +58,9 @@ namespace SushiBLAS
             /** @brief A dense host matrix as its columns, each one element per row. */
             using Columns = std::vector<Wide>;
 
-            /// @brief Absolute error allowed on an element of the 4 x 5 sample in single precision.
-            constexpr double K_SAMPLE_TOLERANCE = 1e-4;
+            /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+            /// for an element of the 4 x 5 sample.
+            constexpr double K_SAMPLE_TOLERANCE = absolute_tolerance<float>(128);
 
             /// @brief Rows of the integer-valued matrix; above one work-group on every device.
             constexpr int64_t K_EXACT_ROWS = 1000;

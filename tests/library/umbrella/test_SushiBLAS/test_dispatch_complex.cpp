@@ -54,23 +54,23 @@ TEST_F(Medium_DispatchComplexTest, BinaryArithmeticOnComplex32)
     SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
     recording->run().value();
     auto add_expected = create_initialized_tensor<cf>({2}, {cf(3.0f, 3.0f), cf(2.0f, 3.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, add_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(c, add_expected, K_DEFAULT_TOLERANCE, cf);
 
     SushiBLAS::ElementwiseOps(recorder()).sub(a, b, c);
     recording->run().value();
     auto sub_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, sub_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(c, sub_expected, K_DEFAULT_TOLERANCE, cf);
 
     // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/library/umbrella/README.md.
     SushiBLAS::ElementwiseOps(recorder()).mul(a, b, c);
     recording->run().value();
     auto mul_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, mul_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(c, mul_expected, K_DEFAULT_TOLERANCE, cf);
 
     SushiBLAS::ElementwiseOps(recorder()).div(a, b, c);
     recording->run().value();
     auto div_expected = create_initialized_tensor<cf>({2}, {cf(0.8f, 0.6f), cf(-7.0f / 17.0f, -11.0f / 17.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, div_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(c, div_expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 TEST_F(Medium_DispatchComplexTest, UnaryArithmeticOnComplex32)
@@ -79,21 +79,21 @@ TEST_F(Medium_DispatchComplexTest, UnaryArithmeticOnComplex32)
     SushiBLAS::ElementwiseOps(recorder()).neg(neg);
     recording->run().value();
     auto neg_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, -2.0f), cf(3.0f, -4.0f)});
-    SB_ASSERT_TENSOR_NEAR(neg, neg_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(neg, neg_expected, K_DEFAULT_TOLERANCE, cf);
 
     // (1+2i)^2 = -3+4i ; i^2 = -1
     auto square = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(recorder()).square(square);
     recording->run().value();
     auto square_expected = create_initialized_tensor<cf>({2}, {cf(-3.0f, 4.0f), cf(-1.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(square, square_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(square, square_expected, K_DEFAULT_TOLERANCE, cf);
 
     // 1/i = -i
     auto recip = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(recorder()).reciprocal(recip);
     recording->run().value();
     auto recip_expected = create_initialized_tensor<cf>({2}, {cf(0.5f, 0.0f), cf(0.0f, -1.0f)});
-    SB_ASSERT_TENSOR_NEAR(recip, recip_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(recip, recip_expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 TEST_F(Medium_DispatchComplexTest, TranscendentalsOnComplex32)
@@ -103,28 +103,28 @@ TEST_F(Medium_DispatchComplexTest, TranscendentalsOnComplex32)
     SushiBLAS::ElementwiseOps(recorder()).abs(abs_t);
     recording->run().value();
     auto abs_expected = create_initialized_tensor<cf>({2}, {cf(5.0f, 0.0f), cf(13.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(abs_t, abs_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(abs_t, abs_expected, K_DEFAULT_TOLERANCE, cf);
 
     // sqrt(-9) = 3i - the principal branch, not a NaN and not a silently untouched -9.
     auto sqrt_t = create_initialized_tensor<cf>({2}, {cf(4.0f, 0.0f), cf(-9.0f, 0.0f)});
     SushiBLAS::ElementwiseOps(recorder()).sqrt(sqrt_t);
     recording->run().value();
     auto sqrt_expected = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 3.0f)});
-    SB_ASSERT_TENSOR_NEAR(sqrt_t, sqrt_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(sqrt_t, sqrt_expected, K_DEFAULT_TOLERANCE, cf);
 
     // Euler: exp(i*pi/2) = i.
     auto exp_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.5707963f)});
     SushiBLAS::ElementwiseOps(recorder()).exp(exp_t);
     recording->run().value();
     auto exp_expected = create_initialized_tensor<cf>({2}, {cf(2.7182818f, 0.0f), cf(0.0f, 1.0f)});
-    SB_ASSERT_TENSOR_NEAR(exp_t, exp_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(exp_t, exp_expected, K_DEFAULT_TOLERANCE, cf);
 
     // log(i) = i*pi/2.
     auto log_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(recorder()).log(log_t);
     recording->run().value();
     auto log_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 0.0f), cf(0.0f, 1.5707963f)});
-    SB_ASSERT_TENSOR_NEAR(log_t, log_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(log_t, log_expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 TEST_F(Medium_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
@@ -137,18 +137,18 @@ TEST_F(Medium_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
     SushiBLAS::LogicOps(recorder()).equal(a, b, r);
     recording->run().value();
     auto eq_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, eq_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(r, eq_expected, K_DEFAULT_TOLERANCE, cf);
 
     // Truthiness is "either component nonzero": a[1] is the only zero operand.
     SushiBLAS::LogicOps(recorder()).logical_and(a, b, r);
     recording->run().value();
     auto and_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, and_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(r, and_expected, K_DEFAULT_TOLERANCE, cf);
 
     SushiBLAS::LogicOps(recorder()).logical_not(a, r);
     recording->run().value();
     auto not_expected = create_initialized_tensor<cf>({3}, {cf(0.0f, 0.0f), cf(1.0f, 0.0f), cf(0.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, not_expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(r, not_expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 TEST_F(Medium_DispatchComplexTest, WhereSelectsOnComplex32)
@@ -162,7 +162,7 @@ TEST_F(Medium_DispatchComplexTest, WhereSelectsOnComplex32)
     recording->run().value();
 
     auto expected = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(-1.0f, -1.0f), cf(7.0f, 7.0f)});
-    SB_ASSERT_TENSOR_NEAR(out, expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(out, expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 // Operations with no complex meaning fail at record time. See tests/library/umbrella/README.md.

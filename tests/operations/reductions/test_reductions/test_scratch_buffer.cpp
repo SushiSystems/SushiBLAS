@@ -59,9 +59,6 @@ namespace SushiBLAS
             /// @brief Holds a reduction input's element count: 2^20, above the CPU two-stage floor.
             constexpr std::int64_t K_REDUCTION_ELEMENTS = std::int64_t{1} << 20;
 
-            /// @brief Holds the absolute tolerance of a sum of 2^20 ones, exact in FLOAT32.
-            constexpr double K_SUM_TOLERANCE = 0.0;
-
             /// @brief Holds how many leases are alive at once in LiveLeasesNeverShareABlock.
             constexpr std::size_t K_LIVE_LEASES = 300;
 
@@ -254,12 +251,12 @@ namespace SushiBLAS
 
             recording->run().value();
             const std::size_t live_after_first = TestEnvironment::live_allocation_count();
-            expect_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
+            expect_tensor_equal(result, {static_cast<float>(K_REDUCTION_ELEMENTS)});
 
             ReductionOps(recorder()).sum(input, result);
             recording->run().value();
             const std::size_t live_after_second = TestEnvironment::live_allocation_count();
-            expect_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
+            expect_tensor_equal(result, {static_cast<float>(K_REDUCTION_ELEMENTS)});
 
             EXPECT_EQ(live_after_first, live_before_record + 1);
             EXPECT_EQ(live_after_second, live_after_first);

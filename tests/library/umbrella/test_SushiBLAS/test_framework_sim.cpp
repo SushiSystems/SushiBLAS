@@ -101,7 +101,7 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     for (int i = 0; i < batch_size * features; ++i)
         expected[i] = static_cast<float>(((i % features) % 2 == 0) ? magnitude : -magnitude);
 
-    expect_tensor(activations.back(), expected, magnitude * 1e-3);
+    expect_tensor(activations.back(), expected, absolute_tolerance<float>(2048, magnitude));
 }
 
 /**
@@ -153,6 +153,6 @@ TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference)
     {
         const float pre_activation = static_cast<float>(k) * input_of(i) * weight_of(i);
         const float expected = pre_activation > 0.0f ? pre_activation : 0.0f;
-        expect_tensor(outputs[i], std::vector<float>(m * n, expected), 0.0);
+        expect_tensor_equal(outputs[i], std::vector<float>(m * n, expected));
     }
 }

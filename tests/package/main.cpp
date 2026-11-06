@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <vector>
 #include <cstdint>
 #include <type_traits>
@@ -41,6 +42,9 @@
 namespace sb = SushiBLAS;
 namespace sr = SushiRuntime;
 using namespace SushiRuntime::Literals;
+
+/** @brief Absolute tolerance: 128 float roundings of a value of order one. */
+constexpr float K_TOLERANCE = 16.0f * 128.0f * (std::numeric_limits<float>::epsilon() / 2.0f);
 
 /**
  * @brief Adds a row bias and a column bias to a GEMM element and clamps the sum at zero.
@@ -118,7 +122,7 @@ int main()
     {
         const float expected = (static_cast<float>(i) * 2.0f + 1.0f) / 2.0f;
         const float actual = host_c[static_cast<size_t>(i)];
-        if (std::fabs(actual - expected) > 1e-4f)
+        if (std::fabs(actual - expected) > K_TOLERANCE)
         {
             std::printf("FAIL: fused dispatch produced %f at index %lld, expected %f\n",
                         static_cast<double>(actual), static_cast<long long>(i),
@@ -147,8 +151,8 @@ int main()
     for (int64_t i = 0; i < N; ++i)
     {
         const float base = static_cast<float>(i);
-        if (std::fabs(host_s[static_cast<size_t>(i)] - (base + 2.0f)) > 1e-4f ||
-            std::fabs(host_p[static_cast<size_t>(i)] - (base * 2.0f)) > 1e-4f)
+        if (std::fabs(host_s[static_cast<size_t>(i)] - (base + 2.0f)) > K_TOLERANCE ||
+            std::fabs(host_p[static_cast<size_t>(i)] - (base * 2.0f)) > K_TOLERANCE)
         {
             std::printf("FAIL: fused in-place update wrong at index %lld\n",
                         static_cast<long long>(i));
@@ -188,7 +192,7 @@ int main()
 
     for (std::size_t i = 0; i < want_gemm.size(); ++i)
     {
-        if (std::fabs(host_gemm_c[i] - want_gemm[i]) > 1e-4f)
+        if (std::fabs(host_gemm_c[i] - want_gemm[i]) > K_TOLERANCE)
         {
             std::printf("FAIL: fused GEMM epilogue produced %f at index %zu, expected %f\n",
                         static_cast<double>(host_gemm_c[i]), i,

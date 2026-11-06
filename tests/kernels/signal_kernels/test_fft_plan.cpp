@@ -28,6 +28,7 @@
  */
 
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 #include <cmath>
 #include <vector>
@@ -58,11 +59,12 @@ namespace SushiBLAS
             const Kernels::FftLineView<double> row =
                 plan.row_line(plan.values().data(), plan.indices().data());
             const double pi = 3.14159265358979323846;
+            const double tolerance = absolute_tolerance<double>(1);
 
             for (std::size_t k = 0; k < 4; ++k)
             {
-                EXPECT_NEAR(row.twiddles[2 * k], std::cos(-2.0 * pi * k / 8.0), 1e-15) << k;
-                EXPECT_NEAR(row.twiddles[2 * k + 1], std::sin(-2.0 * pi * k / 8.0), 1e-15) << k;
+                EXPECT_NEAR(row.twiddles[2 * k], std::cos(-2.0 * pi * k / 8.0), tolerance) << k;
+                EXPECT_NEAR(row.twiddles[2 * k + 1], std::sin(-2.0 * pi * k / 8.0), tolerance) << k;
             }
         }
 

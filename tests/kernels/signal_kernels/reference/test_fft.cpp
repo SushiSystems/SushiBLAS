@@ -36,6 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -246,8 +247,8 @@ namespace SushiBLAS
 
             for (std::size_t k = 0; k < 5; ++k)
             {
-                EXPECT_NEAR(output[2 * k], 1.0, 1e-14) << k;
-                EXPECT_NEAR(output[2 * k + 1], 0.0, 1e-14) << k;
+                EXPECT_NEAR(output[2 * k], 1.0, absolute_tolerance<double>(8)) << k;
+                EXPECT_NEAR(output[2 * k + 1], 0.0, absolute_tolerance<double>(8)) << k;
             }
         }
     } // namespace Test

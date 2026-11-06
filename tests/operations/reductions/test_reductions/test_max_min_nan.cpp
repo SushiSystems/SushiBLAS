@@ -38,6 +38,7 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -57,8 +58,9 @@ namespace
     /// @brief Holds how far from the end the large case places its NaN.
     constexpr std::size_t K_NAN_OFFSET_FROM_END = 5;
 
-    /// @brief Holds the absolute tolerance the finite expectations use.
-    constexpr double K_TOLERANCE = 1e-6;
+    /// @brief Holds the absolute tolerance: 2 FLOAT32 roundings of a value of order one,
+    /// for the finite expectations.
+    constexpr double K_TOLERANCE = absolute_tolerance<float>(2);
 
     /// @brief Holds the row count of the axis case.
     constexpr std::size_t K_AXIS_ROWS = 3;

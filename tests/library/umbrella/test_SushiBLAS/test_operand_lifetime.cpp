@@ -73,7 +73,8 @@ namespace SushiBLAS
 
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(out, (std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f}), 1e-5);
+            EXPECT_TENSOR_NEAR(out, (std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f}),
+                               absolute_tolerance<float>(16));
             EXPECT_EQ(live_with_input - 1, live_allocations())
                 << "Once the task has run and is destroyed, x's storage must be freed.";
         }
@@ -107,7 +108,7 @@ namespace SushiBLAS
             // [[1,2,3],[4,5,6],[5,7,9]] plus bias[column] = [1,-8,3] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
                                                       5, -3, 9,
-                                                      6, -1, 12}), 1e-5);
+                                                      6, -1, 12}), absolute_tolerance<float>(16));
         }
 
         /** @brief Tests that a reduction's scratch returns to the pool and is lent again. */
@@ -128,7 +129,8 @@ namespace SushiBLAS
 
             EXPECT_EQ(outstanding_before, live_allocations() - pool.idle_block_count())
                 << "Every allocation the sum made must be idle in the pool or freed.";
-            EXPECT_TENSOR_NEAR(total, (std::vector<float>{static_cast<float>(K_ELEMENTS)}), 1e-3);
+            EXPECT_TENSOR_NEAR(total, (std::vector<float>{static_cast<float>(K_ELEMENTS)}),
+                               absolute_tolerance<float>(2048));
 
             const std::size_t live_after_first = live_allocations();
             const std::size_t idle_after_first = pool.idle_block_count();

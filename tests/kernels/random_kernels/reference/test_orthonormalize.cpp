@@ -35,13 +35,14 @@
 #include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
 #include <SushiBLAS/random_kernels/reference/orthonormalize.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance of an inner product the sweep must zero or set.
-        constexpr double K_TOLERANCE = 1e-12;
+        /// @brief Absolute tolerance: 1024 double roundings of a value of order one.
+        constexpr double K_TOLERANCE = absolute_tolerance<double>(1024);
 
         /** @brief Returns the dot product of vectors i and j of a set. */
         static double dot_of(const std::vector<double>& p, const Kernels::VectorSet& set,

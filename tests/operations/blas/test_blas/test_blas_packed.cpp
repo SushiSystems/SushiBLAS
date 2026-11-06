@@ -47,6 +47,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -209,21 +210,24 @@ namespace SushiBLAS
             template<>
             struct ModeTolerance<sycl::half>
             {
-                static constexpr double K_VALUE = 0.001953125; /**< 2^-9. */
+                /** @brief Absolute tolerance: one HALF rounding of a value of order one. */
+                static constexpr double K_VALUE = half_absolute_tolerance(1);
             };
 
             /** @brief Allows the rounding of a sum of 64 FLOAT32 products of unit size. */
             template<>
             struct ModeTolerance<float>
             {
-                static constexpr double K_VALUE = 1e-4; /**< About 800 epsilon. */
+                /** @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one. */
+                static constexpr double K_VALUE = absolute_tolerance<float>(128);
             };
 
             /** @brief Allows the rounding of a sum of 64 FLOAT64 products of unit size. */
             template<>
             struct ModeTolerance<double>
             {
-                static constexpr double K_VALUE = 1e-11; /**< About 45000 epsilon. */
+                /** @brief Absolute tolerance: 8192 FLOAT64 roundings of a value of order one. */
+                static constexpr double K_VALUE = absolute_tolerance<double>(8192);
             };
 
             /** @brief Returns the name of a mode and a layout for a failure message. */

@@ -90,7 +90,7 @@ namespace SushiBLAS
                 SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
                 recording->run().value();
 
-                EXPECT_TENSOR_NEAR(C, expected, 1e-5);
+                EXPECT_TENSOR_NEAR(C, expected, absolute_tolerance<float>(16));
             }
         }
 
@@ -210,7 +210,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
                     recording->run().value();
 
-                    EXPECT_TENSOR_NEAR(C, c.expected, 1e-4);
+                    EXPECT_TENSOR_NEAR(C, c.expected, K_DEFAULT_TOLERANCE);
                 }
             }
         }
@@ -300,7 +300,8 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum(packed, total);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f}, 1e-5);
+            EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f},
+                               absolute_tolerance<float>(16));
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
@@ -360,7 +361,7 @@ namespace SushiBLAS
                     << label << " returned " << got << " for a vector whose true norm is "
                     << expected << ". The naive sqrt(sum(x*x)) overflows here; the scaling "
                        "form BLAS specifies does not.";
-                EXPECT_NEAR(got / expected, 1.0f, 1e-5f) << label;
+                EXPECT_NEAR(got / expected, 1.0f, absolute_tolerance<float>(16)) << label;
             }
         }
 
@@ -396,8 +397,8 @@ namespace SushiBLAS
                     << expected << ". Squaring a denormal underflows to zero; dividing by a "
                        "scale first does not.";
 
-                // The tolerance is 1% because the two entry points round a denormal differently.
-                EXPECT_NEAR(got / expected, 1.0f, 1e-2f) << label;
+                // The tolerance is about 1.6% as the two entry points round a denormal differently.
+                EXPECT_NEAR(got / expected, 1.0f, absolute_tolerance<float>(16384)) << label;
             }
         }
 
@@ -416,7 +417,7 @@ namespace SushiBLAS
             recording->run().value();
 
             // |3 + 4i| = 5. `abs1` would have given |3| + |4| = 7.
-            EXPECT_NEAR(scalar_of(result), 5.0f, 1e-4f)
+            EXPECT_NEAR(scalar_of(result), 5.0f, absolute_tolerance<float>(128))
                 << "A complex 2-norm must use the modulus, not BLAS's |Re| + |Im|.";
         }
 

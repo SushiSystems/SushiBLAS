@@ -37,6 +37,7 @@
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 
@@ -109,7 +110,7 @@ namespace SushiBLAS
             // [[1,2,3],[4,5,6],[5,7,9]] + bias[col] = [1,-8,3] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
                                                       5, -3, 9,
-                                                      6, -1, 12}), 1e-5);
+                                                      6, -1, 12}), absolute_tolerance<float>(16));
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, ARowChannelBiasBroadcastsDownTheOtherAxis)
@@ -133,7 +134,7 @@ namespace SushiBLAS
             // [[1,2,3],[4,5,6],[5,7,9]] + bias[row] = +1, -8, +3 across each row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
                                                       -4, -3, -2,
-                                                      8, 10, 12}), 1e-5);
+                                                      8, 10, 12}), absolute_tolerance<float>(16));
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, TheSameEpilogueAppliesOnTheReferencePath)
@@ -156,7 +157,7 @@ namespace SushiBLAS
 
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
                                                       -4, -3, -2,
-                                                      8, 10, 12}), 1e-5);
+                                                      8, 10, 12}), absolute_tolerance<float>(16));
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, AZeroBiasIsTheIdentityEpilogue)
@@ -252,7 +253,7 @@ namespace SushiBLAS
             // [[1,2,3],[4,5,6],[5,7,9]] + [1,4,9] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 6, 12,
                                                       5, 9, 15,
-                                                      6, 11, 18}), 1e-5);
+                                                      6, 11, 18}), absolute_tolerance<float>(16));
         }
 
     } // namespace Test

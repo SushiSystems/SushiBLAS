@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
 
@@ -52,7 +53,7 @@ class Medium_OrthogonalTest : public SushiBLASTest
         /** @brief Asserts that the vectors' Gram matrix is expected_diag times identity. */
         void expect_orthonormal(const std::vector<float>& m, int64_t count, int64_t length,
                                  int64_t elem_stride, int64_t vec_stride,
-                                 float expected_diag, float tol = 1e-4f)
+                                 float expected_diag, double tol = absolute_tolerance<float>(128))
         {
             for (int64_t i = 0; i < count; ++i)
             {
@@ -130,7 +131,7 @@ TEST_F(Medium_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
     recording->run().value();
 
     auto m = read_matrix(t);
-    expect_orthonormal(m, 5, 5, 5, 1, kGain * kGain, 1e-3f);
+    expect_orthonormal(m, 5, 5, 5, 1, kGain * kGain, absolute_tolerance<float>(2048));
 }
 
 TEST_F(Medium_OrthogonalTest, ResultIsNotJustAGaussianFill)
@@ -150,7 +151,7 @@ TEST_F(Medium_OrthogonalTest, ResultIsNotJustAGaussianFill)
             const double v = m[static_cast<size_t>(r * 6 + c)];
             norm_sq += v * v;
         }
-        EXPECT_NEAR(std::sqrt(norm_sq), 1.0, 1e-4) << "Column " << c << " is not a unit vector.";
+        EXPECT_NEAR(std::sqrt(norm_sq), 1.0, absolute_tolerance<float>(128)) << "Column " << c << " is not a unit vector.";
     }
 }
 

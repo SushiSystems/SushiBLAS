@@ -38,6 +38,7 @@
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -62,7 +63,8 @@ namespace SushiBLAS
 
             // The tree sum and the serial sum add in different orders.
             for (std::size_t i = 0; i < p.size(); ++i)
-                EXPECT_NEAR(device.get()[i], p[i], 1e-12) << "element " << i;
+                EXPECT_NEAR(device.get()[i], p[i], absolute_tolerance<double>(1024))
+                    << "element " << i;
         }
 
         TEST(Medium_SYCLOrthonormalize, TheGroupIsAPowerOfTwoTheDeviceAccepts)

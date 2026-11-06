@@ -35,6 +35,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -95,7 +96,7 @@ namespace SushiBLAS
 
                     const double expected = acc / static_cast<double>(H * W);
                     EXPECT_NEAR(got[static_cast<std::size_t>(n * C + c)],
-                                static_cast<float>(expected), 1e-5f)
+                                static_cast<float>(expected), absolute_tolerance<float>(16))
                         << "at (n, c) = (" << n << ", " << c << ")";
                 }
             }
@@ -116,7 +117,7 @@ namespace SushiBLAS
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
-            EXPECT_NEAR(got[0], 2.5f, 1e-5f);
+            EXPECT_NEAR(got[0], 2.5f, absolute_tolerance<float>(16));
         }
 
         /**
@@ -146,7 +147,7 @@ namespace SushiBLAS
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
-            EXPECT_NEAR(got[0], static_cast<float>(expected), 1e-5f);
+            EXPECT_NEAR(got[0], static_cast<float>(expected), absolute_tolerance<float>(16));
         }
 
         /**
@@ -179,7 +180,7 @@ namespace SushiBLAS
                     acc += static_cast<double>(src[static_cast<std::size_t>(r * K + k)]);
 
                 EXPECT_NEAR(got[static_cast<std::size_t>(r)],
-                            static_cast<float>(acc), 1e-5f) << "at row " << r;
+                            static_cast<float>(acc), absolute_tolerance<float>(16)) << "at row " << r;
             }
         }
 

@@ -36,17 +36,18 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 using namespace SushiBLAS::Test;
 
 namespace
 {
-    /// @brief Absolute per-component tolerance for COMPLEX32 results of magnitude near one.
-    constexpr double K_COMPLEX32_TOLERANCE = 1e-5;
+    /// @brief Absolute per-component tolerance: 16 FLOAT32 roundings of a value of order one.
+    constexpr double K_COMPLEX32_TOLERANCE = absolute_tolerance<float>(16);
 
-    /// @brief Absolute per-component tolerance for COMPLEX64 results of magnitude near one.
-    constexpr double K_COMPLEX64_TOLERANCE = 1e-12;
+    /// @brief Absolute per-component tolerance: 1024 FLOAT64 roundings of a value of order one.
+    constexpr double K_COMPLEX64_TOLERANCE = absolute_tolerance<double>(1024);
 
     /// @brief ELU slope applied to inputs whose real part is not positive.
     constexpr double K_ELU_ALPHA = 1.0;
@@ -168,6 +169,6 @@ TEST_F(Medium_ComplexSqrtLogTest, LogNearTheUnitCircleKeepsItsRealPart)
     recording->run().value();
 
     const C got = read_tensor<C>(t)[0];
-    EXPECT_NEAR(5.0e-9 - 2.5e-17, got.real(), 1e-22);
-    EXPECT_NEAR(1e-4 - 1e-12 / 3.0, got.imag(), 1e-18);
+    EXPECT_NEAR(5.0e-9 - 2.5e-17, got.real(), absolute_tolerance<double>(16, 5.0e-9));
+    EXPECT_NEAR(1e-4 - 1e-12 / 3.0, got.imag(), absolute_tolerance<double>(8, 1.0e-4));
 }

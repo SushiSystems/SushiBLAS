@@ -43,6 +43,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -54,14 +55,17 @@ namespace SushiBLAS
         /// @brief Seed of the data every random case draws.
         constexpr std::uint32_t K_CONJUGATION_SEED = 20261007u;
 
-        /// @brief Absolute tolerance of a hand-computed case; its values are small integers.
-        constexpr double K_HAND_TOLERANCE = 1e-5;
+        /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one;
+        /// the values are small integers.
+        constexpr double K_HAND_TOLERANCE = absolute_tolerance<float>(16);
 
-        /// @brief Absolute tolerance between two results on binary32 parts of magnitude near 10.
-        constexpr double K_FLOAT_PARITY_TOLERANCE = 1e-4;
+        /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+        /// between two results on parts near 10.
+        constexpr double K_FLOAT_PARITY_TOLERANCE = absolute_tolerance<float>(128);
 
-        /// @brief Absolute tolerance between two results on binary64 parts of magnitude near 10.
-        constexpr double K_DOUBLE_PARITY_TOLERANCE = 1e-11;
+        /// @brief Absolute tolerance: 8192 FLOAT64 roundings of a value of order one,
+        /// between two results on parts near 10.
+        constexpr double K_DOUBLE_PARITY_TOLERANCE = absolute_tolerance<double>(8192);
 
         /// @brief Fills both parts of an element a call must neither read nor write.
         constexpr double K_POISON = 999.0;

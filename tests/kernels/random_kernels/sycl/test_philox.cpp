@@ -37,6 +37,7 @@
 #include <SushiBLAS/random_kernels/sycl/philox.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -135,7 +136,8 @@ namespace SushiBLAS
 
             // The integer stream is exact; the normal transform agrees to a few ulps.
             for (std::size_t i = 0; i < host.size(); ++i)
-                EXPECT_NEAR(device.get()[i], host[i], 1e-5f * (1.0f + std::fabs(host[i])));
+                EXPECT_NEAR(device.get()[i], host[i],
+                            absolute_tolerance<float>(16) * (1.0 + std::fabs(host[i])));
         }
     } // namespace Test
 } // namespace SushiBLAS

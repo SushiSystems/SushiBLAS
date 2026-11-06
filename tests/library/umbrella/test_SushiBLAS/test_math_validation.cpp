@@ -40,6 +40,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -58,14 +59,15 @@ namespace SushiBLAS
             /** @brief softplus(100) = 100 + log1p(exp(-100)), and exp(-100) is about 3.7e-44. */
             constexpr float K_SOFTPLUS_LARGE_EXPECTED = 100.0f;
 
-            /** @brief Absolute tolerance on softplus(100). */
-            constexpr float K_SOFTPLUS_TOLERANCE = 1e-4f;
+            /** @brief Absolute tolerance: 128 float roundings of a value of order one. */
+            constexpr float K_SOFTPLUS_TOLERANCE =
+                static_cast<float>(absolute_tolerance<float>(128));
 
             /** @brief Input whose softplus is exp(-100), about 3.7e-44. */
             constexpr float K_SOFTPLUS_SMALL_INPUT = -100.0f;
 
-            /** @brief Upper bound on softplus(-100); exp(-100) lies far below it. */
-            constexpr float K_SOFTPLUS_SMALL_BOUND = 1e-30f;
+            /** @brief Upper bound: the smallest normal float, so exp(-100) must come back subnormal or zero. */
+            constexpr float K_SOFTPLUS_SMALL_BOUND = std::numeric_limits<float>::min();
 
             /** @brief Holds every execution mode a record call can be made under. */
             constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::Auto,

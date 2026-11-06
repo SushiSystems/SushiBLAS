@@ -21,4 +21,5 @@ sushiblas_add_test_program(
         test_scalar_dtype.cpp
         test_tensor_comparison.cpp
         test_tensor_fill.cpp
-        test_tensor_readback.cpp)
+        test_tensor_readback.cpp
+        test_tolerance_bounds.cpp)

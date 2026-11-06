@@ -11,7 +11,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 
 | Job | Files | Waits on | Status |
 | --- | --- | --- | --- |
-| T1 | `tests/support/tolerance.hpp` in use: `expect_tensor` and every tolerance constant moved onto it |  | todo |
+| T1 | `tests/support/tolerance.hpp` in use: `expect_tensor` and every tolerance constant moved onto it |  | done |
 | T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | todo |
 | T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | todo |
 | T4 | Benchmarks moved to the benchmark runner |  | todo |

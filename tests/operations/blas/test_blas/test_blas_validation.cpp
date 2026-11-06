@@ -37,6 +37,7 @@
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -45,8 +46,9 @@ namespace SushiBLAS
 
         namespace
         {
-            /// @brief Absolute tolerance of the broadcast GEMM check; every value is a small integer.
-            constexpr double K_TOLERANCE = 1e-5;
+            /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one;
+            /// every value is a small integer.
+            constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 
             /// @brief Two row-major 2x2 matrices: [[1,2],[3,4]] and [[5,6],[7,8]].
             const std::vector<float> K_BATCHED_A = {1, 2, 3, 4, 5, 6, 7, 8};

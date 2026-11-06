@@ -59,15 +59,17 @@ namespace SushiBLAS
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f, 3.0f});
 
-            EXPECT_TENSOR_NEAR(tensor, (std::vector<float>{1.0f, 2.00001f, 3.0f}), 1e-4);
-            SB_ASSERT_TENSOR_NEAR(tensor, float_tensor({1.0f, 2.0f, 3.0f}), 0.0, float);
+            EXPECT_TENSOR_NEAR(tensor, (std::vector<float>{1.0f, 2.00001f, 3.0f}),
+                               K_DEFAULT_TOLERANCE);
+            SB_ASSERT_TENSOR_NEAR(tensor, float_tensor({1.0f, 2.0f, 3.0f}), K_DEFAULT_TOLERANCE,
+                                  float);
         }
 
         TEST(Medium_TensorComparison, ReportsAValueOutsideTheTolerance)
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f});
 
-            EXPECT_NONFATAL_FAILURE(expect_tensor(tensor, std::vector<float>{1.0f, 2.5f}, 1e-4),
+            EXPECT_NONFATAL_FAILURE(expect_tensor(tensor, std::vector<float>{1.0f, 2.5f}),
                                     "Mismatch (value) at index 1");
         }
 
@@ -76,9 +78,9 @@ namespace SushiBLAS
             const float nan = std::numeric_limits<float>::quiet_NaN();
             const Tensor tensor = float_tensor({nan, 1.0f});
 
-            expect_tensor(tensor, std::vector<float>{nan, 1.0f}, 0.0);
-            EXPECT_NONFATAL_FAILURE(expect_tensor(float_tensor({0.0f, 1.0f}),
-                                                  std::vector<float>{nan, 1.0f}, 0.0),
+            expect_tensor_equal(tensor, std::vector<float>{nan, 1.0f});
+            EXPECT_NONFATAL_FAILURE(expect_tensor_equal(float_tensor({0.0f, 1.0f}),
+                                                        std::vector<float>{nan, 1.0f}),
                                     "Expected NaN");
         }
 
@@ -86,9 +88,9 @@ namespace SushiBLAS
         {
             const float infinity = std::numeric_limits<float>::infinity();
 
-            expect_tensor(float_tensor({infinity}), std::vector<float>{infinity}, 0.0);
-            EXPECT_NONFATAL_FAILURE(expect_tensor(float_tensor({-infinity}),
-                                                  std::vector<float>{infinity}, 0.0),
+            expect_tensor_equal(float_tensor({infinity}), std::vector<float>{infinity});
+            EXPECT_NONFATAL_FAILURE(expect_tensor_equal(float_tensor({-infinity}),
+                                                        std::vector<float>{infinity}),
                                     "Infinity mismatch");
         }
     } // namespace Test

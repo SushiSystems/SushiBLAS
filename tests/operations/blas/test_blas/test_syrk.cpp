@@ -33,6 +33,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -87,7 +88,7 @@ namespace SushiBLAS
                     recording->run().value();
 
                     // 4. Compare
-                    double tol = (dtype == Core::DataType::Half) ? 1e-2 : 1e-4;
+                    double tol = (dtype == Core::DataType::Half) ? half_absolute_tolerance(2) : K_DEFAULT_TOLERANCE;
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tol, T);
                 }
         };

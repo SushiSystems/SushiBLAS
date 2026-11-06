@@ -47,6 +47,7 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -57,8 +58,9 @@ namespace SushiBLAS
             /** @brief A host vector of expectations or of operand values. */
             using Wide = std::vector<std::complex<double>>;
 
-            /// @brief Absolute error allowed on an element of a hand-worked complex product.
-            constexpr double K_SAMPLE_TOLERANCE = 1e-4;
+            /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+            /// for an element of a hand-worked complex product.
+            constexpr double K_SAMPLE_TOLERANCE = absolute_tolerance<float>(128);
 
             /// @brief Order of the integer-valued matrix; above one work-group on every device.
             constexpr int64_t K_EXACT_ORDER = 1000;
@@ -266,6 +268,18 @@ namespace SushiBLAS
                     }
                 }
 
+                /** @brief Expects every element to equal its host expectation exactly. */
+                static void expect_equal(const std::vector<T>& actual, const Wide& expected)
+                {
+                    ASSERT_EQ(actual.size(), expected.size());
+                    for (std::size_t i = 0; i < actual.size(); ++i)
+                    {
+                        const std::complex<double> got = widened(actual[i]);
+                        EXPECT_EQ(got.real(), expected[i].real()) << "element " << i;
+                        EXPECT_EQ(got.imag(), expected[i].imag()) << "element " << i;
+                    }
+                }
+
                 /** @brief Returns the triangle uplo names of the symmetric sample S. */
                 [[nodiscard]] static HostTriplets<T> sample_triangle(Core::Uplo uplo)
                 {
@@ -296,12 +310,12 @@ namespace SushiBLAS
                     for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
                     {
                         const auto triangle = this->sample_triangle(uplo);
-                        this->expect_near(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
-                                                    one, x, zero, zeros),
-                                          plain, 0.0);
-                        this->expect_near(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
-                                                    two, x, minus_one, ones),
-                                          scaled, 0.0);
+                        this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
+                                                     one, x, zero, zeros),
+                                           plain);
+                        this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
+                                                     two, x, minus_one, ones),
+                                           scaled);
                     }
                 }
             }
@@ -321,9 +335,9 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
-                    this->expect_near(this->run(mode, Mirror::Symmetric, full,
-                                                Core::IndexBase::Zero, uplo, one, x, zero, zeros),
-                                      expected, 0.0);
+                    this->expect_equal(this->run(mode, Mirror::Symmetric, full,
+                                                 Core::IndexBase::Zero, uplo, one, x, zero, zeros),
+                                       expected);
             }
         }
 
@@ -344,9 +358,9 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
-                    this->expect_near(this->run(mode, Mirror::Symmetric, poisoned, base,
-                                                Core::Uplo::Lower, one, x, zero, zeros),
-                                      expected, 0.0);
+                    this->expect_equal(this->run(mode, Mirror::Symmetric, poisoned, base,
+                                                 Core::Uplo::Lower, one, x, zero, zeros),
+                                       expected);
             }
         }
 
@@ -362,11 +376,11 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Mirror mirror : {Mirror::Symmetric, Mirror::Hermitian})
-                    this->expect_near(this->run(mode, mirror,
-                                                this->sample_triangle(Core::Uplo::Lower),
-                                                Core::IndexBase::Zero, Core::Uplo::Lower, one, x,
-                                                zero, poisoned),
-                                      expected, 0.0);
+                    this->expect_equal(this->run(mode, mirror,
+                                                 this->sample_triangle(Core::Uplo::Lower),
+                                                 Core::IndexBase::Zero, Core::Uplo::Lower, one, x,
+                                                 zero, poisoned),
+                                       expected);
             }
         }
 
@@ -460,9 +474,9 @@ namespace SushiBLAS
                                                             x, minus_one, y);
 
                 for (const ExecutionMode mode : K_BOTH_MODES)
-                    this->expect_near(this->run(mode, Mirror::Symmetric, triangle,
-                                                Core::IndexBase::Zero, uplo, one, x, minus_one, y),
-                                      expected, 0.0);
+                    this->expect_equal(this->run(mode, Mirror::Symmetric, triangle,
+                                                 Core::IndexBase::Zero, uplo, one, x, minus_one, y),
+                                       expected);
             }
         }
 
@@ -510,9 +524,9 @@ namespace SushiBLAS
             const Wide expected = {one, {2048.0, 0.0}, one, {-2048.0, 0.0}};
 
             for (const ExecutionMode mode : K_BOTH_MODES)
-                expect_near(run(mode, Mirror::Symmetric, lower, Core::IndexBase::Zero,
-                                Core::Uplo::Lower, one, ones, zero, zeros),
-                            expected, 0.0);
+                expect_equal(run(mode, Mirror::Symmetric, lower, Core::IndexBase::Zero,
+                                 Core::Uplo::Lower, one, ones, zero, zeros),
+                             expected);
         }
 
         /**

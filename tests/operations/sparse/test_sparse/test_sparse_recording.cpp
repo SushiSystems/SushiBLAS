@@ -36,6 +36,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
@@ -47,8 +48,9 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief Absolute error allowed on a result; every expectation is a small integer.
-            constexpr double K_TOLERANCE = 1e-5;
+            /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one;
+            /// every expectation is a small integer.
+            constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
         } // namespace
 
         /**

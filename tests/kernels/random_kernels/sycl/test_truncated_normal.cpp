@@ -35,6 +35,7 @@
 #include <SushiBLAS/random_kernels/sycl/truncated_normal.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
@@ -45,11 +46,16 @@ namespace SushiBLAS
         /// @brief The seed of the draws below.
         constexpr uint64_t K_SEED = 777u;
 
+        /// @brief The half-width of the window the narrow-window test draws from.
+        constexpr float K_NARROW_WINDOW = 0.01f;
+
         TEST(Medium_TruncatedNormal, TheDistributionFunctionHasItsKnownValues)
         {
             EXPECT_DOUBLE_EQ(Truncated::standard_normal_cdf(0.0), 0.5);
-            EXPECT_NEAR(Truncated::standard_normal_cdf(1.0), 0.8413447460685429, 1e-15);
-            EXPECT_NEAR(Truncated::standard_normal_cdf(-2.0), 0.02275013194817921, 1e-16);
+            EXPECT_NEAR(Truncated::standard_normal_cdf(1.0), 0.8413447460685429,
+                        absolute_tolerance<double>(1));
+            EXPECT_NEAR(Truncated::standard_normal_cdf(-2.0), 0.02275013194817921,
+                        absolute_tolerance<double>(1));
         }
 
         TEST(Medium_TruncatedNormal, EveryDrawLiesInsideItsBounds)
@@ -69,8 +75,9 @@ namespace SushiBLAS
         TEST(Medium_TruncatedNormal, ANarrowWindowDrawsNearItsCentre)
         {
             for (const float value :
-                 Truncated::draw_truncated_standard_normal<float>(K_SEED, 1, 0, -0.01f, 0.01f))
-                EXPECT_NEAR(value, 0.0f, 0.01f);
+                 Truncated::draw_truncated_standard_normal<float>(K_SEED, 1, 0, -K_NARROW_WINDOW,
+                                                                  K_NARROW_WINDOW))
+                EXPECT_NEAR(value, 0.0f, K_NARROW_WINDOW);
         }
 
         /** @brief Draws on the host CPU queue. */
@@ -98,8 +105,10 @@ namespace SushiBLAS
                 const auto host =
                     Truncated::draw_truncated_standard_normal<double>(K_SEED, 3, block, -2.0, 1.0);
                 // erfc may round differently on the device; the bisection then ends a step away.
-                EXPECT_NEAR(device.get()[2 * block], host[0], 1e-12);
-                EXPECT_NEAR(device.get()[2 * block + 1], host[1], 1e-12);
+                EXPECT_NEAR(device.get()[2 * block], host[0],
+                            absolute_tolerance<double>(1024));
+                EXPECT_NEAR(device.get()[2 * block + 1], host[1],
+                            absolute_tolerance<double>(1024));
             }
         }
     } // namespace Test

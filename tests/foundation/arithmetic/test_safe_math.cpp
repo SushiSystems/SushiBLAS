@@ -32,16 +32,19 @@
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/arithmetic/safe_math.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Relative tolerance of a double result against the standard library.
-        constexpr double K_RELATIVE = 1e-13;
+        /// @brief Relative tolerance: 64 double roundings per unit of magnitude.
+        constexpr double K_RELATIVE =
+            TestSupport::K_DEFAULT_THRESHOLD * 64.0 * TestSupport::unit_roundoff<double>();
 
-        /// @brief Absolute tolerance for a double component whose true value is near zero.
-        constexpr double K_ABSOLUTE = 1e-15;
+        /// @brief Absolute tolerance: one double rounding of a value of order one.
+        constexpr double K_ABSOLUTE =
+            TestSupport::K_DEFAULT_THRESHOLD * TestSupport::unit_roundoff<double>();
 
         /**
          * @brief Expects two complex values to agree in both parts within the file's tolerances.
@@ -101,7 +104,7 @@ namespace SushiBLAS
             const std::complex<double> got = Dispatch::safe_tanh(std::complex<double>(40.0, 0.5));
 
             EXPECT_EQ(got.real(), 1.0);
-            EXPECT_NEAR(got.imag(), 0.0, 1e-30);
+            EXPECT_NEAR(got.imag(), 0.0, K_ABSOLUTE);
         }
 
         TEST(Small_SafeMath, ComplexLogNearTheUnitCircleKeepsItsSmallModulus)

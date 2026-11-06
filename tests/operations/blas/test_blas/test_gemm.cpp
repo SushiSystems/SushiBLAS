@@ -42,6 +42,7 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -182,8 +183,8 @@ namespace SushiBLAS
                 [[nodiscard]] static double tolerance_for(Core::DataType dtype, int64_t k)
                 {
                     if (dtype == Core::DataType::Half)
-                        return 1e-2 * static_cast<double>(1 + k / 8);
-                    return 1e-4;
+                        return half_absolute_tolerance(static_cast<std::size_t>(2 * (1 + k / 8)));
+                    return absolute_tolerance<float>(128);
                 }
             };
 
@@ -381,7 +382,7 @@ namespace SushiBLAS
                 recording->run().value();
 
                 // C = [[1+3, 2+3], [4+6, 5+6]] = [[4,5],[10,11]], row-major.
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
+                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), absolute_tolerance<float>(16));
             }
 
             TEST_F(Medium_GEMMKernelTest, ColumnMajorMatchesHandComputedResult)
@@ -398,7 +399,7 @@ namespace SushiBLAS
                 recording->run().value();
 
                 // C = [[4,5],[10,11]] again, stored column-major with ldc = 2.
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
+                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), absolute_tolerance<float>(16));
             }
 
             TEST_F(Medium_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
@@ -414,7 +415,7 @@ namespace SushiBLAS
                 SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
                 recording->run().value();
 
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
+                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), absolute_tolerance<float>(16));
             }
 
             TEST_F(Medium_GEMMKernelTest, TransposedAMatchesHandComputedResult)
@@ -429,7 +430,7 @@ namespace SushiBLAS
                                                  Core::Transpose::NoTrans);
                 recording->run().value();
 
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
+                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), absolute_tolerance<float>(16));
             }
 
             /**
@@ -482,7 +483,7 @@ namespace SushiBLAS
                     0.0f, static_cast<float*>(C.data()), 3, 0,
                     1, {}, epilogue).wait();
 
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{2.5f, 3.0f, 0.0f, 7.5f, 8.0f, 0.0f}), 1e-5);
+                EXPECT_TENSOR_NEAR(C, (std::vector<float>{2.5f, 3.0f, 0.0f, 7.5f, 8.0f, 0.0f}), absolute_tolerance<float>(16));
             }
 
             /**
@@ -529,7 +530,7 @@ namespace SushiBLAS
                                        epilogue);
                 recording->run().value();
 
-                EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
+                EXPECT_TENSOR_NEAR(C, expected(), absolute_tolerance<float>(16));
             }
 
             TEST_F(Medium_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
@@ -552,7 +553,7 @@ namespace SushiBLAS
                                        epilogue);
                 recording->run().value();
 
-                EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
+                EXPECT_TENSOR_NEAR(C, expected(), absolute_tolerance<float>(16));
             }
 
             TEST_F(Medium_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
@@ -574,7 +575,7 @@ namespace SushiBLAS
                                        Kernels::GemmIdentityEpilogue{});
                 recording->run().value();
 
-                SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
+                SB_ASSERT_TENSOR_NEAR(via_seam, via_api, absolute_tolerance<float>(2), float);
             }
 
             // An undeclared epilogue operand gets no edge. See tests/operations/blas/README.md.
@@ -824,8 +825,8 @@ namespace SushiBLAS
                 // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
                 EXPECT_TENSOR_NEAR(declared, (std::vector<float>{2, -6, 6,
                                                                  5, -3, 9,
-                                                                 6, -1, 12}), 1e-5);
-                SB_ASSERT_TENSOR_NEAR(declared, bare, 0.0, float);
+                                                                 6, -1, 12}), absolute_tolerance<float>(16));
+                expect_tensor_equal(declared, SushiBLAS::IO().to_vector<float>(bare));
             }
 
             TEST_F(Medium_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
@@ -866,7 +867,7 @@ namespace SushiBLAS
                     0.0f, static_cast<float*>(C.data()), row_major(n), 0,
                     1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
-                EXPECT_TENSOR_NEAR(C, expected, 1e-4);
+                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
             }
 
             TEST_F(Medium_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnRaggedShape)
@@ -905,7 +906,7 @@ namespace SushiBLAS
                     0.0f, static_cast<float*>(C.data()), row_major(n), 0,
                     1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
-                EXPECT_TENSOR_NEAR(C, expected, 1e-4);
+                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
             }
 
             TEST_F(Medium_GEMMKernelTest, LocalTiledVariantHandlesColumnMajorAndTransposes)
@@ -950,7 +951,7 @@ namespace SushiBLAS
                                             Core::Transpose::NoTrans, m), 0,
                     1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
-                EXPECT_TENSOR_NEAR(C, expected, 1e-4);
+                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
             }
 
             /** @brief Holds one batched product the local-tiled kernel is checked at. */
@@ -1082,11 +1083,11 @@ namespace SushiBLAS
                 for (std::size_t i = 0; i < cases.size(); ++i)
                 {
                     SCOPED_TRACE("case " + std::to_string(i));
-                    expect_local_tiled_matches_reference<float>(*engine, cases[i], 1e-5);
+                    expect_local_tiled_matches_reference<float>(*engine, cases[i], absolute_tolerance<float>(16));
                     if (profile.supports_fp64 && hosts_local_tiled<double>(profile))
-                        expect_local_tiled_matches_reference<double>(*engine, cases[i], 1e-12);
+                        expect_local_tiled_matches_reference<double>(*engine, cases[i], absolute_tolerance<double>(1024));
                     if (profile.supports_fp16 && hosts_local_tiled<sycl::half>(profile))
-                        expect_local_tiled_matches_reference<sycl::half>(*engine, cases[i], 2e-2);
+                        expect_local_tiled_matches_reference<sycl::half>(*engine, cases[i], half_absolute_tolerance(4));
                 }
             }
 

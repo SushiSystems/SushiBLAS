@@ -33,6 +33,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -52,8 +53,9 @@ namespace SushiBLAS
         /// @brief Inner extent of SYRK and column count of the TRSM right-hand side.
         constexpr int64_t K_K = 80;
 
-        /// @brief Absolute tolerance, as the GEMM differential test uses for float and double.
-        constexpr double K_TOLERANCE = 1e-4;
+        /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+        /// for float and double.
+        constexpr double K_TOLERANCE = absolute_tolerance<float>(128);
 
         /**
          * @brief Runs one call on the SYCL path and one on the reference path, then compares.

@@ -81,11 +81,11 @@ namespace
         return bits;
     }
 
-    /** @brief Absolute tolerance on a FLOAT32 or FLOAT64 result, as the fixed-value tests use. */
-    constexpr double K_REAL_TOLERANCE = 1e-4;
+    /** @brief Absolute tolerance: 128 float roundings of a value of order one. */
+    constexpr double K_REAL_TOLERANCE = absolute_tolerance<float>(128);
 
-    /** @brief Absolute tolerance on a HALF result: two units in the last place at magnitude 8. */
-    constexpr double K_HALF_TOLERANCE = 1.5625e-2;
+    /** @brief Absolute tolerance: 2 half roundings of a value of order one. */
+    constexpr double K_HALF_TOLERANCE = half_absolute_tolerance(2);
 
     /** @brief Lower clamp bound; it truncates to -1 for an integer element. */
     constexpr double K_CLAMP_LOW = -1.3;
@@ -122,9 +122,6 @@ namespace
     {
         return value;
     }
-
-    /** @brief Absolute tolerance on a result made of small whole numbers: it is exact. */
-    constexpr double K_EXACT_TOLERANCE = 0.0;
 
     /** @brief Element count of a gated update; a multiple of no work-group or vector width. */
     constexpr int64_t K_GATED_ELEMENTS = 1023;
@@ -404,7 +401,7 @@ TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
     recording->run().value();
 
-    expect_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
+    expect_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f});
 }
 
 TEST_F(Medium_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
@@ -422,7 +419,7 @@ TEST_F(Medium_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
     recording->run().value();
 
     auto expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 2.0f), cf(5.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, expected, 1e-4, cf);
+    SB_ASSERT_TENSOR_NEAR(c, expected, K_DEFAULT_TOLERANCE, cf);
 }
 
 TEST_F(Medium_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
@@ -545,13 +542,13 @@ TEST_F(Medium_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
 
     recording->run().value();
 
-    SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, 1e-6, float);
-    SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, 1e-6, float);
-    SB_ASSERT_TENSOR_NEAR(th_fused, th_steps, 1e-6, float);
-    SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, 1e-6, float);
+    SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, absolute_tolerance<float>(2), float);
+    SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, absolute_tolerance<float>(2), float);
+    SB_ASSERT_TENSOR_NEAR(th_fused, th_steps, absolute_tolerance<float>(2), float);
+    SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, absolute_tolerance<float>(2), float);
 
     // A read-only operand comes back bit for bit. See tests/library/umbrella/README.md.
-    expect_tensor(g, g0, 0.0);
+    expect_tensor_equal(g, g0);
 }
 
 TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
@@ -798,7 +795,7 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
 
     recording->run().value();
-    expect_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
+    expect_tensor_equal(y, {2.0f, 4.0f, 6.0f, 8.0f});
 }
 
 /**
@@ -875,12 +872,12 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
             read));
     recording->run().value();
 
-    expect_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
-    expect_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
-    expect_tensor(backward, {4.0f, 12.0f, 36.0f, 56.0f}, K_EXACT_TOLERANCE);
-    expect_tensor(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f}, K_EXACT_TOLERANCE);
-    expect_tensor(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f}, K_EXACT_TOLERANCE);
-    expect_tensor(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f}, K_EXACT_TOLERANCE);
+    expect_tensor_equal(binary, {6.0f, 10.0f, 18.0f, 22.0f});
+    expect_tensor_equal(forward, {2.0f, 4.0f, 6.0f, 8.0f});
+    expect_tensor_equal(backward, {4.0f, 12.0f, 36.0f, 56.0f});
+    expect_tensor_equal(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f});
+    expect_tensor_equal(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f});
+    expect_tensor_equal(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f});
 }
 
 /**

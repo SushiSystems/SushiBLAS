@@ -54,9 +54,6 @@ namespace SushiBLAS
 
             /// @brief Holds the element count of every dense tensor of this file.
             constexpr std::int64_t K_ELEMENTS = 4;
-
-            /// @brief Holds the tolerance of a value handed through unchanged: it is exact.
-            constexpr double K_EXACT = 0.0;
         } // namespace
 
         /** @brief Gives each test the fixture's engine and the text of a refused read. */
@@ -109,7 +106,7 @@ namespace SushiBLAS
                                     .typed(Dispatch::ElementTag<double>{});
             kernel(1.5);
 
-            EXPECT_NEAR(seen_element, 1.5, K_EXACT);
+            EXPECT_EQ(seen_element, 1.5);
             EXPECT_EQ(seen_first, a.data_as<float>());
             EXPECT_EQ(seen_second, b.data_as<std::int64_t>());
         }
@@ -156,9 +153,9 @@ namespace SushiBLAS
                     .typed(Dispatch::ElementTag<float>{});
             kernel(3.0f);
 
-            EXPECT_NEAR(seen_element, 3.0f, K_EXACT);
+            EXPECT_EQ(seen_element, 3.0f);
             EXPECT_EQ(seen_pointer, a.data_as<float>());
-            EXPECT_NEAR(seen_scalar, 2.0f, K_EXACT);
+            EXPECT_EQ(seen_scalar, 2.0f);
         }
 
         TEST_F(Medium_ReadBinding, TheKernelFunctorHoldsNoStorage)

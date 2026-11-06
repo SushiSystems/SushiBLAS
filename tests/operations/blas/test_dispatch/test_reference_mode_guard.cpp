@@ -40,6 +40,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
 using namespace SushiRuntime::Literals;
@@ -55,8 +56,9 @@ namespace
     /// @brief A * B: {1*7+2*9+3*11, 1*8+2*10+3*12, 4*7+5*9+6*11, 4*8+5*10+6*12}.
     const std::vector<float> K_PRODUCT = {58.0f, 64.0f, 139.0f, 154.0f};
 
-    /// @brief Absolute tolerance for a product of small integers held in FLOAT32.
-    constexpr double K_TOLERANCE = 1e-5;
+    /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
+    /// for a product of small integers.
+    constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 
     /// @brief The operation name the guard's message carries.
     const std::string K_GEMM_NAME = "blas.lvl3.gemm";

@@ -37,6 +37,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
+#include "support/tolerance.hpp"
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 
@@ -44,6 +45,10 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /// @brief Relative tolerance: 2 float roundings per unit of magnitude.
+        constexpr double K_RELATIVE_TOLERANCE =
+            TestSupport::K_DEFAULT_THRESHOLD * 2.0 * TestSupport::unit_roundoff<float>();
+
         /// @brief The element count of the reductions run on the host device.
         constexpr std::size_t K_COUNT = 50000;
 
@@ -119,8 +124,8 @@ namespace SushiBLAS
             small.accumulate(3.0e-30f);
             small.accumulate(4.0e-30f);
 
-            EXPECT_NEAR(big.value(), 5.0e30f, 5.0e30f * 1e-6f);
-            EXPECT_NEAR(small.value(), 5.0e-30f, 5.0e-30f * 1e-6f);
+            EXPECT_NEAR(big.value(), 5.0e30f, 5.0e30f * K_RELATIVE_TOLERANCE);
+            EXPECT_NEAR(small.value(), 5.0e-30f, 5.0e-30f * K_RELATIVE_TOLERANCE);
         }
 
         TEST(Medium_Reduce1D, ProductExactSumAndComplexSumFoldTheirTerms)

@@ -103,7 +103,7 @@ namespace SushiBLAS
             const std::vector<float> before{7.0f, 7.0f, 7.0f, 7.0f};
             auto target = create_initialized_tensor<float>({4}, before);
             EXPECT_EQ(SushiBLAS::IO().load(target, path), SushiBLAS::IOStatus::Truncated);
-            EXPECT_TENSOR_NEAR(target, before, 0.0);
+            expect_tensor_equal(target, before);
         }
 
         TEST_F(Medium_IO, LoadRejectsAnotherDtype)
@@ -161,7 +161,7 @@ namespace SushiBLAS
             auto target = create_initialized_tensor<float>({4}, before);
             EXPECT_EQ(SushiBLAS::IO().load_bin(target, path),
                       SushiBLAS::IOStatus::Truncated);
-            EXPECT_TENSOR_NEAR(target, before, 0.0);
+            expect_tensor_equal(target, before);
         }
 
         TEST_F(Medium_IO, LoadNpyRejectsATruncatedPayload)
@@ -194,7 +194,7 @@ namespace SushiBLAS
             fill_tensor(target, {0.0f, 0.0f, 0.0f, 0.0f});
             ASSERT_EQ(SushiBLAS::IO().load_bin(target, path), SushiBLAS::IOStatus::Ok);
 
-            EXPECT_TENSOR_NEAR(target, values, 0.0);
+            expect_tensor_equal(target, values);
         }
 
         TEST_F(Medium_IO, AShortFileLeavesTheTensorUntouched)
@@ -222,15 +222,15 @@ namespace SushiBLAS
 
                 EXPECT_EQ(SushiBLAS::IO().load_bin(target, bin_path),
                           SushiBLAS::IOStatus::Truncated);
-                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+                expect_tensor_equal(target, sentinel);
 
                 EXPECT_EQ(SushiBLAS::IO().load(target, sushi_path),
                           SushiBLAS::IOStatus::Truncated);
-                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+                expect_tensor_equal(target, sentinel);
 
                 EXPECT_EQ(SushiBLAS::IO().load_npy(target, npy_path),
                           SushiBLAS::IOStatus::Truncated);
-                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+                expect_tensor_equal(target, sentinel);
             }
         }
 
@@ -276,7 +276,7 @@ namespace SushiBLAS
             ASSERT_EQ(SushiBLAS::IO().load_bin(target, path), SushiBLAS::IOStatus::Ok);
 
             const std::vector<float> prefix{1.0f, 2.0f, 3.0f, 4.0f};
-            EXPECT_TENSOR_NEAR(target, prefix, 0.0);
+            expect_tensor_equal(target, prefix);
         }
     } // namespace Test
 } // namespace SushiBLAS

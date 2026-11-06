@@ -35,6 +35,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
@@ -71,11 +72,11 @@ namespace
     /// @brief Holds sin of {-1, 0, 0.5, 2}.
     const std::vector<double> K_FLOAT64_EXPECTED = {-0.8414709848078965, 0.0, 0.479425538604203, 0.9092974268256817};
 
-    /// @brief Holds the absolute tolerance for FLOAT32 results.
-    constexpr double K_FLOAT32_TOLERANCE = 1e-6;
+    /// @brief Holds the absolute tolerance: 2 FLOAT32 roundings of a value of order one.
+    constexpr double K_FLOAT32_TOLERANCE = absolute_tolerance<float>(2);
 
-    /// @brief Holds the absolute tolerance for FLOAT64 results.
-    constexpr double K_FLOAT64_TOLERANCE = 1e-12;
+    /// @brief Holds the absolute tolerance: 1024 FLOAT64 roundings of a value of order one.
+    constexpr double K_FLOAT64_TOLERANCE = absolute_tolerance<double>(1024);
 }
 
 TEST_F(Medium_SinTest, ZeroInSingleElement)

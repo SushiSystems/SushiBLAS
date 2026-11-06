@@ -15,6 +15,7 @@
 | RW-114 | P2 | open | Read the HALF `joint_matrix` shapes from `matrix_combinations` | the HALF matrix kernel runs a shape the device lists, not only 16 x 16 x 16 |  |  | 2026-10-26 |
 | RW-115 | P2 | open | Read the work-group limit of each compiled GEMM tile kernel | `admits_gemm_tile` refuses a shape whose compiled kernel accepts fewer work-items than it launches, through `get_kernel_info` on a named kernel |  |  | 2026-10-26 |
 | RW-116 | P2 | open | Let the GEMM tile tuner write a user cache file | entries `benchmark_gemm_tiles` measured on a user's device are read at start without a rebuild, through a format `file-formats` defines |  |  | 2026-10-26 |
+| RW-135 | P2 | decision | Rule where the micro benchmarks under tests/ go | The owner rules whether the benchmark_*.cpp files leave tests/, which the performance skill says they sit beside |  | `docs/agent/2026_11_05_TEST_REVIEW/PLAN.md` | 2026-11-06 |
 
 ## Known issues
 

@@ -32,12 +32,14 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance of every comparison in this file.
-        constexpr double K_TOLERANCE = 1e-5;
+        /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
+        /// for every comparison in this file.
+        constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 
         /**
          * @brief Runs every Level 1 call of a test on the reference kernels.
@@ -116,7 +118,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).iamax(x, result);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
+            expect_tensor_equal(result, K_EXPECTED_INDEX);
         }
 
         TEST_F(Medium_Level1ReferenceTest, IamaxFindsANegativeMaximumAtTheEnd)
@@ -129,7 +131,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).iamax(x, result);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
+            expect_tensor_equal(result, K_EXPECTED_INDEX);
         }
 
         TEST_F(Medium_Level1ReferenceTest, Nrm2ReturnsTheEuclideanNorm)

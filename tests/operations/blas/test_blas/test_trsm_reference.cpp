@@ -32,6 +32,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 
@@ -39,8 +40,9 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance of every comparison in this file.
-        constexpr double K_TOLERANCE = 1e-5;
+        /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
+        /// for every comparison in this file.
+        constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 
         /// @brief Fills the triangle the solve must not read.
         constexpr float K_POISON = 999.0f;

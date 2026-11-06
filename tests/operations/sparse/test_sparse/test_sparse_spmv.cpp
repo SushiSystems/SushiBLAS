@@ -47,13 +47,15 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute error allowed on an element of the 4 x 5 sample in single precision.
-        constexpr double K_SAMPLE_TOLERANCE = 1e-4;
+        /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
+        /// for an element of the 4 x 5 sample.
+        constexpr double K_SAMPLE_TOLERANCE = absolute_tolerance<float>(128);
 
         /// @brief Rows of the integer-valued matrix; above one work-group on every device.
         constexpr int64_t K_EXACT_ROWS = 1000;
@@ -214,6 +216,18 @@ namespace SushiBLAS
                     }
                 }
 
+                /** @brief Expects every element to equal its host expectation exactly. */
+                static void expect_equal(const std::vector<T>& actual, const Wide& expected)
+                {
+                    ASSERT_EQ(actual.size(), expected.size());
+                    for (std::size_t i = 0; i < actual.size(); ++i)
+                    {
+                        const std::complex<double> got = widened(actual[i]);
+                        EXPECT_EQ(got.real(), expected[i].real()) << "element " << i;
+                        EXPECT_EQ(got.imag(), expected[i].imag()) << "element " << i;
+                    }
+                }
+
                 /**
                  * @brief Expects the even elements near expected and the odd ones still K_FILLER.
                  * @param wide The elements of a tensor interleaved() made, after the call.
@@ -231,8 +245,8 @@ namespace SushiBLAS
                     }
 
                     expect_near(written, expected, tolerance);
-                    expect_near(skipped,
-                                Wide(expected.size(), std::complex<double>(K_FILLER, 0.0)), 0.0);
+                    expect_equal(skipped,
+                                 Wide(expected.size(), std::complex<double>(K_FILLER, 0.0)));
                 }
         };
 
@@ -326,8 +340,8 @@ namespace SushiBLAS
                 }
                 else
                 {
-                    this->expect_near(plain, {one, zero, zero, {2.0, 0.0}, zero}, 0.0);
-                    this->expect_near(conjugated, {one, zero, zero, {2.0, 0.0}, zero}, 0.0);
+                    this->expect_equal(plain, {one, zero, zero, {2.0, 0.0}, zero});
+                    this->expect_equal(conjugated, {one, zero, zero, {2.0, 0.0}, zero});
                 }
             }
         }
@@ -357,8 +371,8 @@ namespace SushiBLAS
 
                 const Wide expected = host_product(host, trans, one, x, minus_one, y);
                 for (const ExecutionMode mode : K_BOTH_MODES)
-                    this->expect_near(this->run(mode, host, base, trans, one, x, minus_one, y),
-                                      expected, 0.0);
+                    this->expect_equal(this->run(mode, host, base, trans, one, x, minus_one, y),
+                                       expected);
             }
         }
 
@@ -411,8 +425,8 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_BOTH_MODES)
                 {
                     for (const Core::IndexBase base : K_BOTH_BASES)
-                        this->expect_near(this->run(mode, host, base, trans, alpha, x, beta, y),
-                                          expected, 0.0);
+                        this->expect_equal(this->run(mode, host, base, trans, alpha, x, beta, y),
+                                           expected);
                 }
             }
         }
@@ -452,8 +466,8 @@ namespace SushiBLAS
                 ops.spmv(tall_matrix, x, no_result, Core::Transpose::Trans, alpha, beta);
                 this->recording->run().value();
 
-                this->expect_near(read_tensor<T>(y_wide), scaled, 0.0);
-                this->expect_near(read_tensor<T>(y_tall), scaled, 0.0);
+                this->expect_equal(read_tensor<T>(y_wide), scaled);
+                this->expect_equal(read_tensor<T>(y_tall), scaled);
             }
         }
 
@@ -520,9 +534,9 @@ namespace SushiBLAS
                     ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
                     this->recording->run().value();
 
-                    this->expect_near(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}}, 0.0);
-                    this->expect_near(read_tensor<T>(transposed),
-                                      {zero, {5.0, 0.0}, {40.0, 0.0}}, 0.0);
+                    this->expect_equal(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}});
+                    this->expect_equal(read_tensor<T>(transposed),
+                                       {zero, {5.0, 0.0}, {40.0, 0.0}});
                 }
             }
         }
@@ -559,12 +573,12 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                expect_near(run(mode, row, Core::IndexBase::Zero, Core::Transpose::NoTrans, one,
-                                ones, zero, start),
-                            Wide(1, one), 0.0);
-                expect_near(run(mode, column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
-                                ones, zero, start),
-                            Wide(1, one), 0.0);
+                expect_equal(run(mode, row, Core::IndexBase::Zero, Core::Transpose::NoTrans, one,
+                                 ones, zero, start),
+                             Wide(1, one));
+                expect_equal(run(mode, column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
+                                 ones, zero, start),
+                             Wide(1, one));
             }
         }
 

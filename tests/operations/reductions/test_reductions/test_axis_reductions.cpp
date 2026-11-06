@@ -41,6 +41,7 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -485,9 +486,9 @@ namespace SushiBLAS
                     exact += static_cast<double>(host[s * kExtent + k]);
 
                 // The two shapes add in different orders. See the test README.
-                EXPECT_NEAR(static_cast<double>(got_flat[s]), exact, exact * 1e-6)
+                EXPECT_NEAR(static_cast<double>(got_flat[s]), exact, absolute_tolerance<float>(2, exact))
                     << "item-per-segment, segment " << s;
-                EXPECT_NEAR(static_cast<double>(got_tree[s]), exact, exact * 1e-6)
+                EXPECT_NEAR(static_cast<double>(got_tree[s]), exact, absolute_tolerance<float>(2, exact))
                     << "work-group tree, segment " << s;
             }
         }

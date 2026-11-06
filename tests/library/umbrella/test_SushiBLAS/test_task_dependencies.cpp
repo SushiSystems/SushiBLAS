@@ -93,14 +93,16 @@ namespace SushiBLAS
                 auto c = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
                 expect_task_computes("elementwise add",
                     [&](TaskRecorder& r) { return SushiBLAS::ElementwiseOps(r).add(a, b, c); },
-                    [&] { EXPECT_TENSOR_NEAR(c, (std::vector<float>{11, 22, 33, 44}), 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(c, (std::vector<float>{11, 22, 33, 44}),
+                                             absolute_tolerance<float>(16)); });
             }
 
             {
                 auto t = vector_of({-1.0f, 2.0f, -3.0f, 4.0f});
                 expect_task_computes("nonlinear relu",
                     [&](TaskRecorder& r) { return SushiBLAS::NonLinearOps(r).relu(t); },
-                    [&] { EXPECT_TENSOR_NEAR(t, (std::vector<float>{0, 2, 0, 4}), 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(t, (std::vector<float>{0, 2, 0, 4}),
+                                             absolute_tolerance<float>(16)); });
             }
 
             {
@@ -109,7 +111,8 @@ namespace SushiBLAS
                 auto same = vector_of({9.0f, 9.0f, 9.0f, 9.0f});
                 expect_task_computes("logic equal",
                     [&](TaskRecorder& r) { return SushiBLAS::LogicOps(r).equal(a, b, same); },
-                    [&] { EXPECT_TENSOR_NEAR(same, (std::vector<float>{1, 0, 1, 0}), 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(same, (std::vector<float>{1, 0, 1, 0}),
+                                             absolute_tolerance<float>(16)); });
             }
 
             {
@@ -117,7 +120,8 @@ namespace SushiBLAS
                 auto total = vector_of({0.0f});
                 expect_task_computes("reduction sum",
                     [&](TaskRecorder& r) { return SushiBLAS::ReductionOps(r).sum(t, total); },
-                    [&] { EXPECT_TENSOR_NEAR(total, (std::vector<float>{10}), 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(total, (std::vector<float>{10}),
+                                             absolute_tolerance<float>(16)); });
             }
 
             {
@@ -138,7 +142,7 @@ namespace SushiBLAS
                         const auto draws =
                             Random::uniform_block<float>(K_SEED, offset, 0, 0.0f, 1.0f);
                         const std::vector<float> expected(draws.begin(), draws.end());
-                        EXPECT_TENSOR_NEAR(t, expected, 1e-6);
+                        EXPECT_TENSOR_NEAR(t, expected, absolute_tolerance<float>(2));
                     });
             }
 
@@ -147,7 +151,8 @@ namespace SushiBLAS
                 auto y = vector_of(tens);
                 expect_task_computes("blas axpy",
                     [&](TaskRecorder& r) { return SushiBLAS::BLASOps(r).axpy(2.0, x, y); },
-                    [&] { EXPECT_TENSOR_NEAR(y, (std::vector<float>{12, 24, 36, 48}), 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(y, (std::vector<float>{12, 24, 36, 48}),
+                                             absolute_tolerance<float>(16)); });
             }
 
             {
@@ -162,7 +167,7 @@ namespace SushiBLAS
                     {
                         return SushiBLAS::SpatialOps(r).im2col(image, columns, unit_window);
                     },
-                    [&] { EXPECT_TENSOR_NEAR(columns, ramp, 1e-5); });
+                    [&] { EXPECT_TENSOR_NEAR(columns, ramp, absolute_tolerance<float>(16)); });
             }
         }
     } // namespace Test
