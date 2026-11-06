@@ -79,6 +79,14 @@ Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; t
 - T2 seams (`scalar_math.hpp`, `task_cost.hpp`, the dense TRSV reference) and their tests have never been built or run.
 - `OperandAccess::row_cursor` and the trsv fold: the SYCL device pass of every kernel that includes `operand_access.hpp`, and `test_trsv.cpp` results.
 - `tests/support/owned_memory.hpp`: the device queue use in a header shared by two test programs.
+- M5 to M7: the hand-typed literals of the `TEST_P` rows in `test_safe_math.cpp` (complex exp, tanh, log, sqrt at 0.75 - 1.25i), `test_device_math.cpp` and `test_complex_arithmetic.cpp`; the type checks through overloads in `test_device_math.cpp` and `test_complex_arithmetic.cpp`; the half-precision rows of `test_blas_truth.cpp`.
+- M5 to M7 left the `static_assert`s of the compile-only tests at file scope in their test files, not in a `compile_*.cpp` file as decision 5 says (`test_accumulator.cpp`, `test_blas_flags.cpp`, `test_blas_types.cpp`, `test_common.cpp`, `test_errors.cpp`, `test_sparse_types.cpp`, `test_sushiblas_log_project.cpp`, `test_traits.cpp`); a later pass moves them.
+- M14: `compile_profile.cpp` under the warning flags (a value only a macro reads must draw no warning); `Medium_ProfileGate` after the rename.
+- M8, M9, M11: the geometry row tables and the 16-epsilon tolerances rebuilt through `tolerance.hpp`; the cost-table splits and `AReasonOutsideTheKnownOnesIsNamedUnknown`; three new compile checks (`compile_cost_shape.cpp`, `compile_host_device_test.cpp`, `compile_multiply_add.cpp`) and the SYCL flags of the host_device one.
+- M15, M16, M20 to M22: the literal 149997 of the device sum, the half literal 0.0999755859375 in `test_running_solution.cpp`, `test_serial_reduce.cpp` now host-only `Small_`, and `compile_test_runner_log_category.cpp`, which had no compile_commands entry when checked.
+- M26 to M30: the derived bounds never run (`K_TERMS_PER_SAMPLE = 8` in both FFT files, `K_NORMAL_OPERATIONS` in `test_philox.cpp`, the orthonormalize device bound); `sycl/compile_philox.cpp` as a compile check under the SYCL flags; the one-point blend row; the Poisson method-switch test.
+- M36, M38, M45, M48: the derived LU, solve and FFT bounds in `test_linalg.cpp` and `test_transforms.cpp` (the Bluestein rows 12 and 7 most of all); the hand value 8.0 of `AWellFormedCallRecordsAndRuns`; the exact comparisons of `tests/package/main.cpp`, which has no compile_commands entry.
+- M23: `Medium_TypedSuiteNaming` names its suites `/0` and `/1` by type order.
 
 ## Dispatches
 
@@ -93,6 +101,11 @@ dispatch: J16 T2 elementwise scalar functions — sonnet medium, 1 round, passed
 dispatch: J16 T2 dense TRSV reference and task cost — sonnet medium, 1 round, passed review unbuilt, rung 1
 dispatch: J16 T2 trsv and scalar_math tests — sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
 dispatch: J16 T2 task_cost tests — sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
+dispatch: J16 M5 M6 M7 foundation tests — sonnet medium, 1 round, passed after lead added the multiply_add compile check and the CMake edit, rung 1
+dispatch: J16 M8 M9 M11 foundation tests — sonnet medium, 2 rounds (sent back: humanizer not run, tolerance names changed against decision 1), passed after lead added two compile checks, rung 1
+dispatch: J16 M15 M16 M20 M21 M22 foundation tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
+dispatch: J16 M26 M28 M29 M30 kernels tests — sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
+dispatch: J16 M36 M38 M45 M48 operations and package tests — sonnet medium, 1 round, passed, rung 1
 
 ## Totals
 

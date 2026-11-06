@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -43,32 +44,69 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_PackedProductHarness, PatternedElementsAreSmallIntegers)
+        /// @brief One position, one salt and the element the pattern puts there.
+        struct PatternRow
         {
-            for (int64_t row = 0; row < 10; ++row)
-            {
-                for (int64_t col = 0; col < 10; ++col)
-                {
-                    const double value = patterned_element<double>(row, col, 4);
-                    EXPECT_EQ(value, std::floor(value));
-                    EXPECT_GE(value, -3.0);
-                    EXPECT_LE(value, 3.0);
-                }
-            }
+                const char* name;
+                int64_t row;
+                int64_t col;
+                int64_t salt;
+                double expected; ///< Worked by hand from (3 * row + 5 * col + salt) % 7 - 3.
+        };
+
+        /// @brief Returns positions that reach both ends of the range [-3, 3].
+        static std::vector<PatternRow> pattern_rows()
+        {
+            return {{"Origin_LowestValue", 0, 0, 0, -3.0},
+                    {"SecondColumn", 0, 1, 0, 2.0},
+                    {"SecondRow", 1, 0, 0, 0.0},
+                    {"Row1Column2_HighestValue", 1, 2, 0, 3.0},
+                    {"Row2Column3Salt4", 2, 3, 4, 1.0},
+                    {"Row1Column2Salt1", 1, 2, 1, -3.0}};
+        }
+
+        /// @brief Names a row, which gtest takes as the test's suffix.
+        static std::string pattern_row_name(const ::testing::TestParamInfo<PatternRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Runs the pattern at one position.
+        class Small_PackedProductHarnessPattern : public ::testing::TestWithParam<PatternRow>
+        {
+        };
+
+        TEST_P(Small_PackedProductHarnessPattern, PatternedElementsAreSmallIntegers)
+        {
+            const PatternRow& row = GetParam();
+
+            EXPECT_EQ(patterned_element<double>(row.row, row.col, row.salt), row.expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedProductHarnessPattern,
+                                 ::testing::ValuesIn(pattern_rows()), pattern_row_name);
+
+        TEST(Small_PackedProductHarness, TheSaltMovesThePatternAtOnePosition)
+        {
             EXPECT_NE(patterned_element<float>(1, 2, 0), patterned_element<float>(1, 2, 1));
         }
 
-        TEST(Medium_PackedProductHarness, PoisonIsNaNAndCountsAsAMismatch)
+        TEST(Small_PackedProductHarness, PoisonIsNaN)
         {
-            const std::vector<float> want{1.0f, 2.0f};
-            const std::vector<float> got{1.0f, poison_element<float>()};
-
+            EXPECT_TRUE(std::isnan(poison_element<float>()));
             EXPECT_TRUE(std::isnan(poison_element<double>()));
-            EXPECT_EQ(count_bit_mismatches(got.data(), want.data(), 2), std::size_t{1});
-            EXPECT_EQ(count_bit_mismatches(want.data(), want.data(), 2), std::size_t{0});
         }
 
-        TEST(Medium_PackedProductHarness, TheBlockingsSpanTheExtremes)
+        TEST(Small_PackedProductHarness, AMismatchIsCountedWhereTheBitsDiffer)
+        {
+            const std::vector<float> want{1.0f, 2.0f, 0.0f};
+            const std::vector<float> got{1.0f, poison_element<float>(), -0.0f};
+
+            EXPECT_EQ(count_bit_mismatches(got.data(), want.data(), 3), std::size_t{2});
+            EXPECT_EQ(count_bit_mismatches(want.data(), want.data(), 3), std::size_t{0});
+        }
+
+        TEST(Small_PackedProductHarness, TheBlockingsSpanTheExtremes)
         {
             EXPECT_EQ(smallest_blocking().inner_bytes, std::size_t{1});
             EXPECT_EQ(widest_blocking().outer_bytes, std::numeric_limits<std::size_t>::max());

@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <gtest/gtest.h>
@@ -34,12 +35,20 @@
 #include <SushiBLAS/geometry/quaternion.hpp>
 #include <SushiBLAS/geometry/interpolation.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type.
-        constexpr double K_INTERPOLATION_TOLERANCE_EPSILONS = 16.0;
+        /// @brief Rounded operations on the longest path to a hand value: a blend, a normalisation.
+        constexpr double K_INTERPOLATION_ROUNDED_OPERATIONS = 2.0;
+
+        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type:
+        /// the default threshold times the rounded operations times the unit roundoff, which is half an epsilon.
+        constexpr double K_INTERPOLATION_TOLERANCE_EPSILONS =
+            TestSupport::K_DEFAULT_THRESHOLD * K_INTERPOLATION_ROUNDED_OPERATIONS *
+            (TestSupport::unit_roundoff<double>() / std::numeric_limits<double>::epsilon());
 
         /// @brief The sine and the cosine of an eighth of a turn.
         constexpr double K_INTERPOLATION_ROOT_HALF = 0.70710678118654752440;
@@ -68,6 +77,40 @@ namespace SushiBLAS
         /// @brief The w of the rotation halfway to it, the cosine of half of asin(0.0006).
         constexpr double K_INTERPOLATION_NEAR_PARALLEL_HALFWAY_W = 0.99999995499999494;
 
+        /** @brief Holds a blend parameter and the value a scalar lerp of 2 and 10 gives at it. */
+        struct ScalarBlendRow
+        {
+            double t;         /**< The blend parameter. */
+            double expected;  /**< The hand value. */
+        };
+
+        /** @brief Holds a blend parameter and the components of the rotation expected at it. */
+        struct RotationBlendRow
+        {
+            double t;         /**< The blend parameter. */
+            double x;         /**< Expected x. */
+            double y;         /**< Expected y. */
+            double z;         /**< Expected z. */
+            double w;         /**< Expected w. */
+        };
+
+        /// @brief The lerp of 2 and 10; a parameter of 2 runs as far past b as b is from a.
+        constexpr std::array<ScalarBlendRow, 4> K_SCALAR_LERP_ROWS{
+            {{0.0, 2.0}, {0.25, 4.0}, {1.0, 10.0}, {2.0, 18.0}}};
+
+        /// @brief The nlerp from no turn to a quarter turn about z; halfway is an eighth of a turn.
+        constexpr std::array<RotationBlendRow, 3> K_NLERP_ROWS{
+            {{0.0, 0.0, 0.0, 0.0, 1.0},
+             {1.0, 0.0, 0.0, K_INTERPOLATION_ROOT_HALF, K_INTERPOLATION_ROOT_HALF},
+             {0.5, 0.0, 0.0, K_INTERPOLATION_SINE_SIXTEENTH_TURN, K_INTERPOLATION_COSINE_SIXTEENTH_TURN}}};
+
+        /// @brief The slerp from no turn to a quarter turn about z; a third of it is a twelfth of a turn.
+        constexpr std::array<RotationBlendRow, 4> K_SLERP_ROWS{
+            {{1.0 / 3.0, 0.0, 0.0, K_INTERPOLATION_SINE_TWENTY_FOURTH_TURN, K_INTERPOLATION_COSINE_TWENTY_FOURTH_TURN},
+             {0.5, 0.0, 0.0, K_INTERPOLATION_SINE_SIXTEENTH_TURN, K_INTERPOLATION_COSINE_SIXTEENTH_TURN},
+             {0.0, 0.0, 0.0, 0.0, 1.0},
+             {1.0, 0.0, 0.0, K_INTERPOLATION_ROOT_HALF, K_INTERPOLATION_ROOT_HALF}}};
+
         /**
          * @brief Compares blends of element type T with hand-computed components.
          */
@@ -92,6 +135,29 @@ namespace SushiBLAS
                     EXPECT_NEAR(static_cast<double>(actual.w), w, tolerance());
                 }
 
+                /** @brief Expects each row's scalar lerp of 2 and 10 to match its hand value. */
+                template<std::size_t N>
+                static void expect_scalar_lerp_rows(const std::array<ScalarBlendRow, N>& rows)
+                {
+                    for (const ScalarBlendRow& row : rows)
+                    {
+                        EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(row.t))), row.expected,
+                                    tolerance())
+                            << "t " << row.t;
+                    }
+                }
+
+                /** @brief Expects blend(t) of every row to match the row's hand rotation. */
+                template<std::size_t N, typename Blend>
+                static void expect_rotation_rows(const std::array<RotationBlendRow, N>& rows, Blend blend)
+                {
+                    for (const RotationBlendRow& row : rows)
+                    {
+                        SCOPED_TRACE(row.t);
+                        expect_quaternion_near(blend(T(row.t)), row.x, row.y, row.z, row.w);
+                    }
+                }
+
                 /** @brief Returns the rotation of a quarter turn about z. */
                 [[nodiscard]] static Geometry::QuaternionT<T> quarter_turn_about_z() noexcept
                 {
@@ -112,14 +178,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryInterpolation, ScalarLerpIsLinearAndUnclamped)
         {
-            using T = TypeParam;
-            const double tolerance = TestFixture::tolerance();
-
-            EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(0))), 2.0, tolerance);
-            EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(0.25))), 4.0, tolerance);
-            EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(1))), 10.0, tolerance);
-            // A parameter of 2 runs as far past b as b is from a.
-            EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(2))), 18.0, tolerance);
+            TestFixture::expect_scalar_lerp_rows(K_SCALAR_LERP_ROWS);
         }
 
         TYPED_TEST(Small_GeometryInterpolation, VectorLerpBlendsEachComponent)
@@ -141,15 +200,8 @@ namespace SushiBLAS
             const Geometry::QuaternionT<T> identity{};
             const Geometry::QuaternionT<T> quarter = TestFixture::quarter_turn_about_z();
 
-            TestFixture::expect_quaternion_near(Geometry::nlerp(identity, quarter, T(0)), 0.0, 0.0,
-                                                0.0, 1.0);
-            TestFixture::expect_quaternion_near(Geometry::nlerp(identity, quarter, T(1)), 0.0, 0.0,
-                                                K_INTERPOLATION_ROOT_HALF,
-                                                K_INTERPOLATION_ROOT_HALF);
-            // Halfway between no turn and a quarter turn is an eighth of a turn about z.
-            TestFixture::expect_quaternion_near(
-                Geometry::nlerp(identity, quarter, T(0.5)), 0.0, 0.0,
-                K_INTERPOLATION_SINE_SIXTEENTH_TURN, K_INTERPOLATION_COSINE_SIXTEENTH_TURN);
+            TestFixture::expect_rotation_rows(
+                K_NLERP_ROWS, [&](T t) { return Geometry::nlerp(identity, quarter, t); });
         }
 
         TYPED_TEST(Small_GeometryInterpolation, NlerpFlipsTheSecondRotationToTheShortArc)
@@ -184,18 +236,8 @@ namespace SushiBLAS
             const Geometry::QuaternionT<T> identity{};
             const Geometry::QuaternionT<T> quarter = TestFixture::quarter_turn_about_z();
 
-            // A third of a quarter turn is a twelfth of a turn, whose half angle is 15 degrees.
-            TestFixture::expect_quaternion_near(
-                Geometry::slerp(identity, quarter, T(1.0 / 3.0)), 0.0, 0.0,
-                K_INTERPOLATION_SINE_TWENTY_FOURTH_TURN, K_INTERPOLATION_COSINE_TWENTY_FOURTH_TURN);
-            TestFixture::expect_quaternion_near(
-                Geometry::slerp(identity, quarter, T(0.5)), 0.0, 0.0,
-                K_INTERPOLATION_SINE_SIXTEENTH_TURN, K_INTERPOLATION_COSINE_SIXTEENTH_TURN);
-            TestFixture::expect_quaternion_near(Geometry::slerp(identity, quarter, T(0)), 0.0, 0.0,
-                                                0.0, 1.0);
-            TestFixture::expect_quaternion_near(Geometry::slerp(identity, quarter, T(1)), 0.0, 0.0,
-                                                K_INTERPOLATION_ROOT_HALF,
-                                                K_INTERPOLATION_ROOT_HALF);
+            TestFixture::expect_rotation_rows(
+                K_SLERP_ROWS, [&](T t) { return Geometry::slerp(identity, quarter, t); });
         }
 
         TYPED_TEST(Small_GeometryInterpolation, SlerpFlipsTheSecondRotationToTheShortArc)

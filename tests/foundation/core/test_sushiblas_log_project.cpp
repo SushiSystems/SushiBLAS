@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/sushiblas_log_project.hpp>
 
@@ -34,11 +35,18 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_SushiBLASLogProject, TheProjectIsReadFromSbLogLevel)
+        static_assert(K_SUSHIBLAS_LOG_PROJECT.name() == "sushiblas", "the project's name");
+        static_assert(K_SUSHIBLAS_LOG_PROJECT.level_variable() == "SB_LOG_LEVEL",
+                      "the variable that sets its levels");
+
+        TEST(Small_SushiBLASLogProject, TheProjectIsNamedSushiblas)
         {
-            static_assert(K_SUSHIBLAS_LOG_PROJECT.name() == "sushiblas", "the project's name");
-            static_assert(K_SUSHIBLAS_LOG_PROJECT.level_variable() == "SB_LOG_LEVEL",
-                          "the variable that sets its levels");
+            EXPECT_EQ(std::string(K_SUSHIBLAS_LOG_PROJECT.name()), "sushiblas");
+        }
+
+        TEST(Small_SushiBLASLogProject, TheLevelVariableIsSbLogLevel)
+        {
+            EXPECT_EQ(std::string(K_SUSHIBLAS_LOG_PROJECT.level_variable()), "SB_LOG_LEVEL");
         }
     } // namespace Test
 } // namespace SushiBLAS

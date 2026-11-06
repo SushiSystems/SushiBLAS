@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_orthonormal_sweep.cpp                                             */
+/* compile_philox.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -19,48 +19,30 @@
 /* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
 /* implied. See the License for the specific language governing           */
 /* permissions and limitations under the License.                         */
-/**************************************************************************/
 
 /**
- * @file test_orthonormal_sweep.cpp
- * @brief Tests the vector layout, the sweep count and the tiny-norm threshold of the sweep.
+ * @file compile_philox.cpp
+ * @brief Checks at compile time that a Philox block holds four floats or two doubles.
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <type_traits>
-#include <gtest/gtest.h>
-#include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
+#include <array>
+#include <cstddef>
+#include <SushiBLAS/random_kernels/sycl/philox.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
+    namespace Kernels
     {
-        TEST(Small_OrthonormalSweep, AVectorSetStartsEmpty)
+        namespace SYCL
         {
-            const Kernels::VectorSet set{};
-
-            EXPECT_EQ(set.count, int64_t{0});
-            EXPECT_EQ(set.length, int64_t{0});
-            EXPECT_EQ(set.elem_stride, int64_t{0});
-            EXPECT_EQ(set.vec_stride, int64_t{0});
-        }
-
-        TEST(Small_OrthonormalSweep, TheSweepRunsTwice)
-        {
-            static_assert(Kernels::K_ORTHONORMAL_SWEEPS == 2, "Two passes of Gram-Schmidt.");
-
-            EXPECT_EQ(Kernels::K_ORTHONORMAL_SWEEPS, 2);
-        }
-
-        TEST(Small_OrthonormalSweep, TheTinyNormIsTheSquareOfOneEMinusTwelve)
-        {
-            static_assert(std::is_same<decltype(Kernels::tiny_norm_sq<float>()), float>::value,
-                          "The threshold has the element type.");
-
-            EXPECT_DOUBLE_EQ(Kernels::tiny_norm_sq<double>(), 1e-24);
-            EXPECT_FLOAT_EQ(Kernels::tiny_norm_sq<float>(), 1e-24f);
-            EXPECT_GT(Kernels::tiny_norm_sq<float>(), 0.0f);
-        }
-    } // namespace Test
+            namespace Random
+            {
+                static_assert(K_DRAWS_PER_BLOCK<float> == 4, "Four floats per block.");
+                static_assert(K_DRAWS_PER_BLOCK<double> == 2, "Two doubles per block.");
+                static_assert(std::tuple_size<DrawBlock<float>>::value == 4, "A float block holds four draws.");
+                static_assert(std::tuple_size<DrawBlock<double>>::value == 2, "A double block holds two draws.");
+            } // namespace Random
+        } // namespace SYCL
+    } // namespace Kernels
 } // namespace SushiBLAS

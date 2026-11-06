@@ -27,17 +27,43 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/geometry/vector3.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type.
-        constexpr double K_VECTOR3_TOLERANCE_EPSILONS = 16.0;
+        /// @brief Rounded operations on the longest path to a hand value: a product and a sum.
+        constexpr double K_VECTOR3_ROUNDED_OPERATIONS = 2.0;
+
+        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type:
+        /// the default threshold times the rounded operations times the unit roundoff, which is half an epsilon.
+        constexpr double K_VECTOR3_TOLERANCE_EPSILONS =
+            TestSupport::K_DEFAULT_THRESHOLD * K_VECTOR3_ROUNDED_OPERATIONS *
+            (TestSupport::unit_roundoff<double>() / std::numeric_limits<double>::epsilon());
+
+        /// @brief The components of a vector in the order x, y, z.
+        using VectorRowComponents = std::array<double, 3>;
+
+        /// @brief Holds two vectors and their cross product.
+        struct CrossRow
+        {
+            VectorRowComponents left;       /**< The left factor. */
+            VectorRowComponents right;      /**< The right factor. */
+            VectorRowComponents expected;   /**< The hand product. */
+        };
+
+        /// @brief x y = z, y x = -z and (1, 2, 3) x (4, -5, 6) = (2 * 6 - 3 * -5, 3 * 4 - 1 * 6, 1 * -5 - 2 * 4).
+        constexpr std::array<CrossRow, 3> K_CROSS_ROWS{{
+            {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}},
+            {{0.0, 1.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 0.0, -1.0}},
+            {{1.0, 2.0, 3.0}, {4.0, -5.0, 6.0}, {27.0, 6.0, -13.0}}}};
 
         /**
          * @brief Compares vectors of element type T with hand-computed components.
@@ -53,6 +79,20 @@ namespace SushiBLAS
                            static_cast<double>(std::numeric_limits<T>::epsilon());
                 }
 
+                /** @brief Expects cross of the factors of every row to give the row's product. */
+                static void expect_cross_rows()
+                {
+                    for (const CrossRow& row : K_CROSS_ROWS)
+                    {
+                        const VectorRowComponents& l = row.left;
+                        const VectorRowComponents& r = row.right;
+                        const VectorRowComponents& want = row.expected;
+                        expect_vector_near(Geometry::cross(Geometry::Vector3T<T>{T(l[0]), T(l[1]), T(l[2])},
+                                                           Geometry::Vector3T<T>{T(r[0]), T(r[1]), T(r[2])}),
+                                           want[0], want[1], want[2]);
+                    }
+                }
+
                 /** @brief Expects each component of actual within tolerance() of its hand value. */
                 static void expect_vector_near(const Geometry::Vector3T<T>& actual, double x,
                                                double y, double z)
@@ -66,15 +106,6 @@ namespace SushiBLAS
         using GeometryVector3Types = ::testing::Types<float, double>;
         SB_TYPED_TEST_SUITE(Small_GeometryVector3, GeometryVector3Types);
 
-        TYPED_TEST(Small_GeometryVector3, DefaultIsTheZeroVector)
-        {
-            const Geometry::Vector3T<TypeParam> vector{};
-
-            EXPECT_EQ(vector.x, TypeParam(0));
-            EXPECT_EQ(vector.y, TypeParam(0));
-            EXPECT_EQ(vector.z, TypeParam(0));
-        }
-
         TYPED_TEST(Small_GeometryVector3, ComponentsLieInOrderWithoutPadding)
         {
             using Vector = Geometry::Vector3T<TypeParam>;
@@ -84,14 +115,29 @@ namespace SushiBLAS
             EXPECT_EQ(offsetof(Vector, z), 2 * sizeof(TypeParam));
         }
 
-        TYPED_TEST(Small_GeometryVector3, SumDifferenceAndScaleAreComponentwise)
+        TYPED_TEST(Small_GeometryVector3, SumIsComponentwise)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
             const Geometry::Vector3T<T> b{T(4), T(-5), T(6)};
 
             TestFixture::expect_vector_near(a + b, 5.0, -3.0, 9.0);
+        }
+
+        TYPED_TEST(Small_GeometryVector3, DifferenceIsComponentwise)
+        {
+            using T = TypeParam;
+            const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
+            const Geometry::Vector3T<T> b{T(4), T(-5), T(6)};
+
             TestFixture::expect_vector_near(a - b, -3.0, 7.0, -3.0);
+        }
+
+        TYPED_TEST(Small_GeometryVector3, ScaleIsComponentwise)
+        {
+            using T = TypeParam;
+            const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
+
             TestFixture::expect_vector_near(a * T(2), 2.0, 4.0, 6.0);
         }
 
@@ -107,16 +153,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryVector3, CrossIsRightHanded)
         {
-            using T = TypeParam;
-            const Geometry::Vector3T<T> x_axis{T(1), T(0), T(0)};
-            const Geometry::Vector3T<T> y_axis{T(0), T(1), T(0)};
-            const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
-            const Geometry::Vector3T<T> b{T(4), T(-5), T(6)};
-
-            TestFixture::expect_vector_near(Geometry::cross(x_axis, y_axis), 0.0, 0.0, 1.0);
-            TestFixture::expect_vector_near(Geometry::cross(y_axis, x_axis), 0.0, 0.0, -1.0);
-            // (2 * 6 - 3 * -5, 3 * 4 - 1 * 6, 1 * -5 - 2 * 4) = (27, 6, -13).
-            TestFixture::expect_vector_near(Geometry::cross(a, b), 27.0, 6.0, -13.0);
+            TestFixture::expect_cross_rows();
         }
 
         TYPED_TEST(Small_GeometryVector3, LengthIsTheEuclideanNorm)

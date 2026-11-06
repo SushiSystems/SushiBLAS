@@ -45,10 +45,15 @@ write the same bits.
 
 `EveryIndexTypeGivesTheSameBitsForTheSameValues` runs one case with the same index values stored
 as INT32, INT64 and UINT32 and expects the same bits from all three in both modes.
-`AUInt32IndexPastTheTransformsAddsNoTerm` includes the largest UINT32, which a signed read would
-take as negative. `TheNodeCarriesTheNameAndTheDeterminismClass` reads the name and the class of
-both calls from the runtime plan, and `AnEmptyNameOrAnUnknownClassIsRefused` covers the
-refusals of the options.
+`AnIndexOutsideTheTransformsAddsNoTerm` walks one row per index type, and the UINT32 row includes
+the largest UINT32, which a signed read would take as negative. `ACallWithOptionsCarriesItsName`
+and `ACallWithOptionsCarriesItsDeterminismClass` read the name and the class of a call with options
+from the runtime plan, `ACallWithoutOptionsKeepsTheOperationIdAndUnstated` reads those of a call
+without, and `AnEmptyNameIsRefused` and `AClassOutsideTheEnumIsRefused` cover the refusals of the
+options.
+
+A mode loop does not sit in a test body: each typed test calls one `expect_*` helper from
+`in_each_forced_mode`, and the helper walks the shapes of `table_cases()`.
 
 The refusal test records one well-formed call as the control, then one call per malformed operand
 and checks that the message names the operation and the operand. Every malformed operand is a

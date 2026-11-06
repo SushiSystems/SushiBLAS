@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_cost_shape.cpp                                                    */
+/* compile_profile.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -19,47 +19,37 @@
 /* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
 /* implied. See the License for the specific language governing           */
 /* permissions and limitations under the License.                         */
-/**************************************************************************/
 
 /**
- * @file test_cost_shape.cpp
- * @brief Tests that a CostShape holds one family at a time and starts empty.
+ * @file compile_profile.cpp
+ * @brief Checks at compile time that every SB_ macro is a statement a scope can hold, and that a
+ *        value only a macro reads draws no unused-variable warning.
  * @author Mustafa Garip
- * @see tests/foundation/cost/README.md
  */
 
-#include <SushiBLAS/cost/cost_shape.hpp>
-
-#include <variant>
-
-#include <gtest/gtest.h>
+#include <SushiBLAS/profile/profile.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_CostShape, ADefaultShapeStatesNothing)
+        /** @brief Uses every SB_ macro in one scope; the build compiles it and nothing calls it. */
+        [[maybe_unused]] static void use_every_macro_in_one_scope()
         {
-            const CostShape shape;
-            EXPECT_TRUE(std::holds_alternative<std::monostate>(shape));
+            double sample = 0.5;
+            SB_ZONE("compile_profile.stage");
+            SB_ZONE_FINE("compile_profile.fine");
+            SB_ZONE_DETAIL("compile_profile.detail");
+            SB_VALUE("compile_profile.sample", "", sample);
+            SB_COUNTER("compile_profile.count", "", Add, sample);
+            SB_INSTANT("compile_profile.instant");
         }
 
-        TEST(Small_CostShape, EachFamilyIsAnAlternative)
+        /** @brief Holds a value only a macro reads; the build fails if that draws a warning. */
+        [[maybe_unused]] static void read_a_value_only_through_a_macro()
         {
-            EXPECT_TRUE(std::holds_alternative<GemmShape>(CostShape(GemmShape{})));
-            EXPECT_TRUE(std::holds_alternative<ConvolutionShape>(CostShape(ConvolutionShape{})));
-            EXPECT_TRUE(std::holds_alternative<ElementwiseShape>(CostShape(ElementwiseShape{})));
-            EXPECT_TRUE(std::holds_alternative<ReductionShape>(CostShape(ReductionShape{})));
-            EXPECT_TRUE(std::holds_alternative<WindowShape>(CostShape(WindowShape{})));
-            EXPECT_TRUE(std::holds_alternative<TransformShape>(CostShape(TransformShape{})));
-            EXPECT_TRUE(std::holds_alternative<CopyShape>(CostShape(CopyShape{})));
-        }
-
-        TEST(Small_CostShape, ADefaultGemmIsOneProductWithNoEpilogue)
-        {
-            const GemmShape shape;
-            EXPECT_EQ(shape.batch, 1);
-            EXPECT_EQ(shape.epilogue_flops_per_element, 0U);
+            const double only_read_by_the_macro = 1.0;
+            SB_VALUE("compile_profile.only_read", "", only_read_by_the_macro);
         }
     } // namespace Test
 } // namespace SushiBLAS

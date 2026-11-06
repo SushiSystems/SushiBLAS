@@ -18,4 +18,5 @@ sushiblas_add_test_program(
         reference/test_blend_transforms.cpp
     DEVICE_TESTS
         sycl/test_blend_transforms.cpp
-        test_blend.cpp)
+    COMPILE_CHECKS
+        compile_blend.cpp)

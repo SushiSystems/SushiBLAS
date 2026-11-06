@@ -36,32 +36,30 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        static_assert(Core::is_complex_v<std::complex<float>>, "complex<float> is complex.");
+        static_assert(Core::is_complex_v<std::complex<double>>, "complex<double> is complex.");
+        static_assert(Core::is_complex<std::complex<float>>::value, "The trait agrees.");
+        static_assert(!Core::is_complex_v<float>, "float is real.");
+        static_assert(!Core::is_complex_v<double>, "double is real.");
+        static_assert(!Core::is_complex_v<int32_t>, "int32_t is an integer.");
+        static_assert(!Core::is_complex_v<int64_t>, "int64_t is an integer.");
+        static_assert(!Core::is_complex_v<const std::complex<float>>,
+                      "A qualified complex is not matched.");
+
         TEST(Small_Traits, IsComplexHoldsForEveryStdComplex)
         {
-            static_assert(Core::is_complex_v<std::complex<float>>, "complex<float> is complex.");
-            static_assert(Core::is_complex_v<std::complex<double>>, "complex<double> is complex.");
-            static_assert(Core::is_complex<std::complex<float>>::value, "The trait agrees.");
-
             EXPECT_TRUE(Core::is_complex_v<std::complex<float>>);
             EXPECT_TRUE(Core::is_complex_v<std::complex<double>>);
         }
 
         TEST(Small_Traits, IsComplexIsFalseForRealAndIntegerTypes)
         {
-            static_assert(!Core::is_complex_v<float>, "float is real.");
-            static_assert(!Core::is_complex_v<double>, "double is real.");
-            static_assert(!Core::is_complex_v<int32_t>, "int32_t is an integer.");
-            static_assert(!Core::is_complex_v<int64_t>, "int64_t is an integer.");
-
             EXPECT_FALSE(Core::is_complex_v<float>);
             EXPECT_FALSE(Core::is_complex_v<int64_t>);
         }
 
         TEST(Small_Traits, IsComplexReadsThePlainTypeOnly)
         {
-            static_assert(!Core::is_complex_v<const std::complex<float>>,
-                          "A qualified complex is not matched.");
-
             EXPECT_FALSE(Core::is_complex_v<std::complex<float>*>);
         }
     } // namespace Test

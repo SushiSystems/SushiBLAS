@@ -8,6 +8,6 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `compile_blend.cpp` | Compile check, never run: `blend.hpp` stands alone and declares the reference and the SYCL blend; the values are tested through the two `test_blend_transforms.cpp` files |
 | `reference/test_blend_transforms.cpp` | Tests the reference blend of transforms against hand values and a direct loop |
 | `sycl/test_blend_transforms.cpp` | Tests the SYCL blend of transforms against the reference on the host device |
-| `test_blend.cpp` | Tests that blend.hpp alone reaches the reference and the SYCL blend kernels |

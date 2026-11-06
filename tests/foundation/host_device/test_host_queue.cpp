@@ -29,17 +29,22 @@
 
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/host_queue.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_HostQueueOnDevice, ReturnsTheSameInOrderQueueOnACPUDevice)
+        /** @brief Runs the host queue test under the fixture that skips a machine with no CPU device. */
+        class Medium_HostQueueOnDevice : public HostDeviceTest
+        {
+
+        };
+
+        TEST_F(Medium_HostQueueOnDevice, ReturnsTheSameInOrderQueueOnACPUDevice)
         {
             sycl::queue* first = host_queue();
-            if (first == nullptr)
-                GTEST_SKIP() << "SYCL reports no CPU device.";
 
             EXPECT_EQ(first, host_queue());
             EXPECT_TRUE(first->get_device().is_cpu());

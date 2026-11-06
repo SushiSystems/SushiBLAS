@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <cmath>
 #include <vector>
 #include <cstddef>
@@ -39,8 +38,6 @@
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/reference/serial_reduce.hpp>
-#include <SushiBLAS/host_device/shared_array.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -71,33 +68,64 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Gives the serial-loop tests the queue the launched side submits to. */
-        class Medium_SerialLoops : public ::testing::Test
+        /** @brief Returns the host maximum of the terms as NaNPropagatingMax folds them. */
+        [[nodiscard]] static float serial_max(const std::vector<float>& terms)
         {
-            protected:
-                /** @brief Returns the queue of the test environment. */
-                [[nodiscard]] static sycl::queue& queue()
-                {
-                    return TestEnvironment::queue();
-                }
-        };
+            float out = -1.0f;
+            Serial::reduce<Reduce::NaNPropagatingMax>(
+                terms.data(), &out, terms.size(), [](float x) { return x; },
+                [](float value, std::size_t) { return value; });
+            return out;
+        }
+
+        /** @brief Returns the grid of K_GRID_ROWS by K_GRID_COLUMNS terms, row-major. */
+        [[nodiscard]] static std::vector<float> grid_terms()
+        {
+            std::vector<float> grid(K_GRID_ROWS * K_GRID_COLUMNS);
+            for (std::size_t i = 0; i < grid.size(); ++i)
+            {
+                grid[i] = static_cast<float>((i * 7) % 11) + 0.1f;
+            }
+            return grid;
+        }
+
+        /** @brief Returns the terms of one column of the row-major grid. */
+        [[nodiscard]] static std::vector<float> column_of(const std::vector<float>& grid,
+                                                          std::size_t column)
+        {
+            std::vector<float> terms;
+            for (std::size_t r = 0; r < K_GRID_ROWS; ++r)
+            {
+                terms.push_back(grid[r * K_GRID_COLUMNS + column]);
+            }
+            return terms;
+        }
+
+        /** @brief Expects each element of `folded` to hold the bits of the host fold of its segment. */
+        static void expect_bits_of_each_fold(const std::vector<float>& folded,
+                                             const std::vector<std::vector<float>>& segments)
+        {
+            ASSERT_EQ(folded.size(), segments.size());
+            for (std::size_t s = 0; s < segments.size(); ++s)
+            {
+                const float want = serial_sum(segments[s].data(), segments[s].size());
+                EXPECT_TRUE(same_bits(&folded[s], &want, 1)) << "segment " << s;
+            }
+        }
 
         /** @brief Tests that a host sum of HALF terms is added in double, where 2048 + 1 + 1 is 2050. */
-        TEST_F(Medium_SerialLoops, ASumOfHalfIsFormedInDouble)
+        TEST(Small_SerialLoops, ASumOfHalfIsFormedInDouble)
         {
             static_assert(
                 std::is_same_v<Serial::Fold<Reduce::CompensatedSum, sycl::half>::Wide, double>,
                 "The host sum of HALF terms is formed in double.");
 
-            sycl::queue& q = queue();
-            SharedArray<sycl::half> terms(q, 3);
-            terms.get()[0] = sycl::half(2048.0f);
-            terms.get()[1] = sycl::half(1.0f);
-            terms.get()[2] = sycl::half(1.0f);
+            const std::vector<sycl::half> terms{sycl::half(2048.0f), sycl::half(1.0f),
+                                                sycl::half(1.0f)};
 
             sycl::half out(0.0f);
             Serial::reduce<Reduce::CompensatedSum>(
-                static_cast<const sycl::half*>(terms.get()), &out, std::size_t{3},
+                terms.data(), &out, terms.size(),
                 [](sycl::half x) { return x; },
                 [](double value, std::size_t) { return value; });
 
@@ -105,48 +133,41 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<float>(out), 2050.0f);
         }
 
-        /** @brief Tests that a host fold keeps the NaN, signed-zero and tie rules of its accumulator. */
-        TEST_F(Medium_SerialLoops, AnOrderedFoldKeepsTheAccumulatorsRule)
+        /** @brief Tests that a host maximum propagates a NaN term. */
+        TEST(Small_SerialLoops, AMaximumPropagatesANaN)
         {
-            sycl::queue& q = queue();
-            const auto identity = [](float x) { return x; };
-            const auto keep = [](float value, std::size_t) { return value; };
+            EXPECT_TRUE(std::isnan(serial_max({1.0f, std::nanf(""), 3.0f})));
+        }
 
-            SharedArray<float> values(q, 3);
-            float* v = values.get();
-            const float* in = v;
+        /** @brief Tests that a host maximum of -0 and +0 is the positive zero. */
+        TEST(Small_SerialLoops, AMaximumOfSignedZerosIsThePositiveZero)
+        {
+            const float maximum = serial_max({-0.0f, 0.0f});
 
-            v[0] = 1.0f;
-            v[1] = std::nanf("");
-            v[2] = 3.0f;
-            float maximum = 0.0f;
-            Serial::reduce<Reduce::NaNPropagatingMax>(in, &maximum, std::size_t{3}, identity, keep);
-            EXPECT_TRUE(std::isnan(maximum));
-
-            v[0] = -0.0f;
-            v[1] = 0.0f;
-            maximum = -1.0f;
-            Serial::reduce<Reduce::NaNPropagatingMax>(in, &maximum, std::size_t{2}, identity, keep);
             EXPECT_EQ(maximum, 0.0f);
             EXPECT_FALSE(std::signbit(maximum));
+        }
 
-            v[0] = 5.0f;
-            v[1] = 7.0f;
-            v[2] = 7.0f;
+        /** @brief Tests that a host argmax keeps the first index of a tie. */
+        TEST(Small_SerialLoops, AnArgMaxKeepsTheFirstIndexOfATie)
+        {
+            const std::vector<float> in{5.0f, 7.0f, 7.0f};
             std::int64_t elected = -2;
+
             Serial::reduce_indexed<Reduce::RunningArgMax>(
-                std::size_t{3},
-                [in](std::size_t i)
+                in.size(),
+                [&in](std::size_t i)
                 {
                     return Reduce::IndexedValue<float>{in[i], static_cast<std::int64_t>(i)};
                 },
                 &elected,
                 [](Reduce::IndexedValue<float> winner, std::size_t) { return winner.index; });
+
             EXPECT_EQ(elected, std::int64_t{1});
         }
 
         /** @brief Tests that a host fold over no element writes the identity of its accumulator. */
-        TEST_F(Medium_SerialLoops, AFoldOfNothingFinalizesTheIdentity)
+        TEST(Small_SerialLoops, AFoldOfNothingFinalizesTheIdentity)
         {
             const float* nothing = nullptr;
             const auto identity = [](float x) { return x; };
@@ -164,54 +185,50 @@ namespace SushiBLAS
             EXPECT_EQ(product, 1.0f);
         }
 
-        /** @brief Tests that the host axis fold of a 3 by 5 grid equals one host fold per row and per column. */
-        TEST_F(Medium_SerialLoops, AxisFoldMatchesOneFoldPerSegment)
+        /** @brief Tests that the host axis fold of a 3 by 5 grid along its rows equals one host fold per row. */
+        TEST(Small_SerialLoops, AxisFoldAlongRowsMatchesOneFoldPerRow)
         {
-            sycl::queue& q = queue();
-            const std::size_t rows = K_GRID_ROWS;
-            const std::size_t columns = K_GRID_COLUMNS;
-
-            SharedArray<float> grid(q, rows * columns);
-            for (std::size_t i = 0; i < rows * columns; ++i)
-                grid.get()[i] = static_cast<float>((i * 7) % 11) + 0.1f;
-            const float* in = grid.get();
-
-            const auto identity = [](float x) { return x; };
-            const auto keep = [](double value, std::size_t) { return value; };
-
+            const std::vector<float> grid = grid_terms();
             Reduce::AxisSpan row_span;
-            row_span.segments = rows;
-            row_span.extent = columns;
-            row_span.segment_stride = columns;
+            row_span.segments = K_GRID_ROWS;
+            row_span.extent = K_GRID_COLUMNS;
+            row_span.segment_stride = K_GRID_COLUMNS;
 
-            std::array<float, K_GRID_ROWS> row_sums{};
-            Serial::reduce_axis<Reduce::CompensatedSum>(in, row_sums.data(), row_span, identity,
-                                                        keep);
-            for (std::size_t r = 0; r < rows; ++r)
+            std::vector<float> row_sums(K_GRID_ROWS);
+            Serial::reduce_axis<Reduce::CompensatedSum>(
+                grid.data(), row_sums.data(), row_span, [](float x) { return x; },
+                [](double value, std::size_t) { return value; });
+
+            std::vector<std::vector<float>> rows;
+            for (std::size_t r = 0; r < K_GRID_ROWS; ++r)
             {
-                const float want = serial_sum(in + r * columns, columns);
-                EXPECT_TRUE(same_bits(&row_sums[r], &want, 1)) << "row " << r;
+                rows.emplace_back(grid.begin() + r * K_GRID_COLUMNS,
+                                  grid.begin() + (r + 1) * K_GRID_COLUMNS);
             }
-
-            Reduce::AxisSpan column_span;
-            column_span.segments = columns;
-            column_span.extent = rows;
-            column_span.segment_stride = 1;
-            column_span.element_stride = columns;
-
-            std::array<float, K_GRID_COLUMNS> column_sums{};
-            Serial::reduce_axis<Reduce::CompensatedSum>(in, column_sums.data(), column_span,
-                                                        identity, keep);
-            for (std::size_t c = 0; c < columns; ++c)
-            {
-                std::array<float, K_GRID_ROWS> column{};
-                for (std::size_t r = 0; r < rows; ++r)
-                    column[r] = in[r * columns + c];
-
-                const float want = serial_sum(column.data(), rows);
-                EXPECT_TRUE(same_bits(&column_sums[c], &want, 1)) << "column " << c;
-            }
+            expect_bits_of_each_fold(row_sums, rows);
         }
 
+        /** @brief Tests that the host axis fold of a 3 by 5 grid along its columns equals one host fold per column. */
+        TEST(Small_SerialLoops, AxisFoldAlongColumnsMatchesOneFoldPerColumn)
+        {
+            const std::vector<float> grid = grid_terms();
+            Reduce::AxisSpan column_span;
+            column_span.segments = K_GRID_COLUMNS;
+            column_span.extent = K_GRID_ROWS;
+            column_span.segment_stride = 1;
+            column_span.element_stride = K_GRID_COLUMNS;
+
+            std::vector<float> column_sums(K_GRID_COLUMNS);
+            Serial::reduce_axis<Reduce::CompensatedSum>(
+                grid.data(), column_sums.data(), column_span, [](float x) { return x; },
+                [](double value, std::size_t) { return value; });
+
+            std::vector<std::vector<float>> columns;
+            for (std::size_t c = 0; c < K_GRID_COLUMNS; ++c)
+            {
+                columns.push_back(column_of(grid, c));
+            }
+            expect_bits_of_each_fold(column_sums, columns);
+        }
     } // namespace Test
 } // namespace SushiBLAS

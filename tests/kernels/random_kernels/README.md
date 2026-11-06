@@ -8,9 +8,10 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `compile_random.cpp` | Compile check, never run: `random.hpp` stands alone and declares the draws and both orthonormalisation sweeps; the values are tested through the Philox, Poisson, truncated normal and orthonormalize files |
+| `sycl/compile_philox.cpp` | Compile check, never run: a Philox block holds four floats or two doubles |
 | `reference/test_orthonormalize.cpp` | Tests that the reference sweep leaves strided vectors orthogonal and of the given norm |
 | `sycl/test_orthonormalize.cpp` | Tests the work-group SYCL sweep against the reference sweep on the host device |
 | `sycl/test_philox.cpp` | Tests Philox4x32-10 against its known answers and the draws built on it, host and device |
 | `sycl/test_poisson.cpp` | Tests the Poisson parameters, both draw methods and their agreement on the host device |
 | `sycl/test_truncated_normal.cpp` | Tests the normal distribution function and the truncated draws it inverts |
-| `test_random.cpp` | Tests that random.hpp alone reaches the draws and both orthonormalisation sweeps |

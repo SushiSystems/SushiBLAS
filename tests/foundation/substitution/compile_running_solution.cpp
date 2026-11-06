@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_host_device_test.cpp                                              */
+/* compile_running_solution.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,29 +22,33 @@
 /**************************************************************************/
 
 /**
- * @file test_host_device_test.cpp
- * @brief Tests that HostDeviceTest hands a test the host CPU queue.
+ * @file compile_running_solution.cpp
+ * @brief Checks at compile time which element types RunningSolution carries in a wider type.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
+#include <complex>
+#include <type_traits>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/host_device/host_device_test.hpp>
+#include <SushiBLAS/substitution/running_solution.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the fixture under its own suite name. */
-        class Medium_HostDeviceTest : public HostDeviceTest
-        {
-
-        };
-
-        TEST_F(Medium_HostDeviceTest, GivesTheHostQueueToTheTest)
-        {
-            EXPECT_EQ(&queue(), host_queue());
-            EXPECT_TRUE(queue().get_device().is_cpu());
-        }
+        static_assert(Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE,
+                      "HALF is carried in FLOAT32.");
+        static_assert(!Kernels::RunningSolution<float>::K_NEEDS_WORKSPACE,
+                      "FLOAT32 is carried in itself.");
+        static_assert(!Kernels::RunningSolution<double>::K_NEEDS_WORKSPACE,
+                      "FLOAT64 is carried in itself.");
+        static_assert(!Kernels::RunningSolution<std::complex<float>>::K_NEEDS_WORKSPACE,
+                      "COMPLEX32 is carried in itself.");
+        static_assert(!Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE,
+                      "COMPLEX64 is carried in itself.");
+        static_assert(std::is_same_v<Kernels::RunningSolution<sycl::half>::Wide, float>,
+                      "HALF is carried in FLOAT32.");
+        static_assert(std::is_same_v<Kernels::RunningSolution<double>::Wide, double>,
+                      "FLOAT64 is carried in itself.");
     } // namespace Test
 } // namespace SushiBLAS

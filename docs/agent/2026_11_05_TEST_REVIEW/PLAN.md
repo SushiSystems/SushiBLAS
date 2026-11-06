@@ -23,50 +23,50 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M2 | the tests of `cli` (8 files): 56 rewrite, 18 resize, 1 split, 13 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M3 | the tests of `data` (12 files): 12 rewrite, 17 resize, 22 split, 3 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M4 | the tests of `engine` (56 files): 67 rewrite, 70 resize, 31 split, 43 merge, 35 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M5 | the tests of `foundation/arithmetic` (6 files): 19 rewrite, 1 resize, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M6 | the tests of `foundation/blas_test_oracle` (4 files): 6 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M7 | the tests of `foundation/core` (9 files): 18 rewrite, 3 resize, 1 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M8 | the tests of `foundation/cost` (4 files): 5 rewrite, 7 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M9 | the tests of `foundation/geometry` (6 files): 15 rewrite, 1 resize, 3 split, 2 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M5 | the tests of `foundation/arithmetic` (6 files): 19 rewrite, 1 resize, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M6 | the tests of `foundation/blas_test_oracle` (4 files): 6 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M7 | the tests of `foundation/core` (9 files): 18 rewrite, 3 resize, 1 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M8 | the tests of `foundation/cost` (4 files): 5 rewrite, 7 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M9 | the tests of `foundation/geometry` (6 files): 15 rewrite, 1 resize, 3 split, 2 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M10 | the tests of `foundation/graph_primitives` (14 files): 82 rewrite, 10 resize, 7 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M11 | the tests of `foundation/host_device` (3 files): 1 rewrite, 3 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M11 | the tests of `foundation/host_device` (3 files): 1 rewrite, 3 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M12 | the tests of `foundation/launch` (6 files): 14 rewrite, 14 resize, 1 split, 1 merge, 8 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M13 | the tests of `foundation/orthonormal` (1 file): 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M14 | the tests of `foundation/profile` (3 files): 2 rewrite, 3 resize, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M15 | the tests of `foundation/reduction` (2 files): 4 rewrite, 8 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M16 | the tests of `foundation/reference` (3 files): 4 rewrite, 10 resize, 1 split, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M17 | the tests of `foundation/serial_reductions` (1 file): 3 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M18 | the tests of `foundation/small_integers` (1 file): 2 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M13 | the tests of `foundation/orthonormal` (1 file): 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M14 | the tests of `foundation/profile` (3 files): 2 rewrite, 3 resize, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M15 | the tests of `foundation/reduction` (2 files): 4 rewrite, 8 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M16 | the tests of `foundation/reference` (3 files): 4 rewrite, 10 resize, 1 split, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M17 | the tests of `foundation/serial_reductions` (1 file): 3 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M18 | the tests of `foundation/small_integers` (1 file): 2 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M19 | the tests of `foundation/sparse_assembly` (1 file): 2 rewrite, 14 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M20 | the tests of `foundation/sparse_fixtures` (2 files): 7 rewrite, 2 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M21 | the tests of `foundation/substitution` (1 file): 4 rewrite, 3 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M22 | the tests of `foundation/test_runner` (4 files): 6 rewrite, 1 resize, 1 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M23 | the tests of `foundation/typed_suite_naming` (1 file): 1 resize, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M20 | the tests of `foundation/sparse_fixtures` (2 files): 7 rewrite, 2 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M21 | the tests of `foundation/substitution` (1 file): 4 rewrite, 3 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M22 | the tests of `foundation/test_runner` (4 files): 6 rewrite, 1 resize, 1 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M23 | the tests of `foundation/typed_suite_naming` (1 file): 1 resize, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M24 | the tests of `kernels/blas_kernels` (56 files): 55 rewrite, 2 resize, 12 split, 1 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M25 | the tests of `kernels/blas_seam_kernels` (25 files): 62 rewrite, 14 resize, 4 split, 5 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M26 | the tests of `kernels/blend_kernels` (3 files): 4 rewrite, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M26 | the tests of `kernels/blend_kernels` (3 files): 4 rewrite, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M27 | the tests of `kernels/linalg_kernels` (7 files): 14 rewrite, 3 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M28 | the tests of `kernels/packed_product_harness` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M29 | the tests of `kernels/random_kernels` (6 files): 12 rewrite, 4 resize, 2 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M30 | the tests of `kernels/signal_kernels` (6 files): 10 rewrite, 2 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M28 | the tests of `kernels/packed_product_harness` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M29 | the tests of `kernels/random_kernels` (6 files): 12 rewrite, 4 resize, 2 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M30 | the tests of `kernels/signal_kernels` (6 files): 10 rewrite, 2 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M31 | the tests of `kernels/sparse_kernels` (16 files): 13 rewrite, 1 resize, 4 split, 6 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M32 | the tests of `kernels/spatial_kernels` (19 files): 6 rewrite, 6 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M33 | the tests of `library` (13 files): 63 rewrite, 26 resize, 8 split, 4 merge, 16 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M34 | the tests of `operations/benchmark_harness` (3 files): 4 rewrite, 8 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M36 | the tests of `operations/blend` (1 file): 11 rewrite, 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M36 | the tests of `operations/blend` (1 file): 11 rewrite, 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M38 | the tests of `operations/experimental` (3 files): 6 rewrite, 11 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M38 | the tests of `operations/experimental` (3 files): 6 rewrite, 11 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M39 | the tests of `operations/index` (1 file): 3 rewrite, 2 resize, 3 split, 11 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M40 | the tests of `operations/io` (5 files): 15 rewrite, 8 resize, 7 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M41 | the tests of `operations/logic` (15 files): 13 rewrite, 2 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M42 | the tests of `operations/nonlinear` (10 files): 22 rewrite, 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M43 | the tests of `operations/random` (11 files): 32 rewrite, 1 resize, 8 split, 11 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M44 | the tests of `operations/reductions` (13 files): 66 rewrite, 3 resize, 12 split, 22 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M45 | the tests of `operations/signal` (1 file): 5 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M45 | the tests of `operations/signal` (1 file): 5 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M46 | the tests of `operations/sparse` (12 files): 50 rewrite, 6 resize, 9 split, 8 merge, 8 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M47 | the tests of `operations/spatial` (12 files): 44 rewrite, 17 resize, 12 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M48 | the tests of `package` (1 file): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M48 | the tests of `package` (1 file): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M49 | the tests of `tools` (7 files): 11 rewrite, 37 resize, 11 split, 14 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 
 ## Acceptance

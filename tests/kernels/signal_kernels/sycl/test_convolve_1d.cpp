@@ -28,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -41,59 +42,60 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the kernel on the host CPU queue. */
-        class Medium_SYCLConvolve1D : public HostDeviceTest
+        namespace
+        {
+            /// @brief Holds the shape of one convolution the device and the reference both run.
+            struct ConvolutionShape
+            {
+                    const char* name;
+                    int64_t rows;
+                    int64_t length;
+                    int64_t taps;
+            };
+
+            /// @brief Returns batched rows, one tap and taps as long as the row.
+            std::vector<ConvolutionShape> convolution_shapes()
+            {
+                return {{"BatchedRows", 6, 37, 9},
+                        {"OneTap", 4, 7, 1},
+                        {"TapsAsLongAsTheRow", 4, 7, 7}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string convolution_shape_name(const ::testing::TestParamInfo<ConvolutionShape>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the kernel on the host CPU queue, one shape at a time. */
+        class Medium_SYCLConvolve1D : public HostDeviceTest, public ::testing::WithParamInterface<ConvolutionShape>
         {
 
         };
 
-        TEST_F(Medium_SYCLConvolve1D, MatchesTheReferenceOnBatchedRows)
+        TEST_P(Medium_SYCLConvolve1D, MatchesTheReferenceOnBatchedRows)
         {
             // Every value is a small integer, so both kernels compute without rounding.
-            constexpr int64_t K_ROWS = 6;
-            constexpr int64_t K_LENGTH = 37;
-            constexpr int64_t K_TAPS = 9;
-            constexpr std::size_t K_OUTPUTS = K_ROWS * (K_LENGTH - K_TAPS + 1);
-            const std::vector<double> signal = small_integers<double>(K_ROWS * K_LENGTH, 1);
-            const std::vector<double> taps = small_integers<double>(K_TAPS, 2);
+            const ConvolutionShape& shape = GetParam();
+            const std::size_t outputs = static_cast<std::size_t>(shape.rows * (shape.length - shape.taps + 1));
+            const std::vector<double> signal =
+                small_integers<double>(static_cast<std::size_t>(shape.rows * shape.length), 1);
+            const std::vector<double> taps = small_integers<double>(static_cast<std::size_t>(shape.taps), 2);
             const SharedArray<double> device_signal(queue(), signal);
             const SharedArray<double> device_taps(queue(), taps);
-            SharedArray<double> device_out(queue(), K_OUTPUTS);
-            std::vector<double> out(K_OUTPUTS);
+            SharedArray<double> device_out(queue(), outputs);
+            std::vector<double> out(outputs);
 
-            Kernels::SYCL::convolve_1d(queue(), K_ROWS, K_LENGTH, K_TAPS, device_signal.get(),
+            Kernels::SYCL::convolve_1d(queue(), shape.rows, shape.length, shape.taps, device_signal.get(),
                                        device_taps.get(), device_out.get(), {}).wait();
-            Kernels::Reference::convolve_1d(K_ROWS, K_LENGTH, K_TAPS, signal.data(), taps.data(),
+            Kernels::Reference::convolve_1d(shape.rows, shape.length, shape.taps, signal.data(), taps.data(),
                                             out.data());
 
             EXPECT_EQ(device_out.values(), out);
         }
 
-        TEST_F(Medium_SYCLConvolve1D, MatchesTheReferenceWithOneTapAndWithTapsAsLongAsTheRow)
-        {
-            constexpr int64_t K_ROWS = 4;
-            constexpr int64_t K_LENGTH = 7;
-
-            for (const int64_t tap_count : {int64_t{1}, K_LENGTH})
-            {
-                const std::size_t outputs =
-                    static_cast<std::size_t>(K_ROWS * (K_LENGTH - tap_count + 1));
-                const std::vector<double> signal = small_integers<double>(K_ROWS * K_LENGTH, 3);
-                const std::vector<double> taps =
-                    small_integers<double>(static_cast<std::size_t>(tap_count), 4);
-                const SharedArray<double> device_signal(queue(), signal);
-                const SharedArray<double> device_taps(queue(), taps);
-                SharedArray<double> device_out(queue(), outputs);
-                std::vector<double> out(outputs);
-
-                Kernels::SYCL::convolve_1d(queue(), K_ROWS, K_LENGTH, tap_count,
-                                           device_signal.get(), device_taps.get(),
-                                           device_out.get(), {}).wait();
-                Kernels::Reference::convolve_1d(K_ROWS, K_LENGTH, tap_count, signal.data(),
-                                                taps.data(), out.data());
-
-                EXPECT_EQ(device_out.values(), out) << "taps " << tap_count;
-            }
-        }
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLConvolve1D, ::testing::ValuesIn(convolution_shapes()),
+                                 convolution_shape_name);
     } // namespace Test
 } // namespace SushiBLAS

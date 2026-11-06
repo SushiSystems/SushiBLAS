@@ -45,14 +45,20 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SharedArray, StartsValueInitialisedAndAligned)
+        TEST_F(Medium_SharedArray, StartsValueInitialised)
         {
             const SharedArray<float> array(queue(), 5);
 
             EXPECT_EQ(array.size(), std::size_t{5});
+            EXPECT_EQ(array.values(), std::vector<float>(5, 0.0f));
+        }
+
+        TEST_F(Medium_SharedArray, IsAlignedToTheSharedArrayAlignment)
+        {
+            const SharedArray<float> array(queue(), 5);
+
             EXPECT_EQ(reinterpret_cast<std::uintptr_t>(array.get()) % K_SHARED_ARRAY_ALIGNMENT,
                       std::uintptr_t{0});
-            EXPECT_EQ(array.values(), std::vector<float>(5, 0.0f));
         }
 
         TEST_F(Medium_SharedArray, HoldsTheValuesItWasGiven)

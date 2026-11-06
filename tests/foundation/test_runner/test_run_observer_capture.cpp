@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -55,28 +56,46 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Medium_RunObserverCapture, KeepsOneRecordPerDispatch)
+        /// @brief Holds the number of runs one case makes.
+        using RunCount = std::size_t;
+
+        /// @brief Names a row by its run count, which gtest takes as the test's suffix.
+        static std::string run_count_name(const ::testing::TestParamInfo<RunCount>& info)
         {
-            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
-            RunObserverCapture capture(runtime);
-
-            run_two_nodes(runtime);
-
-            EXPECT_EQ(capture.run_count(), std::size_t{1});
-            EXPECT_EQ(capture.records().size(), std::size_t{2});
+            return std::to_string(info.param) + "Runs";
         }
 
-        TEST(Medium_RunObserverCapture, RecordsArriveInTheRunsOrderAndClearForgetsThem)
+        /// @brief Runs the two-node graph a number of times under one RunObserverCapture.
+        class Medium_RunObserverCapture : public ::testing::TestWithParam<RunCount>
+        {
+        };
+
+        TEST_P(Medium_RunObserverCapture, KeepsOneRecordPerDispatch)
         {
             SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             RunObserverCapture capture(runtime);
 
+            for (RunCount run = 0; run < GetParam(); ++run)
+            {
+                run_two_nodes(runtime);
+            }
+
+            EXPECT_EQ(capture.run_count(), GetParam());
+            EXPECT_EQ(capture.records().size(), GetParam() * 2);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_RunObserverCapture, ::testing::Values(RunCount{1}, RunCount{2}),
+                                 run_count_name);
+
+        TEST(Medium_RunObserverCaptureClear, ClearForgetsTheRunsAndTheirRecords)
+        {
+            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
+            RunObserverCapture capture(runtime);
             run_two_nodes(runtime);
             run_two_nodes(runtime);
-            EXPECT_EQ(capture.run_count(), std::size_t{2});
-            EXPECT_EQ(capture.records().size(), std::size_t{4});
 
             capture.clear();
+
             EXPECT_EQ(capture.run_count(), std::size_t{0});
             EXPECT_TRUE(capture.records().empty());
         }
@@ -89,7 +108,11 @@ namespace SushiBLAS
                 run_two_nodes(runtime);
             }
 
-            EXPECT_NO_THROW(run_two_nodes(runtime));
+            run_two_nodes(runtime);
+
+            RunObserverCapture fresh(runtime);
+
+            EXPECT_EQ(fresh.run_count(), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -37,31 +37,41 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_BlasTruth, AnEmptySumIsZero)
+        /**
+         * @brief Expects 1 + u to round back to 1 and 1 + 1.5 u to round up, in T: u is then the
+         *        largest relative error of rounding to nearest, read from T's own arithmetic.
+         */
+        template<typename T>
+        static void expect_unit_roundoff_is_the_rounding_threshold()
         {
-            const TruthValue value = TruthSum{}.value();
+            const T one = static_cast<T>(1.0f);
+            const double unit = unit_roundoff<T>();
+
+            EXPECT_EQ(static_cast<float>(static_cast<T>(one + static_cast<T>(unit))), 1.0f);
+            EXPECT_GT(static_cast<float>(static_cast<T>(one + static_cast<T>(1.5 * unit))), 1.0f);
+        }
+
+        TEST(Small_BlasTruth, ASumOfNoTermsIsZero)
+        {
+            TruthSum truth;
+            const TruthValue value = truth.value();
 
             EXPECT_EQ(value.value, 0.0);
             EXPECT_EQ(value.magnitude, 0.0);
         }
 
-        TEST(Medium_BlasTruth, KeepsATermAPlainDoubleSumRoundsAway)
+        TEST(Small_BlasTruth, KeepsATermAPlainDoubleSumRoundsAway)
         {
             TruthSum truth;
             truth.add_product(1.0e16, 1.0);
             truth.add_product(1.0, 1.0);
             truth.add_product(-1.0e16, 1.0);
 
-            double naive = 1.0e16;
-            naive += 1.0;
-            naive -= 1.0e16;
-
-            EXPECT_EQ(naive, 0.0);
             EXPECT_EQ(truth.value().value, 1.0);
             EXPECT_DOUBLE_EQ(truth.value().magnitude, 2.0e16);
         }
 
-        TEST(Medium_BlasTruth, KeepsTheRoundingErrorOfAProduct)
+        TEST(Small_BlasTruth, KeepsTheRoundingErrorOfAProduct)
         {
             // (1 + 2^-30)^2 = 1 + 2^-29 + 2^-60; the last term is below a double's step at 1.
             const double a = 1.0 + 0x1p-30;
@@ -73,19 +83,36 @@ namespace SushiBLAS
             EXPECT_EQ(truth.value().value, 0x1p-60);
         }
 
-        TEST(Medium_BlasTruth, UnitRoundoffIsHalfTheEpsilon)
+        TEST(Small_BlasTruth, UnitRoundoffIsTheRoundingThresholdOfDouble)
         {
-            EXPECT_EQ(unit_roundoff<double>(), 0x1p-53);
-            EXPECT_EQ(unit_roundoff<float>(), 0x1p-24);
-            EXPECT_EQ(unit_roundoff<sycl::half>(), 0x1p-11);
+            expect_unit_roundoff_is_the_rounding_threshold<double>();
         }
 
-        TEST(Medium_BlasTruth, TheRoundingBoundGrowsWithTheRoundings)
+        TEST(Small_BlasTruth, UnitRoundoffIsTheRoundingThresholdOfFloat)
         {
-            const double unit = unit_roundoff<float>();
+            expect_unit_roundoff_is_the_rounding_threshold<float>();
+        }
 
-            EXPECT_EQ(rounding_bound(0, unit, 100.0), 0.0);
-            EXPECT_DOUBLE_EQ(rounding_bound(10, unit, 1.0), 10.0 * unit / (1.0 - 10.0 * unit));
+        TEST(Small_BlasTruth, UnitRoundoffIsTheRoundingThresholdOfHalf)
+        {
+            expect_unit_roundoff_is_the_rounding_threshold<sycl::half>();
+        }
+
+        TEST(Small_BlasTruth, TheRoundingBoundOfZeroRoundingsIsZero)
+        {
+            EXPECT_EQ(rounding_bound(0, 0.01, 100.0), 0.0);
+        }
+
+        TEST(Small_BlasTruth, TheRoundingBoundIsGammaTimesTheMagnitude)
+        {
+            // gamma = 10 * 0.01 / (1 - 10 * 0.01) = 1 / 9, so the bound of magnitude 3 is 1 / 3.
+            EXPECT_DOUBLE_EQ(rounding_bound(10, 0.01, 3.0), 1.0 / 3.0);
+        }
+
+        TEST(Small_BlasTruth, TheRoundingBoundGrowsWithTheRoundings)
+        {
+            const double unit = 0.01;
+
             EXPECT_LT(rounding_bound(10, unit, 1.0), rounding_bound(11, unit, 1.0));
         }
     } // namespace Test

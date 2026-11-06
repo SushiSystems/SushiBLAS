@@ -28,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -43,98 +44,135 @@ namespace SushiBLAS
     {
         namespace
         {
-            /**
-             * @brief Returns indices that run from -1 to 4, so each blend meets both ends of an
-             *        out-of-range one.
-             */
+            /// @brief Holds the sizes of one blend and the index values its influences carry.
+            struct BlendShape
+            {
+                    int64_t points;       ///< Points to blend.
+                    int64_t transforms;   ///< Transforms to choose from.
+                    int64_t influences;   ///< Influences per point.
+                    int64_t components;   ///< 3 for a position, 4 for a homogeneous point.
+                    int64_t rows;         ///< 3 for an implied last row, 4 for a full transform.
+                    int64_t first_index;  ///< The smallest index; below zero it is out of range.
+                    int64_t index_period; ///< How many consecutive indices repeat.
+            };
+
+            /// @brief Holds what the device wrote and what the reference wrote, both in double.
+            struct BlendOutcome
+            {
+                    std::vector<double> device;
+                    std::vector<double> reference;
+            };
+
+            /// @brief Returns indices that run from first_index for a period, so a blend can meet both ends of an out-of-range one.
             template<typename Index>
-            std::vector<Index> indices_around(std::size_t count)
+            std::vector<Index> indices_around(std::size_t count, const BlendShape& shape)
             {
                 std::vector<Index> indices(count);
                 for (std::size_t i = 0; i < count; ++i)
-                    indices[i] = static_cast<Index>(static_cast<int64_t>(i % 6) - 1);
+                    indices[i] = static_cast<Index>(shape.first_index +
+                                                    static_cast<int64_t>(i % static_cast<std::size_t>(shape.index_period)));
                 return indices;
+            }
+
+            /// @brief Returns the values widened to double.
+            template<typename T>
+            std::vector<double> widened(const std::vector<T>& values)
+            {
+                return std::vector<double>(values.begin(), values.end());
+            }
+
+            /**
+             * @brief Blends small integers on the queue and on the host.
+             *
+             * Every value is a small integer, so both kernels compute without rounding.
+             */
+            template<typename T, typename Index>
+            BlendOutcome run_blend(sycl::queue& queue, const BlendShape& shape)
+            {
+                const std::size_t slots = static_cast<std::size_t>(shape.points * shape.influences);
+                const std::size_t outputs = static_cast<std::size_t>(shape.points * shape.components);
+                const std::vector<T> points = small_integers<T>(outputs, 1);
+                const std::vector<T> matrices =
+                    small_integers<T>(static_cast<std::size_t>(shape.transforms * shape.rows * 4), 2);
+                const std::vector<T> weights = small_integers<T>(slots, 3);
+                const std::vector<Index> indices = indices_around<Index>(slots, shape);
+                const SharedArray<T> device_points(queue, points);
+                const SharedArray<T> device_matrices(queue, matrices);
+                const SharedArray<T> device_weights(queue, weights);
+                const SharedArray<Index> device_indices(queue, indices);
+                SharedArray<T> device_out(queue, outputs);
+                std::vector<T> expected(outputs);
+
+                Kernels::Reference::blend_transforms(shape.points, shape.components, shape.rows,
+                                                     shape.influences, shape.transforms, points.data(),
+                                                     matrices.data(), indices.data(), weights.data(),
+                                                     expected.data());
+                Kernels::SYCL::blend_transforms(queue, shape.points, shape.components, shape.rows,
+                                                shape.influences, shape.transforms, device_points.get(),
+                                                device_matrices.get(), device_indices.get(),
+                                                device_weights.get(), device_out.get(), {}).wait();
+
+                return {widened(device_out.values()), widened(expected)};
+            }
+
+            /// @brief One shape, one scalar type and one index type of a blend.
+            struct BlendRow
+            {
+                    const char* name;
+                    BlendShape shape;
+                    BlendOutcome (*run)(sycl::queue&, const BlendShape&);
+            };
+
+            /// @brief Returns the shape and index-type rows, and the one-point one-influence float row.
+            std::vector<BlendRow> blend_rows()
+            {
+                constexpr int64_t K_POINTS = 37;
+                constexpr int64_t K_TRANSFORMS = 4;
+                constexpr int64_t K_INFLUENCES = 4;
+                constexpr int64_t K_FIRST_INDEX = -1;
+                constexpr int64_t K_INDEX_PERIOD = 6;
+                const auto shape = [](int64_t components, int64_t rows)
+                {
+                    return BlendShape{K_POINTS, K_TRANSFORMS, K_INFLUENCES, components, rows,
+                                      K_FIRST_INDEX, K_INDEX_PERIOD};
+                };
+                return {
+                    {"Position_ThreeRows_Int32", shape(3, 3), &run_blend<double, int32_t>},
+                    {"Position_ThreeRows_Int64", shape(3, 3), &run_blend<double, int64_t>},
+                    {"Position_FourRows_Int32", shape(3, 4), &run_blend<double, int32_t>},
+                    {"Position_FourRows_Int64", shape(3, 4), &run_blend<double, int64_t>},
+                    {"Homogeneous_ThreeRows_Int32", shape(4, 3), &run_blend<double, int32_t>},
+                    {"Homogeneous_ThreeRows_Int64", shape(4, 3), &run_blend<double, int64_t>},
+                    {"Homogeneous_FourRows_Int32", shape(4, 4), &run_blend<double, int32_t>},
+                    {"Homogeneous_FourRows_Int64", shape(4, 4), &run_blend<double, int64_t>},
+                    {"OnePointOneInfluenceFloat", BlendShape{1, 1, 1, 3, 3, 0, 1},
+                     &run_blend<float, int32_t>},
+                };
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string blend_row_name(const ::testing::TestParamInfo<BlendRow>& info)
+            {
+                return info.param.name;
             }
         } // namespace
 
-        /** @brief Runs the kernel on the host CPU queue. */
-        class Medium_SYCLBlendTransforms : public HostDeviceTest
+        /** @brief Runs the kernel on the host CPU queue, one row at a time. */
+        class Medium_SYCLBlendTransforms : public HostDeviceTest, public ::testing::WithParamInterface<BlendRow>
         {
 
         };
 
-        TEST_F(Medium_SYCLBlendTransforms, MatchesTheReferenceInEveryShapeAndIndexType)
+        TEST_P(Medium_SYCLBlendTransforms, MatchesTheReferenceInEveryShapeAndIndexType)
         {
-            // Every value is a small integer, so both kernels compute without rounding.
-            constexpr int64_t K_POINTS = 37;
-            constexpr int64_t K_TRANSFORMS = 4;
-            constexpr int64_t K_INFLUENCES = 4;
+            const BlendRow& row = GetParam();
 
-            for (const int64_t components : {int64_t{3}, int64_t{4}})
-            {
-                for (const int64_t rows : {int64_t{3}, int64_t{4}})
-                {
-                    const std::vector<double> points =
-                        small_integers<double>(static_cast<std::size_t>(K_POINTS * components), 1);
-                    const std::vector<double> matrices = small_integers<double>(
-                        static_cast<std::size_t>(K_TRANSFORMS * rows * 4), 2);
-                    const std::vector<double> weights = small_integers<double>(
-                        static_cast<std::size_t>(K_POINTS * K_INFLUENCES), 3);
-                    const std::vector<int32_t> narrow =
-                        indices_around<int32_t>(static_cast<std::size_t>(K_POINTS * K_INFLUENCES));
-                    const std::vector<int64_t> wide =
-                        indices_around<int64_t>(static_cast<std::size_t>(K_POINTS * K_INFLUENCES));
-                    const std::size_t outputs = static_cast<std::size_t>(K_POINTS * components);
+            const BlendOutcome outcome = row.run(queue(), row.shape);
 
-                    const SharedArray<double> device_points(queue(), points);
-                    const SharedArray<double> device_matrices(queue(), matrices);
-                    const SharedArray<double> device_weights(queue(), weights);
-                    const SharedArray<int32_t> device_narrow(queue(), narrow);
-                    const SharedArray<int64_t> device_wide(queue(), wide);
-                    SharedArray<double> out_narrow(queue(), outputs);
-                    SharedArray<double> out_wide(queue(), outputs);
-                    std::vector<double> expected(outputs);
-
-                    Kernels::Reference::blend_transforms(K_POINTS, components, rows, K_INFLUENCES,
-                                                         K_TRANSFORMS, points.data(),
-                                                         matrices.data(), wide.data(),
-                                                         weights.data(), expected.data());
-                    Kernels::SYCL::blend_transforms(queue(), K_POINTS, components, rows,
-                                                    K_INFLUENCES, K_TRANSFORMS,
-                                                    device_points.get(), device_matrices.get(),
-                                                    device_narrow.get(), device_weights.get(),
-                                                    out_narrow.get(), {}).wait();
-                    Kernels::SYCL::blend_transforms(queue(), K_POINTS, components, rows,
-                                                    K_INFLUENCES, K_TRANSFORMS,
-                                                    device_points.get(), device_matrices.get(),
-                                                    device_wide.get(), device_weights.get(),
-                                                    out_wide.get(), {}).wait();
-
-                    EXPECT_EQ(out_narrow.values(), expected)
-                        << components << " values, " << rows << " rows, INT32";
-                    EXPECT_EQ(out_wide.values(), expected)
-                        << components << " values, " << rows << " rows, INT64";
-                }
-            }
+            EXPECT_EQ(outcome.device, outcome.reference);
         }
 
-        TEST_F(Medium_SYCLBlendTransforms, MatchesTheReferenceWithOneInfluenceAndOnePoint)
-        {
-            const std::vector<float> points{1.0f, 2.0f, 3.0f};
-            const std::vector<float> matrices{1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3};
-            const std::vector<int32_t> indices{0};
-            const std::vector<float> weights{1.0f};
-            const SharedArray<float> device_points(queue(), points);
-            const SharedArray<float> device_matrices(queue(), matrices);
-            const SharedArray<int32_t> device_indices(queue(), indices);
-            const SharedArray<float> device_weights(queue(), weights);
-            SharedArray<float> device_out(queue(), 3);
-
-            Kernels::SYCL::blend_transforms(queue(), 1, 3, 3, 1, 1, device_points.get(),
-                                            device_matrices.get(), device_indices.get(),
-                                            device_weights.get(), device_out.get(), {}).wait();
-
-            EXPECT_EQ(device_out.values(), (std::vector<float>{2.0f, 4.0f, 6.0f}));
-        }
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLBlendTransforms, ::testing::ValuesIn(blend_rows()),
+                                 blend_row_name);
     } // namespace Test
 } // namespace SushiBLAS

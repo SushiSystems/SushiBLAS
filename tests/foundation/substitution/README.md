@@ -9,3 +9,4 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_running_solution.cpp` | Tests RunningSolution: where it keeps a solved element and what it rounds |
+| `compile_running_solution.cpp` | Checks at compile time which element types RunningSolution carries in a wider type; compiled, never run |

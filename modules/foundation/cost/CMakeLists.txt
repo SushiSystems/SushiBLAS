@@ -18,5 +18,6 @@ sushiblas_add_test_program(
     TESTS
         test_composite_cost.cpp
         test_cost.cpp
-        test_cost_shape.cpp
-        test_cost_table.cpp)
+        test_cost_table.cpp
+    COMPILE_CHECKS
+        compile_cost_shape.cpp)

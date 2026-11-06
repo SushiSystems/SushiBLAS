@@ -16,4 +16,6 @@ sushiblas_add_test_program(
         test_reference_accumulator.cpp
         test_serial_reduce.cpp
     DEVICE_TESTS
-        test_serial_1d.cpp)
+        test_serial_1d.cpp
+    COMPILE_CHECKS
+        compile_reference_accumulator.cpp)

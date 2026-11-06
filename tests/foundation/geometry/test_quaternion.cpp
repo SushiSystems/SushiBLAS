@@ -27,24 +27,83 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cstddef>
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/geometry/vector3.hpp>
 #include <SushiBLAS/geometry/quaternion.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type.
-        constexpr double K_QUATERNION_TOLERANCE_EPSILONS = 16.0;
+        /// @brief Rounded operations on the longest path to a hand value: a product and a sum.
+        constexpr double K_QUATERNION_ROUNDED_OPERATIONS = 2.0;
+
+        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type:
+        /// the default threshold times the rounded operations times the unit roundoff, which is half an epsilon.
+        constexpr double K_QUATERNION_TOLERANCE_EPSILONS =
+            TestSupport::K_DEFAULT_THRESHOLD * K_QUATERNION_ROUNDED_OPERATIONS *
+            (TestSupport::unit_roundoff<double>() / std::numeric_limits<double>::epsilon());
 
         /// @brief Half a turn in radians.
         constexpr double K_QUATERNION_HALF_TURN = 3.14159265358979323846;
 
         /// @brief The sine and the cosine of an eighth of a turn.
         constexpr double K_QUATERNION_ROOT_HALF = 0.70710678118654752440;
+
+        /** @brief Holds the components of a quaternion in the order x, y, z, w. */
+        using QuaternionComponents = std::array<double, 4>;
+
+        /** @brief Holds the components of a vector in the order x, y, z. */
+        using VectorComponents = std::array<double, 3>;
+
+        /** @brief Holds an axis, an angle and the quaternion axis-angle gives for them. */
+        struct AxisAngleRow
+        {
+            VectorComponents axis;           /**< The axis of the rotation. */
+            double angle;                    /**< The angle in radians. */
+            QuaternionComponents expected;   /**< The hand quaternion. */
+        };
+
+        /** @brief Holds two factors and their Hamilton product. */
+        struct ProductRow
+        {
+            QuaternionComponents left;       /**< The left factor. */
+            QuaternionComponents right;      /**< The right factor. */
+            QuaternionComponents expected;   /**< The hand product. */
+        };
+
+        /** @brief Holds a rotation, a vector and the rotated vector. */
+        struct RotateRow
+        {
+            QuaternionComponents rotation;   /**< The rotation. */
+            VectorComponents vector;         /**< The vector turned. */
+            VectorComponents expected;       /**< The hand result. */
+        };
+
+        /// @brief A quarter turn: sin and cos of an eighth of a turn; a half turn: sin of a quarter turn is one.
+        constexpr std::array<AxisAngleRow, 3> K_AXIS_ANGLE_ROWS{{
+            {{0.0, 1.0, 0.0}, K_QUATERNION_HALF_TURN * 0.5, {0.0, K_QUATERNION_ROOT_HALF, 0.0, K_QUATERNION_ROOT_HALF}},
+            {{0.0, 0.0, 1.0}, K_QUATERNION_HALF_TURN, {0.0, 0.0, 1.0, 0.0}},
+            {{0.0, 0.0, 1.0}, 0.0, {0.0, 0.0, 0.0, 1.0}}}};
+
+        /// @brief i j = k, j i = -k and (4 + i + 2j + 3k)(8 + 5i + 6j + 7k) = -6 + 24i + 48j + 48k.
+        constexpr std::array<ProductRow, 3> K_PRODUCT_ROWS{{
+            {{1.0, 0.0, 0.0, 0.0}, {0.0, 1.0, 0.0, 0.0}, {0.0, 0.0, 1.0, 0.0}},
+            {{0.0, 1.0, 0.0, 0.0}, {1.0, 0.0, 0.0, 0.0}, {0.0, 0.0, -1.0, 0.0}},
+            {{1.0, 2.0, 3.0, 4.0}, {5.0, 6.0, 7.0, 8.0}, {24.0, 48.0, 48.0, -6.0}}}};
+
+        /// @brief The identity; a quarter turn about z, which carries x to y; the same on (1, 2, 3); a third of a
+        /// turn about (1, 1, 1), which cycles (x, y, z) to (z, x, y).
+        constexpr std::array<RotateRow, 4> K_ROTATE_ROWS{{
+            {{0.0, 0.0, 0.0, 1.0}, {1.0, 2.0, 3.0}, {1.0, 2.0, 3.0}},
+            {{0.0, 0.0, K_QUATERNION_ROOT_HALF, K_QUATERNION_ROOT_HALF}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}},
+            {{0.0, 0.0, K_QUATERNION_ROOT_HALF, K_QUATERNION_ROOT_HALF}, {1.0, 2.0, 3.0}, {-2.0, 1.0, 3.0}},
+            {{0.5, 0.5, 0.5, 0.5}, {1.0, 2.0, 3.0}, {3.0, 1.0, 2.0}}}};
 
         /**
          * @brief Compares quaternions and vectors of element type T with hand-computed components.
@@ -70,6 +129,60 @@ namespace SushiBLAS
                     EXPECT_NEAR(static_cast<double>(actual.w), w, tolerance());
                 }
 
+                /** @brief Expects quaternion_axis_angle of every row to give the row's quaternion. */
+                static void expect_axis_angle_rows()
+                {
+                    for (const AxisAngleRow& row : K_AXIS_ANGLE_ROWS)
+                    {
+                        const QuaternionComponents& want = row.expected;
+                        expect_quaternion_near(Geometry::quaternion_axis_angle(vector_of(row.axis), T(row.angle)),
+                                               want[0], want[1], want[2], want[3]);
+                    }
+                }
+
+                /** @brief Expects mul of the factors of every row to give the row's product. */
+                static void expect_product_rows()
+                {
+                    for (const ProductRow& row : K_PRODUCT_ROWS)
+                    {
+                        const QuaternionComponents& want = row.expected;
+                        expect_quaternion_near(Geometry::mul(quaternion_of(row.left), quaternion_of(row.right)),
+                                               want[0], want[1], want[2], want[3]);
+                    }
+                }
+
+                /** @brief Expects rotate of the vector of every row to give the row's result. */
+                static void expect_rotate_rows()
+                {
+                    for (const RotateRow& row : K_ROTATE_ROWS)
+                    {
+                        const VectorComponents& want = row.expected;
+                        expect_vector_near(Geometry::rotate(quaternion_of(row.rotation), vector_of(row.vector)),
+                                           want[0], want[1], want[2]);
+                    }
+                }
+
+                /** @brief Returns the quaternion of the given components. */
+                [[nodiscard]] static Geometry::QuaternionT<T> quaternion_of(const QuaternionComponents& c)
+                {
+                    return Geometry::QuaternionT<T>{T(c[0]), T(c[1]), T(c[2]), T(c[3])};
+                }
+
+                /** @brief Returns the vector of the given components. */
+                [[nodiscard]] static Geometry::Vector3T<T> vector_of(const VectorComponents& c)
+                {
+                    return Geometry::Vector3T<T>{T(c[0]), T(c[1]), T(c[2])};
+                }
+
+                /** @brief Expects actual to be exactly the identity rotation. */
+                static void expect_identity(const Geometry::QuaternionT<T>& actual)
+                {
+                    EXPECT_EQ(actual.x, T(0));
+                    EXPECT_EQ(actual.y, T(0));
+                    EXPECT_EQ(actual.z, T(0));
+                    EXPECT_EQ(actual.w, T(1));
+                }
+
                 /** @brief Expects each component of actual within tolerance() of its hand value. */
                 static void expect_vector_near(const Geometry::Vector3T<T>& actual, double x,
                                                double y, double z)
@@ -83,16 +196,6 @@ namespace SushiBLAS
         using GeometryQuaternionTypes = ::testing::Types<float, double>;
         SB_TYPED_TEST_SUITE(Small_GeometryQuaternion, GeometryQuaternionTypes);
 
-        TYPED_TEST(Small_GeometryQuaternion, DefaultIsTheIdentityRotation)
-        {
-            const Geometry::QuaternionT<TypeParam> quaternion{};
-
-            EXPECT_EQ(quaternion.x, TypeParam(0));
-            EXPECT_EQ(quaternion.y, TypeParam(0));
-            EXPECT_EQ(quaternion.z, TypeParam(0));
-            EXPECT_EQ(quaternion.w, TypeParam(1));
-        }
-
         TYPED_TEST(Small_GeometryQuaternion, ComponentsLieInOrderWithoutPadding)
         {
             using Quaternion = Geometry::QuaternionT<TypeParam>;
@@ -105,35 +208,12 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryQuaternion, AxisAngleHoldsTheHalfAngleSineAndCosine)
         {
-            using T = TypeParam;
-            const Geometry::Vector3T<T> y_axis{T(0), T(1), T(0)};
-            const Geometry::Vector3T<T> z_axis{T(0), T(0), T(1)};
-
-            // A quarter turn: sin and cos of an eighth of a turn.
-            TestFixture::expect_quaternion_near(
-                Geometry::quaternion_axis_angle(y_axis, T(K_QUATERNION_HALF_TURN * 0.5)), 0.0,
-                K_QUATERNION_ROOT_HALF, 0.0, K_QUATERNION_ROOT_HALF);
-            // A half turn: sin of a quarter turn is one and its cosine zero.
-            TestFixture::expect_quaternion_near(
-                Geometry::quaternion_axis_angle(z_axis, T(K_QUATERNION_HALF_TURN)), 0.0, 0.0, 1.0,
-                0.0);
-            TestFixture::expect_quaternion_near(Geometry::quaternion_axis_angle(z_axis, T(0)), 0.0,
-                                                0.0, 0.0, 1.0);
+            TestFixture::expect_axis_angle_rows();
         }
 
         TYPED_TEST(Small_GeometryQuaternion, MulIsTheHamiltonProduct)
         {
-            using T = TypeParam;
-            const Geometry::QuaternionT<T> i{T(1), T(0), T(0), T(0)};
-            const Geometry::QuaternionT<T> j{T(0), T(1), T(0), T(0)};
-            const Geometry::QuaternionT<T> a{T(1), T(2), T(3), T(4)};
-            const Geometry::QuaternionT<T> b{T(5), T(6), T(7), T(8)};
-
-            // i * j = k and j * i = -k.
-            TestFixture::expect_quaternion_near(Geometry::mul(i, j), 0.0, 0.0, 1.0, 0.0);
-            TestFixture::expect_quaternion_near(Geometry::mul(j, i), 0.0, 0.0, -1.0, 0.0);
-            // (4 + i + 2j + 3k)(8 + 5i + 6j + 7k) = -6 + 24i + 48j + 48k.
-            TestFixture::expect_quaternion_near(Geometry::mul(a, b), 24.0, 48.0, 48.0, -6.0);
+            TestFixture::expect_product_rows();
         }
 
         TYPED_TEST(Small_GeometryQuaternion, ConjugateNegatesTheVectorPart)
@@ -146,22 +226,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryQuaternion, RotateTurnsAVectorAboutTheAxis)
         {
-            using T = TypeParam;
-            const Geometry::Vector3T<T> x_axis{T(1), T(0), T(0)};
-            const Geometry::Vector3T<T> v{T(1), T(2), T(3)};
-            const Geometry::QuaternionT<T> identity{};
-            const Geometry::QuaternionT<T> quarter_turn_about_z{
-                T(0), T(0), T(K_QUATERNION_ROOT_HALF), T(K_QUATERNION_ROOT_HALF)};
-            const Geometry::QuaternionT<T> third_turn{T(0.5), T(0.5), T(0.5), T(0.5)};
-
-            TestFixture::expect_vector_near(Geometry::rotate(identity, v), 1.0, 2.0, 3.0);
-            // A quarter turn about z carries x to y and (1, 2, 3) to (-2, 1, 3).
-            TestFixture::expect_vector_near(Geometry::rotate(quarter_turn_about_z, x_axis), 0.0,
-                                            1.0, 0.0);
-            TestFixture::expect_vector_near(Geometry::rotate(quarter_turn_about_z, v), -2.0, 1.0,
-                                            3.0);
-            // A third of a turn about (1, 1, 1) cycles the axes: (x, y, z) goes to (z, x, y).
-            TestFixture::expect_vector_near(Geometry::rotate(third_turn, v), 3.0, 1.0, 2.0);
+            TestFixture::expect_rotate_rows();
         }
 
         TYPED_TEST(Small_GeometryQuaternion, NormalizeScalesToUnitLength)
@@ -180,19 +245,17 @@ namespace SushiBLAS
         TYPED_TEST(Small_GeometryQuaternion, NormalizeReturnsTheIdentityForAZeroLength)
         {
             using T = TypeParam;
-            const Geometry::QuaternionT<T> zero{T(0), T(0), T(0), T(0)};
+
+            TestFixture::expect_identity(Geometry::normalize(Geometry::QuaternionT<T>{T(0), T(0), T(0), T(0)}));
+        }
+
+        TYPED_TEST(Small_GeometryQuaternion, NormalizeReturnsTheIdentityWhenTheSquaredLengthUnderflows)
+        {
+            using T = TypeParam;
             // The square of the smallest normal value underflows to zero, so the length is zero.
             const Geometry::QuaternionT<T> tiny{std::numeric_limits<T>::min(), T(0), T(0), T(0)};
 
-            for (const Geometry::QuaternionT<T>& degenerate : {zero, tiny})
-            {
-                const Geometry::QuaternionT<T> result = Geometry::normalize(degenerate);
-
-                EXPECT_EQ(result.x, T(0));
-                EXPECT_EQ(result.y, T(0));
-                EXPECT_EQ(result.z, T(0));
-                EXPECT_EQ(result.w, T(1));
-            }
+            TestFixture::expect_identity(Geometry::normalize(tiny));
         }
 
         TYPED_TEST(Small_GeometryQuaternion, DotSumsTheFourComponentProducts)

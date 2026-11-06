@@ -37,42 +37,42 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_UnsupportedExecution, IsAFinalInvalidArgument)
-        {
-            static_assert(std::is_base_of<std::invalid_argument, UnsupportedExecution>::value,
-                          "UnsupportedExecution derives from std::invalid_argument.");
-            static_assert(std::is_final<UnsupportedExecution>::value,
-                          "UnsupportedExecution is final.");
+        static_assert(std::is_base_of<std::invalid_argument, UnsupportedExecution>::value,
+                      "UnsupportedExecution derives from std::invalid_argument.");
+        static_assert(std::is_final<UnsupportedExecution>::value,
+                      "UnsupportedExecution is final.");
 
+        /**
+         * @brief Calls thrower and swallows an UnsupportedExecution; any other exception passes.
+         */
+        template<typename Thrower>
+        static void swallow_unsupported(Thrower thrower)
+        {
+            try
+            {
+                thrower();
+            }
+            catch (const UnsupportedExecution&)
+            {
+            }
+        }
+
+        TEST(Small_UnsupportedExecution, IsAnInvalidArgument)
+        {
             EXPECT_THROW(throw UnsupportedExecution("refused"), std::invalid_argument);
         }
 
-        TEST(Medium_UnsupportedExecution, KeepsTheMessageItWasGiven)
+        TEST(Small_UnsupportedExecution, KeepsTheMessageItWasGiven)
         {
             const UnsupportedExecution error("ForceReference cannot reach device USM");
 
             EXPECT_EQ(std::string(error.what()), "ForceReference cannot reach device USM");
         }
 
-        TEST(Medium_UnsupportedExecution, DoesNotCatchAPlainInvalidArgument)
+        TEST(Small_UnsupportedExecution, DoesNotCatchAPlainInvalidArgument)
         {
-            bool caught_as_unsupported = false;
-            bool caught_as_invalid = false;
-            try
-            {
-                throw std::invalid_argument("bad operand");
-            }
-            catch (const UnsupportedExecution&)
-            {
-                caught_as_unsupported = true;
-            }
-            catch (const std::invalid_argument&)
-            {
-                caught_as_invalid = true;
-            }
-
-            EXPECT_FALSE(caught_as_unsupported);
-            EXPECT_TRUE(caught_as_invalid);
+            EXPECT_THROW(swallow_unsupported([] { throw std::invalid_argument("bad operand"); }),
+                         std::invalid_argument);
         }
     } // namespace Test
 } // namespace SushiBLAS

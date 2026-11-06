@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <numeric>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -133,18 +134,24 @@ namespace SushiBLAS
             EXPECT_TRUE(same_bits(serial_y.get(), launch_y.get(), n));
         }
 
-        TEST(Medium_Serial1D, IndexedVisitsEveryIndexInOrder)
+        /// @brief Expects Serial::indexed to visit 0 to count - 1 in that order.
+        static void expect_indexed_visits_in_order(std::size_t count)
         {
             std::vector<std::size_t> visited;
-            visited.reserve(K_ELEMENT_COUNT);
-            Serial::indexed(K_ELEMENT_COUNT, [&visited](std::size_t i) { visited.push_back(i); });
+            visited.reserve(count);
+            Serial::indexed(count, [&visited](std::size_t i) { visited.push_back(i); });
 
-            ASSERT_EQ(visited.size(), K_ELEMENT_COUNT);
-            for (std::size_t i = 0; i < K_ELEMENT_COUNT; ++i)
-                EXPECT_EQ(visited[i], i);
+            std::vector<std::size_t> expected(count);
+            std::iota(expected.begin(), expected.end(), std::size_t{0});
+            EXPECT_EQ(visited, expected);
         }
 
-        TEST(Medium_Serial1D, AMapOfNothingWritesNothing)
+        TEST(Small_Serial1D, IndexedVisitsEveryIndexInOrder)
+        {
+            expect_indexed_visits_in_order(K_ELEMENT_COUNT);
+        }
+
+        TEST(Small_Serial1D, AMapOfNothingWritesNothing)
         {
             float out = 7.0f;
             const float in = 1.0f;

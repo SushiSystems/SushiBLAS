@@ -23,7 +23,7 @@
 
 /**
  * @file test_reference_accumulator.cpp
- * @brief Tests the type and the running sum a reference kernel accumulates in.
+ * @brief Tests the running sum a reference kernel accumulates in.
  * @author Mustafa Garip
  */
 
@@ -31,7 +31,6 @@
 #include <complex>
 #include <cstdint>
 #include <limits>
-#include <type_traits>
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -50,86 +49,47 @@ namespace SushiBLAS
         /// @brief A term the plain sum of K_LARGE_TERM, this and -K_LARGE_TERM loses.
         constexpr double K_SMALL_TERM = 1.0;
 
-        TEST(Medium_ReferenceAccumulator, RealTypesAccumulateInDouble)
-        {
-            static_assert(std::is_same_v<Kernels::ReferenceAccumulator<sycl::half>, double>,
-                          "HALF is summed in double.");
-            static_assert(std::is_same_v<Kernels::ReferenceAccumulator<float>, double>,
-                          "FLOAT32 is summed in double.");
-            static_assert(std::is_same_v<Kernels::ReferenceAccumulator<double>, double>,
-                          "FLOAT64 is summed in double.");
-        }
-
-        TEST(Medium_ReferenceAccumulator, ComplexTypesAccumulateInComplexDouble)
-        {
-            static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<float>>,
-                                         std::complex<double>>,
-                          "COMPLEX32 is summed in complex double.");
-            static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<double>>,
-                                         std::complex<double>>,
-                          "COMPLEX64 is summed in complex double.");
-        }
-
-        TEST(Medium_ReferenceAccumulator, OnlyTheDoubleTypesAreCompensated)
-        {
-            EXPECT_FALSE(Kernels::ReferenceSum<sycl::half>::K_IS_COMPENSATED);
-            EXPECT_FALSE(Kernels::ReferenceSum<float>::K_IS_COMPENSATED);
-            EXPECT_TRUE(Kernels::ReferenceSum<double>::K_IS_COMPENSATED);
-            EXPECT_FALSE(Kernels::ReferenceSum<std::complex<float>>::K_IS_COMPENSATED);
-            EXPECT_TRUE(Kernels::ReferenceSum<std::complex<double>>::K_IS_COMPENSATED);
-        }
-
-        TEST(Medium_ReferenceAccumulator, AnEmptySumIsZero)
-        {
-            EXPECT_EQ(Kernels::ReferenceSum<float>().value(), 0.0);
-            EXPECT_EQ(Kernels::ReferenceSum<double>().value(), 0.0);
-            EXPECT_EQ(Kernels::ReferenceSum<std::complex<float>>().value(),
-                      std::complex<double>(0.0, 0.0));
-            EXPECT_EQ(Kernels::ReferenceSum<std::complex<double>>().value(),
-                      std::complex<double>(0.0, 0.0));
-        }
-
-        TEST(Medium_ReferenceAccumulator, AFloatSumHoldsAnIntegerFloatCannot)
+        /// @brief Returns a float reference sum of count terms of 1.
+        static Kernels::ReferenceSum<float> sum_of_ones(std::int64_t count)
         {
             Kernels::ReferenceSum<float> sum;
-            float plain = 0.0f;
-            for (std::int64_t i = 0; i < K_FIRST_INTEGER_FLOAT_CANNOT_HOLD; ++i)
+            for (std::int64_t i = 0; i < count; ++i)
             {
                 sum.add(1.0);
-                plain += 1.0f;
             }
+            return sum;
+        }
 
-            EXPECT_EQ(sum.value(), static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD));
-            EXPECT_NE(static_cast<double>(plain),
+        TEST(Small_ReferenceAccumulator, AFloatSumHoldsAnIntegerFloatCannot)
+        {
+            EXPECT_EQ(sum_of_ones(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD).value(),
                       static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD));
         }
 
-        TEST(Medium_ReferenceAccumulator, ADoubleSumKeepsWhatAnAdditionRoundsOff)
+        TEST(Small_ReferenceAccumulator, ADoubleSumKeepsWhatAnAdditionRoundsOff)
         {
             Kernels::ReferenceSum<double> sum;
             sum.add(K_LARGE_TERM);
             sum.add(K_SMALL_TERM);
             sum.add(-K_LARGE_TERM);
 
-            double plain = K_LARGE_TERM;
-            plain += K_SMALL_TERM;
-            plain -= K_LARGE_TERM;
-
             EXPECT_EQ(sum.value(), K_SMALL_TERM);
-            EXPECT_EQ(plain, 0.0);
         }
 
-        TEST(Medium_ReferenceAccumulator, AFloatSumOfDoublesIsNotCompensated)
+        TEST(Small_ReferenceAccumulator, AFloatSumOfDoublesIsNotCompensated)
         {
             Kernels::ReferenceSum<float> sum;
             sum.add(K_LARGE_TERM);
             sum.add(K_SMALL_TERM);
             sum.add(-K_LARGE_TERM);
 
-            EXPECT_EQ(sum.value(), 0.0);
+            // The oracle is a plain left-to-right double sum of the same terms; the exact sum is K_SMALL_TERM.
+            const double plain = (K_LARGE_TERM + K_SMALL_TERM) - K_LARGE_TERM;
+
+            EXPECT_EQ(sum.value(), plain);
         }
 
-        TEST(Medium_ReferenceAccumulator, AnInfiniteTermGivesThatInfinityInBothForms)
+        TEST(Small_ReferenceAccumulator, AnInfiniteTermGivesThatInfinityInBothForms)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 
@@ -150,7 +110,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Medium_ReferenceAccumulator, ANanTermGivesNanInBothForms)
+        TEST(Small_ReferenceAccumulator, ANanTermGivesNanInBothForms)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -168,7 +128,7 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isnan(compensated.value()));
         }
 
-        TEST(Medium_ReferenceAccumulator, OpposedInfinitiesGiveNanInBothForms)
+        TEST(Small_ReferenceAccumulator, OpposedInfinitiesGiveNanInBothForms)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 
@@ -184,7 +144,7 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isnan(compensated.value()));
         }
 
-        TEST(Medium_ReferenceAccumulator, AComplexSumCompensatesEachPartOnItsOwn)
+        TEST(Small_ReferenceAccumulator, AComplexSumCompensatesEachPartOnItsOwn)
         {
             Kernels::ReferenceSum<std::complex<double>> sum;
             sum.add(std::complex<double>(K_LARGE_TERM, K_SMALL_TERM));
@@ -194,17 +154,18 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), std::complex<double>(K_SMALL_TERM, K_SMALL_TERM));
         }
 
-        TEST(Medium_ReferenceAccumulator, AComplexFloatSumAddsEachPartInDouble)
+        TEST(Small_ReferenceAccumulator, AComplexFloatSumAddsEachPartInDouble)
         {
             Kernels::ReferenceSum<std::complex<float>> sum;
             sum.add(std::complex<double>(K_LARGE_TERM, 0.25));
             sum.add(std::complex<double>(K_SMALL_TERM, 0.5));
             sum.add(std::complex<double>(-K_LARGE_TERM, 0.125));
 
+            // K_LARGE_TERM + K_SMALL_TERM ties between doubles 2 apart and rounds back, so the real part is 0.
             EXPECT_EQ(sum.value(), std::complex<double>(0.0, 0.875));
         }
 
-        TEST(Medium_ReferenceAccumulator, AnInfinitePartOfAComplexSumLeavesTheOtherPartFinite)
+        TEST(Small_ReferenceAccumulator, AnInfinitePartOfAComplexSumLeavesTheOtherPartFinite)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 

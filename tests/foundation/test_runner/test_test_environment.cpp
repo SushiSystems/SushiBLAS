@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <set>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -36,17 +37,39 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /// @brief Expects the queue of each device to be one stable queue, distinct from the others.
+            void expect_one_stable_queue_per_device()
+            {
+                std::set<const sycl::queue*> seen;
+                for (std::size_t device = 0; device < TestEnvironment::device_count(); ++device)
+                {
+                    const sycl::queue* first = &TestEnvironment::queue(device);
+
+                    EXPECT_EQ(first, &TestEnvironment::queue(device)) << "device " << device;
+                    seen.insert(first);
+                }
+                EXPECT_EQ(seen.size(), TestEnvironment::device_count());
+            }
+        } // namespace
+
         TEST(Medium_TestEnvironment, HandsOutTheSameRuntimeEveryTime)
         {
-            EXPECT_EQ(&TestEnvironment::runtime(), &TestEnvironment::runtime());
+            auto buffer = TestEnvironment::runtime().buffer<float>(4);
+            ASSERT_TRUE(buffer.has_value());
+
+            // The count is read through the environment; the allocation was made through runtime().
+            EXPECT_EQ(TestEnvironment::runtime().advanced().live_allocation_count(),
+                      TestEnvironment::live_allocation_count());
+            EXPECT_GE(TestEnvironment::live_allocation_count(), std::size_t{1});
         }
 
         TEST(Medium_TestEnvironment, ReportsAtLeastOneDeviceAndItsQueue)
         {
             ASSERT_GE(TestEnvironment::device_count(), std::size_t{1});
 
-            sycl::queue& first = TestEnvironment::queue();
-            EXPECT_EQ(&first, &TestEnvironment::queue(0));
+            expect_one_stable_queue_per_device();
         }
 
         TEST(Medium_TestEnvironment, CountsALiveAllocationUntilItIsFreed)

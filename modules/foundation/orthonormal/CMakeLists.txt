@@ -9,5 +9,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE orthonormal
-    TESTS
-        test_orthonormal_sweep.cpp)
+    COMPILE_CHECKS
+        compile_orthonormal_sweep.cpp)

@@ -47,7 +47,7 @@ namespace SushiBLAS
         /// @brief The column count of the matrix the axis reductions fold.
         constexpr std::size_t K_COLUMNS = 300;
 
-        TEST(Medium_ReduceAxis, TotalSegmentsMultipliesBothSegmentCounts)
+        TEST(Small_ReduceAxis, TotalSegmentsMultipliesBothSegmentCounts)
         {
             Reduce::AxisSpan span;
             span.segments = 3;
@@ -58,7 +58,7 @@ namespace SushiBLAS
             EXPECT_EQ(span.total_segments(), std::size_t{0});
         }
 
-        TEST(Medium_ReduceAxis, ManySegmentsOrAShortAxisFoldOneSegmentPerItem)
+        TEST(Small_ReduceAxis, ManySegmentsOrAShortAxisFoldOneSegmentPerItem)
         {
             Device::Profile cpu;
             cpu.is_cpu = true;

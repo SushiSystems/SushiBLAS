@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_random.cpp                                                        */
+/* compile_signal.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -19,38 +19,11 @@
 /* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
 /* implied. See the License for the specific language governing           */
 /* permissions and limitations under the License.                         */
-/**************************************************************************/
 
 /**
- * @file test_random.cpp
- * @brief Tests that random.hpp alone reaches the draws and both orthonormalisation sweeps.
+ * @file compile_signal.cpp
+ * @brief Checks at compile time that signal.hpp stands alone and declares the convolution, the FFT plan and the FFT, reference and SYCL; the values are tested through the convolve and FFT test files.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/random_kernels/random.hpp>
-
-#include <array>
-#include <cstdint>
-#include <vector>
-#include <gtest/gtest.h>
-
-namespace SushiBLAS
-{
-    namespace Test
-    {
-        TEST(Medium_RandomKernels, TheDrawsAndTheReferenceSweepAreReachable)
-        {
-            using Block = std::array<uint32_t, 4>;
-            std::vector<double> p{3.0, 4.0};
-
-            Kernels::Reference::Random::orthonormalize(p.data(), Kernels::VectorSet{1, 2, 1, 2},
-                                                       1.0);
-
-            EXPECT_EQ(Kernels::SYCL::Random::philox4x32_10(0, 0, 0, 0, 0, 0),
-                      (Block{0x6627E8D5u, 0xE169C58Du, 0xBC57AC4Cu, 0x9B00DBD8u}));
-            EXPECT_DOUBLE_EQ(p[0], 0.6);
-            EXPECT_DOUBLE_EQ(p[1], 0.8);
-            EXPECT_GT(Kernels::SYCL::Random::make_poisson_params(1.0).exp_neg_lambda, 0.0);
-        }
-    } // namespace Test
-} // namespace SushiBLAS
+#include <SushiBLAS/signal_kernels/signal.hpp>

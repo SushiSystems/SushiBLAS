@@ -27,9 +27,9 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
@@ -55,34 +55,68 @@ namespace SushiBLAS
             return sum;
         }
 
-        TEST(Small_ReferenceOrthonormalize, RowsBecomeOrthonormalAtTheGain)
+        /** @brief Expects every Gram entry of the set to be zero off the diagonal and diagonal on it. */
+        static void expect_orthogonal_of_norm(const std::vector<double>& p,
+                                              const Kernels::VectorSet& set, double diagonal)
         {
-            const Kernels::VectorSet set{4, 7, 1, 7};
-            std::vector<double> p = small_integers<double>(28, 1);
-            p[0] += 10.0;
-
-            Kernels::Reference::Random::orthonormalize(p.data(), set, 2.0);
-
             for (int64_t i = 0; i < set.count; ++i)
                 for (int64_t j = 0; j < set.count; ++j)
-                    EXPECT_NEAR(dot_of(p, set, i, j), (i == j) ? 4.0 : 0.0, K_TOLERANCE)
+                    EXPECT_NEAR(dot_of(p, set, i, j), (i == j) ? diagonal : 0.0, K_TOLERANCE)
                         << i << ", " << j;
         }
 
-        TEST(Small_ReferenceOrthonormalize, ColumnsOfAColumnMajorMatrixWorkThroughTheStrides)
+        /// @brief Holds one layout of vectors, the integers they start from and the gain.
+        struct SweepRow
         {
-            // Four column vectors of length six stored column by column in a 6 x 4 matrix.
-            const Kernels::VectorSet set{4, 6, 1, 6};
-            std::vector<double> p = small_integers<double>(24, 2);
-            for (int64_t v = 0; v < 4; ++v)
-                p[static_cast<std::size_t>(v * 6 + v)] += 8.0;
+                const char* name;
+                Kernels::VectorSet set;
+                uint32_t seed;                    ///< Seed of the small integers the vectors start from.
+                std::vector<std::size_t> boosted; ///< Elements raised so the set is not rank deficient.
+                double boost;                     ///< What each boosted element gains.
+                double gain;                      ///< The norm every vector is scaled to.
+        };
 
-            Kernels::Reference::Random::orthonormalize(p.data(), set, 1.0);
-
-            for (int64_t i = 0; i < set.count; ++i)
-                for (int64_t j = 0; j < set.count; ++j)
-                    EXPECT_NEAR(dot_of(p, set, i, j), (i == j) ? 1.0 : 0.0, K_TOLERANCE);
+        /// @brief Returns a row-major layout at gain 2 and a column-major layout at gain 1.
+        static std::vector<SweepRow> sweep_rows()
+        {
+            return {{"RowsAtGainTwo", Kernels::VectorSet{4, 7, 1, 7}, 1, {0}, 10.0, 2.0},
+                    {"ColumnsOfAColumnMajorMatrixAtGainOne", Kernels::VectorSet{4, 6, 1, 6}, 2,
+                     {0, 7, 14, 21}, 8.0, 1.0}};
         }
+
+        /// @brief Returns the small integers of a row with its boosted elements raised.
+        static std::vector<double> starting_vectors(const SweepRow& row)
+        {
+            std::vector<double> p = small_integers<double>(
+                static_cast<std::size_t>(row.set.count * row.set.length), row.seed);
+            for (const std::size_t at : row.boosted)
+                p[at] += row.boost;
+            return p;
+        }
+
+        /// @brief Names a row, which gtest takes as the test's suffix.
+        static std::string sweep_row_name(const ::testing::TestParamInfo<SweepRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Runs the sweep on one layout.
+        class Small_ReferenceOrthonormalizeLayouts : public ::testing::TestWithParam<SweepRow>
+        {
+        };
+
+        TEST_P(Small_ReferenceOrthonormalizeLayouts, VectorsBecomeOrthogonalAtTheGain)
+        {
+            const SweepRow& row = GetParam();
+            std::vector<double> p = starting_vectors(row);
+
+            Kernels::Reference::Random::orthonormalize(p.data(), row.set, row.gain);
+
+            expect_orthogonal_of_norm(p, row.set, row.gain * row.gain);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceOrthonormalizeLayouts,
+                                 ::testing::ValuesIn(sweep_rows()), sweep_row_name);
 
         TEST(Small_ReferenceOrthonormalize, AZeroVectorStaysZero)
         {

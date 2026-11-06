@@ -36,12 +36,20 @@
 #include <SushiBLAS/geometry/matrix4.hpp>
 #include <SushiBLAS/geometry/transform.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type.
-        constexpr double K_TRANSFORM_TOLERANCE_EPSILONS = 16.0;
+        /// @brief Rounded operations on the longest path to a hand value: a product and a sum.
+        constexpr double K_TRANSFORM_ROUNDED_OPERATIONS = 2.0;
+
+        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type:
+        /// the default threshold times the rounded operations times the unit roundoff, which is half an epsilon.
+        constexpr double K_TRANSFORM_TOLERANCE_EPSILONS =
+            TestSupport::K_DEFAULT_THRESHOLD * K_TRANSFORM_ROUNDED_OPERATIONS *
+            (TestSupport::unit_roundoff<double>() / std::numeric_limits<double>::epsilon());
 
         /// @brief Elements a 4x4 matrix holds.
         constexpr std::size_t K_TRANSFORM_ELEMENT_COUNT = 16;
@@ -58,6 +66,41 @@ namespace SushiBLAS
         /// @brief The identity matrix.
         constexpr TransformElements K_TRANSFORM_IDENTITY = {1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
                                                             0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+
+        /// @brief The components of a quaternion in the order x, y, z, w.
+        using TransformQuaternion = std::array<double, 4>;
+
+        /// @brief Holds a quaternion and the matrix whose columns are the axes it rotates to.
+        struct QuaternionMatrixRow
+        {
+            TransformQuaternion rotation;   /**< The rotation. */
+            TransformElements expected;     /**< The hand matrix, column by column. */
+        };
+
+        /// @brief Holds a rotation matrix and the quaternion quaternion_from_matrix gives for it.
+        struct MatrixQuaternionRow
+        {
+            TransformElements matrix;       /**< The rotation matrix, column by column. */
+            TransformQuaternion expected;   /**< The hand quaternion. */
+        };
+
+        /// @brief The identity; a third of a turn about (1, 1, 1), which carries x to y, y to z and z to x;
+        /// a quarter turn about z, which carries x to y and y to -x.
+        constexpr std::array<QuaternionMatrixRow, 3> K_QUATERNION_MATRIX_ROWS{{
+            {{0.0, 0.0, 0.0, 1.0}, K_TRANSFORM_IDENTITY},
+            {{0.5, 0.5, 0.5, 0.5},
+             {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0}},
+            {{0.0, 0.0, K_TRANSFORM_ROOT_HALF, K_TRANSFORM_ROOT_HALF},
+             {0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0}}}};
+
+        /// @brief Quarter turns about x, y and z; each has trace 1.
+        constexpr std::array<MatrixQuaternionRow, 3> K_QUARTER_TURN_ROWS{{
+            {{1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+             {K_TRANSFORM_ROOT_HALF, 0.0, 0.0, K_TRANSFORM_ROOT_HALF}},
+            {{0.0, 0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+             {0.0, K_TRANSFORM_ROOT_HALF, 0.0, K_TRANSFORM_ROOT_HALF}},
+            {{0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0},
+             {0.0, 0.0, K_TRANSFORM_ROOT_HALF, K_TRANSFORM_ROOT_HALF}}}};
 
         /**
          * @brief Compares transforms of element type T with hand-computed elements.
@@ -91,6 +134,29 @@ namespace SushiBLAS
                         EXPECT_NEAR(static_cast<double>(actual.m[index]), expected[index],
                                     tolerance())
                             << "element " << index;
+                }
+
+                /** @brief Expects matrix4_from_quaternion of every row to give the row's matrix. */
+                static void expect_quaternion_matrix_rows()
+                {
+                    for (const QuaternionMatrixRow& row : K_QUATERNION_MATRIX_ROWS)
+                    {
+                        const TransformQuaternion& c = row.rotation;
+                        expect_matrix_near(
+                            Geometry::matrix4_from_quaternion(Geometry::QuaternionT<T>{T(c[0]), T(c[1]), T(c[2]), T(c[3])}),
+                            row.expected);
+                    }
+                }
+
+                /** @brief Expects quaternion_from_matrix of every row's matrix to give the row's quaternion. */
+                static void expect_quarter_turn_rows()
+                {
+                    for (const MatrixQuaternionRow& row : K_QUARTER_TURN_ROWS)
+                    {
+                        const TransformQuaternion& want = row.expected;
+                        expect_quaternion_near(Geometry::quaternion_from_matrix(matrix_of(row.matrix)), want[0],
+                                               want[1], want[2], want[3]);
+                    }
                 }
 
                 /** @brief Expects each component of actual within tolerance() of its hand value. */
@@ -134,7 +200,7 @@ namespace SushiBLAS
                 {2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0});
         }
 
-        TYPED_TEST(Small_GeometryTransform, PerspectiveIsReverseZAndIgnoresTheFarPlane)
+        TYPED_TEST(Small_GeometryTransform, PerspectiveIsReverseZ)
         {
             using T = TypeParam;
             // A quarter-turn field of view has a focal length of 1; the aspect of 2 halves x.
@@ -143,6 +209,14 @@ namespace SushiBLAS
 
             TestFixture::expect_matrix_near(
                 Geometry::perspective(T(K_TRANSFORM_QUARTER_TURN), T(2), T(0.5), T(100)), expected);
+        }
+
+        TYPED_TEST(Small_GeometryTransform, PerspectiveIgnoresTheFarPlane)
+        {
+            using T = TypeParam;
+            const TransformElements expected = {0.5, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+                                                0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.5, 0.0};
+
             TestFixture::expect_matrix_near(
                 Geometry::perspective(T(K_TRANSFORM_QUARTER_TURN), T(2), T(0.5), T(1)), expected);
         }
@@ -165,22 +239,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryTransform, Matrix4FromQuaternionHoldsTheRotatedAxesAsColumns)
         {
-            using T = TypeParam;
-            const Geometry::QuaternionT<T> third_turn{T(0.5), T(0.5), T(0.5), T(0.5)};
-            const Geometry::QuaternionT<T> quarter_turn_about_z{
-                T(0), T(0), T(K_TRANSFORM_ROOT_HALF), T(K_TRANSFORM_ROOT_HALF)};
-
-            TestFixture::expect_matrix_near(
-                Geometry::matrix4_from_quaternion(Geometry::QuaternionT<T>{}),
-                K_TRANSFORM_IDENTITY);
-            // A third of a turn about (1, 1, 1) carries x to y, y to z and z to x.
-            TestFixture::expect_matrix_near(
-                Geometry::matrix4_from_quaternion(third_turn),
-                {0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0});
-            // A quarter turn about z carries x to y and y to -x.
-            TestFixture::expect_matrix_near(
-                Geometry::matrix4_from_quaternion(quarter_turn_about_z),
-                {0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0});
+            TestFixture::expect_quaternion_matrix_rows();
         }
 
         TYPED_TEST(Small_GeometryTransform, ComposeTransformScalesThenRotatesThenTranslates)
@@ -198,27 +257,13 @@ namespace SushiBLAS
 
         TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheTraceBranchForAQuarterTurn)
         {
-            const double root_half = K_TRANSFORM_ROOT_HALF;
+            TestFixture::expect_quarter_turn_rows();
+        }
 
-            // Quarter turns about x, y and z; each has trace 1.
+        TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixOfTheIdentityIsTheIdentityRotation)
+        {
             TestFixture::expect_quaternion_near(
-                Geometry::quaternion_from_matrix(TestFixture::matrix_of(
-                    {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-                     0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0})),
-                root_half, 0.0, 0.0, root_half);
-            TestFixture::expect_quaternion_near(
-                Geometry::quaternion_from_matrix(TestFixture::matrix_of(
-                    {0.0, 0.0, -1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                     1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0})),
-                0.0, root_half, 0.0, root_half);
-            TestFixture::expect_quaternion_near(
-                Geometry::quaternion_from_matrix(TestFixture::matrix_of(
-                    {0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,
-                     0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0})),
-                0.0, 0.0, root_half, root_half);
-            TestFixture::expect_quaternion_near(
-                Geometry::quaternion_from_matrix(TestFixture::matrix_of(K_TRANSFORM_IDENTITY)), 0.0,
-                0.0, 0.0, 1.0);
+                Geometry::quaternion_from_matrix(TestFixture::matrix_of(K_TRANSFORM_IDENTITY)), 0.0, 0.0, 0.0, 1.0);
         }
 
         TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheXBranchWhenXIsLargest)
@@ -281,9 +326,7 @@ namespace SushiBLAS
                     {2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                      0.0, 0.0, 4.0, 0.0, 1.0, 2.0, 3.0, 1.0}));
 
-            for (std::size_t index = 0; index < K_TRANSFORM_ELEMENT_COUNT; ++index)
-                EXPECT_EQ(static_cast<double>(inverse.m[index]), K_TRANSFORM_IDENTITY[index])
-                    << "element " << index;
+            TestFixture::expect_matrix_near(inverse, K_TRANSFORM_IDENTITY);
         }
 
         TYPED_TEST(Small_GeometryTransform, DecomposeTransformRecoversWhatComposeTransformTook)

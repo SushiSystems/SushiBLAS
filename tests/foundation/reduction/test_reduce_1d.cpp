@@ -31,6 +31,7 @@
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
@@ -45,15 +46,17 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Relative tolerance: 2 float roundings per unit of magnitude.
-        constexpr double K_RELATIVE_TOLERANCE =
-            TestSupport::K_DEFAULT_THRESHOLD * 2.0 * TestSupport::unit_roundoff<float>();
-
         /// @brief The element count of the reductions run on the host device.
         constexpr std::size_t K_COUNT = 50000;
 
+        /// @brief The sum of i % 7 over i below K_COUNT: 7142 whole cycles of 21, then 0+1+2+3+4+5.
+        constexpr float K_EXACT_SUM = 149997.0f;
+
         /// @brief The number of partial sums the host-device reductions may use.
         constexpr std::size_t K_PARTIALS = 64;
+
+        /// @brief The number of rounded operations on the longest path of a scaled sum of squares.
+        constexpr std::size_t K_SQUARES_ROUNDINGS = 2;
 
         /// @brief Returns a CPU profile with the given unit count and group limit.
         static Device::Profile cpu_with(std::size_t units, std::size_t max_group)
@@ -65,7 +68,43 @@ namespace SushiBLAS
             return profile;
         }
 
-        TEST(Medium_Reduce1D, FloorPow2RoundsDownToAPowerOfTwo)
+        /// @brief Returns the compensated sum of big, then count terms of small, then minus big.
+        static float compensated_sum_around(float big, float small, std::size_t count)
+        {
+            Reduce::CompensatedSum<float> sum;
+            sum.accumulate(big);
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                sum.accumulate(small);
+            }
+            sum.accumulate(-big);
+            return sum.value();
+        }
+
+        /// @brief Returns the value an accumulator holds after it takes every term in order.
+        template <typename Accumulator, typename Term>
+        static auto fold(std::initializer_list<Term> terms)
+        {
+            Accumulator accumulator;
+            for (const Term& term : terms)
+            {
+                accumulator.accumulate(term);
+            }
+            return accumulator.value();
+        }
+
+        /// @brief Returns the values i % 7 for i below K_COUNT.
+        static std::vector<float> cycle_of_seven()
+        {
+            std::vector<float> values(K_COUNT);
+            for (std::size_t i = 0; i < K_COUNT; ++i)
+            {
+                values[i] = static_cast<float>(i % 7);
+            }
+            return values;
+        }
+
+        TEST(Small_Reduce1D, FloorPow2RoundsDownToAPowerOfTwo)
         {
             static_assert(Reduce::floor_pow2(1) == 1, "1 is 2^0.");
             static_assert(Reduce::floor_pow2(100) == 64, "100 rounds to 64.");
@@ -74,7 +113,7 @@ namespace SushiBLAS
             EXPECT_EQ(Reduce::floor_pow2(0), std::size_t{1});
         }
 
-        TEST(Medium_Reduce1D, ACPUFoldsSmallInputsInOneTask)
+        TEST(Small_Reduce1D, ACPUFoldsSmallInputsInOneTask)
         {
             const Device::Profile cpu = cpu_with(8, 8192);
 
@@ -84,7 +123,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Reduce::plan(cpu, 100, K_PARTIALS).sequential());
         }
 
-        TEST(Medium_Reduce1D, APlanStaysWithinTheScratchAndTheGroupCap)
+        TEST(Small_Reduce1D, APlanStaysWithinTheScratchAndTheGroupCap)
         {
             const Device::Profile cpu = cpu_with(64, 64);
             const std::size_t n = std::size_t{1} << 22;
@@ -95,18 +134,12 @@ namespace SushiBLAS
             EXPECT_EQ(Reduce::plan(cpu, n, 10).local, Reduce::group_width(cpu));
         }
 
-        TEST(Medium_Reduce1D, CompensatedSumKeepsTheSmallTermsOfALargeSum)
+        TEST(Small_Reduce1D, CompensatedSumKeepsTheSmallTermsOfALargeSum)
         {
-            Reduce::CompensatedSum<float> sum;
-            sum.accumulate(1.0e8f);
-            for (int i = 0; i < 1000; ++i)
-                sum.accumulate(1.0f);
-            sum.accumulate(-1.0e8f);
-
-            EXPECT_EQ(sum.value(), 1000.0f);
+            EXPECT_EQ(compensated_sum_around(1.0e8f, 1.0f, 1000), 1000.0f);
         }
 
-        TEST(Medium_Reduce1D, CompensatedSumOfAnInfinityIsThatInfinity)
+        TEST(Small_Reduce1D, CompensatedSumOfAnInfinityIsThatInfinity)
         {
             Reduce::CompensatedSum<double> sum;
             sum.accumulate(1.0);
@@ -115,51 +148,83 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), std::numeric_limits<double>::infinity());
         }
 
-        TEST(Medium_Reduce1D, ScaledSumOfSquaresNeitherOverflowsNorUnderflows)
+        TEST(Small_Reduce1D, ScaledSumOfSquaresDoesNotOverflow)
         {
             Reduce::ScaledSumOfSquares<float> big;
             big.accumulate(3.0e30f);
             big.accumulate(4.0e30f);
+
+            EXPECT_TRUE(TestSupport::is_within(
+                TestSupport::measure_relative_error<float>(big.value(), 5.0e30, K_SQUARES_ROUNDINGS)));
+        }
+
+        TEST(Small_Reduce1D, ScaledSumOfSquaresDoesNotUnderflow)
+        {
             Reduce::ScaledSumOfSquares<float> small;
             small.accumulate(3.0e-30f);
             small.accumulate(4.0e-30f);
 
-            EXPECT_NEAR(big.value(), 5.0e30f, 5.0e30f * K_RELATIVE_TOLERANCE);
-            EXPECT_NEAR(small.value(), 5.0e-30f, 5.0e-30f * K_RELATIVE_TOLERANCE);
+            EXPECT_TRUE(TestSupport::is_within(
+                TestSupport::measure_relative_error<float>(small.value(), 5.0e-30, K_SQUARES_ROUNDINGS)));
         }
 
-        TEST(Medium_Reduce1D, ProductExactSumAndComplexSumFoldTheirTerms)
+        TEST(Small_Reduce1D, RunningProductMultipliesItsTerms)
         {
-            Reduce::RunningProduct<double> product;
-            Reduce::ExactSum<int64_t> exact;
-            Reduce::CompensatedComplexSum<std::complex<double>> complex_sum;
-            for (int i = 1; i <= 5; ++i)
-            {
-                product.accumulate(static_cast<double>(i));
-                exact.accumulate(i);
-                complex_sum.accumulate(std::complex<double>(i, -i));
-            }
-
-            EXPECT_EQ(product.value(), 120.0);
-            EXPECT_EQ(exact.value(), int64_t{15});
-            EXPECT_EQ(complex_sum.value(), std::complex<double>(15.0, -15.0));
+            EXPECT_EQ((fold<Reduce::RunningProduct<double>, double>({1.0, 2.0, 3.0, 4.0, 5.0})), 120.0);
         }
 
-        TEST(Medium_Reduce1D, MaxAndMinPropagateNaNAndPreferPositiveZero)
+        TEST(Small_Reduce1D, ExactSumAddsItsIntegerTerms)
+        {
+            EXPECT_EQ((fold<Reduce::ExactSum<int64_t>, int64_t>({1, 2, 3, 4, 5})), int64_t{15});
+        }
+
+        TEST(Small_Reduce1D, CompensatedComplexSumAddsBothParts)
+        {
+            using Complex = std::complex<double>;
+
+            EXPECT_EQ((fold<Reduce::CompensatedComplexSum<Complex>, Complex>(
+                          {Complex(1, -1), Complex(2, -2), Complex(3, -3), Complex(4, -4),
+                           Complex(5, -5)})),
+                      Complex(15.0, -15.0));
+        }
+
+        TEST(Small_Reduce1D, AMaximumPropagatesANaN)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
             EXPECT_TRUE(std::isnan(Reduce::NaNPropagatingMax<double>::combine(1.0, nan)));
+        }
+
+        TEST(Small_Reduce1D, AMinimumPropagatesANaN)
+        {
+            const double nan = std::numeric_limits<double>::quiet_NaN();
+
             EXPECT_TRUE(std::isnan(Reduce::NaNPropagatingMin<double>::combine(nan, 1.0)));
+        }
+
+        TEST(Small_Reduce1D, AMaximumOfSignedZerosIsThePositiveZero)
+        {
             EXPECT_FALSE(std::signbit(Reduce::NaNPropagatingMax<double>::combine(-0.0, 0.0)));
+        }
+
+        TEST(Small_Reduce1D, AMinimumOfSignedZerosIsTheNegativeZero)
+        {
             EXPECT_TRUE(std::signbit(Reduce::NaNPropagatingMin<double>::combine(0.0, -0.0)));
+        }
+
+        TEST(Small_Reduce1D, TheIdentityOfAMaximumIsMinusInfinity)
+        {
             EXPECT_EQ(Reduce::NaNPropagatingMax<double>::identity(),
                       -std::numeric_limits<double>::infinity());
+        }
+
+        TEST(Small_Reduce1D, TheIdentityOfAnIntegerMinimumIsTheLargestInteger)
+        {
             EXPECT_EQ(Reduce::NaNPropagatingMin<int32_t>::identity(),
                       std::numeric_limits<int32_t>::max());
         }
 
-        TEST(Medium_Reduce1D, ArgMaxKeepsTheFirstIndexOfATie)
+        TEST(Small_Reduce1D, ArgMaxKeepsTheFirstIndexOfATie)
         {
             using Pair = Reduce::IndexedValue<float>;
             Reduce::RunningArgMax<Pair> best;
@@ -171,7 +236,7 @@ namespace SushiBLAS
             EXPECT_EQ(best.value().value, 7.0f);
         }
 
-        TEST(Medium_Reduce1D, ArgMinTakesTheSmallestValue)
+        TEST(Small_Reduce1D, ArgMinTakesTheSmallestValue)
         {
             using Pair = Reduce::IndexedValue<double>;
             Reduce::RunningArgMin<Pair> best;
@@ -190,14 +255,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_Reduce1DOnDevice, TheStagedAndTheSequentialSumGiveTheExactSum)
         {
-            std::vector<float> values(K_COUNT);
-            std::size_t exact_sum = 0;
-            for (std::size_t i = 0; i < K_COUNT; ++i)
-            {
-                values[i] = static_cast<float>(i % 7);
-                exact_sum += i % 7;
-            }
-            const SharedArray<float> in(queue(), values);
+            const SharedArray<float> in(queue(), cycle_of_seven());
             SharedArray<float> staged(queue(), 1);
             SharedArray<float> sequential(queue(), 1);
             SharedArray<float> partials(queue(), K_PARTIALS);
@@ -212,9 +270,8 @@ namespace SushiBLAS
                                                    identity, keep, {}).wait();
 
             // Each term and partial sum is an integer below 2^24, so both folds are exact.
-            const float exact = static_cast<float>(exact_sum);
-            EXPECT_EQ(staged.get()[0], exact);
-            EXPECT_EQ(sequential.get()[0], exact);
+            EXPECT_EQ(staged.get()[0], K_EXACT_SUM);
+            EXPECT_EQ(sequential.get()[0], K_EXACT_SUM);
         }
 
         TEST_F(Medium_Reduce1DOnDevice, FinalizeReceivesTheElementCount)

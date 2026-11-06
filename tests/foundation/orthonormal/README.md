@@ -1,11 +1,9 @@
 # Tests of orthonormal
 
-The tests of the `orthonormal` module, built into `sushiblas_orthonormal_test_objects` and linked
-into `sushiblas_foundation_tests` by `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. The source comments state
-what a test checks; a section below holds why a test is written the way it is.
-[`tests/README.md`](../../README.md) holds the reasoning the tests share, and
-`modules/engine/engine_fixture/README.md` describes the fixture.
+The compile check of the `orthonormal` module, listed under `COMPILE_CHECKS` of
+`modules/foundation/orthonormal/CMakeLists.txt`: the build compiles it and no test runner lists
+it. The sweep's behaviour is tested by `tests/kernels/random_kernels/reference/test_orthonormalize.cpp`.
 
 | File | Tests |
 | --- | --- |
-| `test_orthonormal_sweep.cpp` | Tests the vector layout, the sweep count and the tiny-norm threshold of the sweep |
+| `compile_orthonormal_sweep.cpp` | Checks that the header stands alone and that the tiny-norm threshold has the element type |

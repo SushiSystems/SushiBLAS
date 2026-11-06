@@ -30,6 +30,7 @@ sushiblas_add_test_program(
     TESTS
         profile_level_one.cpp
         profile_off.cpp
-        test_profile.cpp
         test_profile_gate.cpp
-        test_profile_keys.cpp)
+        test_profile_keys.cpp
+    COMPILE_CHECKS
+        compile_profile.cpp)

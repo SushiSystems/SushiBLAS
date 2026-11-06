@@ -21,4 +21,5 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         sycl/test_convolve_1d.cpp
         sycl/test_fft.cpp
-        test_signal.cpp)
+    COMPILE_CHECKS
+        compile_signal.cpp)

@@ -30,7 +30,7 @@
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
-#include <cmath>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -53,20 +53,51 @@ namespace SushiBLAS
             EXPECT_EQ(std::vector<std::uint32_t>(row.reversal, row.reversal + 8), expected);
         }
 
-        TEST(Small_FftPlan, CooksTheTwiddlesAsUnitRoots)
-        {
-            const Kernels::FftPlan<double> plan(1, 8, Kernels::FftPairing::ComplexToComplex);
-            const Kernels::FftLineView<double> row =
-                plan.row_line(plan.values().data(), plan.indices().data());
-            const double pi = 3.14159265358979323846;
-            const double tolerance = absolute_tolerance<double>(1);
+        /// @brief The absolute tolerance of a twiddle: one rounding of a value of order one.
+        constexpr double K_TWIDDLE_TOLERANCE = absolute_tolerance<double>(1);
 
-            for (std::size_t k = 0; k < 4; ++k)
-            {
-                EXPECT_NEAR(row.twiddles[2 * k], std::cos(-2.0 * pi * k / 8.0), tolerance) << k;
-                EXPECT_NEAR(row.twiddles[2 * k + 1], std::sin(-2.0 * pi * k / 8.0), tolerance) << k;
-            }
+        /// @brief One twiddle of a line of eight and the unit root exp(-2 pi i k / 8) worked by hand.
+        struct TwiddleRow
+        {
+                const char* name;
+                std::size_t k;
+                double real;
+                double imaginary;
+        };
+
+        /// @brief Returns the four roots a line of eight keeps; sqrt(2) / 2 is 0.7071067811865476.
+        static std::vector<TwiddleRow> twiddle_rows()
+        {
+            return {{"K0", 0, 1.0, 0.0},
+                    {"K1", 1, 0.7071067811865476, -0.7071067811865476},
+                    {"K2", 2, 0.0, -1.0},
+                    {"K3", 3, -0.7071067811865476, -0.7071067811865476}};
         }
+
+        /// @brief Names a row, which gtest takes as the test suffix.
+        static std::string twiddle_row_name(const ::testing::TestParamInfo<TwiddleRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Reads one twiddle of a plan of eight.
+        class Small_FftPlanTwiddles : public ::testing::TestWithParam<TwiddleRow>
+        {
+        };
+
+        TEST_P(Small_FftPlanTwiddles, CooksTheTwiddlesAsUnitRoots)
+        {
+            const TwiddleRow& row = GetParam();
+            const Kernels::FftPlan<double> plan(1, 8, Kernels::FftPairing::ComplexToComplex);
+            const Kernels::FftLineView<double> line =
+                plan.row_line(plan.values().data(), plan.indices().data());
+
+            EXPECT_NEAR(line.twiddles[2 * row.k], row.real, K_TWIDDLE_TOLERANCE);
+            EXPECT_NEAR(line.twiddles[2 * row.k + 1], row.imaginary, K_TWIDDLE_TOLERANCE);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_FftPlanTwiddles, ::testing::ValuesIn(twiddle_rows()),
+                                 twiddle_row_name);
 
         TEST(Small_FftPlan, PadsANonPowerOfTwoLineForBluestein)
         {
@@ -114,6 +145,13 @@ namespace SushiBLAS
             const Kernels::FftPlan<float> plan(1, 4, Kernels::FftPairing::ComplexToComplex);
 
             EXPECT_EQ(plan.column_line(plan.values().data(), plan.indices().data()).length, 0u);
+        }
+
+        TEST(Small_FftPlan, GivesAMultiRowPlanAColumnLineAsLongAsItsRows)
+        {
+            const Kernels::FftPlan<float> plan(3, 4, Kernels::FftPairing::ComplexToComplex);
+
+            EXPECT_EQ(plan.column_line(plan.values().data(), plan.indices().data()).length, 3u);
         }
     } // namespace Test
 } // namespace SushiBLAS

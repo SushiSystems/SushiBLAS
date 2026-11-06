@@ -38,22 +38,42 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Checks that every value is an integer from -3 to 3. */
+            void expect_small_integers(const std::vector<double>& values)
+            {
+                for (double value : values)
+                {
+                    EXPECT_EQ(value, std::floor(value));
+                    EXPECT_GE(value, -3.0);
+                    EXPECT_LE(value, 3.0);
+                }
+            }
+
+            /** @brief Checks that every diagonal element of an n by n row-major matrix is 1. */
+            void expect_unit_diagonal(const std::vector<int32_t>& matrix, int64_t n)
+            {
+                for (int64_t i = 0; i < n; ++i)
+                    EXPECT_EQ(matrix[static_cast<std::size_t>(i * n + i)], 1);
+            }
+        } // namespace
+
         TEST(Small_SmallIntegers, EveryValueIsAnIntegerFromMinusThreeToThree)
         {
             const std::vector<double> values = small_integers<double>(1000, 7);
 
             ASSERT_EQ(values.size(), std::size_t{1000});
-            for (double value : values)
-            {
-                EXPECT_EQ(value, std::floor(value));
-                EXPECT_GE(value, -3.0);
-                EXPECT_LE(value, 3.0);
-            }
+            expect_small_integers(values);
         }
 
-        TEST(Small_SmallIntegers, OneSeedGivesOneSequenceAndAnotherSeedAnother)
+        TEST(Small_SmallIntegers, OneSeedRepeatsItsSequence)
         {
             EXPECT_EQ(small_integers<float>(64, 1), small_integers<float>(64, 1));
+        }
+
+        TEST(Small_SmallIntegers, AnotherSeedGivesAnotherSequence)
+        {
             EXPECT_NE(small_integers<float>(64, 1), small_integers<float>(64, 2));
         }
 
@@ -62,8 +82,7 @@ namespace SushiBLAS
             const std::vector<int32_t> matrix = unit_diagonal_matrix<int32_t>(5, 3);
 
             ASSERT_EQ(matrix.size(), std::size_t{25});
-            for (int64_t i = 0; i < 5; ++i)
-                EXPECT_EQ(matrix[static_cast<std::size_t>(i * 5 + i)], 1);
+            expect_unit_diagonal(matrix, 5);
         }
     } // namespace Test
 } // namespace SushiBLAS

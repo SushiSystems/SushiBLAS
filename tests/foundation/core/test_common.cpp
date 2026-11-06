@@ -27,8 +27,8 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 
@@ -36,21 +36,23 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        static_assert(static_cast<int>(Core::DataType::Half) == 0, "HALF is 0.");
+        static_assert(static_cast<int>(Core::DataType::Float32) == 1, "FLOAT32 is 1.");
+        static_assert(static_cast<int>(Core::DataType::Float64) == 2, "FLOAT64 is 2.");
+        static_assert(static_cast<int>(Core::DataType::Complex32) == 3, "COMPLEX32 is 3.");
+        static_assert(static_cast<int>(Core::DataType::Complex64) == 4, "COMPLEX64 is 4.");
+        static_assert(static_cast<int>(Core::DataType::Int32) == 5, "INT32 is 5.");
+        static_assert(static_cast<int>(Core::DataType::Int64) == 6, "INT64 is 6.");
+        static_assert(static_cast<int>(Core::DataType::UInt32) == 7, "UINT32 is 7.");
+        static_assert(Core::K_DATA_TYPE_COUNT == 8, "DataType has eight enumerators.");
+        static_assert(sizeof(Core::DataType) == 1, "DataType is one byte.");
+        static_assert(sizeof(Core::Layout) == 1, "Layout is one byte.");
+
         /// @brief A value outside every DataType enumerator.
         constexpr int K_UNKNOWN_DTYPE = 200;
 
         TEST(Small_DataType, EveryEnumeratorKeepsItsFileFormatNumber)
         {
-            static_assert(static_cast<int>(Core::DataType::Half) == 0, "HALF is 0.");
-            static_assert(static_cast<int>(Core::DataType::Float32) == 1, "FLOAT32 is 1.");
-            static_assert(static_cast<int>(Core::DataType::Float64) == 2, "FLOAT64 is 2.");
-            static_assert(static_cast<int>(Core::DataType::Complex32) == 3, "COMPLEX32 is 3.");
-            static_assert(static_cast<int>(Core::DataType::Complex64) == 4, "COMPLEX64 is 4.");
-            static_assert(static_cast<int>(Core::DataType::Int32) == 5, "INT32 is 5.");
-            static_assert(static_cast<int>(Core::DataType::Int64) == 6, "INT64 is 6.");
-            static_assert(static_cast<int>(Core::DataType::UInt32) == 7, "UINT32 is 7.");
-            static_assert(Core::K_DATA_TYPE_COUNT == 8, "DataType has eight enumerators.");
-
             EXPECT_EQ(static_cast<int>(Core::DataType::Half), 0);
             EXPECT_EQ(static_cast<int>(Core::DataType::Float32), 1);
             EXPECT_EQ(static_cast<int>(Core::DataType::Float64), 2);
@@ -59,13 +61,6 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::DataType::Int32), 5);
             EXPECT_EQ(static_cast<int>(Core::DataType::Int64), 6);
             EXPECT_EQ(static_cast<int>(Core::DataType::UInt32), 7);
-        }
-
-        TEST(Small_DataType, IsOneByte)
-        {
-            static_assert(sizeof(Core::DataType) == 1, "DataType is one byte.");
-
-            EXPECT_EQ(sizeof(Core::DataType), 1u);
         }
 
         TEST(Small_DataType, ToStringNamesEveryEnumerator)
@@ -99,22 +94,37 @@ namespace SushiBLAS
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::UInt32), 4u);
         }
 
-        TEST(Small_DataType, EveryComputedTypeIsExactlyOneOfRealComplexAndInteger)
+        /// @brief Names a computed type by its to_string, which gtest takes as the test's suffix.
+        static std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
         {
-            const Core::DataType all[] = {
-                Core::DataType::Half,      Core::DataType::Float32,   Core::DataType::Float64,
-                Core::DataType::Complex32, Core::DataType::Complex64, Core::DataType::Int32,
-                Core::DataType::Int64};
-
-            for (Core::DataType dtype : all)
-            {
-                SCOPED_TRACE(Core::to_string(dtype));
-                const int kinds = static_cast<int>(Core::is_real_dtype(dtype)) +
-                                  static_cast<int>(Core::is_complex_dtype(dtype)) +
-                                  static_cast<int>(Core::is_integer_dtype(dtype));
-                EXPECT_EQ(kinds, 1);
-            }
+            return Core::to_string(info.param);
         }
+
+        /// @brief Returns every computed type, which is every DataType but UInt32.
+        static std::vector<Core::DataType> computed_types()
+        {
+            return {Core::DataType::Half,      Core::DataType::Float32,   Core::DataType::Float64,
+                    Core::DataType::Complex32, Core::DataType::Complex64, Core::DataType::Int32,
+                    Core::DataType::Int64};
+        }
+
+        /// @brief Runs the kind predicates on one computed type.
+        class Small_DataTypeKind : public ::testing::TestWithParam<Core::DataType>
+        {
+        };
+
+        TEST_P(Small_DataTypeKind, ATypeIsExactlyOneOfRealComplexAndInteger)
+        {
+            const Core::DataType dtype = GetParam();
+            const int kinds = static_cast<int>(Core::is_real_dtype(dtype)) +
+                              static_cast<int>(Core::is_complex_dtype(dtype)) +
+                              static_cast<int>(Core::is_integer_dtype(dtype));
+
+            EXPECT_EQ(kinds, 1);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_DataTypeKind, ::testing::ValuesIn(computed_types()),
+                                 dtype_name);
 
         TEST(Small_DataType, ThePredicatesSortEachTypeIntoItsKind)
         {
@@ -134,17 +144,10 @@ namespace SushiBLAS
             EXPECT_FALSE(Core::is_integer_dtype(Core::DataType::UInt32));
         }
 
-        TEST(Small_Layout, KeepsItsNumbersAndIsOneByte)
+        TEST(Small_Layout, KeepsItsNumbers)
         {
-            static_assert(sizeof(Core::Layout) == 1, "Layout is one byte.");
-
             EXPECT_EQ(static_cast<int>(Core::Layout::RowMajor), 0);
             EXPECT_EQ(static_cast<int>(Core::Layout::ColumnMajor), 1);
-        }
-
-        TEST(Small_Layout, TheLargestRankIsSix)
-        {
-            EXPECT_EQ(Core::K_MAX_TENSOR_RANK, std::size_t{6});
         }
     } // namespace Test
 } // namespace SushiBLAS

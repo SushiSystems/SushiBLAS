@@ -39,23 +39,37 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Checks that no key of keys is empty or repeats. */
+            template<typename Keys>
+            void expect_distinct_keys(const Keys& keys)
+            {
+                std::set<std::string_view> seen;
+                for (const std::string_view key : keys)
+                {
+                    EXPECT_FALSE(key.empty());
+                    EXPECT_TRUE(seen.insert(key).second) << key;
+                }
+            }
+
+            /** @brief Checks that every key but the group name starts with "sushiblas.". */
+            template<typename Keys>
+            void expect_library_prefix(const Keys& keys, std::string_view group_name)
+            {
+                for (const std::string_view key : keys)
+                    EXPECT_TRUE(key == group_name || key.substr(0, 10) == "sushiblas.") << key;
+            }
+        } // namespace
+
         TEST(Small_ProfileKeys, EveryKeyIsListedOnce)
         {
-            std::set<std::string_view> seen;
-            for (const std::string_view key : Internal::Profile::K_ALL_KEYS)
-            {
-                EXPECT_FALSE(key.empty());
-                EXPECT_TRUE(seen.insert(key).second) << key;
-            }
+            expect_distinct_keys(Internal::Profile::K_ALL_KEYS);
         }
 
         TEST(Small_ProfileKeys, EveryFactOfTheLibraryStartsWithItsName)
         {
-            for (const std::string_view key : Internal::Profile::K_ALL_KEYS)
-            {
-                if (key != Internal::Profile::K_GROUP_NAME)
-                    EXPECT_EQ(key.substr(0, 10), "sushiblas.") << key;
-            }
+            expect_library_prefix(Internal::Profile::K_ALL_KEYS, Internal::Profile::K_GROUP_NAME);
         }
     } // namespace Test
 } // namespace SushiBLAS

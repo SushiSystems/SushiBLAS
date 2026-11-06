@@ -24,4 +24,5 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         test_run_observer_capture.cpp
     COMPILE_CHECKS
-        test_test_runner_log_category.cpp)
+        compile_test_runner_log_category.cpp
+)

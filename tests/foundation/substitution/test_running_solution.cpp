@@ -31,10 +31,10 @@
 #include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/substitution/running_solution.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 
 namespace SushiBLAS
 {
@@ -49,62 +49,46 @@ namespace SushiBLAS
         /// @brief A binary32 value HALF cannot hold exactly.
         constexpr float K_INEXACT_IN_HALF = 0.1f;
 
+        /// @brief The binary16 value nearest to K_INEXACT_IN_HALF: bits 0x2E66, 1.599609375 / 16.
+        constexpr float K_NEAREST_HALF_TO_INEXACT = 0.0999755859375f;
+
         /// @brief Marks a workspace element no case may write.
         constexpr float K_UNTOUCHED = -7.0f;
 
-        TEST(Medium_RunningSolution, OnlyHalfNeedsAWorkspace)
-        {
-            static_assert(Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE,
-                          "HALF is carried in FLOAT32.");
-            static_assert(!Kernels::RunningSolution<float>::K_NEEDS_WORKSPACE,
-                          "FLOAT32 is carried in itself.");
-            static_assert(!Kernels::RunningSolution<double>::K_NEEDS_WORKSPACE,
-                          "FLOAT64 is carried in itself.");
-            static_assert(!Kernels::RunningSolution<std::complex<float>>::K_NEEDS_WORKSPACE,
-                          "COMPLEX32 is carried in itself.");
-            static_assert(!Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE,
-                          "COMPLEX64 is carried in itself.");
+        /// @brief The element types that are carried in themselves and need no workspace.
+        using SelfCarriedTypes = ::testing::Types<float, std::complex<float>, std::complex<double>>;
 
-            EXPECT_TRUE(Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE);
-            EXPECT_FALSE(Kernels::RunningSolution<float>::K_NEEDS_WORKSPACE);
-            EXPECT_FALSE(Kernels::RunningSolution<double>::K_NEEDS_WORKSPACE);
-            EXPECT_FALSE(Kernels::RunningSolution<std::complex<float>>::K_NEEDS_WORKSPACE);
-            EXPECT_FALSE(Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE);
+        /// @brief Typed fixture for a RunningSolution over an element type carried in itself.
+        template <typename T>
+        class Small_RunningSolutionSelfCarried : public ::testing::Test
+        {
+        };
+        SB_TYPED_TEST_SUITE(Small_RunningSolutionSelfCarried, SelfCarriedTypes);
+
+        TYPED_TEST(Small_RunningSolutionSelfCarried, SetThenGetGoesThroughTheBoundArray)
+        {
+            using T = TypeParam;
+            std::array<T, K_SOLUTION_LENGTH> bound = {T(1), T(2), T(3), T(4)};
+            const Kernels::RunningSolution<T> solution(bound.data(), nullptr, 0);
+
+            solution.set(1, T(9));
+
+            EXPECT_EQ(bound, (std::array<T, K_SOLUTION_LENGTH>{T(1), T(9), T(3), T(4)}));
+            EXPECT_EQ(solution.get(1), T(9));
         }
 
-        TEST(Medium_RunningSolution, HalfIsCarriedInFloat)
+        TYPED_TEST(Small_RunningSolutionSelfCarried, GetSeesAWriteToTheBoundArray)
         {
-            static_assert(std::is_same_v<Kernels::RunningSolution<sycl::half>::Wide, float>,
-                          "HALF is carried in FLOAT32.");
-            static_assert(std::is_same_v<Kernels::RunningSolution<double>::Wide, double>,
-                          "FLOAT64 is carried in itself.");
+            using T = TypeParam;
+            std::array<T, K_SOLUTION_LENGTH> bound = {T(1), T(2), T(3), T(4)};
+            const Kernels::RunningSolution<T> solution(bound.data(), nullptr, 0);
+
+            bound[2] = T(8);
+
+            EXPECT_EQ(solution.get(2), T(8));
         }
 
-        TEST(Medium_RunningSolution, FloatSetWritesTheBoundArray)
-        {
-            std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
-            const Kernels::RunningSolution<float> solution(rounded.data(), nullptr, 0);
-
-            solution.set(1, K_INEXACT_IN_HALF);
-
-            EXPECT_EQ(rounded[1], K_INEXACT_IN_HALF);
-            EXPECT_EQ(rounded[0], 1.0f);
-            EXPECT_EQ(rounded[2], 3.0f);
-        }
-
-        TEST(Medium_RunningSolution, FloatGetReadsTheBoundArray)
-        {
-            std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
-            const Kernels::RunningSolution<float> solution(rounded.data(), nullptr, 0);
-
-            EXPECT_EQ(solution.get(2), 3.0f);
-
-            rounded[2] = 9.0f;
-
-            EXPECT_EQ(solution.get(2), 9.0f);
-        }
-
-        TEST(Medium_RunningSolution, FloatIgnoresTheWorkspaceItIsGiven)
+        TEST(Small_RunningSolution, FloatIgnoresTheWorkspaceItIsGiven)
         {
             std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
             std::array<float, K_SOLUTION_LENGTH> workspace;
@@ -113,24 +97,11 @@ namespace SushiBLAS
 
             solution.set(0, 5.0f);
 
-            EXPECT_EQ(solution.get(0), 5.0f);
-            EXPECT_EQ(rounded[0], 5.0f);
-            EXPECT_EQ(workspace[0], K_UNTOUCHED);
+            EXPECT_EQ(workspace, (std::array<float, K_SOLUTION_LENGTH>{K_UNTOUCHED, K_UNTOUCHED,
+                                                                       K_UNTOUCHED, K_UNTOUCHED}));
         }
 
-        TEST(Medium_RunningSolution, ComplexSetThenGetGoesThroughTheBoundArray)
-        {
-            std::array<std::complex<double>, K_SOLUTION_LENGTH> rounded = {};
-            const Kernels::RunningSolution<std::complex<double>> solution(rounded.data(), nullptr,
-                                                                          0);
-
-            solution.set(3, std::complex<double>(1.5, -2.5));
-
-            EXPECT_EQ(rounded[3], std::complex<double>(1.5, -2.5));
-            EXPECT_EQ(solution.get(3), std::complex<double>(1.5, -2.5));
-        }
-
-        TEST(Medium_RunningSolution, HalfGetReturnsTheUnroundedFloat)
+        TEST(Small_RunningSolution, HalfGetReturnsTheUnroundedFloat)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;
@@ -141,10 +112,9 @@ namespace SushiBLAS
             solution.set(1, K_INEXACT_IN_HALF);
 
             EXPECT_EQ(solution.get(1), K_INEXACT_IN_HALF);
-            EXPECT_NE(static_cast<float>(rounded[1]), K_INEXACT_IN_HALF);
         }
 
-        TEST(Medium_RunningSolution, HalfSetStoresTheRoundingInTheBoundArray)
+        TEST(Small_RunningSolution, HalfSetStoresTheRoundingInTheBoundArray)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;
@@ -154,12 +124,11 @@ namespace SushiBLAS
 
             solution.set(1, K_INEXACT_IN_HALF);
 
-            EXPECT_EQ(static_cast<float>(rounded[1]),
-                      static_cast<float>(static_cast<sycl::half>(K_INEXACT_IN_HALF)));
+            EXPECT_EQ(static_cast<float>(rounded[1]), K_NEAREST_HALF_TO_INEXACT);
             EXPECT_EQ(static_cast<float>(rounded[0]), 0.0f);
         }
 
-        TEST(Medium_RunningSolution, HalfKeepsTheWideCopyAtTheWorkspaceOffset)
+        TEST(Small_RunningSolution, HalfKeepsTheWideCopyAtTheWorkspaceOffset)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;
@@ -169,10 +138,10 @@ namespace SushiBLAS
 
             solution.set(1, K_INEXACT_IN_HALF);
 
-            const std::size_t written = static_cast<std::size_t>(K_WORKSPACE_OFFSET) + 1;
-            for (std::size_t i = 0; i < workspace.size(); ++i)
-                EXPECT_EQ(workspace[i], i == written ? K_INEXACT_IN_HALF : K_UNTOUCHED)
-                    << "workspace element " << i;
+            // Element 1 of the solution sits at K_WORKSPACE_OFFSET + 1 = 3 of the workspace.
+            const std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> expected = {
+                K_UNTOUCHED, K_UNTOUCHED, K_UNTOUCHED, K_INEXACT_IN_HALF, K_UNTOUCHED, K_UNTOUCHED};
+            EXPECT_EQ(workspace, expected);
         }
     } // namespace Test
 } // namespace SushiBLAS

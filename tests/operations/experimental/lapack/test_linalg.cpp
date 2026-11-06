@@ -47,7 +47,7 @@
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-
+#include "support/tolerance.hpp"
 namespace SushiBLAS
 {
     namespace Test
@@ -57,6 +57,31 @@ namespace SushiBLAS
             /// @brief The forced modes every case runs in.
             constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
                                                         ExecutionMode::ForceReference};
+
+            /// @brief The order of each matrix the factorisation test factors.
+            constexpr std::size_t K_FACTOR_ORDER = 9;
+
+            /// @brief How many matrices the factorisation test factors; matrix 1 is singular.
+            constexpr std::size_t K_FACTOR_BATCH = 3;
+
+            /// @brief The order and the batch of the solve test.
+            constexpr std::size_t K_SOLVE_ORDER = 8;
+            constexpr std::size_t K_SOLVE_BATCH = 2;
+
+            /// @brief The order of the system GMRES solves.
+            constexpr std::size_t K_GMRES_ORDER = 16;
+
+            /**
+             * @brief The GMRES relative tolerance in units of the unit roundoff of FLOAT64: 1e-12 is
+             *        about 9007 of them.
+             */
+            constexpr double K_GMRES_UNITS_DOUBLE = 9007.0;
+
+            /**
+             * @brief The GMRES relative tolerance in units of the unit roundoff of FLOAT32: 1e-5 is
+             *        about 168 of them.
+             */
+            constexpr double K_GMRES_UNITS_FLOAT = 168.0;
 
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
             std::vector<double> values(std::size_t count, unsigned seed)
@@ -111,23 +136,34 @@ namespace SushiBLAS
                 return std::vector<double>(x.begin(), x.end());
             }
 
-            /** @brief Returns P^T L U of one factored n * n matrix. */
-            template<typename T>
-            std::vector<double> reconstruct(const T* lu, const std::uint32_t* pivots,
-                                            std::size_t n)
+            /** @brief Holds P^T L U of one factored matrix and the sum of |L||U| that bounds its rounding. */
+            struct Reconstruction
             {
-                std::vector<double> product(n * n, 0.0);
+                std::vector<double> product;   /**< P^T L U. */
+                std::vector<double> magnitude; /**< P^T |L||U|, entry by entry. */
+            };
+
+            /** @brief Returns P^T L U and P^T |L||U| of one factored n * n matrix. */
+            template<typename T>
+            Reconstruction reconstruct(const T* lu, const std::uint32_t* pivots, std::size_t n)
+            {
+                Reconstruction r{std::vector<double>(n * n, 0.0), std::vector<double>(n * n, 0.0)};
                 for (std::size_t i = 0; i < n; ++i)
                     for (std::size_t j = 0; j < n; ++j)
                         for (std::size_t k = 0; k <= std::min(i, j); ++k)
                         {
                             const double l = k == i ? 1.0 : static_cast<double>(lu[i * n + k]);
-                            product[i * n + j] += l * static_cast<double>(lu[k * n + j]);
+                            const double u = static_cast<double>(lu[k * n + j]);
+                            r.product[i * n + j] += l * u;
+                            r.magnitude[i * n + j] += std::fabs(l * u);
                         }
                 for (std::size_t k = n; k-- > 0;)
                     for (std::size_t j = 0; j < n; ++j)
-                        std::swap(product[k * n + j], product[pivots[k] * n + j]);
-                return product;
+                    {
+                        std::swap(r.product[k * n + j], r.product[pivots[k] * n + j]);
+                        std::swap(r.magnitude[k * n + j], r.magnitude[pivots[k] * n + j]);
+                    }
+                return r;
             }
 
             /** @brief Returns a rank-1 tensor holding elements. */
@@ -147,6 +183,14 @@ namespace SushiBLAS
                 return std::vector<T>(in.begin(), in.end());
             }
 
+            /** @brief Returns the largest magnitude among the values. */
+            double largest_magnitude(const std::vector<double>& in)
+            {
+                return std::fabs(*std::max_element(in.begin(), in.end(),
+                                                   [](double a, double b)
+                                                   { return std::fabs(a) < std::fabs(b); }));
+            }
+
             /** @brief Returns true when the test device can compute in T. */
             template<typename T>
             bool device_computes()
@@ -161,6 +205,17 @@ namespace SushiBLAS
             const char* trace_of(ExecutionMode mode)
             {
                 return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSYCL";
+            }
+
+            /** @brief Runs check once for each forced mode. */
+            template<typename Check>
+            void in_each_forced_mode(Check&& check)
+            {
+                for (const ExecutionMode mode : K_FORCED_MODES)
+                {
+                    SCOPED_TRACE(trace_of(mode));
+                    check(mode);
+                }
             }
 
             /**
@@ -182,6 +237,208 @@ namespace SushiBLAS
                     EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
                         << text;
                 }
+            }
+
+            /** @brief Holds what lu_factor wrote for the matrices of the factorisation test. */
+            template<typename T>
+            struct FactorRun
+            {
+                std::vector<T> original;          /**< The matrices before the factorisation. */
+                std::vector<T> lu;                /**< The factors, packed. */
+                std::vector<std::uint32_t> pivots;   /**< The pivot rows. */
+                std::vector<std::uint32_t> singular; /**< The singular flag of each matrix. */
+            };
+
+            /** @brief Factors K_FACTOR_BATCH matrices, matrix 1 repeating its first row, in mode. */
+            template<typename T>
+            FactorRun<T> run_factor(Engine& engine, ExecutionMode mode)
+            {
+                std::vector<double> raw = values(K_FACTOR_BATCH * K_FACTOR_ORDER * K_FACTOR_ORDER, 61);
+                // Matrix 1 repeats its first row, so one pivot vanishes.
+                for (std::size_t j = 0; j < K_FACTOR_ORDER; ++j)
+                    raw[K_FACTOR_ORDER * K_FACTOR_ORDER + K_FACTOR_ORDER + j] =
+                        raw[K_FACTOR_ORDER * K_FACTOR_ORDER + j];
+
+                FactorRun<T> run;
+                run.original = rounded<T>(raw);
+                engine.set_mode(mode);
+                Tensor a = tensor_of(engine, run.original);
+                Tensor pivots = tensor_of(
+                    engine, std::vector<std::uint32_t>(K_FACTOR_BATCH * K_FACTOR_ORDER, 99u));
+                Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_FACTOR_BATCH, 7u));
+                RecordingFixture graph(engine);
+                LinalgOps(graph.recorder())
+                    .lu_factor(a, pivots, singular, K_FACTOR_ORDER, K_FACTOR_BATCH);
+                graph.run().value();
+
+                run.lu = SushiBLAS::IO().to_vector<T>(a);
+                run.pivots = SushiBLAS::IO().to_vector<std::uint32_t>(pivots);
+                run.singular = SushiBLAS::IO().to_vector<std::uint32_t>(singular);
+                return run;
+            }
+
+            /** @brief Expects P^T L U of the matrix `slot` of a run to equal the matrix within n·u·|L||U|. */
+            template<typename T>
+            void expect_reconstructs(const FactorRun<T>& run, std::size_t slot)
+            {
+                const std::size_t entries = K_FACTOR_ORDER * K_FACTOR_ORDER;
+                const Reconstruction r = reconstruct(run.lu.data() + slot * entries,
+                                                     run.pivots.data() + slot * K_FACTOR_ORDER,
+                                                     K_FACTOR_ORDER);
+                for (std::size_t e = 0; e < entries; ++e)
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<T>(
+                        r.product[e], static_cast<double>(run.original[slot * entries + e]),
+                        r.magnitude[e], K_FACTOR_ORDER)))
+                        << slot << " " << e;
+            }
+
+            /** @brief Expects the matrices 0 and 2 of a run to reconstruct, in mode. */
+            template<typename T>
+            void expect_factor_reconstructs(Engine& engine, ExecutionMode mode)
+            {
+                const FactorRun<T> run = run_factor<T>(engine, mode);
+                expect_reconstructs(run, 0);
+                expect_reconstructs(run, 2);
+            }
+
+            /** @brief Expects the singular flags of the run in mode to mark only matrix 1. */
+            template<typename T>
+            void expect_factor_flags_singular(Engine& engine, ExecutionMode mode)
+            {
+                EXPECT_EQ(run_factor<T>(engine, mode).singular,
+                          (std::vector<std::uint32_t>{0u, 1u, 0u}));
+            }
+
+            /**
+             * @brief Expects lu_factor then lu_solve to match the direct solve in mode.
+             * @note The matrices are diagonally dominant with a diagonal of n over entries below one,
+             *       so the condition number is below 2n and the error of the solve stays within
+             *       n * n roundings of the largest solution entry.
+             */
+            template<typename T>
+            void expect_solve_matches_direct(Engine& engine, ExecutionMode mode)
+            {
+                constexpr std::size_t K_N = K_SOLVE_ORDER;
+                std::vector<double> raw = values(K_SOLVE_BATCH * K_N * K_N, 62);
+                make_dominant(raw, K_N, K_SOLVE_BATCH);
+                const std::vector<T> a_values = rounded<T>(raw);
+                const std::vector<T> b_values = rounded<T>(values(K_SOLVE_BATCH * K_N, 63));
+
+                engine.set_mode(mode);
+                Tensor a = tensor_of(engine, a_values);
+                Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(K_SOLVE_BATCH * K_N));
+                Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_SOLVE_BATCH));
+                Tensor x = tensor_of(engine, b_values);
+                RecordingFixture graph(engine);
+                LinalgOps view(graph.recorder());
+                view.lu_factor(a, pivots, singular, K_N, K_SOLVE_BATCH);
+                view.lu_solve(a, pivots, x, K_N, 1, K_SOLVE_BATCH);
+                graph.run().value();
+
+                const std::vector<T> got = SushiBLAS::IO().to_vector<T>(x);
+                for (std::size_t b = 0; b < K_SOLVE_BATCH; ++b)
+                {
+                    const std::vector<double> matrix(a_values.begin() + b * K_N * K_N,
+                                                     a_values.begin() + (b + 1) * K_N * K_N);
+                    const std::vector<double> rhs(b_values.begin() + b * K_N,
+                                                  b_values.begin() + (b + 1) * K_N);
+                    const std::vector<double> expected = direct_solve(matrix, rhs, K_N);
+                    const double bound = static_cast<double>(K_N * K_N) *
+                                         TestSupport::unit_roundoff<T>() * largest_magnitude(expected);
+                    for (std::size_t i = 0; i < K_N; ++i)
+                        EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                            static_cast<double>(got[b * K_N + i]), expected[i], bound)))
+                            << b << " " << i;
+                }
+            }
+
+            /** @brief Returns the GMRES relative tolerance for T. */
+            template<typename T>
+            double gmres_tolerance()
+            {
+                const double units = std::is_same_v<T, double> ? K_GMRES_UNITS_DOUBLE
+                                                               : K_GMRES_UNITS_FLOAT;
+                return units * TestSupport::unit_roundoff<T>();
+            }
+
+            /** @brief Holds what gmres wrote for the system of the GMRES tests. */
+            template<typename T>
+            struct GmresRun
+            {
+                std::vector<double> expected; /**< The direct solution. */
+                std::vector<T> solution;      /**< The solution gmres wrote. */
+                std::uint32_t iterations = 0; /**< The iterations it reports. */
+                T residual = T(-1);           /**< The relative residual it reports. */
+                GmresOptions options;         /**< The options it ran with. */
+            };
+
+            /** @brief Solves the dominant system of order K_GMRES_ORDER with gmres in mode. */
+            template<typename T>
+            GmresRun<T> run_gmres(Engine& engine, ExecutionMode mode)
+            {
+                constexpr std::size_t K_N = K_GMRES_ORDER;
+                std::vector<double> raw = values(K_N * K_N, 64);
+                make_dominant(raw, K_N, 1);
+                const std::vector<T> a_values = rounded<T>(raw);
+                const std::vector<T> b_values = rounded<T>(values(K_N, 65));
+
+                GmresRun<T> run;
+                run.expected = direct_solve(std::vector<double>(a_values.begin(), a_values.end()),
+                                            std::vector<double>(b_values.begin(), b_values.end()),
+                                            K_N);
+                run.options.restart = 5;
+                run.options.block_size = 4;
+                run.options.relative_tolerance = gmres_tolerance<T>();
+
+                engine.set_mode(mode);
+                const Tensor a = tensor_of(engine, a_values);
+                const Tensor b = tensor_of(engine, b_values);
+                Tensor x = tensor_of(engine, std::vector<T>(K_N, T(0)));
+                Tensor iterations = tensor_of(engine, std::vector<std::uint32_t>(1, 0u));
+                Tensor residual = tensor_of(engine, std::vector<T>(1, T(-1)));
+                RecordingFixture graph(engine);
+                LinalgOps(graph.recorder()).gmres(a, b, x, iterations, residual, run.options);
+                graph.run().value();
+
+                run.solution = SushiBLAS::IO().to_vector<T>(x);
+                run.iterations = SushiBLAS::IO().to_vector<std::uint32_t>(iterations)[0];
+                run.residual = SushiBLAS::IO().to_vector<T>(residual)[0];
+                return run;
+            }
+
+            /**
+             * @brief Expects the solution of gmres to match the direct solve in mode.
+             * @note The residual is at most tolerance times |b|, |b| is at most 2n times the largest
+             *       solution entry for this matrix, and |A^-1| is below one, which bounds the error.
+             */
+            template<typename T>
+            void expect_gmres_solution(Engine& engine, ExecutionMode mode)
+            {
+                const GmresRun<T> run = run_gmres<T>(engine, mode);
+                const double bound = run.options.relative_tolerance *
+                                     static_cast<double>(2 * K_GMRES_ORDER) *
+                                     largest_magnitude(run.expected);
+                for (std::size_t i = 0; i < K_GMRES_ORDER; ++i)
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        static_cast<double>(run.solution[i]), run.expected[i], bound)))
+                        << i;
+            }
+
+            /** @brief Expects gmres to report at least one iteration and no more than its limit in mode. */
+            template<typename T>
+            void expect_gmres_iterations(Engine& engine, ExecutionMode mode)
+            {
+                const GmresRun<T> run = run_gmres<T>(engine, mode);
+                EXPECT_GE(run.iterations, 1u);
+                EXPECT_LE(run.iterations, run.options.max_iterations);
+            }
+
+            /** @brief Expects gmres to report a relative residual within its tolerance in mode. */
+            template<typename T>
+            void expect_gmres_residual(Engine& engine, ExecutionMode mode)
+            {
+                const GmresRun<T> run = run_gmres<T>(engine, mode);
+                EXPECT_LE(run.residual, static_cast<T>(run.options.relative_tolerance));
             }
         } // namespace
 
@@ -208,127 +465,45 @@ namespace SushiBLAS
 
         };
 
-        TYPED_TEST(Medium_LinalgTyped, FactorReconstructsPLUAndFlagsTheSingularMatrix)
+        /** @brief Tests that P^T L U of a factored matrix equals the matrix within the rounding bound. */
+        TYPED_TEST(Medium_LinalgTyped, FactorReconstructsPLU)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-            constexpr std::size_t K_N = 9;
-            constexpr std::size_t K_BATCH = 3;
-            std::vector<double> raw = values(K_BATCH * K_N * K_N, 61);
-            // Matrix 1 repeats its first row, so one pivot vanishes.
-            for (std::size_t j = 0; j < K_N; ++j)
-                raw[K_N * K_N + K_N + j] = raw[K_N * K_N + j];
-            const std::vector<T> original = rounded<T>(raw);
-            const double bound = 64.0 * K_N * std::numeric_limits<T>::epsilon();
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_factor_reconstructs<TypeParam>(*this->engine, mode); });
+        }
 
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(mode));
-                engine.set_mode(mode);
-                Tensor a = tensor_of(engine, original);
-                Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(K_BATCH * K_N, 99u));
-                Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_BATCH, 7u));
-                RecordingFixture graph(engine);
-                LinalgOps(graph.recorder()).lu_factor(a, pivots, singular, K_N, K_BATCH);
-                graph.run().value();
-
-                const std::vector<T> lu = SushiBLAS::IO().to_vector<T>(a);
-                const std::vector<std::uint32_t> p =
-                    SushiBLAS::IO().to_vector<std::uint32_t>(pivots);
-                EXPECT_EQ(SushiBLAS::IO().to_vector<std::uint32_t>(singular),
-                          (std::vector<std::uint32_t>{0u, 1u, 0u}));
-                for (const std::size_t b : {std::size_t{0}, std::size_t{2}})
-                {
-                    const std::vector<double> product =
-                        reconstruct(lu.data() + b * K_N * K_N, p.data() + b * K_N, K_N);
-                    for (std::size_t e = 0; e < K_N * K_N; ++e)
-                        EXPECT_NEAR(product[e], original[b * K_N * K_N + e], bound)
-                            << b << " " << e;
-                }
-            }
+        /** @brief Tests that the singular flag marks the matrix with a vanishing pivot and no other. */
+        TYPED_TEST(Medium_LinalgTyped, FactorFlagsTheSingularMatrix)
+        {
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_factor_flags_singular<TypeParam>(*this->engine, mode); });
         }
 
         TYPED_TEST(Medium_LinalgTyped, SolveMatchesTheDirectSolve)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-            constexpr std::size_t K_N = 8;
-            constexpr std::size_t K_BATCH = 2;
-            std::vector<double> raw = values(K_BATCH * K_N * K_N, 62);
-            make_dominant(raw, K_N, K_BATCH);
-            const std::vector<T> a_values = rounded<T>(raw);
-            const std::vector<T> b_values = rounded<T>(values(K_BATCH * K_N, 63));
-            const double bound = 64.0 * K_N * std::numeric_limits<T>::epsilon();
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(mode));
-                engine.set_mode(mode);
-                Tensor a = tensor_of(engine, a_values);
-                Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(K_BATCH * K_N));
-                Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_BATCH));
-                Tensor x = tensor_of(engine, b_values);
-                RecordingFixture graph(engine);
-                LinalgOps view(graph.recorder());
-                view.lu_factor(a, pivots, singular, K_N, K_BATCH);
-                view.lu_solve(a, pivots, x, K_N, 1, K_BATCH);
-                graph.run().value();
-
-                const std::vector<T> got = SushiBLAS::IO().to_vector<T>(x);
-                for (std::size_t b = 0; b < K_BATCH; ++b)
-                {
-                    const std::vector<double> matrix(a_values.begin() + b * K_N * K_N,
-                                                     a_values.begin() + (b + 1) * K_N * K_N);
-                    const std::vector<double> rhs(b_values.begin() + b * K_N,
-                                                  b_values.begin() + (b + 1) * K_N);
-                    const std::vector<double> expected = direct_solve(matrix, rhs, K_N);
-                    for (std::size_t i = 0; i < K_N; ++i)
-                        EXPECT_NEAR(got[b * K_N + i], expected[i], bound) << b << " " << i;
-                }
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_solve_matches_direct<TypeParam>(*this->engine, mode); });
         }
 
-        TYPED_TEST(Medium_LinalgTyped, GmresMatchesTheDirectSolveAndReportsItsWork)
+        /** @brief Tests that gmres writes the solution of the direct solve within its tolerance. */
+        TYPED_TEST(Medium_LinalgTyped, GmresMatchesTheDirectSolve)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-            constexpr std::size_t K_N = 16;
-            std::vector<double> raw = values(K_N * K_N, 64);
-            make_dominant(raw, K_N, 1);
-            const std::vector<T> a_values = rounded<T>(raw);
-            const std::vector<T> b_values = rounded<T>(values(K_N, 65));
-            const std::vector<double> expected =
-                direct_solve(std::vector<double>(a_values.begin(), a_values.end()),
-                             std::vector<double>(b_values.begin(), b_values.end()), K_N);
-            GmresOptions options;
-            options.restart = 5;
-            options.block_size = 4;
-            options.relative_tolerance = std::is_same_v<T, double> ? 1e-12 : 1e-5;
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_gmres_solution<TypeParam>(*this->engine, mode); });
+        }
 
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(mode));
-                engine.set_mode(mode);
-                const Tensor a = tensor_of(engine, a_values);
-                const Tensor b = tensor_of(engine, b_values);
-                Tensor x = tensor_of(engine, std::vector<T>(K_N, T(0)));
-                Tensor iterations = tensor_of(engine, std::vector<std::uint32_t>(1, 0u));
-                Tensor residual = tensor_of(engine, std::vector<T>(1, T(-1)));
-                RecordingFixture graph(engine);
-                LinalgOps(graph.recorder()).gmres(a, b, x, iterations, residual, options);
-                graph.run().value();
+        /** @brief Tests that gmres reports an iteration count between one and its limit. */
+        TYPED_TEST(Medium_LinalgTyped, GmresReportsItsIterationCount)
+        {
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_gmres_iterations<TypeParam>(*this->engine, mode); });
+        }
 
-                const std::vector<T> got = SushiBLAS::IO().to_vector<T>(x);
-                const std::uint32_t taken =
-                    SushiBLAS::IO().to_vector<std::uint32_t>(iterations)[0];
-                EXPECT_GE(taken, 1u);
-                EXPECT_LE(taken, options.max_iterations);
-                EXPECT_LE(SushiBLAS::IO().to_vector<T>(residual)[0],
-                          static_cast<T>(options.relative_tolerance));
-                const double bound = 100.0 * options.relative_tolerance;
-                for (std::size_t i = 0; i < K_N; ++i)
-                    EXPECT_NEAR(got[i], expected[i], bound) << i;
-            }
+        /** @brief Tests that gmres reports a residual within its tolerance. */
+        TYPED_TEST(Medium_LinalgTyped, GmresReportsAResidualWithinItsTolerance)
+        {
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_gmres_residual<TypeParam>(*this->engine, mode); });
         }
 
         TEST_F(Medium_Linalg, FactorRefusesAWrongPivotCount)

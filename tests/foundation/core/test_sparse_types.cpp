@@ -36,13 +36,15 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        static_assert(sizeof(Core::IndexBase) == 1, "IndexBase is one byte.");
+        static_assert(Core::first_index(Core::IndexBase::Zero) == 0, "Zero starts at 0.");
+        static_assert(Core::first_index(Core::IndexBase::One) == 1, "One starts at 1.");
+
         /// @brief The number after the last IndexBase enumerator.
         constexpr int K_PAST_LAST_BASE = 223;
 
-        TEST(Small_IndexBase, KeepsItsSparseBLASNumbersInOneByte)
+        TEST(Small_IndexBase, KeepsItsSparseBLASNumbers)
         {
-            static_assert(sizeof(Core::IndexBase) == 1, "IndexBase is one byte.");
-
             EXPECT_EQ(static_cast<int>(Core::IndexBase::Zero), 221);
             EXPECT_EQ(static_cast<int>(Core::IndexBase::One), 222);
         }
@@ -57,17 +59,18 @@ namespace SushiBLAS
 
         TEST(Small_IndexBase, FirstIndexIsZeroOrOne)
         {
-            static_assert(Core::first_index(Core::IndexBase::Zero) == 0, "Zero starts at 0.");
-            static_assert(Core::first_index(Core::IndexBase::One) == 1, "One starts at 1.");
-
             EXPECT_EQ(Core::first_index(Core::IndexBase::Zero), int64_t{0});
             EXPECT_EQ(Core::first_index(Core::IndexBase::One), int64_t{1});
         }
 
-        TEST(Small_IndexBase, ToStringNamesBothBasesAndAnUnknownValue)
+        TEST(Small_IndexBase, ToStringNamesBothBases)
         {
             EXPECT_EQ(std::string(Core::to_string(Core::IndexBase::Zero)), "ZERO");
             EXPECT_EQ(std::string(Core::to_string(Core::IndexBase::One)), "ONE");
+        }
+
+        TEST(Small_IndexBase, ToStringNamesAValueOutsideTheEnumerationUnknown)
+        {
             EXPECT_EQ(std::string(Core::to_string(Core::IndexBase{})), "UNKNOWN");
         }
     } // namespace Test

@@ -57,7 +57,7 @@ namespace SushiBLAS
         namespace
         {
             /// @brief Opens the collector for a test and empties it afterwards.
-            class Small_ProfileGate : public ::testing::Test
+            class Medium_ProfileGate : public ::testing::Test
             {
                 protected:
                     void SetUp() override
@@ -96,19 +96,19 @@ namespace SushiBLAS
             };
         } // namespace
 
-        TEST_F(Small_ProfileGate, AZoneAtTheCompiledLevelWritesOneEvent)
+        TEST_F(Medium_ProfileGate, AZoneAtTheCompiledLevelWritesOneEvent)
         {
             write_stage_zone_at_level_one();
             EXPECT_EQ(events_written_by_this_thread(), 1U);
         }
 
-        TEST_F(Small_ProfileGate, AZoneAboveTheCompiledLevelWritesNothing)
+        TEST_F(Medium_ProfileGate, AZoneAboveTheCompiledLevelWritesNothing)
         {
             write_fine_zone_at_level_one();
             EXPECT_EQ(events_written_by_this_thread(), 0U);
         }
 
-        TEST_F(Small_ProfileGate, TheDefaultLevelCompilesFineZonesIn)
+        TEST_F(Medium_ProfileGate, TheDefaultLevelCompilesFineZonesIn)
         {
             static_assert(Internal::Profile::K_COMPILED_LEVEL == 2,
                           "the default level of this translation unit");
@@ -116,14 +116,6 @@ namespace SushiBLAS
                 SB_ZONE_FINE("test_profile_gate.fine");
             }
             EXPECT_EQ(events_written_by_this_thread(), 1U);
-        }
-#else
-        TEST(Small_ProfileGate, WithoutTheProfilerEveryLevelIsZero)
-        {
-            static_assert(Internal::Profile::K_COMPILED_LEVEL == 0,
-                          "a build without the profiler compiles nothing in");
-            write_stage_zone_at_level_one();
-            write_fine_zone_at_level_one();
         }
 #endif
     } // namespace Test

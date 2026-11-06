@@ -7,7 +7,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_profile.cpp` | Tests that every `SB_` macro is usable in one scope and that a value only a macro reads is not unused |
+| `compile_profile.cpp` | Compile check, never run: every `SB_` macro is usable in one scope and a value only a macro reads is not unused |
 | `test_profile_gate.cpp` | Tests that a zone is compiled in or out by the level of its translation unit, and that a unit with the profiler off compiles every macro |
 | `test_profile_keys.cpp` | Tests that each name the library writes into a record is listed once |
 

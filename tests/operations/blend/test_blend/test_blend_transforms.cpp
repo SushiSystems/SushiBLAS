@@ -32,6 +32,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -455,6 +456,395 @@ namespace SushiBLAS
                         << text;
                 }
             }
+
+            /** @brief Runs check once for each forced mode. */
+            template<typename Check>
+            void in_each_forced_mode(Check&& check)
+            {
+                for (const ExecutionMode mode : K_FORCED_MODES)
+                    check(mode);
+            }
+
+            /** @brief Returns the matrices of a case with an identity in each transform. */
+            std::vector<double> identity_matrices(const BlendCase& c)
+            {
+                std::vector<double> matrices(static_cast<std::size_t>(c.transforms * c.rows * 4), 0.0);
+                for (int64_t t = 0; t < c.transforms; ++t)
+                    for (int64_t d = 0; d < c.rows; ++d)
+                        matrices[static_cast<std::size_t>((t * c.rows + d) * 4 + d)] = 1.0;
+                return matrices;
+            }
+
+            /**
+             * @brief Returns the blend of points by the single transform in matrices, one influence of
+             *        weight one per point.
+             */
+            template<typename T>
+            std::vector<double> hand_blend(Engine& engine, const BlendCase& c,
+                                           const std::vector<int64_t>& matrix_dims,
+                                           const std::vector<double>& matrices,
+                                           const std::vector<double>& points)
+            {
+                const BlendTensors in{
+                    tensor_from<T>(engine, {c.points, c.components}, points),
+                    tensor_from<T>(engine, matrix_dims, matrices),
+                    index_tensor<int32_t>(engine, {c.points, 1},
+                                          std::vector<int64_t>(static_cast<std::size_t>(c.points), 0)),
+                    tensor_from<T>(engine, {c.points, 1},
+                                   std::vector<double>(static_cast<std::size_t>(c.points), 1.0))};
+                return widened(blend_of<T>(engine, c, in));
+            }
+
+            /** @brief Expects a translation to move positions in mode. */
+            template<typename T>
+            void expect_translation_moves_positions(Engine& engine, ExecutionMode mode)
+            {
+                engine.set_mode(mode);
+                const BlendCase positions{"hand positions", 2, 3, 3, 1, 1};
+                SCOPED_TRACE(trace_of(positions, mode));
+
+                EXPECT_EQ(hand_blend<T>(engine, positions, {1, 3, 4},
+                                        {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3}, {1, 1, 1, 0, 0, 0}),
+                          (std::vector<double>{2, 3, 4, 1, 2, 3}));
+            }
+
+            /** @brief Expects a translation to move a homogeneous point only when w is 1 in mode. */
+            template<typename T>
+            void expect_translation_respects_w(Engine& engine, ExecutionMode mode)
+            {
+                engine.set_mode(mode);
+                const BlendCase homogeneous{"hand homogeneous", 2, 4, 3, 1, 1};
+                SCOPED_TRACE(trace_of(homogeneous, mode));
+
+                // w = 0 ignores the translation and w = 1 takes it.
+                EXPECT_EQ(hand_blend<T>(engine, homogeneous, {1, 3, 4},
+                                        {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3},
+                                        {1, 2, 3, 0, 1, 2, 3, 1}),
+                          (std::vector<double>{1, 2, 3, 0, 2, 4, 6, 1}));
+            }
+
+            /** @brief The 4x4 transform of the hand case: a translation that also doubles w. */
+            const std::vector<double> K_SCALING_W_MATRIX = {1, 0, 0, 1, 0, 1, 0, 2,
+                                                            0, 0, 1, 3, 0, 0, 0, 2};
+
+            /** @brief Expects a 4x4 transform to act on all four values of a point in mode. */
+            template<typename T>
+            void expect_four_by_four_acts_on_all_values(Engine& engine, ExecutionMode mode)
+            {
+                engine.set_mode(mode);
+                const BlendCase positions{"hand 4x4 position", 1, 3, 4, 1, 1};
+                const BlendCase homogeneous{"hand 4x4 homogeneous", 1, 4, 4, 1, 1};
+
+                {
+                    SCOPED_TRACE(trace_of(positions, mode));
+                    EXPECT_EQ(hand_blend<T>(engine, positions, {1, 4, 4}, K_SCALING_W_MATRIX,
+                                            {1, 1, 1}),
+                              (std::vector<double>{2, 3, 4}));
+                }
+                {
+                    SCOPED_TRACE(trace_of(homogeneous, mode));
+                    EXPECT_EQ(hand_blend<T>(engine, homogeneous, {1, 4, 4}, K_SCALING_W_MATRIX,
+                                            {1, 1, 1, 5}),
+                              (std::vector<double>{6, 11, 16, 10}));
+                }
+            }
+
+            /** @brief Expects two influences of weight one half to give the sum of their results in mode. */
+            template<typename T>
+            void expect_two_influences_weighted_sum(Engine& engine, ExecutionMode mode)
+            {
+                engine.set_mode(mode);
+
+                // Transform 0 moves x by 2 and transform 1 moves y by 4.
+                const Tensor matrices = tensor_from<T>(
+                    engine, {2, 3, 4},
+                    {1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 4, 0, 0, 1, 0});
+                const Tensor indices = index_tensor<int32_t>(engine, {1, 2}, {0, 1});
+                const Tensor weights = tensor_from<T>(engine, {1, 2}, {0.5, 0.5});
+
+                const BlendCase c{"hand blend", 1, 3, 3, 2, 2};
+                SCOPED_TRACE(trace_of(c, mode));
+                EXPECT_EQ(widened(blend_of<T>(engine, c,
+                                              {tensor_from<T>(engine, {1, 3}, {0, 0, 0}),
+                                               matrices, indices, weights})),
+                          (std::vector<double>{1, 2, 0}));
+            }
+
+            /**
+             * @brief Expects every table case under a kind of weights to equal the formula exactly in mode.
+             * @param exactness_scale The factor that brings a result to an integer, 1 for integers and 8
+             *        for multiples of one eighth.
+             */
+            template<typename T>
+            void expect_formula_exactly(Engine& engine, ExecutionMode mode, WeightKind kind,
+                                        double exactness_scale)
+            {
+                for (const BlendCase& c : table_cases())
+                {
+                    SCOPED_TRACE(trace_of(c, mode));
+                    engine.set_mode(mode);
+
+                    const BlendData data = data_for<T>(c, kind);
+                    const std::vector<double> expected = blend_by_formula(c, data);
+
+                    // A value this small is exact in every type.
+                    for (const double truth : expected)
+                        ASSERT_LT(std::fabs(truth) * exactness_scale, K_HALF_EXACT_INTEGER_LIMIT)
+                            << c.id;
+
+                    const BlendTensors in = tensors_for<T>(engine, c, data);
+                    EXPECT_EQ(widened(blend_of<T>(engine, c, in)), expected);
+                }
+            }
+
+            /** @brief Expects identity transforms and weights summing to one to give each point back in mode. */
+            template<typename T>
+            void expect_identity_keeps_points(Engine& engine, ExecutionMode mode)
+            {
+                for (const BlendCase& c : table_cases())
+                {
+                    SCOPED_TRACE(trace_of(c, mode));
+                    engine.set_mode(mode);
+
+                    BlendData data = data_for<T>(c, WeightKind::SumToOne);
+                    data.matrices = identity_matrices(c);
+
+                    const BlendTensors in = tensors_for<T>(engine, c, data);
+                    EXPECT_EQ(widened(blend_of<T>(engine, c, in)), data.points);
+                }
+            }
+
+            /** @brief Expects one case's values to stay within the rounding bound of their exact sums. */
+            template<typename T>
+            void expect_case_within_bound(Engine& engine, const BlendCase& c, ExecutionMode mode)
+            {
+                SCOPED_TRACE(trace_of(c, mode));
+                engine.set_mode(mode);
+
+                // The library sees the rounded inputs, so the exact sum is formed from those.
+                const BlendData data = data_for<T>(c, WeightKind::Fractional);
+                const BlendTensors in = tensors_for<T>(engine, c, data);
+                const std::vector<double> got = widened(blend_of<T>(engine, c, in));
+
+                for (int64_t p = 0; p < c.points; ++p)
+                {
+                    for (int64_t i = 0; i < c.components; ++i)
+                    {
+                        const TruthValue truth = truth_of(c, data, p, i);
+
+                        EXPECT_NEAR(got[static_cast<std::size_t>(p * c.components + i)], truth.value,
+                                    blend_bound<T>(mode, c.influences, truth))
+                            << "point " << p << " value " << i;
+                    }
+                }
+            }
+
+            /** @brief Expects fractional data to stay within the rounding bound in every table case in mode. */
+            template<typename T>
+            void expect_fractional_within_bound(Engine& engine, ExecutionMode mode)
+            {
+                for (const BlendCase& c : table_cases())
+                    expect_case_within_bound<T>(engine, c, mode);
+            }
+
+            /** @brief The largest value of an unsigned 32-bit index. */
+            constexpr int64_t K_LARGEST_UINT32 = std::numeric_limits<uint32_t>::max();
+
+            /** @brief The smallest and the largest value of a signed 32-bit index. */
+            constexpr int64_t K_LOW_INT32 = std::numeric_limits<int32_t>::min();
+            constexpr int64_t K_HIGH_INT32 = std::numeric_limits<int32_t>::max();
+
+            /** @brief The magnitude past every transform that a 64-bit index can hold and a 32-bit cannot. */
+            constexpr int64_t K_WIDE_MAGNITUDE = int64_t{1} << 40;
+
+            /**
+             * @brief Expects indices outside [0, T) to add no term in either mode, stored as Index.
+             * @param c The case; its last point must hold only invalid indices.
+             * @param indices The indices of the case, as int64_t values that Index holds.
+             */
+            template<typename Index>
+            void expect_index_outside_adds_no_term(Engine& engine, const BlendCase& c,
+                                                   const std::vector<int64_t>& indices)
+            {
+                BlendData data = data_for<float>(c, WeightKind::Integer);
+                data.indices = indices;
+                const std::vector<double> expected = blend_by_formula(c, data);
+
+                // The last point has no valid influence, so it comes out as zeros.
+                const std::size_t tail = static_cast<std::size_t>((c.points - 1) * c.components);
+                for (std::size_t i = tail; i < expected.size(); ++i)
+                    ASSERT_EQ(expected[i], 0.0);
+
+                in_each_forced_mode(
+                    [&](ExecutionMode mode)
+                    {
+                        SCOPED_TRACE(trace_of(c, mode));
+                        engine.set_mode(mode);
+
+                        const BlendTensors in = tensors_for<float, Index>(engine, c, data);
+                        EXPECT_EQ(widened(blend_of<float>(engine, c, in)), expected);
+                    });
+            }
+
+            /** @brief Holds one index type's out-of-range case: the label and the check that runs it. */
+            struct IndexRow
+            {
+                const char* label;                 /**< The index type, in a failure message. */
+                std::function<void(Engine&)> run;  /**< Runs the case in both modes. */
+            };
+
+            /** @brief Returns the rows of out-of-range indices, one per stored index type. */
+            std::vector<IndexRow> out_of_range_rows()
+            {
+                const BlendCase signed_case{"out of range", 4, 3, 3, 2, 4};
+                // The indices run below 0 and at or above T; the last point has no valid one.
+                const std::vector<int64_t> narrow = {0, -1, 2, 1,
+                                                     1, K_HIGH_INT32, 0, K_LOW_INT32,
+                                                     K_LOW_INT32, K_HIGH_INT32, 2, 1,
+                                                     -1, -1, -1, -1};
+                const std::vector<int64_t> wide = {0, -1, 2, 1,
+                                                   1, K_WIDE_MAGNITUDE, 0, -K_WIDE_MAGNITUDE,
+                                                   -K_WIDE_MAGNITUDE, K_WIDE_MAGNITUDE, 2, 1,
+                                                   -1, -1, -1, -1};
+
+                const BlendCase unsigned_case{"uint32 out of range", 3, 3, 3, 2, 3};
+                const std::vector<int64_t> past = {0, 2, K_LARGEST_UINT32,
+                                                   K_LARGEST_UINT32, 1, 5,
+                                                   K_LARGEST_UINT32, K_LARGEST_UINT32, K_LARGEST_UINT32};
+
+                return {
+                    {"INT32", [=](Engine& e) { expect_index_outside_adds_no_term<int32_t>(e, signed_case, narrow); }},
+                    {"INT64", [=](Engine& e) { expect_index_outside_adds_no_term<int64_t>(e, signed_case, wide); }},
+                    {"UINT32", [=](Engine& e) { expect_index_outside_adds_no_term<uint32_t>(e, unsigned_case, past); }}};
+            }
+
+            /** @brief Expects every row of out-of-range indices to add no term. */
+            void expect_every_index_row(Engine& engine)
+            {
+                for (const IndexRow& row : out_of_range_rows())
+                {
+                    SCOPED_TRACE(row.label);
+                    row.run(engine);
+                }
+            }
+
+            /** @brief Expects an INT32, an INT64 and a UINT32 index tensor of one set of values to give one set of bits in mode. */
+            void expect_index_types_give_same_bits(Engine& engine, ExecutionMode mode)
+            {
+                const BlendCase c{"index types", 9, 3, 4, 4, 4};
+                SCOPED_TRACE(trace_of(c, mode));
+                engine.set_mode(mode);
+
+                const BlendData data = data_for<float>(c, WeightKind::Integer);
+                const std::vector<double> expected = blend_by_formula(c, data);
+
+                const std::vector<float> signed_narrow =
+                    blend_of<float>(engine, c, tensors_for<float, int32_t>(engine, c, data));
+                const std::vector<float> signed_wide =
+                    blend_of<float>(engine, c, tensors_for<float, int64_t>(engine, c, data));
+                const std::vector<float> unsigned_narrow =
+                    blend_of<float>(engine, c, tensors_for<float, uint32_t>(engine, c, data));
+
+                EXPECT_EQ(widened(signed_narrow), expected) << "INT32";
+                ASSERT_EQ(signed_wide.size(), signed_narrow.size());
+                ASSERT_EQ(unsigned_narrow.size(), signed_narrow.size());
+                EXPECT_EQ(std::memcmp(signed_wide.data(), signed_narrow.data(),
+                                      signed_narrow.size() * sizeof(float)), 0) << "INT64";
+                EXPECT_EQ(std::memcmp(unsigned_narrow.data(), signed_narrow.data(),
+                                      signed_narrow.size() * sizeof(float)), 0) << "UINT32";
+            }
+
+            /** @brief Holds the operands of a well-formed call. */
+            struct BaseOperands
+            {
+                Tensor points;
+                Tensor transforms;
+                Tensor indices;
+                Tensor weights;
+                Tensor out;
+            };
+
+            /** @brief Returns the operands of a well-formed call of two points, three transforms, two influences. */
+            BaseOperands base_operands(Engine& e)
+            {
+                return BaseOperands{filled_tensor<float>(e, {2, 3}), filled_tensor<float>(e, {3, 3, 4}),
+                                    zero_indices(e, {2, 2}), filled_tensor<float>(e, {2, 2}),
+                                    sentinel_tensor<float>(e, {2, 3})};
+            }
+
+            /** @brief Holds one malformed call: the operand it spoils and the call that records it. */
+            struct RefusalRow
+            {
+                const char* operand;                                   /**< The operand the refusal names. */
+                std::function<void(BlendOps&, Engine&, BaseOperands&)> record; /**< Records the malformed call. */
+            };
+
+            /** @brief Expects every row to be refused naming its operand. */
+            void expect_every_row_refused(Engine& e, BlendOps& ops, BaseOperands& ok,
+                                          const std::vector<RefusalRow>& rows)
+            {
+                for (const RefusalRow& row : rows)
+                {
+                    SCOPED_TRACE(row.operand);
+                    expect_refusal([&] { row.record(ops, e, ok); }, row.operand);
+                }
+            }
+
+            /** @brief Returns the rows of malformed operands against the operands of base_operands. */
+            std::vector<RefusalRow> malformed_operand_rows()
+            {
+                return {
+                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, filled_tensor<double>(e, {3, 3, 4}), ok.indices, ok.weights, ok.out); }},
+                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<double>(e, {2, 2}), ok.out); }},
+                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { Tensor bad = sentinel_tensor<double>(e, {2, 3}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
+                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, filled_tensor<float>(e, {2, 2}), ok.weights, ok.out); }},
+                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(filled_tensor<float>(e, {6}), ok.transforms, ok.indices, ok.weights, ok.out); }},
+                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {12}), ok.indices, ok.weights, ok.out); }},
+                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {4}), ok.weights, ok.out); }},
+                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<float>(e, {4}), ok.out); }},
+                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { Tensor bad = sentinel_tensor<float>(e, {6}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
+                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(filled_tensor<float>(e, {2, 2}), ok.transforms, ok.indices, ok.weights, ok.out); }},
+                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(filled_tensor<float>(e, {2, 5}), ok.transforms, ok.indices, ok.weights, ok.out); }},
+                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {3, 2, 4}), ok.indices, ok.weights, ok.out); }},
+                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {3, 3, 3}), ok.indices, ok.weights, ok.out); }},
+                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {0, 3, 4}), ok.indices, ok.weights, ok.out); }},
+                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {3, 2}), ok.weights, ok.out); }},
+                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<float>(e, {2, 3}), ok.out); }},
+                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { Tensor bad = sentinel_tensor<float>(e, {2, 4}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
+                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {2, 0}), filled_tensor<float>(e, {2, 0}), ok.out); }},
+                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
+                     { Tensor none = sentinel_tensor<float>(e, {0, 3}); o.blend_transforms(filled_tensor<float>(e, {0, 3}), ok.transforms, zero_indices(e, {0, 2}), filled_tensor<float>(e, {0, 2}), none); }},
+                    {"weights", [](BlendOps& o, Engine&, BaseOperands& ok)
+                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights.transpose(0, 1), ok.out); }}};
+            }
+
+            /** @brief Expects every options value to be refused when the call carries it. */
+            void expect_every_option_refused(BlendOps& ops, BaseOperands& ok,
+                                             const std::vector<OperationOptions>& options)
+            {
+                for (const OperationOptions& option : options)
+                    EXPECT_THROW(ops.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights,
+                                                      ok.out, option),
+                                 std::invalid_argument);
+            }
         } // namespace
 
         /**
@@ -484,42 +874,18 @@ namespace SushiBLAS
         {
         };
 
-        /**
-         * @brief Tests that a translation moves a position, and moves a homogeneous point only when
-         *        w is 1.
-         */
-        TYPED_TEST(Medium_BlendTransformsTyped, ATranslationMovesPositionsAndLeavesDirectionsAlone)
+        /** @brief Tests that a translation moves a position. */
+        TYPED_TEST(Medium_BlendTransformsTyped, ATranslationMovesPositions)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_translation_moves_positions<TypeParam>(*this->engine, mode); });
+        }
 
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                engine.set_mode(mode);
-
-                const Tensor matrices = tensor_from<T>(engine, {1, 3, 4},
-                                                       {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3});
-                const Tensor indices = index_tensor<int32_t>(engine, {2, 1}, {0, 0});
-                const Tensor weights = tensor_from<T>(engine, {2, 1}, {1, 1});
-
-                // A position takes the translation; its output holds three values.
-                const BlendCase positions{"hand positions", 2, 3, 3, 1, 1};
-                const BlendTensors as_positions{
-                    tensor_from<T>(engine, {2, 3}, {1, 1, 1, 0, 0, 0}), matrices, indices,
-                    weights};
-                EXPECT_EQ(widened(blend_of<T>(engine, positions, as_positions)),
-                          (std::vector<double>{2, 3, 4, 1, 2, 3}))
-                    << trace_of(positions, mode);
-
-                // A homogeneous point keeps w, so w = 0 ignores the translation and w = 1 takes it.
-                const BlendCase homogeneous{"hand homogeneous", 2, 4, 3, 1, 1};
-                const BlendTensors as_homogeneous{
-                    tensor_from<T>(engine, {2, 4}, {1, 2, 3, 0, 1, 2, 3, 1}), matrices, indices,
-                    weights};
-                EXPECT_EQ(widened(blend_of<T>(engine, homogeneous, as_homogeneous)),
-                          (std::vector<double>{1, 2, 3, 0, 2, 4, 6, 1}))
-                    << trace_of(homogeneous, mode);
-            }
+        /** @brief Tests that a translation moves a homogeneous point only when w is 1. */
+        TYPED_TEST(Medium_BlendTransformsTyped, ATranslationLeavesDirectionsAlone)
+        {
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_translation_respects_w<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -527,32 +893,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, AFourByFourTransformActsOnAllFourValues)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                engine.set_mode(mode);
-
-                const Tensor matrices = tensor_from<T>(
-                    engine, {1, 4, 4}, {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3, 0, 0, 0, 2});
-                const Tensor indices = index_tensor<int32_t>(engine, {1, 1}, {0});
-                const Tensor weights = tensor_from<T>(engine, {1, 1}, {1});
-
-                const BlendCase positions{"hand 4x4 position", 1, 3, 4, 1, 1};
-                EXPECT_EQ(widened(blend_of<T>(engine, positions,
-                                              {tensor_from<T>(engine, {1, 3}, {1, 1, 1}),
-                                               matrices, indices, weights})),
-                          (std::vector<double>{2, 3, 4}))
-                    << trace_of(positions, mode);
-
-                const BlendCase homogeneous{"hand 4x4 homogeneous", 1, 4, 4, 1, 1};
-                EXPECT_EQ(widened(blend_of<T>(engine, homogeneous,
-                                              {tensor_from<T>(engine, {1, 4}, {1, 1, 1, 5}),
-                                               matrices, indices, weights})),
-                          (std::vector<double>{6, 11, 16, 10}))
-                    << trace_of(homogeneous, mode);
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_four_by_four_acts_on_all_values<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -560,27 +902,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, TwoInfluencesGiveTheirWeightedSum)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                engine.set_mode(mode);
-
-                // Transform 0 moves x by 2 and transform 1 moves y by 4.
-                const Tensor matrices = tensor_from<T>(
-                    engine, {2, 3, 4},
-                    {1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 4, 0, 0, 1, 0});
-                const Tensor indices = index_tensor<int32_t>(engine, {1, 2}, {0, 1});
-                const Tensor weights = tensor_from<T>(engine, {1, 2}, {0.5, 0.5});
-
-                const BlendCase c{"hand blend", 1, 3, 3, 2, 2};
-                EXPECT_EQ(widened(blend_of<T>(engine, c,
-                                              {tensor_from<T>(engine, {1, 3}, {0, 0, 0}),
-                                               matrices, indices, weights})),
-                          (std::vector<double>{1, 2, 0}))
-                    << trace_of(c, mode);
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_two_influences_weighted_sum<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -589,26 +912,9 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, IntegerDataEqualsTheFormulaExactly)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const BlendCase& c : table_cases())
-            {
-                const BlendData data = data_for<T>(c, WeightKind::Integer);
-                const std::vector<double> expected = blend_by_formula(c, data);
-
-                for (const double truth : expected)
-                    ASSERT_LT(std::fabs(truth), K_HALF_EXACT_INTEGER_LIMIT) << c.id;
-
-                const BlendTensors in = tensors_for<T>(engine, c, data);
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-
-                    EXPECT_EQ(widened(blend_of<T>(engine, c, in)), expected);
-                }
-            }
+            in_each_forced_mode(
+                [&](ExecutionMode mode)
+                { expect_formula_exactly<TypeParam>(*this->engine, mode, WeightKind::Integer, 1.0); });
         }
 
         /**
@@ -617,27 +923,9 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, WeightsThatSumToOneEqualTheFormulaExactly)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const BlendCase& c : table_cases())
-            {
-                const BlendData data = data_for<T>(c, WeightKind::SumToOne);
-                const std::vector<double> expected = blend_by_formula(c, data);
-
-                // A multiple of 1/8 below 2048/8 in magnitude is exact in every type.
-                for (const double truth : expected)
-                    ASSERT_LT(std::fabs(truth) * 8.0, K_HALF_EXACT_INTEGER_LIMIT) << c.id;
-
-                const BlendTensors in = tensors_for<T>(engine, c, data);
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-
-                    EXPECT_EQ(widened(blend_of<T>(engine, c, in)), expected);
-                }
-            }
+            in_each_forced_mode(
+                [&](ExecutionMode mode)
+                { expect_formula_exactly<TypeParam>(*this->engine, mode, WeightKind::SumToOne, 8.0); });
         }
 
         /**
@@ -645,26 +933,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, IdentityTransformsWithUnitWeightsKeepThePoint)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const BlendCase& c : table_cases())
-            {
-                BlendData data = data_for<T>(c, WeightKind::SumToOne);
-                data.matrices.assign(static_cast<std::size_t>(c.transforms * c.rows * 4), 0.0);
-                for (int64_t t = 0; t < c.transforms; ++t)
-                    for (int64_t d = 0; d < c.rows; ++d)
-                        data.matrices[static_cast<std::size_t>((t * c.rows + d) * 4 + d)] = 1.0;
-
-                const BlendTensors in = tensors_for<T>(engine, c, data);
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-
-                    EXPECT_EQ(widened(blend_of<T>(engine, c, in)), data.points);
-                }
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_identity_keeps_points<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -673,34 +943,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_BlendTransformsTyped, FractionalDataStaysWithinTheRoundingBound)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const BlendCase& c : table_cases())
-            {
-                // The library sees the rounded inputs, so the exact sum is formed from those.
-                const BlendData data = data_for<T>(c, WeightKind::Fractional);
-                const BlendTensors in = tensors_for<T>(engine, c, data);
-
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-                    const std::vector<double> got = widened(blend_of<T>(engine, c, in));
-
-                    for (int64_t p = 0; p < c.points; ++p)
-                    {
-                        for (int64_t i = 0; i < c.components; ++i)
-                        {
-                            const TruthValue truth = truth_of(c, data, p, i);
-
-                            EXPECT_NEAR(got[static_cast<std::size_t>(p * c.components + i)],
-                                        truth.value, blend_bound<T>(mode, c.influences, truth))
-                                << "point " << p << " value " << i;
-                        }
-                    }
-                }
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_fractional_within_bound<TypeParam>(*this->engine, mode); });
         }
 
         /** @brief Tests that one device run repeats to the bit on non-integer data. */
@@ -722,48 +966,12 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that an index outside [0, T) adds no term in either mode, for both index
-         *        types.
+         * @brief Tests that an index outside [0, T) adds no term in either mode, for every index
+         *        type.
          */
         TEST_F(Medium_BlendTransforms, AnIndexOutsideTheTransformsAddsNoTerm)
         {
-            const BlendCase c{"out of range", 4, 3, 3, 2, 4};
-            BlendData data = data_for<float>(c, WeightKind::Integer);
-
-            // The indices run below 0 and at or above T; the last point has no valid one.
-            constexpr int64_t K_LOW = std::numeric_limits<int32_t>::min();
-            constexpr int64_t K_HIGH = std::numeric_limits<int32_t>::max();
-            data.indices = {0, -1, 2, 1,
-                            1, K_HIGH, 0, K_LOW,
-                            K_LOW, K_HIGH, 2, 1,
-                            -1, -1, -1, -1};
-            const std::vector<double> expected = blend_by_formula(c, data);
-
-            // The last point has no valid influence, so it comes out as zeros.
-            for (std::size_t i = 9; i < 12; ++i)
-                ASSERT_EQ(expected[i], 0.0);
-
-            BlendData wide = data;
-            for (int64_t& index : wide.indices)
-            {
-                if (index == K_HIGH)
-                    index = int64_t{1} << 40;
-                else if (index == K_LOW)
-                    index = -(int64_t{1} << 40);
-            }
-            ASSERT_EQ(blend_by_formula(c, wide), expected);
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(c, mode));
-                engine->set_mode(mode);
-
-                const BlendTensors narrow_in = tensors_for<float, int32_t>(*engine, c, data);
-                const BlendTensors wide_in = tensors_for<float, int64_t>(*engine, c, wide);
-
-                EXPECT_EQ(widened(blend_of<float>(*engine, c, narrow_in)), expected) << "INT32";
-                EXPECT_EQ(widened(blend_of<float>(*engine, c, wide_in)), expected) << "INT64";
-            }
+            expect_every_index_row(*engine);
         }
 
         /**
@@ -772,111 +980,90 @@ namespace SushiBLAS
          */
         TEST_F(Medium_BlendTransforms, EveryIndexTypeGivesTheSameBitsForTheSameValues)
         {
-            const BlendCase c{"index types", 9, 3, 4, 4, 4};
-            const BlendData data = data_for<float>(c, WeightKind::Integer);
-            const std::vector<double> expected = blend_by_formula(c, data);
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(c, mode));
-                engine->set_mode(mode);
-
-                const std::vector<float> signed_narrow =
-                    blend_of<float>(*engine, c, tensors_for<float, int32_t>(*engine, c, data));
-                const std::vector<float> signed_wide =
-                    blend_of<float>(*engine, c, tensors_for<float, int64_t>(*engine, c, data));
-                const std::vector<float> unsigned_narrow =
-                    blend_of<float>(*engine, c, tensors_for<float, uint32_t>(*engine, c, data));
-
-                EXPECT_EQ(widened(signed_narrow), expected) << "INT32";
-                ASSERT_EQ(signed_wide.size(), signed_narrow.size());
-                ASSERT_EQ(unsigned_narrow.size(), signed_narrow.size());
-                EXPECT_EQ(std::memcmp(signed_wide.data(), signed_narrow.data(),
-                                      signed_narrow.size() * sizeof(float)), 0) << "INT64";
-                EXPECT_EQ(std::memcmp(unsigned_narrow.data(), signed_narrow.data(),
-                                      signed_narrow.size() * sizeof(float)), 0) << "UINT32";
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_index_types_give_same_bits(*engine, mode); });
         }
 
-        /**
-         * @brief Tests that a UINT32 index at or past T, including the largest one, adds no term in
-         *        both modes.
-         */
-        TEST_F(Medium_BlendTransforms, AUInt32IndexPastTheTransformsAddsNoTerm)
+        /** @brief Tests that a well-formed call records and runs, the control of the refusals. */
+        TEST_F(Medium_BlendTransforms, AWellFormedCallRecordsAndRuns)
         {
-            const BlendCase c{"uint32 out of range", 3, 3, 3, 2, 3};
-            BlendData data = data_for<float>(c, WeightKind::Integer);
-            constexpr int64_t K_LARGEST = std::numeric_limits<uint32_t>::max();
-            data.indices = {0, 2, K_LARGEST,
-                            K_LARGEST, 1, 5,
-                            K_LARGEST, K_LARGEST, K_LARGEST};
-            const std::vector<double> expected = blend_by_formula(c, data);
+            RecordingFixture graph(*engine);
+            BlendOps ops(graph.recorder());
+            BaseOperands ok = base_operands(*engine);
 
-            for (std::size_t i = 6; i < 9; ++i)
-                ASSERT_EQ(expected[i], 0.0);
+            ops.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, ok.out);
+            graph.run().value();
 
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(c, mode));
-                engine->set_mode(mode);
-
-                const BlendTensors in = tensors_for<float, uint32_t>(*engine, c, data);
-                EXPECT_EQ(widened(blend_of<float>(*engine, c, in)), expected) << "UINT32";
-            }
+            // Every entry is one, so each value sums two influences of weight one over four ones.
+            EXPECT_EQ(widened(SushiBLAS::IO().to_vector<float>(ok.out)), std::vector<double>(6, 8.0));
         }
 
-        /**
-         * @brief Tests that a call with options puts the name and the class on the node, and one
-         *        without keeps the operation id and Unstated.
-         */
-        TEST_F(Medium_BlendTransforms, TheNodeCarriesTheNameAndTheDeterminismClass)
+        /** @brief Tests that a call with options puts the name on the node. */
+        TEST_F(Medium_BlendTransforms, ACallWithOptionsCarriesItsName)
         {
             BlendOps ops(recorder());
-            const Tensor points = filled_tensor<float>(*engine, {2, 3});
-            const Tensor transforms = filled_tensor<float>(*engine, {1, 3, 4});
-            const Tensor indices = zero_indices(*engine, {2, 1});
-            const Tensor weights = filled_tensor<float>(*engine, {2, 1});
-            Tensor stated = sentinel_tensor<float>(*engine, {2, 3});
-            Tensor silent = sentinel_tensor<float>(*engine, {2, 3});
+            BaseOperands ok = base_operands(*engine);
 
-            ops.blend_transforms(
-                points, transforms, indices, weights, stated,
-                OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
-            ops.blend_transforms(points, transforms, indices, weights, silent);
+            ops.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, ok.out,
+                                 OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
 
             SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
             ASSERT_TRUE(plan);
-            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
             EXPECT_EQ(plan->nodes[0].name, "skin_pose");
-            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Tolerant);
-            EXPECT_EQ(plan->nodes[1].name, "blend.blend_transforms");
-            EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
         }
 
-        /**
-         * @brief Tests that an empty name and a class outside the enum are refused at record time.
-         */
-        TEST_F(Medium_BlendTransforms, AnEmptyNameOrAnUnknownClassIsRefused)
+        /** @brief Tests that a call with options puts the determinism class on the node. */
+        TEST_F(Medium_BlendTransforms, ACallWithOptionsCarriesItsDeterminismClass)
         {
             BlendOps ops(recorder());
-            const Tensor points = filled_tensor<float>(*engine, {2, 3});
-            const Tensor transforms = filled_tensor<float>(*engine, {1, 3, 4});
-            const Tensor indices = zero_indices(*engine, {2, 1});
-            const Tensor weights = filled_tensor<float>(*engine, {2, 1});
-            Tensor out = sentinel_tensor<float>(*engine, {2, 3});
+            BaseOperands ok = base_operands(*engine);
 
-            EXPECT_THROW(
-                ops.blend_transforms(points, transforms, indices, weights, out,
-                                     OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
-                std::invalid_argument);
-            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
-                                              OperationOptions{std::string_view(),
-                                                           SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
-            EXPECT_THROW(ops.blend_transforms(
-                             points, transforms, indices, weights, out,
-                             OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}),
-                         std::invalid_argument);
+            ops.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, ok.out,
+                                 OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Tolerant);
+        }
+
+        /** @brief Tests that a call without options keeps the operation id and Unstated. */
+        TEST_F(Medium_BlendTransforms, ACallWithoutOptionsKeepsTheOperationIdAndUnstated)
+        {
+            BlendOps ops(recorder());
+            BaseOperands ok = base_operands(*engine);
+
+            ops.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, ok.out);
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
+            EXPECT_EQ(plan->nodes[0].name, "blend.blend_transforms");
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that an empty name, as a char pointer and as a view, is refused at record time. */
+        TEST_F(Medium_BlendTransforms, AnEmptyNameIsRefused)
+        {
+            BlendOps ops(recorder());
+            BaseOperands ok = base_operands(*engine);
+
+            expect_every_option_refused(
+                ops, ok,
+                {OperationOptions{"", SushiRuntime::Determinism::Bitwise},
+                 OperationOptions{std::string_view(), SushiRuntime::Determinism::Bitwise}});
+        }
+
+        /** @brief Tests that a determinism class outside the enum is refused at record time. */
+        TEST_F(Medium_BlendTransforms, AClassOutsideTheEnumIsRefused)
+        {
+            BlendOps ops(recorder());
+            BaseOperands ok = base_operands(*engine);
+
+            expect_every_option_refused(
+                ops, ok,
+                {OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}});
         }
 
         /** @brief Tests that the operation refuses every malformed operand at record time. */
@@ -884,67 +1071,9 @@ namespace SushiBLAS
         {
             RecordingFixture graph(*engine);
             BlendOps ops(graph.recorder());
-            Engine& e = *engine;
+            BaseOperands ok = base_operands(*engine);
 
-            const Tensor points = filled_tensor<float>(e, {2, 3});
-            const Tensor transforms = filled_tensor<float>(e, {3, 3, 4});
-            const Tensor indices = zero_indices(e, {2, 2});
-            const Tensor weights = filled_tensor<float>(e, {2, 2});
-            Tensor out = sentinel_tensor<float>(e, {2, 3});
-
-            // The control: this call is well-formed and records.
-            EXPECT_NO_THROW(ops.blend_transforms(points, transforms, indices, weights, out));
-            graph.run().value();
-
-            // Records one call with a single operand swapped for a malformed one.
-            const auto refuses = [&](const Tensor& p, const Tensor& t, const Tensor& i,
-                                     const Tensor& w, Tensor& o, const char* operand)
-            {
-                expect_refusal([&] { ops.blend_transforms(p, t, i, w, o); }, operand);
-            };
-
-            const Tensor double_transforms = filled_tensor<double>(e, {3, 3, 4});
-            refuses(points, double_transforms, indices, weights, out, "transforms");
-
-            const Tensor double_weights = filled_tensor<double>(e, {2, 2});
-            refuses(points, transforms, indices, double_weights, out, "weights");
-
-            Tensor double_out = sentinel_tensor<double>(e, {2, 3});
-            refuses(points, transforms, indices, weights, double_out, "out");
-
-            const Tensor float_indices = filled_tensor<float>(e, {2, 2});
-            refuses(points, transforms, float_indices, weights, out, "indices");
-
-            refuses(filled_tensor<float>(e, {6}), transforms, indices, weights, out, "points");
-            refuses(points, filled_tensor<float>(e, {12}), indices, weights, out, "transforms");
-            refuses(points, transforms, zero_indices(e, {4}), weights, out, "indices");
-            refuses(points, transforms, indices, filled_tensor<float>(e, {4}), out, "weights");
-
-            Tensor flat_out = sentinel_tensor<float>(e, {6});
-            refuses(points, transforms, indices, weights, flat_out, "out");
-
-            refuses(filled_tensor<float>(e, {2, 2}), transforms, indices, weights, out, "points");
-            refuses(filled_tensor<float>(e, {2, 5}), transforms, indices, weights, out, "points");
-            refuses(points, filled_tensor<float>(e, {3, 2, 4}), indices, weights, out,
-                    "transforms");
-            refuses(points, filled_tensor<float>(e, {3, 3, 3}), indices, weights, out,
-                    "transforms");
-            refuses(points, filled_tensor<float>(e, {0, 3, 4}), indices, weights, out,
-                    "transforms");
-            refuses(points, transforms, zero_indices(e, {3, 2}), weights, out, "indices");
-            refuses(points, transforms, indices, filled_tensor<float>(e, {2, 3}), out, "weights");
-
-            Tensor wide_out = sentinel_tensor<float>(e, {2, 4});
-            refuses(points, transforms, indices, weights, wide_out, "out");
-
-            refuses(points, transforms, zero_indices(e, {2, 0}), filled_tensor<float>(e, {2, 0}),
-                    out, "indices");
-
-            Tensor no_point_out = sentinel_tensor<float>(e, {0, 3});
-            refuses(filled_tensor<float>(e, {0, 3}), transforms, zero_indices(e, {0, 2}),
-                    filled_tensor<float>(e, {0, 2}), no_point_out, "points");
-
-            refuses(points, transforms, indices, weights.transpose(0, 1), out, "weights");
+            expect_every_row_refused(*engine, ops, ok, malformed_operand_rows());
         }
 
         /** @brief Tests that the operation refuses an output that is also an input. */

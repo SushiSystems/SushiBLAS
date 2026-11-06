@@ -39,6 +39,28 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /**
+             * @brief Returns the message of the std::invalid_argument record throws, or an empty
+             *        string when it throws nothing.
+             * @tparam Record Callable `() -> void` that runs one check.
+             */
+            template<typename Record>
+            std::string refusal_message(Record&& record)
+            {
+                try
+                {
+                    record();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+                return std::string();
+            }
+        } // namespace
+
         /** @brief Builds the tensors the checks read. */
         class Medium_DenseOperand : public SushiBLASTest
         {
@@ -56,16 +78,10 @@ namespace SushiBLAS
         {
             const Tensor t = engine->create_tensor({2, 3}, Core::DataType::Float32);
 
-            try
-            {
-                Internal::require_dense_elements(t, 5, "op", "t");
-                ADD_FAILURE() << "a count of 5 was accepted for 6 elements";
-            }
-            catch (const std::invalid_argument& error)
-            {
-                EXPECT_NE(std::string(error.what()).find("'t'"), std::string::npos)
-                    << error.what();
-            }
+            const std::string message = refusal_message(
+                [&] { Internal::require_dense_elements(t, 5, "op", "t"); });
+
+            EXPECT_NE(message.find("'t'"), std::string::npos) << message;
         }
 
         TEST_F(Medium_DenseOperand, AdmitsOnlyFloatAndDoubleAsReal)

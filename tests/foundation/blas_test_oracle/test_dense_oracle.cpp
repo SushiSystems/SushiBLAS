@@ -57,12 +57,16 @@ namespace SushiBLAS
                       (std::vector<double>{1.0, 4.0, 7.0, 4.0, 5.0, 8.0, 7.0, 8.0, 9.0}));
         }
 
-        TEST(Small_DenseOracle, TriangleOfZeroesTheOtherSideAndCanSetAUnitDiagonal)
+        TEST(Small_DenseOracle, TriangleOfZeroesTheOtherSide)
+        {
+            EXPECT_EQ(triangle_of(K_SQUARE, 3, true, false),
+                      (std::vector<double>{1.0, 2.0, 3.0, 0.0, 5.0, 6.0, 0.0, 0.0, 9.0}));
+        }
+
+        TEST(Small_DenseOracle, TriangleOfCanSetAUnitDiagonal)
         {
             EXPECT_EQ(triangle_of(K_SQUARE, 3, false, true),
                       (std::vector<double>{1.0, 0.0, 0.0, 4.0, 1.0, 0.0, 7.0, 8.0, 1.0}));
-            EXPECT_EQ(triangle_of(K_SQUARE, 3, true, false),
-                      (std::vector<double>{1.0, 2.0, 3.0, 0.0, 5.0, 6.0, 0.0, 0.0, 9.0}));
         }
 
         TEST(Small_DenseOracle, BandOfKeepsTheDiagonalsInsideTheBand)

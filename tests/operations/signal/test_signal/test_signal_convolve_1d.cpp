@@ -31,6 +31,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -67,15 +68,15 @@ namespace SushiBLAS
             /// @brief Holds one signal shape and tap count the operation is run on.
             struct ConvolutionCase
             {
-                    /**
-                     * @brief Returns the output's extents: the signal's with the last one shortened
-                     *        to `L - K + 1`.
-                     */
-                    [[nodiscard]] std::vector<int64_t> output_dims() const
-                    {
-                        std::vector<int64_t> shortened = dims;
-                        shortened.back() = dims.back() - taps + 1;
-                        return shortened;
+                /**
+                 * @brief Returns the output's extents: the signal's with the last one shortened
+                 *        to `L - K + 1`.
+                 */
+                [[nodiscard]] std::vector<int64_t> output_dims() const
+                {
+                    std::vector<int64_t> shortened = dims;
+                    shortened.back() = dims.back() - taps + 1;
+                    return shortened;
                 }
 
                 /** @brief Returns how many rows the signal holds. */
@@ -285,6 +286,143 @@ namespace SushiBLAS
                         << text;
                 }
             }
+
+            /** @brief Runs check once for each forced mode. */
+            template<typename Check>
+            void in_each_forced_mode(Check&& check)
+            {
+                for (const ExecutionMode mode : K_FORCED_MODES)
+                    check(mode);
+            }
+
+            /** @brief Returns the signal tensor of a case holding the values x. */
+            template<typename T>
+            Tensor signal_of(Engine& engine, const ConvolutionCase& c, const std::vector<double>& x)
+            {
+                return tensor_from<T>(engine, c.dims, x);
+            }
+
+            /** @brief Returns the taps tensor of a case holding the values w. */
+            template<typename T>
+            Tensor taps_of(Engine& engine, const ConvolutionCase& c, const std::vector<double>& w)
+            {
+                return tensor_from<T>(engine, {c.taps}, w);
+            }
+
+            /** @brief Expects the two-tap convolution to give its hand-worked values in mode. */
+            template<typename T>
+            void expect_hand_values(Engine& engine, ExecutionMode mode)
+            {
+                const ConvolutionCase c{"hand", {5}, 2};
+                SCOPED_TRACE(trace_of(c, mode));
+                engine.set_mode(mode);
+
+                const Tensor signal = signal_of<T>(engine, c, {1, 2, 3, 4, 5});
+                const Tensor taps = taps_of<T>(engine, c, {10, 1});
+
+                // out[n] = 10 * signal[n + 1] + 1 * signal[n].
+                EXPECT_EQ(widened(convolution_of<T>(engine, c, signal, taps)),
+                          (std::vector<double>{21, 32, 43, 54}));
+            }
+
+            /** @brief Expects integer data to give the formula's sums exactly in every shape in mode. */
+            template<typename T>
+            void expect_integer_formula(Engine& engine, ExecutionMode mode)
+            {
+                for (const ConvolutionCase& c : table_cases())
+                {
+                    SCOPED_TRACE(trace_of(c, mode));
+                    engine.set_mode(mode);
+
+                    const std::vector<double> x =
+                        residue_pattern(element_count(c.dims), 37, 23, 11);
+                    const std::vector<double> w =
+                        residue_pattern(static_cast<std::size_t>(c.taps), 13, 7, 3);
+                    const std::vector<double> expected = convolution_by_formula(c, x, w);
+
+                    for (const double truth : expected)
+                        ASSERT_LT(std::fabs(truth), K_HALF_EXACT_INTEGER_LIMIT) << c.id;
+
+                    const Tensor signal = signal_of<T>(engine, c, x);
+                    const Tensor taps = taps_of<T>(engine, c, w);
+                    EXPECT_EQ(widened(convolution_of<T>(engine, c, signal, taps)), expected);
+                }
+            }
+
+            /** @brief Returns the exact sum of sample n of a row, from the rounded inputs. */
+            TruthValue exact_sample(const ConvolutionCase& c, const std::vector<double>& x,
+                                    const std::vector<double>& w, int64_t row, int64_t n)
+            {
+                const int64_t length = c.dims.back();
+                TruthSum sum;
+                for (int64_t k = 0; k < c.taps; ++k)
+                    sum.add_product(x[static_cast<std::size_t>(row * length + n + c.taps - 1 - k)],
+                                    w[static_cast<std::size_t>(k)]);
+                return sum.value();
+            }
+
+            /** @brief Expects one case's samples to stay within the rounding bound of their exact sums. */
+            template<typename T>
+            void expect_within_bound(Engine& engine, const ConvolutionCase& c, ExecutionMode mode)
+            {
+                SCOPED_TRACE(trace_of(c, mode));
+                engine.set_mode(mode);
+
+                // The library sees the rounded inputs, so the exact sum is formed from those.
+                const std::vector<double> x = widened(elements_from<T>(
+                    fractional(residue_pattern(element_count(c.dims), 37, 23, 11))));
+                const std::vector<double> w = widened(elements_from<T>(
+                    fractional(residue_pattern(static_cast<std::size_t>(c.taps), 13, 7, 3))));
+                const int64_t out_length = c.dims.back() - c.taps + 1;
+
+                const Tensor signal = signal_of<T>(engine, c, x);
+                const Tensor taps = taps_of<T>(engine, c, w);
+                const std::vector<double> got = widened(convolution_of<T>(engine, c, signal, taps));
+
+                for (int64_t row = 0; row < c.rows(); ++row)
+                {
+                    for (int64_t n = 0; n < out_length; ++n)
+                    {
+                        const TruthValue truth = exact_sample(c, x, w, row, n);
+                        EXPECT_NEAR(got[static_cast<std::size_t>(row * out_length + n)],
+                                    truth.value, convolution_bound<T>(mode, c.taps, truth))
+                            << "row " << row << " sample " << n;
+                    }
+                }
+            }
+
+            /** @brief Expects fractional data to stay within the rounding bound in every shape in mode. */
+            template<typename T>
+            void expect_fractional_bound(Engine& engine, ExecutionMode mode)
+            {
+                for (const ConvolutionCase& c : table_cases())
+                    expect_within_bound<T>(engine, c, mode);
+            }
+
+            /** @brief Holds one malformed call: the operand it spoils and the call that records it. */
+            struct RefusalRow
+            {
+                const char* operand;                    /**< The operand the refusal names. */
+                std::function<void(SignalOps&)> record; /**< Records the malformed call. */
+            };
+
+            /** @brief Expects every row to be refused naming its operand. */
+            void expect_every_row_refused(SignalOps& ops, const std::vector<RefusalRow>& rows)
+            {
+                for (const RefusalRow& row : rows)
+                {
+                    SCOPED_TRACE(row.operand);
+                    expect_refusal([&] { row.record(ops); }, row.operand);
+                }
+            }
+
+            /** @brief Expects every options value to be refused when the call carries it. */
+            void expect_every_option_refused(SignalOps& ops, const Tensor& signal, const Tensor& taps,
+                                             Tensor& out, const std::vector<OperationOptions>& options)
+            {
+                for (const OperationOptions& option : options)
+                    EXPECT_THROW(ops.convolve_1d(signal, taps, out, option), std::invalid_argument);
+            }
         } // namespace
 
         /**
@@ -320,23 +458,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_SignalConvolve1DTyped, TheTwoTapConvolutionGivesItsHandWorkedValues)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            const ConvolutionCase c{"hand", {5}, 2};
-
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(trace_of(c, mode));
-                engine.set_mode(mode);
-
-                const Tensor signal = tensor_from<T>(engine, c.dims, {1, 2, 3, 4, 5});
-                const Tensor taps = tensor_from<T>(engine, {2}, {10, 1});
-
-                // out[n] = 10 * signal[n + 1] + 1 * signal[n].
-                EXPECT_EQ(widened(convolution_of<T>(engine, c, signal, taps)),
-                          (std::vector<double>{21, 32, 43, 54}));
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_hand_values<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -344,30 +467,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_SignalConvolve1DTyped, IntegerDataEqualsTheFormulaExactly)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const ConvolutionCase& c : table_cases())
-            {
-                const std::vector<double> x = residue_pattern(element_count(c.dims), 37, 23, 11);
-                const std::vector<double> w =
-                    residue_pattern(static_cast<std::size_t>(c.taps), 13, 7, 3);
-                const std::vector<double> expected = convolution_by_formula(c, x, w);
-
-                for (const double truth : expected)
-                    ASSERT_LT(std::fabs(truth), K_HALF_EXACT_INTEGER_LIMIT) << c.id;
-
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-
-                    const Tensor signal = tensor_from<T>(engine, c.dims, x);
-                    const Tensor taps = tensor_from<T>(engine, {c.taps}, w);
-
-                    EXPECT_EQ(widened(convolution_of<T>(engine, c, signal, taps)), expected);
-                }
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_integer_formula<TypeParam>(*this->engine, mode); });
         }
 
         /**
@@ -376,47 +477,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Medium_SignalConvolve1DTyped, FractionalDataStaysWithinTheRoundingBound)
         {
-            using T = TypeParam;
-            Engine& engine = *this->engine;
-
-            for (const ConvolutionCase& c : table_cases())
-            {
-                // The library sees the rounded inputs, so the exact sum is formed from those.
-                const std::vector<double> x = widened(elements_from<T>(
-                    fractional(residue_pattern(element_count(c.dims), 37, 23, 11))));
-                const std::vector<double> w = widened(elements_from<T>(
-                    fractional(residue_pattern(static_cast<std::size_t>(c.taps), 13, 7, 3))));
-                const int64_t length = c.dims.back();
-                const int64_t out_length = length - c.taps + 1;
-
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(c, mode));
-                    engine.set_mode(mode);
-
-                    const Tensor signal = tensor_from<T>(engine, c.dims, x);
-                    const Tensor taps = tensor_from<T>(engine, {c.taps}, w);
-                    const std::vector<double> got =
-                        widened(convolution_of<T>(engine, c, signal, taps));
-
-                    for (int64_t row = 0; row < c.rows(); ++row)
-                    {
-                        for (int64_t n = 0; n < out_length; ++n)
-                        {
-                            TruthSum sum;
-                            for (int64_t k = 0; k < c.taps; ++k)
-                                sum.add_product(
-                                    x[static_cast<std::size_t>(row * length + n + c.taps - 1 - k)],
-                                    w[static_cast<std::size_t>(k)]);
-                            const TruthValue truth = sum.value();
-
-                            EXPECT_NEAR(got[static_cast<std::size_t>(row * out_length + n)],
-                                        truth.value, convolution_bound<T>(mode, c.taps, truth))
-                                << "row " << row << " sample " << n;
-                        }
-                    }
-                }
-            }
+            in_each_forced_mode([&](ExecutionMode mode)
+                                { expect_fractional_bound<TypeParam>(*this->engine, mode); });
         }
 
         /** @brief Tests that one device run repeats to the bit on non-integer data. */
@@ -441,6 +503,23 @@ namespace SushiBLAS
             EXPECT_EQ(std::memcmp(first.data(), second.data(), first.size() * sizeof(T)), 0);
         }
 
+        /** @brief Tests that a well-formed call records and runs, the control of the refusals. */
+        TEST_F(Medium_SignalConvolve1D, AWellFormedCallRecordsAndRuns)
+        {
+            RecordingFixture graph(*engine);
+            SignalOps ops(graph.recorder());
+
+            const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
+            const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
+            Tensor out = sentinel_tensor<float>(*engine, {2, 6});
+
+            ops.convolve_1d(signal, taps, out);
+            graph.run().value();
+
+            EXPECT_EQ(widened(SushiBLAS::IO().to_vector<float>(out)),
+                      std::vector<double>(12, 3.0));
+        }
+
         /** @brief Tests that the operation refuses every malformed operand at record time. */
         TEST_F(Medium_SignalConvolve1D, RefusesMismatchedOperandsAtRecordTime)
         {
@@ -450,62 +529,62 @@ namespace SushiBLAS
             const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
             const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
             Tensor out = sentinel_tensor<float>(*engine, {2, 6});
-
-            // The control: this call is well-formed and records.
-            EXPECT_NO_THROW(ops.convolve_1d(signal, taps, out));
-            graph.run().value();
-
             const Tensor double_taps = tensor_from<double>(*engine, {3}, {1, 1, 1});
-            expect_refusal([&] { ops.convolve_1d(signal, double_taps, out); }, "taps");
-
             Tensor double_out = sentinel_tensor<double>(*engine, {2, 6});
-            expect_refusal([&] { ops.convolve_1d(signal, taps, double_out); }, "out");
-
             const Tensor matrix_taps = tensor_from<float>(*engine, {1, 3}, {1, 1, 1});
-            expect_refusal([&] { ops.convolve_1d(signal, matrix_taps, out); }, "taps");
-
             Tensor flat_out = sentinel_tensor<float>(*engine, {12});
-            expect_refusal([&] { ops.convolve_1d(signal, taps, flat_out); }, "out");
-
             Tensor wrong_rows = sentinel_tensor<float>(*engine, {3, 6});
-            expect_refusal([&] { ops.convolve_1d(signal, taps, wrong_rows); }, "out");
-
             Tensor wrong_length = sentinel_tensor<float>(*engine, {2, 7});
-            expect_refusal([&] { ops.convolve_1d(signal, taps, wrong_length); }, "out");
-
             const Tensor no_taps = tensor_from<float>(*engine, {0}, {});
             Tensor full_length = sentinel_tensor<float>(*engine, {2, 9});
-            expect_refusal([&] { ops.convolve_1d(signal, no_taps, full_length); }, "taps");
-
-            const Tensor long_taps =
-                tensor_from<float>(*engine, {9}, std::vector<double>(9, 1.0));
+            const Tensor long_taps = tensor_from<float>(*engine, {9}, std::vector<double>(9, 1.0));
             Tensor no_room = sentinel_tensor<float>(*engine, {2, 0});
-            expect_refusal([&] { ops.convolve_1d(signal, long_taps, no_room); }, "signal");
+
+            expect_every_row_refused(
+                ops,
+                {{"taps", [&](SignalOps& o) { o.convolve_1d(signal, double_taps, out); }},
+                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, double_out); }},
+                 {"taps", [&](SignalOps& o) { o.convolve_1d(signal, matrix_taps, out); }},
+                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, flat_out); }},
+                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, wrong_rows); }},
+                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, wrong_length); }},
+                 {"taps", [&](SignalOps& o) { o.convolve_1d(signal, no_taps, full_length); }},
+                 {"signal", [&](SignalOps& o) { o.convolve_1d(signal, long_taps, no_room); }}});
         }
 
-        /**
-         * @brief Tests that a call with options puts the name and the class on the node, and one
-         *        without keeps the operation id and Unstated.
-         */
-        TEST_F(Medium_SignalConvolve1D, TheNodeCarriesTheNameAndTheDeterminismClass)
+        /** @brief Tests that a call with options puts the name and the class on the node. */
+        TEST_F(Medium_SignalConvolve1D, ACallWithOptionsCarriesTheNameAndTheDeterminismClass)
         {
             SignalOps ops(recorder());
             const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
             const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
             Tensor stated = sentinel_tensor<float>(*engine, {2, 6});
-            Tensor silent = sentinel_tensor<float>(*engine, {2, 6});
 
             ops.convolve_1d(signal, taps, stated,
                             OperationOptions{"audio_fir", SushiRuntime::Determinism::Bitwise});
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
+            EXPECT_EQ(plan->nodes[0].name, "audio_fir");
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Bitwise);
+        }
+
+        /** @brief Tests that a call without options keeps the operation id and Unstated. */
+        TEST_F(Medium_SignalConvolve1D, ACallWithoutOptionsKeepsTheOperationIdAndUnstated)
+        {
+            SignalOps ops(recorder());
+            const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
+            const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
+            Tensor silent = sentinel_tensor<float>(*engine, {2, 6});
+
             ops.convolve_1d(signal, taps, silent);
 
             SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
             ASSERT_TRUE(plan);
-            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
-            EXPECT_EQ(plan->nodes[0].name, "audio_fir");
-            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Bitwise);
-            EXPECT_EQ(plan->nodes[1].name, "signal.convolve_1d");
-            EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{1});
+            EXPECT_EQ(plan->nodes[0].name, "signal.convolve_1d");
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Unstated);
         }
 
         /**
@@ -518,17 +597,11 @@ namespace SushiBLAS
             const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
             Tensor out = sentinel_tensor<float>(*engine, {2, 6});
 
-            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
-                                         OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
-            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
-                                         OperationOptions{std::string_view(),
-                                                      SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
-            EXPECT_THROW(ops.convolve_1d(
-                             signal, taps, out,
-                             OperationOptions{"fir", static_cast<SushiRuntime::Determinism>(200)}),
-                         std::invalid_argument);
+            expect_every_option_refused(
+                ops, signal, taps, out,
+                {OperationOptions{"", SushiRuntime::Determinism::Bitwise},
+                 OperationOptions{std::string_view(), SushiRuntime::Determinism::Bitwise},
+                 OperationOptions{"fir", static_cast<SushiRuntime::Determinism>(200)}});
         }
 
         /** @brief Tests that the operation refuses an output that is also an input. */

@@ -12,4 +12,6 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE substitution
     TESTS
-        test_running_solution.cpp)
+        test_running_solution.cpp
+    COMPILE_CHECKS
+        compile_running_solution.cpp)

@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <string>
+#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 
@@ -38,28 +39,30 @@ namespace SushiBLAS
     {
         TEST(Small_DefaultTypeNames, NamesATypeByItsIndex)
         {
-            EXPECT_EQ(DefaultTypeNames::GetName<float>(0), "0");
+            EXPECT_EQ(DefaultTypeNames::GetName<int32_t>(0), "0");
+            EXPECT_EQ(DefaultTypeNames::GetName<double>(1), "1");
             EXPECT_EQ(DefaultTypeNames::GetName<double>(12), "12");
         }
 
         /** @brief Runs one test per element type through SB_TYPED_TEST_SUITE. */
         template<typename T>
-        class Small_TypedSuiteNaming : public ::testing::Test
+        class Medium_TypedSuiteNaming : public ::testing::Test
         {
 
         };
 
         /// @brief The types the typed suite below runs over.
         using NamedTypes = ::testing::Types<int32_t, double>;
-        SB_TYPED_TEST_SUITE(Small_TypedSuiteNaming, NamedTypes);
+        SB_TYPED_TEST_SUITE(Medium_TypedSuiteNaming, NamedTypes);
 
-        TYPED_TEST(Small_TypedSuiteNaming, EachTypeGetsItsOwnSuite)
+        TYPED_TEST(Medium_TypedSuiteNaming, EachTypeGetsTheSuiteOfItsIndex)
         {
-            const std::string suite =
-                ::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name();
+            const std::string expected = std::is_same_v<TypeParam, int32_t>
+                                             ? "Medium_TypedSuiteNaming/0"
+                                             : "Medium_TypedSuiteNaming/1";
 
-            EXPECT_TRUE(suite == "Small_TypedSuiteNaming/0" || suite == "Small_TypedSuiteNaming/1")
-                << suite;
+            EXPECT_EQ(::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name(),
+                      expected);
         }
     } // namespace Test
 } // namespace SushiBLAS

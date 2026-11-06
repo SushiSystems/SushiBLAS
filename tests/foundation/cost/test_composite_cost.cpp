@@ -30,24 +30,49 @@
 
 #include <SushiBLAS/cost/composite_cost.hpp>
 
+#include <cstdint>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_CompositeCost, SoftmaxCostsMaxShiftExpSumAndDivide)
+        namespace
         {
-            // Per row of 5: max 4, shift 5, exp 5, sum 4, divide 5.
-            EXPECT_EQ(softmax_flops(2, 5), 2U * (4U + 5U + 5U + 4U + 5U));
+            /** @brief Holds a softmax shape and the flops the cost model states for it. */
+            struct SoftmaxRow
+            {
+                std::int64_t rows;           /**< Rows of the input. */
+                std::int64_t cols;           /**< Columns of the input. */
+                std::uint64_t expected;      /**< Flops, worked by hand from the module README. */
+            };
+
+            /**
+             * @brief Returns the rows of the softmax promise: max, shift, exp, sum and divide per row.
+             * @details A row of 5 costs 4 + 5 + 5 + 4 + 5 = 23, two rows 46; a row of 1 costs 0 + 1 + 1 + 0 + 1 = 3.
+             */
+            [[nodiscard]] std::vector<SoftmaxRow> softmax_rows()
+            {
+                return {{2, 5, 46U}, {1, 1, 3U}};
+            }
+        } // namespace
+
+        /** @brief Names the fixture of the softmax rows. */
+        class Small_CompositeCost : public ::testing::TestWithParam<SoftmaxRow>
+        {
+        };
+
+        TEST_P(Small_CompositeCost, SoftmaxCostsMaxShiftExpSumAndDivide)
+        {
+            const SoftmaxRow& row = GetParam();
+            EXPECT_EQ(softmax_flops(row.rows, row.cols), row.expected);
         }
 
-        TEST(Small_CompositeCost, ARowOfOneStillShiftsExponentiatesAndDivides)
-        {
-            EXPECT_EQ(softmax_flops(1, 1), 3U);
-        }
+        INSTANTIATE_TEST_SUITE_P(, Small_CompositeCost, ::testing::ValuesIn(softmax_rows()));
 
-        TEST(Small_CompositeCost, AnEmptySoftmaxCostsNothing)
+        TEST(Small_CompositeCostEmpty, AnEmptySoftmaxCostsNothing)
         {
             EXPECT_EQ(softmax_flops(0, 5), 0U);
             EXPECT_EQ(softmax_flops(5, 0), 0U);

@@ -30,6 +30,8 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/arithmetic/device_math.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -276,32 +278,127 @@ namespace SushiBLAS
             EXPECT_TRUE(same_bits<T>(Math::atan2(T(1), -T(1)), std::atan2(T(1), -T(1))));
         }
 
-        TEST(Medium_DeviceMath, TheHostFunctionsGiveTheStandardResults)
+        /// @brief Names float, so a test reads the type of a result from the overload it selects.
+        static const char* type_name(float)
         {
-            EXPECT_EQ(Math::abs(-2.5), 2.5);
-            EXPECT_EQ(Math::floor(-1.5), -2.0);
-            EXPECT_EQ(Math::sqrt(16.0), 4.0);
-            EXPECT_NEAR(Math::cbrt(27.0), 3.0, K_TOLERANCE);
-            EXPECT_EQ(Math::copysign(3.0, -0.0), -3.0);
-            EXPECT_EQ(Math::fmod(7.0, 3.0), 1.0);
-            EXPECT_NEAR(Math::pow(2.0, 10.0), 1024.0, K_TOLERANCE);
-            EXPECT_NEAR(Math::exp(1.0), 2.718281828459045, K_TOLERANCE);
-            EXPECT_NEAR(Math::log(2.718281828459045), 1.0, K_TOLERANCE);
-            EXPECT_NEAR(Math::sin(0.5), std::sin(0.5), K_TOLERANCE);
-            EXPECT_NEAR(Math::cos(0.5), std::cos(0.5), K_TOLERANCE);
-            EXPECT_NEAR(Math::asin(1.0), 1.5707963267948966, K_TOLERANCE);
-            EXPECT_NEAR(Math::atan2(1.0, -1.0), 2.356194490192345, K_TOLERANCE);
+            return "float";
         }
 
-        TEST(Medium_DeviceMath, IsFiniteSeparatesFiniteFromInfinityAndNaN)
+        /// @brief Names double.
+        static const char* type_name(double)
+        {
+            return "double";
+        }
+
+        /// @brief Refuses every other type, so a converted result cannot pass for the exact one.
+        template<typename T>
+        const char* type_name(T) = delete;
+
+        /// @brief One unary host function, one input and the value the standard library gives.
+        struct UnaryRow
+        {
+            const char* name;
+            double (*function)(double);
+            double input;
+            double expected;
+            double bound;
+        };
+
+        /// @brief One binary host function, two inputs and the value the standard library gives.
+        struct BinaryRow
+        {
+            const char* name;
+            double (*function)(double, double);
+            double left;
+            double right;
+            double expected;
+            double bound;
+        };
+
+        /**
+         * @brief Expects a host result within bound of the expected value; a zero bound demands
+         *        the exact value.
+         */
+        static void expect_host_result(double got, double expected, double bound)
+        {
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(got, expected, bound, 1.0)))
+                << "got " << got << ", expected " << expected;
+        }
+
+        /// @brief Names a row by its function, which gtest takes as the test's suffix.
+        template<typename Row>
+        static std::string row_name(const ::testing::TestParamInfo<Row>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Returns the unary rows; the literals are the correctly rounded values.
+        static std::vector<UnaryRow> unary_rows()
+        {
+            return {
+                {"abs", [](double x) { return Math::abs(x); }, -2.5, 2.5, 0.0},
+                {"floor", [](double x) { return Math::floor(x); }, -1.5, -2.0, 0.0},
+                {"sqrt", [](double x) { return Math::sqrt(x); }, 16.0, 4.0, 0.0},
+                {"cbrt", [](double x) { return Math::cbrt(x); }, 27.0, 3.0, K_TOLERANCE},
+                {"exp", [](double x) { return Math::exp(x); }, 1.0, 2.718281828459045, K_TOLERANCE},
+                {"log", [](double x) { return Math::log(x); }, 2.718281828459045, 1.0, K_TOLERANCE},
+                {"sin", [](double x) { return Math::sin(x); }, 0.5, 0.479425538604203, K_TOLERANCE},
+                {"cos", [](double x) { return Math::cos(x); }, 0.5, 0.8775825618903728, K_TOLERANCE},
+                {"asin", [](double x) { return Math::asin(x); }, 1.0, 1.5707963267948966, K_TOLERANCE},
+            };
+        }
+
+        /// @brief Returns the binary rows.
+        static std::vector<BinaryRow> binary_rows()
+        {
+            return {
+                {"copysign", [](double x, double y) { return Math::copysign(x, y); }, 3.0, -0.0, -3.0, 0.0},
+                {"fmod", [](double x, double y) { return Math::fmod(x, y); }, 7.0, 3.0, 1.0, 0.0},
+                {"pow", [](double x, double y) { return Math::pow(x, y); }, 2.0, 10.0, 1024.0, K_TOLERANCE},
+                {"atan2", [](double x, double y) { return Math::atan2(x, y); }, 1.0, -1.0, 2.356194490192345, K_TOLERANCE},
+            };
+        }
+
+        /// @brief Runs one unary row of the host functions.
+        class Small_DeviceMathUnary : public ::testing::TestWithParam<UnaryRow>
+        {
+        };
+
+        TEST_P(Small_DeviceMathUnary, TheHostFunctionGivesTheStandardResult)
+        {
+            const UnaryRow& row = GetParam();
+            expect_host_result(row.function(row.input), row.expected, row.bound);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_DeviceMathUnary, ::testing::ValuesIn(unary_rows()),
+                                 row_name<UnaryRow>);
+
+        /// @brief Runs one binary row of the host functions.
+        class Small_DeviceMathBinary : public ::testing::TestWithParam<BinaryRow>
+        {
+        };
+
+        TEST_P(Small_DeviceMathBinary, TheHostFunctionGivesTheStandardResult)
+        {
+            const BinaryRow& row = GetParam();
+            expect_host_result(row.function(row.left, row.right), row.expected, row.bound);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_DeviceMathBinary, ::testing::ValuesIn(binary_rows()),
+                                 row_name<BinaryRow>);
+
+        TEST(Small_DeviceMath, IsFiniteSeparatesFiniteFromInfinityAndNaN)
         {
             EXPECT_TRUE(Math::isfinite(1.0f));
             EXPECT_FALSE(Math::isfinite(std::numeric_limits<float>::infinity()));
             EXPECT_FALSE(Math::isfinite(std::numeric_limits<double>::quiet_NaN()));
         }
 
-        TEST(Medium_DeviceMath, AbsKeepsTheTypeOfItsArgument)
+        TEST(Small_DeviceMath, AbsKeepsTheTypeOfItsArgument)
         {
+            // A double result would pass a value comparison, so the type is read from the overload.
+            EXPECT_STREQ(type_name(Math::abs(-3.0f)), "float");
+            EXPECT_STREQ(type_name(Math::abs(-3.0)), "double");
             EXPECT_EQ(Math::abs(-3.0f), 3.0f);
             EXPECT_EQ(Math::abs(-0.0), 0.0);
         }

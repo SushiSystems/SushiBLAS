@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_test_runner_log_category.cpp                                      */
+/* compile_host_device_test.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -19,18 +19,11 @@
 /* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
 /* implied. See the License for the specific language governing           */
 /* permissions and limitations under the License.                         */
-/**************************************************************************/
 
 /**
- * @file test_test_runner_log_category.cpp
- * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
+ * @file compile_host_device_test.cpp
+ * @brief Checks at compile time that host_device_test.hpp stands alone; the fixture is tested through the tests that use it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/test_runner/test_runner_log_category.hpp>
-
-namespace SushiBLAS
-{
-    static_assert(K_TEST_RUNNER_LOG_CATEGORY.module() == "test_runner", "the folder name of the module");
-    static_assert(K_TEST_RUNNER_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
-} // namespace SushiBLAS
+#include <SushiBLAS/host_device/host_device_test.hpp>

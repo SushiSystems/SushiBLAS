@@ -7,8 +7,8 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `compile_cost_shape.cpp` | Compile check, never run: `cost_shape.hpp` stands alone; the shapes are tested through `test_cost_table.cpp` |
 | `test_cost.cpp` | Tests that `Cost` separates a stated cost from an absent one and that a complex type is counted in its real class |
-| `test_cost_shape.cpp` | Tests that a `CostShape` holds one family at a time and starts empty |
 | `test_cost_table.cpp` | Tests the rule of each family, the saturation of an overflowing product, the order and uniqueness of the rows and the reasons an operation states no cost |
 | `test_composite_cost.cpp` | Tests the cost of a softmax |
 

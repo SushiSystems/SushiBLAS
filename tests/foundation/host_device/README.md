@@ -8,6 +8,6 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_host_device_test.cpp` | Tests that HostDeviceTest hands a test the host CPU queue |
+| `compile_host_device_test.cpp` | Compile check, never run: `host_device_test.hpp` stands alone |
 | `test_host_queue.cpp` | Tests that host_queue returns one in-order queue on a CPU device, or none |
-| `test_shared_array.cpp` | Tests that SharedArray aligns and fills its elements and that a kernel reaches them |
+| `test_shared_array.cpp` | Tests that SharedArray fills and aligns its elements and that a kernel reaches them |

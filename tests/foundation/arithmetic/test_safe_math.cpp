@@ -30,6 +30,8 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/arithmetic/safe_math.hpp>
 #include "support/tolerance.hpp"
@@ -57,26 +59,92 @@ namespace SushiBLAS
                         K_ABSOLUTE + K_RELATIVE * std::abs(want.imag()));
         }
 
-        TEST(Small_SafeMath, TheRealFunctionsAgreeWithTheStandardLibrary)
+        /// @brief Names a row by its function, which gtest takes as the test's suffix.
+        template<typename Row>
+        static std::string row_name(const ::testing::TestParamInfo<Row>& info)
         {
-            EXPECT_NEAR(Dispatch::safe_exp(1.25), std::exp(1.25), K_RELATIVE * 4.0);
-            EXPECT_NEAR(Dispatch::safe_tanh(0.75), std::tanh(0.75), K_RELATIVE);
-            EXPECT_NEAR(Dispatch::safe_erf(0.5), std::erf(0.5), K_RELATIVE);
-            EXPECT_NEAR(Dispatch::safe_log(3.0), std::log(3.0), K_RELATIVE * 2.0);
-            EXPECT_EQ(Dispatch::safe_sqrt(9.0), 3.0);
-            EXPECT_EQ(Dispatch::safe_abs(-4.0), 4.0);
+            return info.param.name;
         }
 
-        TEST(Small_SafeMath, TheComplexFunctionsAgreeWithTheStandardLibrary)
+        /// @brief One real safe function, one input and the correctly rounded value.
+        struct RealRow
         {
-            const std::complex<double> z(0.75, -1.25);
+            const char* name;
+            double (*function)(double);
+            double input;
+            double expected;
+            double roundings;  ///< Multiples of K_RELATIVE allowed; zero demands the exact value.
+        };
 
-            expect_close(Dispatch::safe_exp(z), std::exp(z));
-            expect_close(Dispatch::safe_tanh(z), std::tanh(z));
-            expect_close(Dispatch::safe_log(z), std::log(z));
-            expect_close(Dispatch::safe_sqrt(z), std::sqrt(z));
-            expect_close(Dispatch::safe_abs(z), std::complex<double>(std::abs(z), 0.0));
+        /// @brief Returns the real rows; the literals come from the correctly rounded values.
+        static std::vector<RealRow> real_rows()
+        {
+            return {
+                {"exp", [](double x) { return Dispatch::safe_exp(x); }, 1.25, 3.4903429574618414, 4.0},
+                {"tanh", [](double x) { return Dispatch::safe_tanh(x); }, 0.75, 0.6351489523872873, 1.0},
+                {"erf", [](double x) { return Dispatch::safe_erf(x); }, 0.5, 0.5204998778130465, 1.0},
+                {"log", [](double x) { return Dispatch::safe_log(x); }, 3.0, 1.0986122886681098, 2.0},
+                {"sqrt", [](double x) { return Dispatch::safe_sqrt(x); }, 9.0, 3.0, 0.0},
+                {"abs", [](double x) { return Dispatch::safe_abs(x); }, -4.0, 4.0, 0.0},
+            };
         }
+
+        /// @brief Runs one real row of the safe functions.
+        class Small_SafeMathReal : public ::testing::TestWithParam<RealRow>
+        {
+        };
+
+        TEST_P(Small_SafeMathReal, TheRealFunctionAgreesWithTheStandardLibrary)
+        {
+            const RealRow& row = GetParam();
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                row.function(row.input), row.expected, K_RELATIVE * row.roundings, 1.0)));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SafeMathReal, ::testing::ValuesIn(real_rows()),
+                                 row_name<RealRow>);
+
+        /// @brief One complex safe function, applied to 0.75 - 1.25i, with the value to expect.
+        struct ComplexRow
+        {
+            const char* name;
+            std::complex<double> (*function)(const std::complex<double>&);
+            std::complex<double> expected;
+        };
+
+        /// @brief Input of every complex row.
+        constexpr std::complex<double> K_COMPLEX_INPUT(0.75, -1.25);
+
+        /// @brief Returns the complex rows; the literals come from the correctly rounded values.
+        static std::vector<ComplexRow> complex_rows()
+        {
+            return {
+                {"exp", [](const std::complex<double>& z) { return Dispatch::safe_exp(z); },
+                 {0.6675374464291316, -2.009000454940949}},
+                {"tanh", [](const std::complex<double>& z) { return Dispatch::safe_tanh(z); },
+                 {1.3726075705337832, -0.38579595260975064}},
+                {"log", [](const std::complex<double>& z) { return Dispatch::safe_log(z); },
+                 {0.3768859011881901, -1.0303768265243125}},
+                {"sqrt", [](const std::complex<double>& z) { return Dispatch::safe_sqrt(z); },
+                 {1.050651696260784, -0.594868882070379}},
+                {"abs", [](const std::complex<double>& z) { return Dispatch::safe_abs(z); },
+                 {1.4577379737113252, 0.0}},
+            };
+        }
+
+        /// @brief Runs one complex row of the safe functions.
+        class Small_SafeMathComplex : public ::testing::TestWithParam<ComplexRow>
+        {
+        };
+
+        TEST_P(Small_SafeMathComplex, TheComplexFunctionAgreesWithTheStandardLibrary)
+        {
+            const ComplexRow& row = GetParam();
+            expect_close(row.function(K_COMPLEX_INPUT), row.expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SafeMathComplex, ::testing::ValuesIn(complex_rows()),
+                                 row_name<ComplexRow>);
 
         TEST(Small_SafeMath, ComplexSqrtTakesThePrincipalRootOnTheNegativeRealSide)
         {
@@ -87,14 +155,18 @@ namespace SushiBLAS
                          std::sqrt(std::complex<double>(-4.0, -3.0)));
         }
 
-        TEST(Small_SafeMath, ComplexSqrtOfZeroAndOfAnInfiniteImaginaryPart)
+        TEST(Small_SafeMath, ComplexSqrtOfZeroIsZero)
         {
-            const double infinity = std::numeric_limits<double>::infinity();
-
             EXPECT_EQ(Dispatch::safe_sqrt(std::complex<double>(0.0, 0.0)),
                       std::complex<double>(0.0, 0.0));
+        }
+
+        TEST(Small_SafeMath, ComplexSqrtOfAnInfiniteImaginaryPartIsInfinite)
+        {
+            const double infinity = std::numeric_limits<double>::infinity();
             const std::complex<double> root =
                 Dispatch::safe_sqrt(std::complex<double>(1.0, infinity));
+
             EXPECT_EQ(root.real(), infinity);
             EXPECT_EQ(root.imag(), infinity);
         }
@@ -104,7 +176,7 @@ namespace SushiBLAS
             const std::complex<double> got = Dispatch::safe_tanh(std::complex<double>(40.0, 0.5));
 
             EXPECT_EQ(got.real(), 1.0);
-            EXPECT_NEAR(got.imag(), 0.0, K_ABSOLUTE);
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(got.imag(), 0.0, K_ABSOLUTE, 1.0)));
         }
 
         TEST(Small_SafeMath, ComplexLogNearTheUnitCircleKeepsItsSmallModulus)
@@ -134,25 +206,42 @@ namespace SushiBLAS
             EXPECT_TRUE(Dispatch::less_than_zero(std::complex<double>(-1.0, 9.0)));
         }
 
-        TEST(Small_SafeMath, RealPartAndMakeComplexDropAndRestoreTheImaginaryPart)
+        TEST(Small_SafeMath, RealPartDropsTheImaginaryPart)
         {
             EXPECT_EQ(Dispatch::real_part(std::complex<float>(2.0f, 3.0f)),
                       std::complex<float>(2.0f, 0.0f));
             EXPECT_EQ(Dispatch::real_part(5.0), 5.0);
+        }
+
+        TEST(Small_SafeMath, MakeComplexSafeRestoresTheImaginaryPartOnlyForAComplexType)
+        {
             EXPECT_EQ(Dispatch::make_complex_safe(1.5, std::complex<double>()),
                       std::complex<double>(1.5, 0.0));
             EXPECT_EQ(Dispatch::make_complex_safe(1.5, 0.0), 1.5);
         }
 
-        TEST(Small_SafeMath, ConjMulAndDivFollowComplexArithmetic)
+        TEST(Small_SafeMath, ConjNegatesTheImaginaryPart)
+        {
+            const std::complex<double> a(1.0, 2.0);
+
+            EXPECT_EQ(Dispatch::safe_conj(a), std::complex<double>(1.0, -2.0));
+        }
+
+        TEST(Small_SafeMath, MulFollowsComplexArithmetic)
         {
             const std::complex<double> a(1.0, 2.0);
             const std::complex<double> b(3.0, -1.0);
 
-            EXPECT_EQ(Dispatch::safe_conj(a), std::complex<double>(1.0, -2.0));
             EXPECT_EQ(Dispatch::safe_mul(a, b), std::complex<double>(5.0, 5.0));
-            expect_close(Dispatch::safe_div(a, b), std::complex<double>(0.1, 0.7));
             EXPECT_EQ(Dispatch::safe_mul(2.0, 4.0), 8.0);
+        }
+
+        TEST(Small_SafeMath, DivFollowsComplexArithmetic)
+        {
+            const std::complex<double> a(1.0, 2.0);
+            const std::complex<double> b(3.0, -1.0);
+
+            expect_close(Dispatch::safe_div(a, b), std::complex<double>(0.1, 0.7));
             EXPECT_EQ(Dispatch::safe_div(9.0, 3.0), 3.0);
         }
     } // namespace Test

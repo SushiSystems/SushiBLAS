@@ -14,7 +14,8 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE host_device
     TESTS
-        test_host_device_test.cpp
         test_host_queue.cpp
     DEVICE_TESTS
-        test_shared_array.cpp)
+        test_shared_array.cpp
+    COMPILE_CHECKS
+        compile_host_device_test.cpp)

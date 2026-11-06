@@ -28,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/signal_kernels/reference/convolve_1d.hpp>
@@ -37,17 +38,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceConvolve1D, AppliesTheTapsInReverseOverTheSignal)
-        {
-            const std::vector<float> signal{1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-            const std::vector<float> taps{10.0f, 1.0f};
-            std::vector<float> out(4, 0.0f);
-
-            Kernels::Reference::convolve_1d(1, 5, 2, signal.data(), taps.data(), out.data());
-
-            EXPECT_EQ(out, (std::vector<float>{21, 32, 43, 54}));
-        }
-
         TEST(Small_ReferenceConvolve1D, ConvolvesEachRowOnItsOwn)
         {
             const std::vector<double> signal{1, 2, 3, 100, 200, 300};
@@ -82,28 +72,75 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<double>{123, 456}));
         }
 
-        TEST(Small_ReferenceConvolve1D, MatchesADirectLoopOnSmallIntegers)
+        namespace
         {
-            constexpr int64_t K_ROWS = 3;
-            constexpr int64_t K_LENGTH = 11;
-            constexpr int64_t K_TAPS = 4;
-            constexpr int64_t K_OUT_LENGTH = K_LENGTH - K_TAPS + 1;
-            const std::vector<double> signal = small_integers<double>(K_ROWS * K_LENGTH, 1);
-            const std::vector<double> taps = small_integers<double>(K_TAPS, 2);
-            std::vector<double> out(K_ROWS * K_OUT_LENGTH, 0.0);
-            std::vector<double> expected(K_ROWS * K_OUT_LENGTH, 0.0);
+            /// @brief Holds the rows of a signal, its taps and the convolution they give.
+            struct ConvolutionRow
+            {
+                    const char* name;
+                    int64_t rows;
+                    int64_t length;
+                    std::vector<double> signal;
+                    std::vector<double> taps;
+                    std::vector<double> expected;
+            };
 
-            Kernels::Reference::convolve_1d(K_ROWS, K_LENGTH, K_TAPS, signal.data(), taps.data(),
-                                            out.data());
+            /**
+             * @brief Returns the valid-mode convolution one output at a time.
+             *
+             * Output n of a row is the sum over j of signal[n + j] * taps[taps - 1 - j].
+             */
+            std::vector<double> direct_convolution(int64_t rows, int64_t length,
+                                                   const std::vector<double>& signal,
+                                                   const std::vector<double>& taps)
+            {
+                const int64_t tap_count = static_cast<int64_t>(taps.size());
+                const int64_t out_length = length - tap_count + 1;
+                std::vector<double> expected(static_cast<std::size_t>(rows * out_length), 0.0);
+                for (int64_t row = 0; row < rows; ++row)
+                    for (int64_t n = 0; n < out_length; ++n)
+                        for (int64_t j = 0; j < tap_count; ++j)
+                            expected[static_cast<std::size_t>(row * out_length + n)] +=
+                                signal[static_cast<std::size_t>(row * length + n + j)]
+                                * taps[static_cast<std::size_t>(tap_count - 1 - j)];
+                return expected;
+            }
 
-            for (int64_t row = 0; row < K_ROWS; ++row)
-                for (int64_t n = 0; n < K_OUT_LENGTH; ++n)
-                    for (int64_t j = 0; j < K_TAPS; ++j)
-                        expected[static_cast<std::size_t>(row * K_OUT_LENGTH + n)] +=
-                            signal[static_cast<std::size_t>(row * K_LENGTH + n + j)]
-                            * taps[static_cast<std::size_t>(K_TAPS - 1 - j)];
+            /// @brief Returns a hand-worked row of reversed taps and a row of small integers.
+            std::vector<ConvolutionRow> convolution_rows()
+            {
+                const std::vector<double> integer_signal = small_integers<double>(3 * 11, 1);
+                const std::vector<double> integer_taps = small_integers<double>(4, 2);
+                return {{"TapsAppliedInReverse", 1, 5, {1, 2, 3, 4, 5}, {10, 1}, {21, 32, 43, 54}},
+                        {"SmallIntegers", 3, 11, integer_signal, integer_taps,
+                         direct_convolution(3, 11, integer_signal, integer_taps)}};
+            }
 
-            EXPECT_EQ(out, expected);
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string convolution_row_name(const ::testing::TestParamInfo<ConvolutionRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /// @brief Convolves the signal of one row.
+        class Small_ReferenceConvolve1DRows : public ::testing::TestWithParam<ConvolutionRow>
+        {
+        };
+
+        TEST_P(Small_ReferenceConvolve1DRows, MatchesADirectLoopOnSmallIntegers)
+        {
+            const ConvolutionRow& row = GetParam();
+            std::vector<double> out(row.expected.size(), 0.0);
+
+            Kernels::Reference::convolve_1d(row.rows, row.length,
+                                            static_cast<int64_t>(row.taps.size()),
+                                            row.signal.data(), row.taps.data(), out.data());
+
+            EXPECT_EQ(out, row.expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceConvolve1DRows, ::testing::ValuesIn(convolution_rows()),
+                                 convolution_row_name);
     } // namespace Test
 } // namespace SushiBLAS

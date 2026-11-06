@@ -30,7 +30,7 @@
 
 #include <SushiBLAS/cost/cost.hpp>
 
-#include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -38,15 +38,41 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_Cost, ADefaultCostIsCostedAndEmpty)
+        namespace
         {
-            const Cost cost;
-            EXPECT_TRUE(cost.is_costed());
-            EXPECT_EQ(cost.flops, 0U);
-            EXPECT_EQ(cost.bytes, 0U);
+            /** @brief Holds a dtype and the real class the cost model judges it in. */
+            struct ClassRow
+            {
+                Core::DataType dtype;     /**< The element type of the operands. */
+                Core::DataType expected;  /**< The real class it is counted in. */
+            };
+
+            /** @brief Returns the real and the complex dtypes with the class each is judged in. */
+            [[nodiscard]] std::vector<ClassRow> class_rows()
+            {
+                return {{Core::DataType::Half, Core::DataType::Half},
+                        {Core::DataType::Float32, Core::DataType::Float32},
+                        {Core::DataType::Float64, Core::DataType::Float64},
+                        {Core::DataType::Int32, Core::DataType::Int32},
+                        {Core::DataType::Complex32, Core::DataType::Float32},
+                        {Core::DataType::Complex64, Core::DataType::Float64}};
+            }
+        } // namespace
+
+        /** @brief Names the fixture of the class rows. */
+        class Small_Cost : public ::testing::TestWithParam<ClassRow>
+        {
+        };
+
+        TEST_P(Small_Cost, TheClassFollowsTheDtypeAndAComplexTypeIsCountedInItsRealClass)
+        {
+            const ClassRow& row = GetParam();
+            EXPECT_EQ(real_class_of(row.dtype), row.expected);
         }
 
-        TEST(Small_Cost, AnUncostedCostKeepsItsReasonAndStatesNothing)
+        INSTANTIATE_TEST_SUITE_P(, Small_Cost, ::testing::ValuesIn(class_rows()));
+
+        TEST(Small_CostStated, AnUncostedCostKeepsItsReasonAndStatesNothing)
         {
             const Cost cost = Cost::uncosted(UncostedReason::DataDependent);
             EXPECT_FALSE(cost.is_costed());
@@ -54,38 +80,17 @@ namespace SushiBLAS
             EXPECT_EQ(cost.flops, 0U);
         }
 
-        TEST(Small_Cost, WithBytesSetsTheBytesOfACostedCostOnly)
+        TEST(Small_CostStated, WithBytesSetsTheBytesOfACostedCost)
         {
             Cost costed;
             costed.flops = 7;
             EXPECT_EQ(costed.with_bytes(64).bytes, 64U);
             EXPECT_EQ(costed.with_bytes(64).flops, 7U);
+        }
+
+        TEST(Small_CostStated, WithBytesLeavesAnUncostedCostAtZeroBytes)
+        {
             EXPECT_EQ(Cost::uncosted(UncostedReason::NoRule).with_bytes(64).bytes, 0U);
-        }
-
-        TEST(Small_Cost, TheClassFollowsTheDtype)
-        {
-            EXPECT_EQ(real_class_of(Core::DataType::Half), Core::DataType::Half);
-            EXPECT_EQ(real_class_of(Core::DataType::Float32), Core::DataType::Float32);
-            EXPECT_EQ(real_class_of(Core::DataType::Float64), Core::DataType::Float64);
-            EXPECT_EQ(real_class_of(Core::DataType::Int32), Core::DataType::Int32);
-        }
-
-        TEST(Small_Cost, AComplexTypeIsCountedInItsRealClass)
-        {
-            EXPECT_EQ(real_class_of(Core::DataType::Complex32), Core::DataType::Float32);
-            EXPECT_EQ(real_class_of(Core::DataType::Complex64), Core::DataType::Float64);
-        }
-
-        TEST(Small_Cost, EveryReasonHasADistinctName)
-        {
-            const UncostedReason reasons[] = {UncostedReason::None, UncostedReason::NoRule,
-                                              UncostedReason::NoShape, UncostedReason::DataDependent,
-                                              UncostedReason::Unaudited};
-            std::string joined;
-            for (const UncostedReason reason : reasons)
-                joined += std::string(to_string(reason)) + ",";
-            EXPECT_EQ(joined, "none,no_rule,no_shape,data_dependent,unaudited,");
         }
     } // namespace Test
 } // namespace SushiBLAS

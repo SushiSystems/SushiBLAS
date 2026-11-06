@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/version.hpp>
 
@@ -35,20 +34,11 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_Version, TheStringSpellsTheThreeNumbers)
-        {
-            const std::string expected = std::to_string(SUSHIBLAS_VERSION_MAJOR) + "." +
-                                         std::to_string(SUSHIBLAS_VERSION_MINOR) + "." +
-                                         std::to_string(SUSHIBLAS_VERSION_PATCH);
-
-            EXPECT_EQ(std::string(SUSHIBLAS_VERSION_STRING), expected);
-        }
+        static_assert(SUSHIBLAS_VERSION_ENCODE(1, 2, 3) == 10203, "1.2.3 encodes as 10203.");
+        static_assert(SUSHIBLAS_VERSION_ENCODE(0, 10, 0) == 1000, "0.10.0 encodes as 1000.");
 
         TEST(Small_Version, TheEncodingGivesEachPartTwoDecimalDigits)
         {
-            static_assert(SUSHIBLAS_VERSION_ENCODE(1, 2, 3) == 10203, "1.2.3 encodes as 10203.");
-            static_assert(SUSHIBLAS_VERSION_ENCODE(0, 10, 0) == 1000, "0.10.0 encodes as 1000.");
-
             EXPECT_EQ(SUSHIBLAS_VERSION_ENCODE(2, 0, 99), 20099);
         }
 

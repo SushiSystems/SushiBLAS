@@ -30,13 +30,13 @@
 #include <SushiBLAS/signal_kernels/reference/fft.hpp>
 
 #include <cmath>
-#include <limits>
+#include <string>
+#include <utility>
 #include <vector>
 #include <cstddef>
 #include <gtest/gtest.h>
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -51,18 +51,31 @@ namespace SushiBLAS
                     std::size_t rows = 1;    /**< Rows per transform. */
                     std::size_t columns = 0; /**< Samples per row. */
                     std::size_t batch = 1;   /**< Transforms in the batch. */
+                    bool impulse = false;    /**< Whether the signal is a unit impulse instead of pseudo-random values. */
             };
 
-            /** @brief Returns radix-2, Bluestein, 2-D and batched shapes. */
-            std::vector<FftCase> cases()
+            /**
+             * @brief Holds the products a transform sum is allowed per sample.
+             *
+             * A Bluestein line pads to a power of two of at most four times its length and runs
+             * three transforms, so a sample is the sum of a few times its length of products.
+             */
+            constexpr std::size_t K_TERMS_PER_SAMPLE = 8;
+
+            /** @brief Returns the samples of one transform. */
+            std::size_t samples_of(const FftCase& c)
             {
-                return {{"radix-2 line", 1, 16, 1}, {"Bluestein line", 1, 12, 1},
-                        {"prime line", 1, 7, 2},    {"one sample", 1, 1, 3},
-                        {"2-D mixed", 6, 8, 2},     {"2-D Bluestein", 5, 9, 1}};
+                return c.rows * c.columns;
+            }
+
+            /** @brief Returns the products a transform sum holds, the length its error bound grows with. */
+            std::size_t terms_of(const FftCase& c)
+            {
+                return K_TERMS_PER_SAMPLE * samples_of(c);
             }
 
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
-            std::vector<double> values(std::size_t count, unsigned seed)
+            std::vector<double> pseudo_random_values(std::size_t count, unsigned seed)
             {
                 std::vector<double> out(count);
                 unsigned state = seed * 2654435761u + 1u;
@@ -71,6 +84,16 @@ namespace SushiBLAS
                     state = state * 1664525u + 1013904223u;
                     v = static_cast<double>(state >> 8) / static_cast<double>(1u << 24) * 2.0 - 1.0;
                 }
+                return out;
+            }
+
+            /** @brief Returns count scalars of the case's signal: a unit impulse or pseudo-random values. */
+            std::vector<double> signal_of(const FftCase& c, std::size_t count, unsigned seed)
+            {
+                if (!c.impulse)
+                    return pseudo_random_values(count, seed);
+                std::vector<double> out(count, 0.0);
+                out[0] = 1.0;
                 return out;
             }
 
@@ -110,12 +133,24 @@ namespace SushiBLAS
                 return out;
             }
 
-            /** @brief Returns the tolerance of a transform of values bounded by 1 in T. */
-            template<typename T>
-            double tolerance(const FftCase& c)
+            /** @brief Returns the values divided by a divisor. */
+            std::vector<double> divided(std::vector<double> values, double divisor)
             {
-                return 256.0 * std::numeric_limits<T>::epsilon() *
-                       static_cast<double>(c.rows * c.columns);
+                for (double& value : values)
+                    value /= divisor;
+                return values;
+            }
+
+            /** @brief Returns the bins 0 to columns / 2 of every line of a full complex spectrum, the half a real transform keeps. */
+            std::vector<double> half_of(const std::vector<double>& full, const FftCase& c)
+            {
+                const std::size_t width = c.columns / 2 + 1;
+                std::vector<double> half;
+                for (std::size_t line = 0; line < c.batch * c.rows; ++line)
+                    for (std::size_t k = 0; k < width; ++k)
+                        for (std::size_t part = 0; part < 2; ++part)
+                            half.push_back(full[2 * (line * c.columns + k) + part]);
+                return half;
             }
 
             /** @brief Returns values rounded to T. */
@@ -131,73 +166,94 @@ namespace SushiBLAS
             {
                 return std::vector<double>(in.begin(), in.end());
             }
-        } // namespace
 
-        /** @brief Runs the reference transform in one scalar type. */
-        template<typename T>
-        class Small_ReferenceFft : public ::testing::Test
-        {
-
-        };
-
-        using FftScalars = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Small_ReferenceFft, FftScalars);
-
-        TYPED_TEST(Small_ReferenceFft, ComplexForwardMatchesTheDirectDFT)
-        {
-            using T = TypeParam;
-            for (const FftCase& c : cases())
+            /** @brief Holds what a transform wrote, what the oracle gives and the bound the pair is held to. */
+            struct FftOutcome
             {
-                SCOPED_TRACE(c.id);
-                const std::size_t scalars = 2 * c.batch * c.rows * c.columns;
-                const std::vector<T> input = rounded<T>(values(scalars, 1));
+                    std::vector<double> computed; /**< The scalars the transform wrote, widened to double. */
+                    std::vector<double> expected; /**< The scalars the oracle gives. */
+                    double magnitude = 1.0;       /**< The largest sum of absolute products one scalar can hold. */
+                    double roundoff = 0.0;        /**< The unit roundoff of the scalar type the transform ran in. */
+            };
+
+            /** @brief Returns the outcome of a transform run in T. */
+            template<typename T>
+            FftOutcome outcome_in(const std::vector<T>& computed, std::vector<double> expected,
+                                  double magnitude)
+            {
+                return {widened(computed), std::move(expected), magnitude,
+                        TestSupport::unit_roundoff<T>()};
+            }
+
+            /** @brief Expects each computed scalar to match the expected one within the rounding bound of a transform sum. */
+            void expect_within_rounding(const FftOutcome& outcome, const FftCase& c)
+            {
+                ASSERT_EQ(outcome.computed.size(), outcome.expected.size());
+                const double bound = static_cast<double>(terms_of(c)) * outcome.roundoff * outcome.magnitude;
+                for (std::size_t i = 0; i < outcome.expected.size(); ++i)
+                    EXPECT_TRUE(TestSupport::is_within(
+                        TestSupport::measure_error(outcome.computed[i], outcome.expected[i], bound)))
+                        << i;
+            }
+
+            /** @brief Runs the complex forward transform and gives the direct DFT; its values reach the number of samples. */
+            template<typename T>
+            FftOutcome outcome_complex_forward(const FftCase& c)
+            {
+                const std::size_t scalars = 2 * c.batch * samples_of(c);
+                const std::vector<T> input = rounded<T>(signal_of(c, scalars, 1));
                 std::vector<T> output(scalars, T(7));
                 const Kernels::FftPlan<T> plan(c.rows, c.columns,
                                                Kernels::FftPairing::ComplexToComplex);
 
                 Kernels::Reference::fft_forward(plan, input.data(), output.data(), c.batch);
 
-                const std::vector<double> expected = direct_dft(widened(input), c, -1);
-                for (std::size_t i = 0; i < scalars; ++i)
-                    EXPECT_NEAR(output[i], expected[i], tolerance<T>(c)) << i;
+                return outcome_in(output, direct_dft(widened(input), c, -1),
+                                  static_cast<double>(samples_of(c)));
             }
-        }
 
-        TYPED_TEST(Small_ReferenceFft, ComplexInverseUndoesTheForwardScaledByTheSize)
-        {
-            using T = TypeParam;
-            for (const FftCase& c : cases())
+            /** @brief Runs the complex inverse and gives the direct unscaled DFT divided by the number of samples. */
+            template<typename T>
+            FftOutcome outcome_complex_inverse(const FftCase& c)
             {
-                SCOPED_TRACE(c.id);
-                const std::size_t scalars = 2 * c.batch * c.rows * c.columns;
-                const std::vector<T> input = rounded<T>(values(scalars, 2));
+                const std::size_t scalars = 2 * c.batch * samples_of(c);
+                const std::vector<T> input = rounded<T>(signal_of(c, scalars, 2));
+                std::vector<T> spectrum(scalars, T(7));
+                const Kernels::FftPlan<T> plan(c.rows, c.columns,
+                                               Kernels::FftPairing::ComplexToComplex);
+
+                Kernels::Reference::fft_inverse(plan, input.data(), spectrum.data(), c.batch);
+
+                return outcome_in(spectrum,
+                                  divided(direct_dft(widened(input), c, +1),
+                                          static_cast<double>(samples_of(c))),
+                                  1.0);
+            }
+
+            /** @brief Runs the complex inverse then the forward transform and gives the input. */
+            template<typename T>
+            FftOutcome outcome_complex_round_trip(const FftCase& c)
+            {
+                const std::size_t scalars = 2 * c.batch * samples_of(c);
+                const std::vector<T> input = rounded<T>(signal_of(c, scalars, 2));
                 std::vector<T> spectrum(scalars);
                 std::vector<T> back(scalars, T(7));
                 const Kernels::FftPlan<T> plan(c.rows, c.columns,
                                                Kernels::FftPairing::ComplexToComplex);
 
                 Kernels::Reference::fft_inverse(plan, input.data(), spectrum.data(), c.batch);
-                const std::vector<double> expected = direct_dft(widened(input), c, +1);
-                const double size = static_cast<double>(c.rows * c.columns);
-                for (std::size_t i = 0; i < scalars; ++i)
-                    EXPECT_NEAR(spectrum[i], expected[i] / size, tolerance<T>(c)) << i;
-
                 Kernels::Reference::fft_forward(plan, spectrum.data(), back.data(), c.batch);
-                for (std::size_t i = 0; i < scalars; ++i)
-                    EXPECT_NEAR(back[i], input[i], tolerance<T>(c)) << i;
-            }
-        }
 
-        TYPED_TEST(Small_ReferenceFft, RealForwardMatchesTheHalfOfTheDirectDFT)
-        {
-            using T = TypeParam;
-            for (const FftCase& c : cases())
+                return outcome_in(back, widened(input), 1.0);
+            }
+
+            /** @brief Runs the real forward transform and gives the kept half of the direct DFT. */
+            template<typename T>
+            FftOutcome outcome_real_forward(const FftCase& c)
             {
-                SCOPED_TRACE(c.id);
-                const std::size_t samples = c.batch * c.rows * c.columns;
-                const std::size_t width = c.columns / 2 + 1;
-                const std::vector<T> input = rounded<T>(values(samples, 3));
-                std::vector<T> output(2 * c.batch * c.rows * width, T(7));
+                const std::size_t samples = c.batch * samples_of(c);
+                const std::vector<T> input = rounded<T>(signal_of(c, samples, 3));
+                std::vector<T> output(2 * c.batch * c.rows * (c.columns / 2 + 1), T(7));
                 const Kernels::FftPlan<T> plan(c.rows, c.columns,
                                                Kernels::FftPairing::RealToComplex);
 
@@ -206,24 +262,16 @@ namespace SushiBLAS
                 std::vector<double> complex(2 * samples, 0.0);
                 for (std::size_t i = 0; i < samples; ++i)
                     complex[2 * i] = input[i];
-                const std::vector<double> full = direct_dft(complex, c, -1);
-                for (std::size_t line = 0; line < c.batch * c.rows; ++line)
-                    for (std::size_t k = 0; k < width; ++k)
-                        for (std::size_t part = 0; part < 2; ++part)
-                            EXPECT_NEAR(output[2 * (line * width + k) + part],
-                                        full[2 * (line * c.columns + k) + part], tolerance<T>(c))
-                                << line << " " << k;
+                return outcome_in(output, half_of(direct_dft(complex, c, -1), c),
+                                  static_cast<double>(samples_of(c)));
             }
-        }
 
-        TYPED_TEST(Small_ReferenceFft, RealInverseRecoversTheSamples)
-        {
-            using T = TypeParam;
-            for (const FftCase& c : cases())
+            /** @brief Runs the real forward then the real inverse transform and gives the input. */
+            template<typename T>
+            FftOutcome outcome_real_round_trip(const FftCase& c)
             {
-                SCOPED_TRACE(c.id);
-                const std::size_t samples = c.batch * c.rows * c.columns;
-                const std::vector<T> input = rounded<T>(values(samples, 4));
+                const std::size_t samples = c.batch * samples_of(c);
+                const std::vector<T> input = rounded<T>(signal_of(c, samples, 4));
                 std::vector<T> spectrum(2 * c.batch * c.rows * (c.columns / 2 + 1));
                 std::vector<T> back(samples, T(7));
                 const Kernels::FftPlan<T> plan(c.rows, c.columns,
@@ -232,24 +280,95 @@ namespace SushiBLAS
                 Kernels::Reference::fft_forward(plan, input.data(), spectrum.data(), c.batch);
                 Kernels::Reference::fft_inverse(plan, spectrum.data(), back.data(), c.batch);
 
-                for (std::size_t i = 0; i < samples; ++i)
-                    EXPECT_NEAR(back[i], input[i], tolerance<T>(c)) << i;
+                return outcome_in(back, widened(input), 1.0);
             }
-        }
 
-        TEST(Small_ReferenceFftHand, AnImpulseHasAFlatSpectrum)
-        {
-            const std::vector<double> input{1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-            std::vector<double> output(10);
-            const Kernels::FftPlan<double> plan(1, 5, Kernels::FftPairing::ComplexToComplex);
-
-            Kernels::Reference::fft_forward(plan, input.data(), output.data(), 1);
-
-            for (std::size_t k = 0; k < 5; ++k)
+            /** @brief Holds the runs of one scalar type. */
+            struct FftRuns
             {
-                EXPECT_NEAR(output[2 * k], 1.0, absolute_tolerance<double>(8)) << k;
-                EXPECT_NEAR(output[2 * k + 1], 0.0, absolute_tolerance<double>(8)) << k;
+                    FftOutcome (*complex_forward)(const FftCase&);
+                    FftOutcome (*complex_inverse)(const FftCase&);
+                    FftOutcome (*complex_round_trip)(const FftCase&);
+                    FftOutcome (*real_forward)(const FftCase&);
+                    FftOutcome (*real_round_trip)(const FftCase&);
+            };
+
+            /** @brief Returns the runs in T. */
+            template<typename T>
+            constexpr FftRuns runs_in()
+            {
+                return {&outcome_complex_forward<T>, &outcome_complex_inverse<T>,
+                        &outcome_complex_round_trip<T>, &outcome_real_forward<T>,
+                        &outcome_real_round_trip<T>};
             }
+
+            /** @brief One case in one scalar type. */
+            struct FftRow
+            {
+                    std::string name;
+                    FftCase shape;
+                    FftRuns runs;
+            };
+
+            /** @brief Returns radix-2, Bluestein, 2-D, batched and impulse shapes. */
+            std::vector<FftCase> cases()
+            {
+                return {{"Radix2Line", 1, 16, 1, false}, {"BluesteinLine", 1, 12, 1, false},
+                        {"PrimeLine", 1, 7, 2, false},   {"OneSample", 1, 1, 3, false},
+                        {"TwoDMixed", 6, 8, 2, false},   {"TwoDBluestein", 5, 9, 1, false},
+                        {"Impulse", 1, 5, 1, true}};
+            }
+
+            /** @brief Returns every case in float and in double. */
+            std::vector<FftRow> fft_rows()
+            {
+                std::vector<FftRow> rows;
+                for (const FftCase& c : cases())
+                {
+                    rows.push_back({std::string(c.id) + "_Float", c, runs_in<float>()});
+                    rows.push_back({std::string(c.id) + "_Double", c, runs_in<double>()});
+                }
+                return rows;
+            }
+
+            /** @brief Names a row, which gtest takes as the test's suffix. */
+            std::string fft_row_name(const ::testing::TestParamInfo<FftRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the reference transform on one case in one scalar type. */
+        class Small_ReferenceFft : public ::testing::TestWithParam<FftRow>
+        {
+
+        };
+
+        TEST_P(Small_ReferenceFft, ComplexForwardMatchesTheDirectDFT)
+        {
+            expect_within_rounding(GetParam().runs.complex_forward(GetParam().shape), GetParam().shape);
         }
+
+        TEST_P(Small_ReferenceFft, ComplexInverseMatchesTheDirectDFTScaledByTheSize)
+        {
+            expect_within_rounding(GetParam().runs.complex_inverse(GetParam().shape), GetParam().shape);
+        }
+
+        TEST_P(Small_ReferenceFft, ComplexForwardUndoesTheInverse)
+        {
+            expect_within_rounding(GetParam().runs.complex_round_trip(GetParam().shape), GetParam().shape);
+        }
+
+        TEST_P(Small_ReferenceFft, RealForwardMatchesTheHalfOfTheDirectDFT)
+        {
+            expect_within_rounding(GetParam().runs.real_forward(GetParam().shape), GetParam().shape);
+        }
+
+        TEST_P(Small_ReferenceFft, RealInverseRecoversTheSamples)
+        {
+            expect_within_rounding(GetParam().runs.real_round_trip(GetParam().shape), GetParam().shape);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceFft, ::testing::ValuesIn(fft_rows()), fft_row_name);
     } // namespace Test
 } // namespace SushiBLAS

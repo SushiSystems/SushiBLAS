@@ -85,6 +85,21 @@ namespace SushiBLAS
 
                     std::vector<CapturedRecord> records;
             };
+
+            /** @brief Returns the what() of the runtime_error thrower throws, or "" if none. */
+            template<typename Thrower>
+            [[nodiscard]] std::string message_thrown_by(Thrower thrower)
+            {
+                try
+                {
+                    thrower();
+                }
+                catch (const std::runtime_error& error)
+                {
+                    return error.what();
+                }
+                return {};
+            }
         } // namespace
 
         TEST(Medium_Logger, ARecordCarriesTheSushiBLASProjectAndItsModule)
@@ -110,32 +125,35 @@ namespace SushiBLAS
             EXPECT_TRUE(sink.records.empty());
         }
 
-        TEST(Medium_Logger, ThrowIfThrowsTheFormattedMessageAndLogsNothing)
+        TEST(Medium_Logger, ThrowIfThrowsTheFormattedMessage)
+        {
+            const auto thrower = [] { SB_THROW_IF(true, "operand {} is empty", 3); };
+
+            EXPECT_EQ(message_thrown_by(thrower), "operand 3 is empty");
+        }
+
+        TEST(Medium_Logger, ThrowIfThrowsARuntimeError)
+        {
+            EXPECT_THROW(SB_THROW_IF(true, "operand {} is empty", 3), std::runtime_error);
+        }
+
+        TEST(Medium_Logger, ThrowIfLogsNothing)
         {
             CapturingSink sink;
 
-            try
-            {
-                SB_THROW_IF(true, "operand {} is empty", 3);
-                FAIL() << "SB_THROW_IF did not throw.";
-            }
-            catch (const std::runtime_error& error)
-            {
-                EXPECT_STREQ(error.what(), "operand 3 is empty");
-            }
+            EXPECT_THROW(SB_THROW_IF(true, "operand {} is empty", 3), std::runtime_error);
 
             EXPECT_TRUE(sink.records.empty());
         }
 
+#ifndef NDEBUG
+        // SB_ASSERT compiles to nothing under NDEBUG, so the death test exists in debug builds only.
         TEST(Medium_LoggerDeathTest, AssertWritesAFatalRecordInItsCategoryBeforeAborting)
         {
-#ifdef NDEBUG
-            GTEST_SKIP() << "SB_ASSERT compiles to nothing under NDEBUG; run this in a debug build.";
-#else
             EXPECT_DEATH(SB_ASSERT(K_PROBE_LOG_CATEGORY, false,
                                    "regression sentinel for the lost assertion message"),
                          "sushiblas.probe.*regression sentinel for the lost assertion message");
-#endif
         }
+#endif
     } // namespace Test
 } // namespace SushiBLAS

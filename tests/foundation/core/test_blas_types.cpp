@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
 
@@ -36,11 +37,73 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief The value of a value-initialised flag, below every enumerator.
-        constexpr std::uint8_t K_BELOW_EVERY_FLAG = 0;
+        static_assert(sizeof(Core::Transpose) == 1, "Transpose is one byte.");
+        static_assert(sizeof(Core::Uplo) == 1, "Uplo is one byte.");
+        static_assert(sizeof(Core::Diag) == 1, "Diag is one byte.");
+        static_assert(sizeof(Core::Side) == 1, "Side is one byte.");
+
+        /// @brief The number a value-initialised flag has, below every enumerator.
+        constexpr int K_BELOW_EVERY_FLAG = 0;
 
         /// @brief A value above every enumerator of every flag.
-        constexpr std::uint8_t K_ABOVE_EVERY_FLAG = 255;
+        constexpr int K_ABOVE_EVERY_FLAG = 255;
+
+        /// @brief Returns whether is_valid accepts the flag of type Flag that has this number.
+        template<typename Flag>
+        static bool is_valid_number(int number)
+        {
+            return Core::is_valid(static_cast<Flag>(static_cast<std::uint8_t>(number)));
+        }
+
+        /// @brief One flag type and a number that is not one of its enumerators.
+        struct RefusedRow
+        {
+            const char* name;
+            bool (*accepts)(int);
+            int number;
+        };
+
+        /// @brief Names a row, which gtest takes as the test's suffix.
+        static std::string refused_row_name(const ::testing::TestParamInfo<RefusedRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /**
+         * @brief Returns, per flag, the value-initialised number, a number above every
+         *        enumerator and the number of another flag's enumerator.
+         */
+        static std::vector<RefusedRow> refused_rows()
+        {
+            return {
+                {"Transpose_below", &is_valid_number<Core::Transpose>, K_BELOW_EVERY_FLAG},
+                {"Transpose_above", &is_valid_number<Core::Transpose>, K_ABOVE_EVERY_FLAG},
+                {"Transpose_UploNumber", &is_valid_number<Core::Transpose>, 121},
+                {"Uplo_below", &is_valid_number<Core::Uplo>, K_BELOW_EVERY_FLAG},
+                {"Uplo_above", &is_valid_number<Core::Uplo>, K_ABOVE_EVERY_FLAG},
+                {"Uplo_TransposeNumber", &is_valid_number<Core::Uplo>, 111},
+                {"Diag_below", &is_valid_number<Core::Diag>, K_BELOW_EVERY_FLAG},
+                {"Diag_above", &is_valid_number<Core::Diag>, K_ABOVE_EVERY_FLAG},
+                {"Diag_SideNumber", &is_valid_number<Core::Diag>, 141},
+                {"Side_below", &is_valid_number<Core::Side>, K_BELOW_EVERY_FLAG},
+                {"Side_above", &is_valid_number<Core::Side>, K_ABOVE_EVERY_FLAG},
+                {"Side_DiagNumber", &is_valid_number<Core::Side>, 131},
+            };
+        }
+
+        /// @brief Runs one refused number against its flag.
+        class Small_BlasTypesRefused : public ::testing::TestWithParam<RefusedRow>
+        {
+        };
+
+        TEST_P(Small_BlasTypesRefused, IsValidRefusesAValueInitialisedFlag)
+        {
+            const RefusedRow& row = GetParam();
+            EXPECT_FALSE(row.accepts(row.number));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BlasTypesRefused, ::testing::ValuesIn(refused_rows()),
+                                 refused_row_name);
 
         TEST(Small_BlasTypes, EveryEnumeratorCarriesItsCblasNumber)
         {
@@ -55,19 +118,6 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::Side::Right), 142);
         }
 
-        TEST(Small_BlasTypes, EveryFlagIsOneByte)
-        {
-            static_assert(sizeof(Core::Transpose) == 1, "Transpose is one byte.");
-            static_assert(sizeof(Core::Uplo) == 1, "Uplo is one byte.");
-            static_assert(sizeof(Core::Diag) == 1, "Diag is one byte.");
-            static_assert(sizeof(Core::Side) == 1, "Side is one byte.");
-
-            EXPECT_EQ(sizeof(Core::Transpose), 1u);
-            EXPECT_EQ(sizeof(Core::Uplo), 1u);
-            EXPECT_EQ(sizeof(Core::Diag), 1u);
-            EXPECT_EQ(sizeof(Core::Side), 1u);
-        }
-
         TEST(Small_BlasTypes, IsValidAcceptsEveryEnumerator)
         {
             EXPECT_TRUE(Core::is_valid(Core::Transpose::NoTrans));
@@ -79,35 +129,6 @@ namespace SushiBLAS
             EXPECT_TRUE(Core::is_valid(Core::Diag::Unit));
             EXPECT_TRUE(Core::is_valid(Core::Side::Left));
             EXPECT_TRUE(Core::is_valid(Core::Side::Right));
-        }
-
-        TEST(Small_BlasTypes, IsValidRefusesAValueInitialisedFlag)
-        {
-            EXPECT_FALSE(Core::is_valid(Core::Transpose{}));
-            EXPECT_FALSE(Core::is_valid(Core::Uplo{}));
-            EXPECT_FALSE(Core::is_valid(Core::Diag{}));
-            EXPECT_FALSE(Core::is_valid(Core::Side{}));
-
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Transpose>(K_BELOW_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Uplo>(K_BELOW_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Diag>(K_BELOW_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(K_BELOW_EVERY_FLAG)));
-        }
-
-        TEST(Small_BlasTypes, IsValidRefusesAValueAboveEveryEnumerator)
-        {
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Transpose>(K_ABOVE_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Uplo>(K_ABOVE_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Diag>(K_ABOVE_EVERY_FLAG)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(K_ABOVE_EVERY_FLAG)));
-        }
-
-        TEST(Small_BlasTypes, IsValidRefusesTheNumberOfAnotherFlag)
-        {
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Transpose>(121)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Uplo>(111)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Diag>(141)));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(131)));
         }
 
         TEST(Small_BlasTypes, IsTransposedHoldsForBothTransposes)

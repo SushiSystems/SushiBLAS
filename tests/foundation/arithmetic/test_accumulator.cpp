@@ -38,38 +38,27 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_Accumulator, HalfAccumulatesInFloat)
+        static_assert(std::is_same<Kernels::Accumulator<sycl::half>, float>::value,
+                      "HALF accumulates in FLOAT32.");
+        static_assert(std::is_same<Kernels::AccumulatorOf<sycl::half>::type, float>::value,
+                      "AccumulatorOf names the same type as Accumulator.");
+        static_assert(std::is_same<Kernels::Accumulator<float>, float>::value, "float.");
+        static_assert(std::is_same<Kernels::Accumulator<double>, double>::value, "double.");
+        static_assert(std::is_same<Kernels::Accumulator<int32_t>, int32_t>::value, "int32.");
+        static_assert(std::is_same<Kernels::Accumulator<int64_t>, int64_t>::value, "int64.");
+        static_assert(std::is_same<Kernels::Accumulator<std::complex<float>>,
+                                   std::complex<float>>::value,
+                      "complex<float>.");
+
+        TEST(Small_Accumulator, AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses)
         {
-            static_assert(std::is_same<Kernels::Accumulator<sycl::half>, float>::value,
-                          "HALF accumulates in FLOAT32.");
-
-            EXPECT_TRUE((std::is_same<Kernels::AccumulatorOf<sycl::half>::type, float>::value));
-        }
-
-        TEST(Medium_Accumulator, EveryOtherTypeAccumulatesInItself)
-        {
-            static_assert(std::is_same<Kernels::Accumulator<float>, float>::value, "float.");
-            static_assert(std::is_same<Kernels::Accumulator<double>, double>::value, "double.");
-            static_assert(std::is_same<Kernels::Accumulator<int32_t>, int32_t>::value, "int32.");
-            static_assert(std::is_same<Kernels::Accumulator<int64_t>, int64_t>::value, "int64.");
-            static_assert(std::is_same<Kernels::Accumulator<std::complex<float>>,
-                                       std::complex<float>>::value,
-                          "complex<float>.");
-
-            EXPECT_TRUE((std::is_same<Kernels::Accumulator<double>, double>::value));
-        }
-
-        TEST(Medium_Accumulator, AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses)
-        {
-            // 2048 is where HALF's step grows to 2, so adding 1 to it in HALF is lost.
+            // 2048 is where HALF's step grows to 2; the float accumulator keeps the 1.
             const sycl::half big(2048.0f);
             const sycl::half one(1.0f);
 
-            const sycl::half narrow = static_cast<sycl::half>(big + one);
             const Kernels::Accumulator<sycl::half> wide =
                 static_cast<float>(big) + static_cast<float>(one);
 
-            EXPECT_EQ(static_cast<float>(narrow), 2048.0f);
             EXPECT_EQ(wide, 2049.0f);
         }
     } // namespace Test

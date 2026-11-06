@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_profile.cpp                                                       */
+/* compile_reference_accumulator.cpp                                      */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,40 +22,31 @@
 /**************************************************************************/
 
 /**
- * @file test_profile.cpp
- * @brief Tests that every SB_ macro is a statement or an expression a scope can hold.
+ * @file compile_reference_accumulator.cpp
+ * @brief Checks at compile time the type a reference kernel accumulates each element type in.
  * @author Mustafa Garip
- * @see tests/foundation/profile/README.md
  */
 
-#include <SushiBLAS/profile/profile.hpp>
-
-#include <gtest/gtest.h>
+#include <complex>
+#include <type_traits>
+#include <sycl/sycl.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_Profile, EveryMacroIsUsableInOneScope)
-        {
-            double sample = 0.5;
-            const auto every_macro = [&]
-            {
-                SB_ZONE("test_profile.stage");
-                SB_ZONE_FINE("test_profile.fine");
-                SB_ZONE_DETAIL("test_profile.detail");
-                SB_VALUE("test_profile.sample", "", sample);
-                SB_COUNTER("test_profile.count", "", Add, sample);
-                SB_INSTANT("test_profile.instant");
-            };
-            EXPECT_NO_THROW(every_macro());
-        }
-
-        TEST(Small_Profile, AValueOnlyAMacroReadsIsNotUnused)
-        {
-            const double only_read_by_the_macro = 1.0;
-            const auto read_by_the_macro = [&] { SB_VALUE("test_profile.only_read", "", only_read_by_the_macro); };
-            EXPECT_NO_THROW(read_by_the_macro());
-        }
+        static_assert(std::is_same_v<Kernels::ReferenceAccumulator<sycl::half>, double>,
+                      "HALF is summed in double.");
+        static_assert(std::is_same_v<Kernels::ReferenceAccumulator<float>, double>,
+                      "FLOAT32 is summed in double.");
+        static_assert(std::is_same_v<Kernels::ReferenceAccumulator<double>, double>,
+                      "FLOAT64 is summed in double.");
+        static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<float>>,
+                                     std::complex<double>>,
+                      "COMPLEX32 is summed in complex double.");
+        static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<double>>,
+                                     std::complex<double>>,
+                      "COMPLEX64 is summed in complex double.");
     } // namespace Test
 } // namespace SushiBLAS

@@ -29,7 +29,7 @@
 
 #include <SushiBLAS/signal_kernels/sycl/fft.hpp>
 
-#include <limits>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -38,6 +38,7 @@
 #include <SushiBLAS/signal_kernels/reference/fft.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -56,16 +57,30 @@ namespace SushiBLAS
                         /**< Element pairing. */
             };
 
+            /**
+             * @brief Holds the products a transform sum is allowed per sample.
+             *
+             * A Bluestein line pads to a power of two of at most four times its length and runs
+             * three transforms, so a sample is the sum of a few times its length of products.
+             */
+            constexpr std::size_t K_TERMS_PER_SAMPLE = 8;
+
             /** @brief Returns radix-2, Bluestein, packed and unpacked real, 1-D and 2-D cases. */
             std::vector<DeviceFftCase> cases()
             {
                 using P = Kernels::FftPairing;
-                return {{"c2c radix-2", 1, 32, 3, P::ComplexToComplex},
-                        {"c2c Bluestein", 1, 10, 2, P::ComplexToComplex},
-                        {"c2c 2-D", 4, 6, 2, P::ComplexToComplex},
-                        {"r2c packed", 1, 16, 2, P::RealToComplex},
-                        {"r2c packed Bluestein", 3, 12, 2, P::RealToComplex},
-                        {"r2c odd", 5, 7, 1, P::RealToComplex}};
+                return {{"ComplexRadix2", 1, 32, 3, P::ComplexToComplex},
+                        {"ComplexBluestein", 1, 10, 2, P::ComplexToComplex},
+                        {"Complex2D", 4, 6, 2, P::ComplexToComplex},
+                        {"RealPacked", 1, 16, 2, P::RealToComplex},
+                        {"RealPackedBluestein", 3, 12, 2, P::RealToComplex},
+                        {"RealOdd", 5, 7, 1, P::RealToComplex}};
+            }
+
+            /** @brief Names a case, which gtest takes as the test's suffix. */
+            std::string device_fft_case_name(const ::testing::TestParamInfo<DeviceFftCase>& info)
+            {
+                return info.param.id;
             }
 
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
@@ -108,53 +123,90 @@ namespace SushiBLAS
                         .wait();
                 return device_output.values();
             }
+
+            /** @brief Returns what the reference forward transform writes for the input. */
+            std::vector<double> reference_forward(const Kernels::FftPlan<double>& plan,
+                                                  const std::vector<double>& input, std::size_t batch)
+            {
+                std::vector<double> spectrum(batch * plan.spectrum_scalars());
+                Kernels::Reference::fft_forward(plan, input.data(), spectrum.data(), batch);
+                return spectrum;
+            }
+
+            /** @brief Returns what the reference inverse transform writes for the spectrum. */
+            std::vector<double> reference_inverse(const Kernels::FftPlan<double>& plan,
+                                                  const std::vector<double>& spectrum, std::size_t batch)
+            {
+                std::vector<double> samples(batch * plan.sample_scalars());
+                Kernels::Reference::fft_inverse(plan, spectrum.data(), samples.data(), batch);
+                return samples;
+            }
+
+            /** @brief Expects each recovered sample to match the original within the rounding of a transform sum. */
+            void expect_within_rounding(const std::vector<double>& recovered,
+                                        const std::vector<double>& original, const DeviceFftCase& c)
+            {
+                ASSERT_EQ(recovered.size(), original.size());
+                for (std::size_t i = 0; i < original.size(); ++i)
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<double>(
+                        recovered[i], original[i], 1.0, K_TERMS_PER_SAMPLE * c.rows * c.columns)))
+                        << i;
+            }
         } // namespace
+
+        /** @brief Runs the kernels on the host CPU queue, one case at a time. */
+        class Medium_SYCLFftCases : public HostDeviceTest, public ::testing::WithParamInterface<DeviceFftCase>
+        {
+
+        };
+
+        TEST_P(Medium_SYCLFftCases, ForwardEqualsTheReferenceBitForBit)
+        {
+            const DeviceFftCase& c = GetParam();
+            const Kernels::FftPlan<double> plan(c.rows, c.columns, c.pairing);
+            const std::vector<double> input = values(c.batch * plan.sample_scalars(), 5);
+            const std::vector<double> expected = reference_forward(plan, input, c.batch);
+
+            const std::vector<double> got =
+                run_device(queue(), plan, input, expected.size(), c.batch, true);
+
+            EXPECT_EQ(got, expected);
+        }
+
+        TEST_P(Medium_SYCLFftCases, InverseEqualsTheReferenceBitForBit)
+        {
+            const DeviceFftCase& c = GetParam();
+            const Kernels::FftPlan<double> plan(c.rows, c.columns, c.pairing);
+            const std::vector<double> samples = values(c.batch * plan.sample_scalars(), 6);
+            const std::vector<double> spectrum = reference_forward(plan, samples, c.batch);
+            const std::vector<double> expected = reference_inverse(plan, spectrum, c.batch);
+
+            const std::vector<double> got =
+                run_device(queue(), plan, spectrum, expected.size(), c.batch, false);
+
+            EXPECT_EQ(got, expected);
+        }
+
+        TEST_P(Medium_SYCLFftCases, InverseRecoversTheSamplesOfTheForward)
+        {
+            const DeviceFftCase& c = GetParam();
+            const Kernels::FftPlan<double> plan(c.rows, c.columns, c.pairing);
+            const std::vector<double> samples = values(c.batch * plan.sample_scalars(), 6);
+            const std::vector<double> spectrum = reference_forward(plan, samples, c.batch);
+
+            const std::vector<double> got =
+                run_device(queue(), plan, spectrum, samples.size(), c.batch, false);
+
+            expect_within_rounding(got, samples, c);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLFftCases, ::testing::ValuesIn(cases()), device_fft_case_name);
 
         /** @brief Runs the kernels on the host CPU queue. */
         class Medium_SYCLFft : public HostDeviceTest
         {
 
         };
-
-        TEST_F(Medium_SYCLFft, ForwardEqualsTheReferenceBitForBit)
-        {
-            for (const DeviceFftCase& c : cases())
-            {
-                SCOPED_TRACE(c.id);
-                const Kernels::FftPlan<double> plan(c.rows, c.columns, c.pairing);
-                const std::vector<double> input = values(c.batch * plan.sample_scalars(), 5);
-                std::vector<double> expected(c.batch * plan.spectrum_scalars());
-                Kernels::Reference::fft_forward(plan, input.data(), expected.data(), c.batch);
-
-                const std::vector<double> got =
-                    run_device(queue(), plan, input, expected.size(), c.batch, true);
-
-                EXPECT_EQ(got, expected);
-            }
-        }
-
-        TEST_F(Medium_SYCLFft, InverseEqualsTheReferenceBitForBit)
-        {
-            for (const DeviceFftCase& c : cases())
-            {
-                SCOPED_TRACE(c.id);
-                const Kernels::FftPlan<double> plan(c.rows, c.columns, c.pairing);
-                const std::vector<double> samples = values(c.batch * plan.sample_scalars(), 6);
-                std::vector<double> spectrum(c.batch * plan.spectrum_scalars());
-                Kernels::Reference::fft_forward(plan, samples.data(), spectrum.data(), c.batch);
-                std::vector<double> expected(samples.size());
-                Kernels::Reference::fft_inverse(plan, spectrum.data(), expected.data(), c.batch);
-
-                const std::vector<double> got =
-                    run_device(queue(), plan, spectrum, expected.size(), c.batch, false);
-
-                const double bound = 64.0 * std::numeric_limits<double>::epsilon() *
-                                     static_cast<double>(c.rows * c.columns);
-                EXPECT_EQ(got, expected);
-                for (std::size_t i = 0; i < expected.size(); ++i)
-                    EXPECT_NEAR(got[i], samples[i], bound) << i;
-            }
-        }
 
         TEST_F(Medium_SYCLFft, TwoRunsAgreeBitForBit)
         {

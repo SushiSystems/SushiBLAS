@@ -9,13 +9,15 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_interpolation.cpp` | Tests lerp, nlerp and slerp against hand values, with the short-arc and parallel cases |
-| `test_matrix4.cpp` | Tests Matrix4T's default, its column-major layout and its product against hand values |
+| `test_matrix4.cpp` | Tests the product of Matrix4T, in its column-major layout, against hand values |
 | `test_quaternion.cpp` | Tests QuaternionT, its product, conjugate, norm and vector rotation against hand values |
 | `test_spatial_geometry.cpp` | Tests output_extent, the window span and the default ConvGeometry without a device |
 | `test_transform.cpp` | Tests the functions that build a 4x4 transform or take one apart against hand values |
 | `test_vector3.cpp` | Tests Vector3T, its operators, dot, cross, length and normalize against hand values |
 
-Every suite is typed over `float` and `double` and runs on the host; no test submits to a device.
+Every suite but `test_spatial_geometry.cpp` is typed over `float` and `double`. All run on the host and none submits
+to a device. A promise with several hand values keeps them as rows in a table at the top of the file, and one helper
+walks the rows, so no test body loops.
 
 ## Expected values
 
@@ -25,17 +27,18 @@ quarter turn about an axis, whose quaternion holds `sqrt(1/2)`; a third of a tur
 `(1, 1, 1)`, whose quaternion is `(0.5, 0.5, 0.5, 0.5)` and which cycles the axes; half turns
 about `(0.8, 0, 0.6)` and its permutations, whose matrices hold 0.28 and 0.96.
 
-A comparison allows 16 epsilons of the element type as an absolute distance, the constant
-`K_<FILE>_TOLERANCE_EPSILONS` at the top of each file. The values compared against that bound
+A comparison allows an absolute distance of `K_<FILE>_TOLERANCE_EPSILONS` epsilons of the element type, a constant
+at the top of each file. It is `K_DEFAULT_THRESHOLD` from `support/tolerance.hpp`, times `K_<FILE>_ROUNDED_OPERATIONS`
+(2, the rounded operations on the path to a hand value), times the unit roundoff, which is half an epsilon. The values compared against that bound
 are of the order of 1; the larger ones, such as a cross product of 27, are sums of small integers
 and exact in both types. The checks that use `EXPECT_EQ` are the ones where the function promises
-an exact value: a default-constructed object, a degenerate `normalize`, the identity that
-`affine_inverse` returns for a singular matrix.
+an exact value: a degenerate `normalize`.
 
 ## test_vector3.cpp and test_quaternion.cpp
 
-`NormalizeReturnsAZeroLengthVectorUnchanged` and `NormalizeReturnsTheIdentityForAZeroLength` each
-run two inputs: all zeros, and the smallest normal value of `T` in one component. The square of
+`NormalizeReturnsAZeroLengthVectorUnchanged` runs two inputs: all zeros, and the smallest normal value of `T` in
+one component. The quaternion splits them into `NormalizeReturnsTheIdentityForAZeroLength` and
+`NormalizeReturnsTheIdentityWhenTheSquaredLengthUnderflows`. The square of
 the second underflows to zero, so its length is zero although the input is not. The two functions
 answer the same case differently, the vector unchanged and the quaternion as the identity, and
 each test holds its function to its own answer.
@@ -53,8 +56,8 @@ about 0.0012 radians, where `dot(a, b)` is 0.99999982, above the threshold of `1
 
 ## test_transform.cpp
 
-`quaternion_from_matrix` has four branches and four tests. The trace branch runs a quarter turn
-about each axis, which reads each of the three off-diagonal differences. The x, y and z branches
+`quaternion_from_matrix` has four branches and four tests, plus one test for the identity. The trace
+branch runs a quarter turn about each axis, which reads each of the three off-diagonal differences. The x, y and z branches
 run half turns, whose trace is -1; each reads the two off-diagonal sums of its formula. The third
 of a turn about `(1, 1, 1)` has trace 0 and three equal diagonal elements, so both comparisons
 fail and it falls to the z branch.
@@ -75,7 +78,7 @@ so this file links no SYCL and needs no Engine. That is the property the header 
 SushiAI's host-lane shape inference shares this arithmetic and must not inherit the device
 stack to get it.
 
-`AsymmetricPaddingIsWhatHoldsYoloTinysLastPool`: YOLOv3-tiny's 2x2 stride-1 max-pool is padded
+`PaddingOnEitherSideWidensThePaddedInputByItsAmount`: YOLOv3-tiny's 2x2 stride-1 max-pool is padded
 on the bottom and right only, so 13x13 stays 13x13. This is the case CV-5 exists to make
 ordinary, and it is the reason `pad_bottom` is a host-side number and not a ninth attribute
 slot. The second assertion pads the other side, because symmetric and asymmetric padding of the
@@ -86,6 +89,6 @@ goes negative here. Integer division of a negative numerator is implementation-f
 would produce a garbage extent that later multiplies into an allocation size, so the case is
 answered explicitly.
 
-`TheDefaultGeometryIsTheIdentityWindow`: a default-constructed geometry is 1x1, stride 1, no
+The last row of `TheOrdinaryCasesMatchTheFormula` is built from a default `ConvGeometry`: it is 1x1, stride 1, no
 dilation and no padding, so it maps every extent to itself. Anything that reads a half-built
 geometry therefore gets a shape it can recognise as wrong, not a plausible one.

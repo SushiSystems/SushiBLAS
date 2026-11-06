@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
@@ -35,23 +37,69 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_BlasFlags, EachHelperMapsBothTruthValues)
+        static_assert(transpose_of(true) == Core::Transpose::Trans, "Usable in a constant.");
+        static_assert(side_of(false) == Core::Side::Right, "Usable in a constant.");
+
+        /// @brief One helper, one truth value and the enumerator number it must give.
+        struct FlagRow
         {
-            EXPECT_EQ(transpose_of(true), Core::Transpose::Trans);
-            EXPECT_EQ(transpose_of(false), Core::Transpose::NoTrans);
-            EXPECT_EQ(uplo_of(true), Core::Uplo::Upper);
-            EXPECT_EQ(uplo_of(false), Core::Uplo::Lower);
-            EXPECT_EQ(diag_of(true), Core::Diag::Unit);
-            EXPECT_EQ(diag_of(false), Core::Diag::NonUnit);
-            EXPECT_EQ(side_of(true), Core::Side::Left);
-            EXPECT_EQ(side_of(false), Core::Side::Right);
+            const char* name;
+            int (*helper)(bool);
+            bool value;
+            int expected;
+        };
+
+        /// @brief Returns the number of the enumerator a helper gives for a truth value.
+        template<typename Flag, Flag (*Helper)(bool)>
+        static int number_of(bool value)
+        {
+            return static_cast<int>(Helper(value));
         }
 
-        TEST(Small_BlasFlags, TheHelpersAreConstantExpressions)
+        /// @brief Returns the number of an enumerator.
+        template<typename Flag>
+        static int number(Flag flag)
         {
-            static_assert(transpose_of(true) == Core::Transpose::Trans, "Usable in a constant.");
-            static_assert(side_of(false) == Core::Side::Right, "Usable in a constant.");
+            return static_cast<int>(flag);
+        }
 
+        /// @brief Names a row, which gtest takes as the test's suffix.
+        static std::string row_name(const ::testing::TestParamInfo<FlagRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Returns one row per helper and truth value.
+        static std::vector<FlagRow> flag_rows()
+        {
+            using namespace Core;
+            return {
+                {"transpose_true", &number_of<Transpose, &transpose_of>, true, number(Transpose::Trans)},
+                {"transpose_false", &number_of<Transpose, &transpose_of>, false, number(Transpose::NoTrans)},
+                {"uplo_true", &number_of<Uplo, &uplo_of>, true, number(Uplo::Upper)},
+                {"uplo_false", &number_of<Uplo, &uplo_of>, false, number(Uplo::Lower)},
+                {"diag_true", &number_of<Diag, &diag_of>, true, number(Diag::Unit)},
+                {"diag_false", &number_of<Diag, &diag_of>, false, number(Diag::NonUnit)},
+                {"side_true", &number_of<Side, &side_of>, true, number(Side::Left)},
+                {"side_false", &number_of<Side, &side_of>, false, number(Side::Right)},
+            };
+        }
+
+        /// @brief Runs one helper on one truth value.
+        class Small_BlasFlags : public ::testing::TestWithParam<FlagRow>
+        {
+        };
+
+        TEST_P(Small_BlasFlags, TheHelperMapsTheTruthValueOntoItsEnumerator)
+        {
+            const FlagRow& row = GetParam();
+            EXPECT_EQ(row.helper(row.value), row.expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BlasFlags, ::testing::ValuesIn(flag_rows()), row_name);
+
+        TEST(Small_BlasFlagsValidity, AHelperGivesAValidEnumerator)
+        {
             EXPECT_TRUE(Core::is_valid(uplo_of(true)));
         }
     } // namespace Test

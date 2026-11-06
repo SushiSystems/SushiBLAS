@@ -30,9 +30,11 @@
 
 #include <SushiBLAS/cost/cost_table.hpp>
 
+#include <algorithm>
+#include <cstdint>
 #include <set>
 #include <string>
-#include <cstdint>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -42,18 +44,104 @@ namespace SushiBLAS
     {
         using namespace SushiRuntime::Literals;
 
+        namespace
+        {
+            /** @brief Holds a convolution shape and the flops the window_dot rule states for it. */
+            struct WindowDotRow
+            {
+                ConvolutionShape shape;   /**< The extents of the convolution. */
+                std::uint64_t expected;   /**< Flops, worked by hand from the module README. */
+            };
+
+            /** @brief Holds an elementwise operation and the flops it costs for ten elements. */
+            struct ElementwiseRow
+            {
+                SushiRuntime::OperationID id;  /**< The operation. */
+                std::uint64_t expected;        /**< Flops for ten elements. */
+            };
+
+            /**
+             * @brief Returns a dense, a grouped and a depthwise window_dot shape.
+             * @details Sixteen outputs of eight channels make 128 outputs per image; each costs two per tap
+             * of the channels it sums over: 3 channels and 9 taps, 4 and 9, then 1 and 9.
+             */
+            [[nodiscard]] std::vector<WindowDotRow> window_dot_rows()
+            {
+                return {{ConvolutionShape{1, 4, 4, 8, 3, 1, 3, 3, Core::DataType::Float32, 0}, 6912U},
+                        {ConvolutionShape{1, 4, 4, 8, 8, 2, 3, 3, Core::DataType::Float32, 0}, 9216U},
+                        {ConvolutionShape{1, 4, 4, 8, 8, 8, 3, 3, Core::DataType::Float32, 0}, 2304U}};
+            }
+
+            /** @brief Returns an add, a gelu and an exp row with the per-element weight of each. */
+            [[nodiscard]] std::vector<ElementwiseRow> elementwise_rows()
+            {
+                return {{"math.ew.add"_op, 10U}, {"math.nonlinear.gelu"_op, 90U}, {"math.ew.exp"_op, 10U}};
+            }
+
+            /** @brief Returns the first row of the table. */
+            [[nodiscard]] const CostRow* begin_of(const CostRows& rows)
+            {
+                return rows.first;
+            }
+
+            /** @brief Returns the end of the rows of the table. */
+            [[nodiscard]] const CostRow* end_of(const CostRows& rows)
+            {
+                return rows.first + rows.count;
+            }
+        } // namespace
+
+        /** @brief Names the fixture of the window_dot rows. */
+        class Small_CostTableWindowDot : public ::testing::TestWithParam<WindowDotRow>
+        {
+        };
+
+        TEST_P(Small_CostTableWindowDot, ConvolutionCostsTwoPerTapOfTheChannelsOfOneGroup)
+        {
+            const WindowDotRow& row = GetParam();
+            EXPECT_EQ(cost_of("spatial.window_dot"_op, row.shape).flops, row.expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_CostTableWindowDot, ::testing::ValuesIn(window_dot_rows()));
+
+        /** @brief Names the fixture of the elementwise rows. */
+        class Small_CostTableElementwise : public ::testing::TestWithParam<ElementwiseRow>
+        {
+        };
+
+        TEST_P(Small_CostTableElementwise, AnElementwiseRowScalesWithTheCount)
+        {
+            const ElementwiseRow& row = GetParam();
+            EXPECT_EQ(cost_of(row.id, ElementwiseShape{10, Core::DataType::Float32}).flops, row.expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_CostTableElementwise, ::testing::ValuesIn(elementwise_rows()));
+
         TEST(Small_CostTable, GemmCostsTwoMNKPerBatch)
         {
             const Cost cost = cost_of("blas.lvl3.gemm"_op, GemmShape{3, 4, 5, 2, Core::DataType::Float32, 0});
             EXPECT_TRUE(cost.is_costed());
-            EXPECT_EQ(cost.flops, 2U * 3U * 4U * 5U * 2U);
-            EXPECT_EQ(cost.dtype, Core::DataType::Float32);
+            EXPECT_EQ(cost.flops, 240U);
+        }
+
+        TEST(Small_CostTable, AGemmShapeLeftAtItsDefaultsIsOneProductWithNoEpilogue)
+        {
+            GemmShape shape;
+            shape.m = 3;
+            shape.n = 4;
+            shape.k = 5;
+            EXPECT_EQ(cost_of("blas.lvl3.gemm"_op, shape).flops, 120U);
         }
 
         TEST(Small_CostTable, AComplexGemmCostsEightMNK)
         {
             const Cost cost = cost_of("blas.lvl3.gemm"_op, GemmShape{3, 4, 5, 2, Core::DataType::Complex32, 0});
-            EXPECT_EQ(cost.flops, 8U * 3U * 4U * 5U * 2U);
+            EXPECT_EQ(cost.flops, 960U);
+        }
+
+        TEST(Small_CostTable, AComplexGemmIsJudgedInTheFloat32Class)
+        {
+            const Cost cost = cost_of("blas.lvl3.gemm"_op, GemmShape{3, 4, 5, 2, Core::DataType::Complex32, 0});
             EXPECT_EQ(cost.dtype, Core::DataType::Float32);
         }
 
@@ -69,59 +157,52 @@ namespace SushiBLAS
             EXPECT_EQ(cost.dtype, Core::DataType::Half);
         }
 
-        TEST(Small_CostTable, ADenseConvolutionCostsTwoPerTapOfEveryInputChannel)
-        {
-            const ConvolutionShape dense{1, 4, 4, 8, 3, 1, 3, 3, Core::DataType::Float32, 0};
-            EXPECT_EQ(cost_of("spatial.window_dot"_op, dense).flops, 2U * 16U * 8U * 3U * 9U);
-        }
-
-        TEST(Small_CostTable, AGroupedConvolutionSumsOverTheChannelsOfOneGroup)
-        {
-            const ConvolutionShape grouped{1, 4, 4, 8, 8, 2, 3, 3, Core::DataType::Float32, 0};
-            EXPECT_EQ(cost_of("spatial.window_dot"_op, grouped).flops, 2U * 16U * 8U * 4U * 9U);
-        }
-
-        TEST(Small_CostTable, ADepthwiseConvolutionSumsOverTheWindowOnly)
-        {
-            const ConvolutionShape depthwise{1, 4, 4, 8, 8, 8, 3, 3, Core::DataType::Float32, 0};
-            EXPECT_EQ(cost_of("spatial.window_dot"_op, depthwise).flops, 2U * 16U * 8U * 9U);
-        }
-
         TEST(Small_CostTable, AConvolutionEpilogueAddsItsCountPerOutput)
         {
             const ConvolutionShape biased{1, 4, 4, 8, 8, 8, 3, 3, Core::DataType::Float32, 1};
             EXPECT_EQ(cost_of("spatial.window_dot"_op, biased).flops, 2U * 16U * 8U * 9U + 16U * 8U);
         }
 
-        TEST(Small_CostTable, AnElementwiseRowScalesWithTheCount)
+        TEST(Small_CostTable, TheSumFoldsInputsIntoOutputs)
         {
-            EXPECT_EQ(cost_of("math.ew.add"_op, ElementwiseShape{10, Core::DataType::Float32}).flops, 10U);
-            EXPECT_EQ(cost_of("math.nonlinear.gelu"_op, ElementwiseShape{10, Core::DataType::Float32}).flops,
-                      90U);
-            EXPECT_EQ(cost_of("math.ew.exp"_op, ElementwiseShape{10, Core::DataType::Float32}).flops, 10U);
-        }
-
-        TEST(Small_CostTable, AReductionFoldsInputsIntoOutputs)
-        {
-            const ReductionShape ten_into_one{10, 1, Core::DataType::Float32};
-            EXPECT_EQ(cost_of("math.sum"_op, ten_into_one).flops, 9U);
-            EXPECT_EQ(cost_of("math.mean"_op, ten_into_one).flops, 10U);
-            EXPECT_EQ(cost_of("math.asum"_op, ten_into_one).flops, 19U);
+            EXPECT_EQ(cost_of("math.sum"_op, ReductionShape{10, 1, Core::DataType::Float32}).flops, 9U);
             EXPECT_EQ(cost_of("math.sum"_op, ReductionShape{12, 4, Core::DataType::Float32}).flops, 8U);
         }
 
-        TEST(Small_CostTable, AWindowFoldsItsTapsIntoEachOutput)
+        TEST(Small_CostTable, TheMeanAddsOneDivisionPerOutput)
         {
-            const WindowShape window{6, 4, Core::DataType::Float32};
-            EXPECT_EQ(cost_of("spatial.pool_max"_op, window).flops, 24U);
-            EXPECT_EQ(cost_of("spatial.pool_avg"_op, window).flops, 30U);
+            EXPECT_EQ(cost_of("math.mean"_op, ReductionShape{10, 1, Core::DataType::Float32}).flops, 10U);
         }
 
-        TEST(Small_CostTable, ThePoolAndUpsampleBackwardsCostTheirScatter)
+        TEST(Small_CostTable, TheAsumAddsOneAbsoluteValuePerElement)
         {
-            const WindowShape window{6, 4, Core::DataType::Float32};
-            EXPECT_EQ(cost_of("spatial.pool_avg_backward"_op, window).flops, 48U);
-            EXPECT_EQ(cost_of("spatial.pool_max_backward"_op, window).flops, 6U);
+            EXPECT_EQ(cost_of("math.asum"_op, ReductionShape{10, 1, Core::DataType::Float32}).flops, 19U);
+        }
+
+        TEST(Small_CostTable, MaxPoolingCostsOneCombinePerTap)
+        {
+            EXPECT_EQ(cost_of("spatial.pool_max"_op, WindowShape{6, 4, Core::DataType::Float32}).flops, 24U);
+        }
+
+        TEST(Small_CostTable, AveragePoolingAlsoCostsPerOutputWork)
+        {
+            EXPECT_EQ(cost_of("spatial.pool_avg"_op, WindowShape{6, 4, Core::DataType::Float32}).flops, 30U);
+        }
+
+        TEST(Small_CostTable, AveragePoolBackwardCostsItsScatter)
+        {
+            EXPECT_EQ(cost_of("spatial.pool_avg_backward"_op, WindowShape{6, 4, Core::DataType::Float32}).flops,
+                      48U);
+        }
+
+        TEST(Small_CostTable, MaxPoolBackwardCostsItsScatter)
+        {
+            EXPECT_EQ(cost_of("spatial.pool_max_backward"_op, WindowShape{6, 4, Core::DataType::Float32}).flops,
+                      6U);
+        }
+
+        TEST(Small_CostTable, UpsampleBackwardCostsItsScatter)
+        {
             EXPECT_EQ(cost_of("spatial.upsample_nearest_backward"_op,
                               ElementwiseShape{10, Core::DataType::Float32}).flops, 10U);
         }
@@ -137,10 +218,13 @@ namespace SushiBLAS
 
         TEST(Small_CostTable, ATransformCostsFiveNLogNPerPowerOfTwoLine)
         {
-            const Cost line = cost_of("signal.fft"_op,
-                                      TransformShape{1, 1, 8, false, Core::DataType::Float32});
+            const Cost line = cost_of("signal.fft"_op, TransformShape{1, 1, 8, false, Core::DataType::Float32});
             EXPECT_TRUE(line.is_costed());
             EXPECT_EQ(line.flops, 120U);
+        }
+
+        TEST(Small_CostTable, ABatchedTwoDimensionalTransformSumsItsRowAndColumnPasses)
+        {
             EXPECT_EQ(cost_of("signal.inverse_fft"_op,
                               TransformShape{2, 4, 8, false, Core::DataType::Float32}).flops,
                       1600U);
@@ -198,30 +282,53 @@ namespace SushiBLAS
             EXPECT_EQ(cost.flops, UINT64_MAX);
         }
 
-        TEST(Small_CostTable, RowsAreSortedAndUnique)
+        TEST(Small_CostTable, TheTableIsNotEmpty)
         {
-            const CostRows rows = cost_rows();
-            ASSERT_GT(rows.count, 0U);
-            for (std::size_t i = 1; i < rows.count; ++i)
-                EXPECT_TRUE(rows.first[i - 1].id < rows.first[i].id) << "row " << i;
+            EXPECT_GT(cost_rows().count, 0U);
         }
 
-        TEST(Small_CostTable, EveryRowNamesAKnownRule)
+        TEST(Small_CostTable, RowsAreSortedByIdAndNoIdRepeats)
         {
-            std::set<std::uint32_t> seen;
             const CostRows rows = cost_rows();
-            for (std::size_t i = 0; i < rows.count; ++i)
-            {
-                const CostRow& row = rows.first[i];
-                EXPECT_TRUE(row.id.is_named());
-                EXPECT_TRUE(seen.insert(row.id.value).second);
-                EXPECT_NE(std::string(to_string(row.reason)), "unknown");
-                if (row.reason == UncostedReason::None)
-                    EXPECT_TRUE(cost_of(row.id, ElementwiseShape{4, Core::DataType::Float32}).is_costed());
-                else
-                    EXPECT_EQ(cost_of(row.id, ElementwiseShape{4, Core::DataType::Float32}).reason,
-                              row.reason);
-            }
+            const auto not_ascending = [](const CostRow& left, const CostRow& right) { return !(left.id < right.id); };
+            EXPECT_EQ(std::adjacent_find(begin_of(rows), end_of(rows), not_ascending), end_of(rows));
+        }
+
+        TEST(Small_CostTable, EveryRowIdIsNamed)
+        {
+            const CostRows rows = cost_rows();
+            EXPECT_TRUE(std::all_of(begin_of(rows), end_of(rows), [](const CostRow& row) { return row.id.is_named(); }));
+        }
+
+        TEST(Small_CostTable, EveryRowHasAnIdOfItsOwn)
+        {
+            const CostRows rows = cost_rows();
+            std::set<std::uint32_t> values;
+            std::for_each(begin_of(rows), end_of(rows), [&values](const CostRow& row) { values.insert(row.id.value); });
+            EXPECT_EQ(values.size(), rows.count);
+        }
+
+        TEST(Small_CostTable, EveryRowReasonIsKnown)
+        {
+            const CostRows rows = cost_rows();
+            EXPECT_TRUE(std::all_of(begin_of(rows), end_of(rows), [](const CostRow& row) {
+                return std::string(to_string(row.reason)) != "unknown";
+            }));
+        }
+
+        TEST(Small_CostTable, AReasonOutsideTheKnownOnesIsNamedUnknown)
+        {
+            EXPECT_EQ(std::string(to_string(static_cast<UncostedReason>(255))), "unknown");
+        }
+
+        TEST(Small_CostTable, CostOfAgreesWithTheReasonOfEveryRow)
+        {
+            const CostRows rows = cost_rows();
+            const ElementwiseShape shape{4, Core::DataType::Float32};
+            EXPECT_TRUE(std::all_of(begin_of(rows), end_of(rows), [&shape](const CostRow& row) {
+                const Cost cost = cost_of(row.id, shape);
+                return row.reason == UncostedReason::None ? cost.is_costed() : cost.reason == row.reason;
+            }));
         }
 
         TEST(Small_CostTable, FindCostRowReturnsTheRowOfAnId)

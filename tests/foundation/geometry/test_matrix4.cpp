@@ -33,15 +33,52 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/geometry/matrix4.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type.
-        constexpr double K_MATRIX4_TOLERANCE_EPSILONS = 16.0;
+        /// @brief Rounded operations on the longest path to a hand value: a product and a sum.
+        constexpr double K_MATRIX4_ROUNDED_OPERATIONS = 2.0;
+
+        /// @brief Allowed absolute distance from a hand value, in epsilons of the element type:
+        /// the default threshold times the rounded operations times the unit roundoff, which is half an epsilon.
+        constexpr double K_MATRIX4_TOLERANCE_EPSILONS =
+            TestSupport::K_DEFAULT_THRESHOLD * K_MATRIX4_ROUNDED_OPERATIONS *
+            (TestSupport::unit_roundoff<double>() / std::numeric_limits<double>::epsilon());
 
         /// @brief Elements a 4x4 matrix holds.
         constexpr std::size_t K_MATRIX4_ELEMENT_COUNT = 16;
+
+        /** @brief Holds two operands in storage order and the elements of their product. */
+        struct ProductRow
+        {
+            std::array<double, K_MATRIX4_ELEMENT_COUNT> left;      /**< The left operand, column by column. */
+            std::array<double, K_MATRIX4_ELEMENT_COUNT> right;     /**< The right operand, column by column. */
+            std::array<double, K_MATRIX4_ELEMENT_COUNT> expected;  /**< The product, column by column. */
+        };
+
+        /**
+         * @brief The products of the order promise of mul.
+         * @details Rows one and two: with the element (0, 1) at m[4] and (1, 0) at m[1], [[1, 1], [0, 1]] times
+         * [[1, 0], [1, 1]] is [[2, 1], [1, 1]] and the reverse is [[1, 1], [1, 2]]. Rows three and four: a scale
+         * by (2, 3, 4) then a move by (5, 6, 7), and a move by (1, 2, 3); the point (1, 2, 3) scales to
+         * (2, 6, 12) and lands on (7, 12, 19), and the other order adds (1, 2, 3) to (5, 6, 7).
+         */
+        constexpr std::array<ProductRow, 4> K_PRODUCT_ROWS{{
+            {{1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+             {1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+             {2, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}},
+            {{1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+             {1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+             {1, 1, 0, 0, 1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}},
+            {{2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 5, 6, 7, 1},
+             {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1},
+             {2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 7, 12, 19, 1}},
+            {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 2, 3, 1},
+             {2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 5, 6, 7, 1},
+             {2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 4, 0, 6, 8, 10, 1}}}};
 
         /**
          * @brief Compares matrices of element type T with hand-computed elements.
@@ -70,71 +107,31 @@ namespace SushiBLAS
                                     tolerance())
                             << "element " << index;
                 }
+
+                /** @brief Returns a matrix holding the given elements in storage order. */
+                [[nodiscard]] static Geometry::Matrix4T<T>
+                matrix_of(const std::array<double, K_MATRIX4_ELEMENT_COUNT>& elements)
+                {
+                    Geometry::Matrix4T<T> matrix{};
+                    for (std::size_t index = 0; index < K_MATRIX4_ELEMENT_COUNT; ++index)
+                        matrix.m[index] = T(elements[index]);
+                    return matrix;
+                }
+
+                /** @brief Expects mul of the operands of every row to give the row's product. */
+                static void expect_product_rows()
+                {
+                    for (const ProductRow& row : K_PRODUCT_ROWS)
+                        expect_matrix_near(Geometry::mul(matrix_of(row.left), matrix_of(row.right)), row.expected);
+                }
         };
 
         using GeometryMatrix4Types = ::testing::Types<float, double>;
         SB_TYPED_TEST_SUITE(Small_GeometryMatrix4, GeometryMatrix4Types);
 
-        TYPED_TEST(Small_GeometryMatrix4, DefaultIsTheIdentity)
-        {
-            const Geometry::Matrix4T<TypeParam> matrix{};
-
-            for (std::size_t column = 0; column < 4; ++column)
-                for (std::size_t row = 0; row < 4; ++row)
-                    EXPECT_EQ(matrix.m[column * 4 + row], TypeParam(column == row ? 1 : 0))
-                        << "row " << row << ", column " << column;
-        }
-
-        TYPED_TEST(Small_GeometryMatrix4, HoldsSixteenElementsAndNothingElse)
-        {
-            EXPECT_EQ(sizeof(Geometry::Matrix4T<TypeParam>),
-                      K_MATRIX4_ELEMENT_COUNT * sizeof(TypeParam));
-        }
-
         TYPED_TEST(Small_GeometryMatrix4, MulReadsRowsOfTheLeftAndColumnsOfTheRight)
         {
-            using T = TypeParam;
-            // Element (0, 1) is stored at m[4] and element (1, 0) at m[1].
-            Geometry::Matrix4T<T> upper{};
-            upper.m[4] = T(1);
-            Geometry::Matrix4T<T> lower{};
-            lower.m[1] = T(1);
-
-            // [[1, 1], [0, 1]] * [[1, 0], [1, 1]] = [[2, 1], [1, 1]] in the upper-left block.
-            TestFixture::expect_matrix_near(
-                Geometry::mul(upper, lower),
-                {2.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0});
-            // [[1, 0], [1, 1]] * [[1, 1], [0, 1]] = [[1, 1], [1, 2]].
-            TestFixture::expect_matrix_near(
-                Geometry::mul(lower, upper),
-                {1.0, 1.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0});
-        }
-
-        TYPED_TEST(Small_GeometryMatrix4, MulAppliesTheRightOperandFirst)
-        {
-            using T = TypeParam;
-            // Scales by (2, 3, 4), then translates by (5, 6, 7).
-            Geometry::Matrix4T<T> scale_then_move{};
-            scale_then_move.m[0] = T(2);
-            scale_then_move.m[5] = T(3);
-            scale_then_move.m[10] = T(4);
-            scale_then_move.m[12] = T(5);
-            scale_then_move.m[13] = T(6);
-            scale_then_move.m[14] = T(7);
-            // Translates by (1, 2, 3).
-            Geometry::Matrix4T<T> move{};
-            move.m[12] = T(1);
-            move.m[13] = T(2);
-            move.m[14] = T(3);
-
-            // The point (1, 2, 3) scales to (2, 6, 12) and lands on (7, 12, 19).
-            TestFixture::expect_matrix_near(
-                Geometry::mul(scale_then_move, move),
-                {2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 7.0, 12.0, 19.0, 1.0});
-            // The other order adds (1, 2, 3) to the translation (5, 6, 7).
-            TestFixture::expect_matrix_near(
-                Geometry::mul(move, scale_then_move),
-                {2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 6.0, 8.0, 10.0, 1.0});
+            TestFixture::expect_product_rows();
         }
     } // namespace Test
 } // namespace SushiBLAS

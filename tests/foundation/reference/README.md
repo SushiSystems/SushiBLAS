@@ -9,5 +9,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_reference_accumulator.cpp` | Tests the type and the running sum a reference kernel accumulates in |
+| `compile_reference_accumulator.cpp` | Checks at compile time the type each element type accumulates in; compiled, never run |
 | `test_serial_1d.cpp` | Tests the serial map, fused update and indexed loop against the launched shapes |
 | `test_serial_reduce.cpp` | Tests the serial host folds against the launched folds and accumulators they mirror |

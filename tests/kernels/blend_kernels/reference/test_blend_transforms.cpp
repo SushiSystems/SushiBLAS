@@ -26,8 +26,10 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blend_kernels/reference/blend_transforms.hpp>
@@ -130,66 +132,104 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<double>{2, 3, 4}));
         }
 
-        TEST(Small_ReferenceBlendTransforms, MatchesADirectLoopOnSmallIntegers)
+        /// @brief Holds the component and row counts of one blend the direct loop checks.
+        struct ShapeRow
+        {
+                const char* name;
+                int64_t components; ///< 3 for a position, 4 for a homogeneous point.
+                int64_t rows;       ///< 3 for an implied last row, 4 for a full transform.
+        };
+
+        /// @brief Returns every combination of the two component counts and the two row counts.
+        static std::vector<ShapeRow> shape_rows()
+        {
+            return {{"Position_ThreeRows", 3, 3},
+                    {"Position_FourRows", 3, 4},
+                    {"Homogeneous_ThreeRows", 4, 3},
+                    {"Homogeneous_FourRows", 4, 4}};
+        }
+
+        /// @brief Names a row, which gtest takes as the test's suffix.
+        static std::string shape_row_name(const ::testing::TestParamInfo<ShapeRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /**
+         * @brief Returns the blend one point at a time, term by term, in the order of the influences.
+         *
+         * A position has w = 1; a transform of three rows ends in (0, 0, 0, 1); an index outside
+         * the transforms adds no term.
+         */
+        static std::vector<double> direct_blend(const ShapeRow& shape, int64_t point_count,
+                                                int64_t influences, int64_t transform_count,
+                                                const std::vector<double>& points,
+                                                const std::vector<double>& matrices,
+                                                const std::vector<int64_t>& indices,
+                                                const std::vector<double>& weights)
+        {
+            std::vector<double> expected(static_cast<std::size_t>(point_count * shape.components), 0.0);
+            for (int64_t p = 0; p < point_count; ++p)
+            {
+                for (int64_t j = 0; j < influences; ++j)
+                {
+                    const std::size_t at = static_cast<std::size_t>(p * influences + j);
+                    const int64_t slot = indices[at];
+                    if (slot < 0 || slot >= transform_count)
+                        continue;
+
+                    for (int64_t i = 0; i < shape.components; ++i)
+                    {
+                        double moved = 0.0;
+                        for (int64_t c = 0; c < 4; ++c)
+                        {
+                            const double v = c < shape.components
+                                                 ? points[static_cast<std::size_t>(p * shape.components + c)]
+                                                 : 1.0;
+                            const double m = i < shape.rows
+                                                 ? matrices[static_cast<std::size_t>((slot * shape.rows + i) * 4 + c)]
+                                                 : (c == 3 ? 1.0 : 0.0);
+                            moved += m * v;
+                        }
+                        expected[static_cast<std::size_t>(p * shape.components + i)] += weights[at] * moved;
+                    }
+                }
+            }
+            return expected;
+        }
+
+        /// @brief Runs the blend on small integers of one shape.
+        class Small_ReferenceBlendTransformsOnShapes : public ::testing::TestWithParam<ShapeRow>
+        {
+        };
+
+        TEST_P(Small_ReferenceBlendTransformsOnShapes, MatchesADirectLoopOnSmallIntegers)
         {
             constexpr int64_t K_POINTS = 5;
             constexpr int64_t K_TRANSFORMS = 3;
             constexpr int64_t K_INFLUENCES = 4;
+            constexpr int64_t K_INDEX_PERIOD = 5;
+            const ShapeRow& shape = GetParam();
+            const std::vector<double> points =
+                small_integers<double>(static_cast<std::size_t>(K_POINTS * shape.components), 1);
+            const std::vector<double> matrices = small_integers<double>(
+                static_cast<std::size_t>(K_TRANSFORMS * shape.rows * 4), 2);
+            const std::vector<double> weights =
+                small_integers<double>(static_cast<std::size_t>(K_POINTS * K_INFLUENCES), 3);
+            std::vector<int64_t> indices(static_cast<std::size_t>(K_POINTS * K_INFLUENCES));
+            std::generate(indices.begin(), indices.end(), [n = int64_t{0}]() mutable
+                          { return (n++ % K_INDEX_PERIOD) - 1; });
+            std::vector<double> out(static_cast<std::size_t>(K_POINTS * shape.components), 0.0);
 
-            for (const int64_t components : {int64_t{3}, int64_t{4}})
-            {
-                for (const int64_t rows : {int64_t{3}, int64_t{4}})
-                {
-                    const std::vector<double> points =
-                        small_integers<double>(static_cast<std::size_t>(K_POINTS * components), 1);
-                    const std::vector<double> matrices = small_integers<double>(
-                        static_cast<std::size_t>(K_TRANSFORMS * rows * 4), 2);
-                    const std::vector<double> weights = small_integers<double>(
-                        static_cast<std::size_t>(K_POINTS * K_INFLUENCES), 3);
-                    std::vector<int64_t> indices(static_cast<std::size_t>(K_POINTS * K_INFLUENCES));
-                    for (std::size_t i = 0; i < indices.size(); ++i)
-                        indices[i] = static_cast<int64_t>(i % 5) - 1;
-                    std::vector<double> out(static_cast<std::size_t>(K_POINTS * components), 0.0);
-                    std::vector<double> expected(out.size(), 0.0);
+            Kernels::Reference::blend_transforms(K_POINTS, shape.components, shape.rows, K_INFLUENCES,
+                                                 K_TRANSFORMS, points.data(), matrices.data(),
+                                                 indices.data(), weights.data(), out.data());
 
-                    Kernels::Reference::blend_transforms(K_POINTS, components, rows, K_INFLUENCES,
-                                                         K_TRANSFORMS, points.data(),
-                                                         matrices.data(), indices.data(),
-                                                         weights.data(), out.data());
-
-                    for (int64_t p = 0; p < K_POINTS; ++p)
-                    {
-                        for (int64_t j = 0; j < K_INFLUENCES; ++j)
-                        {
-                            const std::size_t at = static_cast<std::size_t>(p * K_INFLUENCES + j);
-                            const int64_t slot = indices[at];
-                            if (slot < 0 || slot >= K_TRANSFORMS)
-                                continue;
-
-                            for (int64_t i = 0; i < components; ++i)
-                            {
-                                double moved = 0.0;
-                                for (int64_t c = 0; c < 4; ++c)
-                                {
-                                    // A position has w = 1; a 3-row transform ends in (0, 0, 0, 1).
-                                    double v = 1.0;
-                                    if (c < components)
-                                        v = points[static_cast<std::size_t>(p * components + c)];
-                                    double m = c == 3 ? 1.0 : 0.0;
-                                    if (i < rows)
-                                        m = matrices[static_cast<std::size_t>(
-                                            (slot * rows + i) * 4 + c)];
-                                    moved += m * v;
-                                }
-                                expected[static_cast<std::size_t>(p * components + i)] +=
-                                    weights[at] * moved;
-                            }
-                        }
-                    }
-
-                    EXPECT_EQ(out, expected) << components << " values, " << rows << " rows";
-                }
-            }
+            EXPECT_EQ(out, direct_blend(shape, K_POINTS, K_INFLUENCES, K_TRANSFORMS, points,
+                                        matrices, indices, weights));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceBlendTransformsOnShapes,
+                                 ::testing::ValuesIn(shape_rows()), shape_row_name);
     } // namespace Test
 } // namespace SushiBLAS

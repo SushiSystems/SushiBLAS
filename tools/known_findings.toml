@@ -50,20 +50,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/foundation/arithmetic/test_complex_arithmetic.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/core/test_sushiblas_log_project.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/foundation/launch/test_submitted_events.cpp"
 count = 2
 backlog = "RW-133"
@@ -71,42 +57,7 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/foundation/profile/test_profile.cpp"
-count = 2
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/profile/test_profile_gate.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/reference/test_reference_accumulator.cpp"
-count = 2
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/foundation/sparse_assembly/test_sparse_assembly.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/substitution/test_running_solution.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/foundation/test_runner/test_run_observer_capture.cpp"
 count = 1
 backlog = "RW-133"
 

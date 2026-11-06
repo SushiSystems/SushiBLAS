@@ -45,26 +45,58 @@ namespace SushiBLAS
         /// @brief Five values whose sum, extremes and positions are worked out by hand.
         const std::vector<double> K_VALUES{2.0, -3.0, 5.0, 1.0, 5.0};
 
-        TEST(Small_SerialReductions, SumMeanAndProductOfFiveValues)
+        TEST(Small_SerialReductions, SumAddsTheValues)
         {
             EXPECT_EQ(ReferenceKernels::sum(K_VALUES), 10.0);
+        }
+
+        TEST(Small_SerialReductions, MeanDividesTheSumByTheCount)
+        {
             EXPECT_EQ(ReferenceKernels::mean(K_VALUES), 2.0);
+        }
+
+        TEST(Small_SerialReductions, ProdMultipliesTheValues)
+        {
             EXPECT_EQ(ReferenceKernels::prod(K_VALUES), -150.0);
         }
 
-        TEST(Small_SerialReductions, ExtremesAndTheFirstPositionOfEach)
+        TEST(Small_SerialReductions, MaxIsTheLargestValue)
         {
             EXPECT_EQ(ReferenceKernels::max(K_VALUES), 5.0);
+        }
+
+        TEST(Small_SerialReductions, MinIsTheSmallestValue)
+        {
             EXPECT_EQ(ReferenceKernels::min(K_VALUES), -3.0);
+        }
+
+        TEST(Small_SerialReductions, ArgmaxIsTheFirstPositionOfTheLargestValue)
+        {
             EXPECT_EQ(ReferenceKernels::argmax(K_VALUES), 2.0);
+        }
+
+        TEST(Small_SerialReductions, ArgminIsThePositionOfTheSmallestValue)
+        {
             EXPECT_EQ(ReferenceKernels::argmin(K_VALUES), 1.0);
         }
 
-        TEST(Small_SerialReductions, SpreadAndNorms)
+        TEST(Small_SerialReductions, VarIsThePopulationVariance)
         {
             EXPECT_NEAR(ReferenceKernels::var(K_VALUES), 8.8, K_TOLERANCE);
+        }
+
+        TEST(Small_SerialReductions, StdDevIsTheRootOfTheVariance)
+        {
             EXPECT_NEAR(ReferenceKernels::std_dev(K_VALUES), std::sqrt(8.8), K_TOLERANCE);
+        }
+
+        TEST(Small_SerialReductions, AsumAddsTheMagnitudes)
+        {
             EXPECT_EQ(ReferenceKernels::asum(K_VALUES), 16.0);
+        }
+
+        TEST(Small_SerialReductions, Nrm2IsTheEuclideanLength)
+        {
             EXPECT_EQ(ReferenceKernels::nrm2(std::vector<double>{3.0, 4.0}), 5.0);
         }
 
