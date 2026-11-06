@@ -1,8 +1,7 @@
 # SushiBLASLogging.cmake
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # SushiBLASLogging.cmake: whether SushiBLAS compiles its log calls below ERROR, as a build option.
 #

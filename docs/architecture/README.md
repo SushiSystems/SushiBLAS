@@ -75,8 +75,7 @@ tools/                  Documentation, layering and licence checkers; see tools/
 docs/                   The manual; see docs/README.md
 .config/                Configuration a flag can point a tool at; see .config/README.md
 sushi-module.toml       What `hub` reads about this module
-LICENSE                 PolyForm Noncommercial License 1.0.0
-COMMERCIAL.md           How to ask for a commercial licence
+LICENSE                 Apache License 2.0
 NOTICE.md               Third-party notices, including the portBLAS-derived tiling
 third_party/licenses/   Licence texts of the third-party parts NOTICE.md lists
 ```

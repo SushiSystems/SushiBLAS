@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # The profiler front: the SB_ZONE family of macros. Header-only. With SB_ENABLE_PROFILER off the
 # macros expand to nothing and the module needs no SushiProfiler header.

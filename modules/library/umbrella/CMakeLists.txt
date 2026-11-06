@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # The project umbrella, SushiBLAS/SushiBLAS.hpp, is this module's whole public surface. It
 # includes every public header, so it depends on every installed module.

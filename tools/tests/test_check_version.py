@@ -1,8 +1,7 @@
 # test_check_version.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests the version checker: agreement, each disagreeing copy and a missing file."""
 
 from __future__ import annotations

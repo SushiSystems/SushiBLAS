@@ -1,8 +1,7 @@
 # check_engine_seams.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks SushiBLAS's Engine seams: who includes engine.hpp, what a view calls, how a task orders.
 
 The test-only and benchmark-only modules (INTERNAL, added only under SB_BUILD_TESTS or

@@ -66,7 +66,5 @@ The manual starts at [docs/README.md](docs/README.md). Contributors read
 
 ## Licence
 
-SushiBLAS is free for non-commercial use under the PolyForm Noncommercial License 1.0.0
-([LICENSE](LICENSE)); commercial use needs a licence from Sushi Systems
-([COMMERCIAL.md](COMMERCIAL.md)). The GEMM and SYRK tiling is ported from portBLAS under
+SushiBLAS is open source under the Apache License 2.0 ([LICENSE](LICENSE)). The GEMM and SYRK tiling is ported from portBLAS under
 Apache-2.0; [NOTICE.md](NOTICE.md) lists it with the other third-party parts.

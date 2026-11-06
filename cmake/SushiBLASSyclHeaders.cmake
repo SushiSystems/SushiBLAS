@@ -1,8 +1,7 @@
 # SushiBLASSyclHeaders.cmake
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # Finds the include directory of the SYCL toolchain that compiles this project, the folder that
 # holds <sycl/sycl.hpp>. -fsycl puts it on the search path of the unit it compiles; a unit

@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # Benchmark-only: the argument, environment, fill, timing and table helpers every benchmark
 # program shares. It is added only when SB_BUILD_BENCHMARKS is on, and then with

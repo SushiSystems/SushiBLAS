@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # The tiers of the library, lowest first. The order is the one
 # cmake/SushiBLASLayers.cmake declares; a tier is added there before it is added here.

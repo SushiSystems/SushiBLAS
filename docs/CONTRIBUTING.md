@@ -3,8 +3,8 @@
 Contributions from outside Sushi Systems are not accepted yet; pull requests
 from outside are closed. Bug reports and design discussion are welcome as
 issues. This document states how a change is built, tested, documented and
-committed. SushiBLAS is source-available under the PolyForm Noncommercial
-License 1.0.0 (see [`LICENSE`](../LICENSE)).
+committed. SushiBLAS is open source under the Apache
+License 2.0 (see [`LICENSE`](../LICENSE)).
 
 Read [the architecture](architecture/README.md) first. It explains the
 `Tensor` and `Storage` model, `Engine`, the recorder and the operation views,
@@ -93,10 +93,10 @@ The codebase has a deliberate, consistent style. Match the file you're editing.
 Every source file opens with the license block of the `source-comments` skill.
 A C++ file carries the box, 76 columns wide: the file name, the project and
 its addresses, `Copyright (c) <year>-present Mustafa Garip & Sushi Systems`
-and the PolyForm Noncommercial text. A Python, shell or CMake file carries
-five `#` lines: the file name, the project line
+and the Apache License 2.0 notice. A Python, shell or CMake file carries
+four `#` lines: the file name, the project line
 `SushiBLAS - https://github.com/SushiSystems/SushiBLAS`, the copyright line
-and two licence lines. The `@file` block follows the box after one blank line.
+and the licence line. The `@file` block follows the box after one blank line.
 `tools/licensing/write_license_block.py` in SushiSkills writes it; do not type
 or edit it by hand. [`NOTICE.md`](../NOTICE.md) records the exact command,
 which also keeps the upstream lines of the three files that carry portBLAS tiling.

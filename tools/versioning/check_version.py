@@ -1,8 +1,7 @@
 # check_version.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks every copy of the version against project() in the root CMakeLists.txt.
 
 Usage: python tools/versioning/check_version.py [repository root] [--report] [--rule NAME]

@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # Test-only: the GoogleTest environment that owns the runtime, and the main() of every
 # test program. source/test_main.cpp is not a module source: sushiblas_add_test_program()

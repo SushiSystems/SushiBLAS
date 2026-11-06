@@ -1,8 +1,7 @@
 # test_check_operation_costs.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests the cost table checker: an operation without a row, and a row without an operation."""
 
 from __future__ import annotations

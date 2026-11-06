@@ -1,8 +1,7 @@
 # check_operation_costs.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks that every operation id the library records has a row in the cost table and no row is stale.
 
 An operation id is a `"name"_op` literal under modules/. A row is a `costed("name"_op, ...)` or

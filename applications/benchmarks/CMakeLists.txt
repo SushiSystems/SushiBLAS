@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # The scenario benchmarks. Added only with SB_ENABLE_PROFILER (CMakeLists.txt): they use the
 # profiling module. The program is built with SB_BUILD_BENCHMARKS, the tests of its parts with

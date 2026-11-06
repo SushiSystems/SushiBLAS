@@ -156,13 +156,9 @@ The [changelog](../reference/CHANGELOG.md) lists what has changed.
 
 ## How is SushiBLAS licensed?
 
-SushiBLAS is source-available, free for non-commercial use under the PolyForm Noncommercial
-License 1.0.0. [`LICENSE`](../../LICENSE) is the binding text and lists the permitted purposes.
-
-Any commercial purpose needs a separate, paid licence from Sushi Systems. That includes use
-inside a company, use in paid client work, and use in a product or service that is sold. To ask
-for one, write to hello@sushisystems.io with what you want to build and who will use it; see
-[`COMMERCIAL.md`](../../COMMERCIAL.md).
+SushiBLAS is open source under the Apache License 2.0, and [`LICENSE`](../../LICENSE) is the
+binding text. Any use is allowed, commercial use included, as long as the licence and the notices
+travel with the code.
 
 The GEMM and SYRK tiling is ported from portBLAS and stays under Apache-2.0.
 [`NOTICE.md`](../../NOTICE.md) lists it with the other third-party parts.
