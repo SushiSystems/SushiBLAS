@@ -77,7 +77,7 @@ TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
 
     return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndIntegral>(
         recorder_, t, "math.ew.clamp", "math.ew.clamp"_op,
-        Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return sycl::clamp(x, lo, hi); },
+        Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return Dispatch::scalar_clamp(x, lo, hi); },
                                Dispatch::ElementScalar(min_val),
                                Dispatch::ElementScalar(max_val)),
         {min_val, max_val});

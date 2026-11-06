@@ -53,6 +53,7 @@
 #include <SushiBLAS/blas_kernels/reference/level2/syr2.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/syr2.hpp>
 #include <SushiBLAS/blas_kernels/reference/level2/trmv.hpp>
+#include <SushiBLAS/blas_kernels/reference/level2/trsv.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/trmv.hpp>
 #include <SushiBLAS/blas_kernels/reference/level2/gbmv.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/gbmv.hpp>

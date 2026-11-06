@@ -45,6 +45,7 @@
 #include <SushiBLAS/cost/cost_table.hpp>
 #include <SushiBLAS/engine/profile_hooks.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_cost.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
@@ -64,23 +65,6 @@ namespace SushiBLAS
     {
         namespace Detail
         {
-            /**
-             * @brief Returns the runtime's name for the ceiling class of a real dtype.
-             * @return F16 or F32; Unstated for a type the runtime names no class for.
-             */
-            [[nodiscard]] constexpr SushiRuntime::NodeDType node_dtype_of(Core::DataType dtype) noexcept
-            {
-                switch (dtype)
-                {
-                    case Core::DataType::Half:
-                        return SushiRuntime::NodeDType::F16;
-                    case Core::DataType::Float32:
-                        return SushiRuntime::NodeDType::F32;
-                    default:
-                        return SushiRuntime::NodeDType::Unstated;
-                }
-            }
-
             /** @brief Returns the event of a one-kernel body as it is. */
             [[nodiscard]] inline sycl::event runtime_events(sycl::event event) noexcept
             {
@@ -351,7 +335,8 @@ namespace SushiBLAS
                             SushiRuntime::sized_from_device(
                                 late.words, static_cast<std::size_t>(count.storage_offset)),
                             capacity,
-                            access_of(operands), std::forward<Kernel>(kernel), options);
+                            Internal::task_access(operands), std::forward<Kernel>(kernel),
+                            options);
                     });
                 late_counts_->keep(std::move(late.owner));
                 return handle;
@@ -372,17 +357,6 @@ namespace SushiBLAS
 
         private:
             /**
-             * @brief Builds the access of operands: its regions, and the owners of borrowed
-             *        storage a run checks first.
-             */
-            [[nodiscard]] static SushiRuntime::Access access_of(const OperandSet& operands)
-            {
-                SushiRuntime::Access access(operands.read_regions(), operands.write_regions());
-                access.lives = operands.owner_liveness();
-                return access;
-            }
-
-            /**
              * @brief Records one task under the name, operation and parameters of description.
              * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` returning the
              *        event that ends its work.
@@ -395,11 +369,11 @@ namespace SushiBLAS
             {
                 return insert_node(
                     description,
-                    cost_of(description.operation, description.shape)
-                        .with_bytes(operands.declared_bytes()),
+                    Internal::task_cost(description.operation, description.shape, operands),
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
-                        recorder.task(access_of(operands), std::forward<Work>(work), options);
+                        recorder.task(Internal::task_access(operands),
+                                      std::forward<Work>(work), options);
                     });
             }
 
@@ -425,14 +399,7 @@ namespace SushiBLAS
                 options.determinism = description.determinism;
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
                     description.parameters, TaskDescription::K_MAX_PARAMETERS);
-                if (cost.is_costed())
-                {
-                    SushiRuntime::NodeCost node_cost;
-                    node_cost.flops = cost.flops;
-                    node_cost.bytes = cost.bytes;
-                    node_cost.dtype = Internal::Detail::node_dtype_of(cost.dtype);
-                    options.cost = node_cost;
-                }
+                options.cost = Internal::node_cost_of(cost);
 
                 std::uint64_t sequence = 0;
                 Internal::in_recording(recording_mutex_, [&]

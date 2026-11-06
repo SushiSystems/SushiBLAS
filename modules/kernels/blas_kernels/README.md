@@ -31,6 +31,7 @@ It depends on `core`, `support` and `blas_seam_kernels`. Its headers are include
 | `reference/level2/triangular_product.hpp` | The reference triangular matrix-vector product TBMV and TPMV share |
 | `reference/level2/triangular_solve.hpp` | The reference triangular substitution TBSV and TPSV share |
 | `reference/level2/trmv.hpp` | The reference kernel of TRMV |
+| `reference/level2/trsv.hpp` | The reference kernel of TRSV |
 | `reference/level3/syr2k.hpp` | The reference kernel of SYR2K and, under a conjugation policy, of HER2K |
 | `reference/level3/syrk.hpp` | The reference kernels of SYRK, single and batched |
 | `reference/level3/trsm.hpp` | The reference kernels of TRSM, single and batched |

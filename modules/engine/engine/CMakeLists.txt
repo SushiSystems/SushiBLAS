@@ -30,6 +30,7 @@ sushiblas_add_test_program(
         test_scratch_pool.cpp
         test_scratch_shelf.cpp
         test_task.cpp
+        test_task_cost.cpp
         test_task_description.cpp
     DEVICE_TESTS
         test_engine/test_reduce_plans.cpp

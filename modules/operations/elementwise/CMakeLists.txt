@@ -54,6 +54,7 @@ sushiblas_add_test_program(
     MODULE elementwise
     TESTS
         test_ordered_sum_element.cpp
+        test_scalar_math.cpp
         test_wrapping_math.cpp
     DEVICE_TESTS
         test_dispatch.cpp

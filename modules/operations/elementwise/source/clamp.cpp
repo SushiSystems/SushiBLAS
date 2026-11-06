@@ -29,6 +29,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 
 namespace SushiBLAS
@@ -42,7 +43,7 @@ namespace SushiBLAS
 
         return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndIntegral>(
             recorder_, t, "math.ew.clamp", "math.ew.clamp"_op,
-            Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return sycl::clamp(x, lo, hi); },
+            Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return Dispatch::scalar_clamp(x, lo, hi); },
                                    Dispatch::ElementScalar(min_val),
                                    Dispatch::ElementScalar(max_val)),
             {min_val, max_val});

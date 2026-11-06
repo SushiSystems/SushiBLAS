@@ -29,6 +29,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -37,6 +38,6 @@ namespace SushiBLAS
     TaskHandle ElementwiseOps::fmod(const Tensor& A, const Tensor& B, Tensor& C) 
     {
         return Dispatch::execute_binary(recorder_, A, B, C, "math.ew.fmod", "math.ew.fmod"_op, 
-            [](auto x, auto y) { return sycl::fmod(x, y); });
+            [](auto x, auto y) { return Dispatch::scalar_fmod(x, y); });
     }
 } // namespace SushiBLAS

@@ -41,6 +41,7 @@ sushiblas_add_test_program(
         reference/level2/test_triangular_product.cpp
         reference/level2/test_triangular_solve.cpp
         reference/level2/test_trmv.cpp
+        reference/level2/test_trsv.cpp
         reference/level3/test_syr2k.cpp
         reference/level3/test_syrk.cpp
         reference/level3/test_trsm.cpp

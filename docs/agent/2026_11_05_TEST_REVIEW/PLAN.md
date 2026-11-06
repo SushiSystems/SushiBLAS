@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — T1, T3 to T8 done; T2 and the M jobs next
+**Status:** Open — T1 to T8 done; the M jobs next
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -12,7 +12,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | Job | Files | Waits on | Status |
 | --- | --- | --- | --- |
 | T1 | `tests/support/tolerance.hpp` in use: `expect_tensor` and every tolerance constant moved onto it |  | done |
-| T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | todo |
+| T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | done |
 | T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | done |
 | T4 | Benchmarks moved to the benchmark runner |  | done |
 | T5 | The defects of this report, each with a test that fails first, and the pages corrected |  | done |

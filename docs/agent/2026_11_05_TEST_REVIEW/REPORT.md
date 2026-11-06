@@ -78,6 +78,10 @@ dispatch: J16 T6 CLI seam and tests — sonnet medium, 1 round, passed after lea
 dispatch: J16 T7 device-math rows — sonnet low, 1 round, passed after lead fixed one macro, rung 1
 dispatch: J16 T5 defects — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 T3 duplicate deletions — sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
+dispatch: J16 T2 elementwise scalar functions — sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 dense TRSV reference and task cost — sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 trsv and scalar_math tests — sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
+dispatch: J16 T2 task_cost tests — sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
 
 ## Totals
 

@@ -29,6 +29,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -37,6 +38,6 @@ namespace SushiBLAS
     TaskHandle ElementwiseOps::asin(Tensor& t) 
     {
         return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.asin", "math.ew.asin"_op, 
-            [](auto x) { return sycl::asin(x); });
+            [](auto x) { return Dispatch::scalar_asin(x); });
     }
 } // namespace SushiBLAS

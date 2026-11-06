@@ -13,6 +13,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `profile_hooks.hpp` | `in_recording`, `in_scratch_lease`, `count_scratch_lease` and `install_profile_hooks`, the zones and counters of the recorder and the scratch shelf, declared with no profiler header |
 | `late_count_hold.hpp` | `LateCountHold`, which keeps the storages of late-count tasks for as long as the owner of their recording keeps it |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
+| `task_cost.hpp` | `task_access`, `task_cost` and `node_cost_of`, the access and the cost of one recorded node as value functions of the operation, the shape and the operand set |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
 | `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |

@@ -28,8 +28,8 @@
  */
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
-#include <type_traits>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS
 {
@@ -39,13 +39,6 @@ namespace SushiBLAS
     {
         return Dispatch::execute_binary<Dispatch::Domain::RealAndIntegral>(
             recorder_, A, B, C, "math.ew.max", "math.ew.max"_op,
-            [](auto x, auto y)
-            {
-                using T = decltype(x);
-                if constexpr (std::is_integral_v<T>)
-                    return sycl::max(x, y);
-                else
-                    return (x != x) ? x : ((y != y) ? y : sycl::max(x, y));
-            });
+            [](auto x, auto y) { return Dispatch::scalar_max(x, y); });
     }
 } // namespace SushiBLAS
