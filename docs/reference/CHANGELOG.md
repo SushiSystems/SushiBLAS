@@ -5,6 +5,9 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-07 — benchmarks_tuning: Ruled that micro benchmarks stay beside their tests and build into benchmark programs, never into a test program (RW-135, `20928ee7`).
+- 2026-11-07 — verification: Ruled that HostDeviceTest takes the program-wide CPU queue from the test program's Environment (RW-137, `20928ee7`).
+
 - 2026-11-06 — licence: Relicensed SushiBLAS under the Apache License 2.0 and removed `COMMERCIAL.md`; every source file's licence block follows (`LICENSE`, `tools/settings.py`).
 - 2026-11-05 — tools: Took the shared checkers of 2026-11-05 with a baseline of the findings they meet, which RW-133 clears.
 - 2026-11-02 — tests: Renamed the asserting helpers to `expect_*` (`expect_tensor`, `expect_accuracy`), so the checker counts 177 medium cases; removed the timers of four stress tests and `SUCCEED()` from six cases (`tests/`).

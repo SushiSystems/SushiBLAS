@@ -20,7 +20,6 @@
 | RW-131 | P3 | open | Name why each float EXPECT_EQ may stay, or give it a tolerance | no float EXPECT_EQ is left whose test name lacks the reason, incl. test_modified_givens.cpp:195-196 and the SYCL-vs-reference == checks |  | `tests/kernels/blas_seam_kernels/test_modified_givens.cpp` | 2026-11-02 |
 | RW-132 | P3 | open | Move static_assert-only Medium_ cases to Small_ | no Medium_ case holds only static_assert, such as Medium_ReferenceAccumulator and Medium_PackedAccess ones |  | `tests/foundation/reference/test_reference_accumulator.cpp` | 2026-11-02 |
 | RW-136 | P3 | open | Move the graph_primitives tests onto the program-wide runtime | Only the tests whose runtime settings differ build their own runtime; the README says so |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
-| RW-137 | P3 | decision | Rule whether HostDeviceTest takes the program-wide CPU queue | The owner rules on HostDeviceTest's static-local queue and the host_device to test_runner edge |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-138 | P3 | open | Make PoissonAcceptsTheCap fail on a constant fill | The test in test_random_large_lambda.cpp checks the draws vary, so a constant fill fails it |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 
 ## Known issues
