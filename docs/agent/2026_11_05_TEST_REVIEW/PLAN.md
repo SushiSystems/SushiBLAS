@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — not started; the owner chooses inline or parallel
+**Status:** Open — T1, T3 to T8 done; T2 and the M jobs next
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -14,7 +14,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T1 | `tests/support/tolerance.hpp` in use: `expect_tensor` and every tolerance constant moved onto it |  | done |
 | T2 | A host-callable functor or host-buffer seam for the host logic now labelled medium | SushiRuntime T1 | todo |
 | T3 | The operations, facade and log-category copies deleted, the smaller copy kept |  | done |
-| T4 | Benchmarks moved to the benchmark runner |  | todo |
+| T4 | Benchmarks moved to the benchmark runner |  | done |
 | T5 | The defects of this report, each with a test that fails first, and the pages corrected |  | done |
 | T6 | The CLI tests on sushicore's in-memory runner and console | sushicore T1 | done |
 | T7 | The device-math float and double rows taken from SushiEngine `Small_KernelMath` |  | done |
@@ -74,7 +74,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 - **T1.** No comparison spells a tolerance literal, and an exact comparison is spelled as equality. Build: the repository's test command over the touched tests.
 - **T2.** The host decisions run small with no runtime. Build: the repository's test command over each touched module.
 - **T3.** No promise is tested twice. Build: the repository's test command.
-- **T4.** No benchmark sits in the test tree. Build: the repository's test command and its benchmark command.
+- **T4.** No benchmark is built into a test program (RW-135 ruling, REPORT.md decision 8). Build: the repository's test command and its benchmark command.
 - **T5.** Every defect above is fixed or has a backlog entry. Build: the repository's test command and `python tools/check_all.py .`
 - **T6.** No CLI test patches the repository's own functions. Build: the CLI tests.
 - **T7.** The rows run here. Build: the repository's test command over device math.

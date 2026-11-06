@@ -66,6 +66,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 5. A compile check is not a test. Its `static_assert`s move into a compile-only translation unit that the build compiles and the test runner never lists, and the wrapping test is deleted.
 6. A ceilings source port, with an in-memory adapter: yes. The folder reader becomes the port's file adapter, tested medium once, and the six profiling tests run small.
 7. Death tests are medium: each one starts a child process. The testing skill records this.
+8. RW-135, ruled 2026-11-07 by the orchestrator on the owner's delegation: micro benchmarks stay beside their tests as `tests/<owner>/benchmark_<name>.cpp` with `Benchmark_` suites, as `repository-layout`'s TESTS.md and the `performance` skill say. They build into the module's benchmark program and never into a test program, so T4's acceptance reads "no benchmark is built into a test program".
+9. RW-137, ruled 2026-11-07 the same way: `HostDeviceTest` takes the program-wide CPU queue from the test program's Environment, one device per process, and the `host_device` test support gains the edge to `test_runner` it needs. The edge is test-only.
 
 ## Dispatches
 
