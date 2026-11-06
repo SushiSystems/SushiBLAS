@@ -26,6 +26,7 @@ from testing.case_reader import class_size, is_test_class  # noqa: E402
 
 K_SIZES = ("small", "medium", "large")
 K_BENCHMARK_PREFIX = "Benchmark_"
+K_CHARACTERIZATION_PREFIX = "Characterization_"
 K_CPP_SUFFIXES = frozenset({".cpp", ".cc", ".cxx"})
 K_CPP_SUITE = re.compile(
     r"^\s*(?:TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)\s*\(\s*(\w+)\s*,",
@@ -45,8 +46,10 @@ K_CS_CATEGORY = re.compile(r"Category\s*\(\s*\"(\w+)\"\s*\)")
 
 
 def _is_cpp_test(path: Path) -> bool:
-    """Returns whether a path names a C++ test source."""
-    return path.suffix in K_CPP_SUFFIXES and path.name.startswith("test_")
+    """Returns whether a path names a C++ test source, `test_<unit>` or `<unit>_test`."""
+    return path.suffix in K_CPP_SUFFIXES and (
+        path.name.startswith("test_") or path.stem.endswith("_test")
+    )
 
 
 def _is_python_test(path: Path) -> bool:
@@ -83,7 +86,8 @@ def rule_unsized_cpp_suite(files: Sequence[SourceFile]) -> Iterator[Issue]:
     """Yields an issue for each C++ test suite whose name opens with no size."""
     for file in _files_matching(files, _is_cpp_test):
         for match in K_CPP_SUITE.finditer(file.text):
-            if not match.group(1).startswith((*K_CPP_PREFIXES, K_BENCHMARK_PREFIX)):
+            suite = match.group(1).removeprefix(K_CHARACTERIZATION_PREFIX)
+            if not suite.startswith((*K_CPP_PREFIXES, K_BENCHMARK_PREFIX)):
                 yield Issue(
                     file.path,
                     line_of(file.text, match.start()),
