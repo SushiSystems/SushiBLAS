@@ -76,6 +76,9 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 15. RW-141, ruled the same day: `SharedArray` takes its memory through a `SharedAllocator` port, USM by default, with a host adapter that counts what it served; `make_host_queue` gains an overload over a device list, so the queue choice is tested on the host.
 16. RW-144, ruled the same day: an operation checks its operands through `StorageFacts` and `PlacedTensor`, plain values built from a tensor, with `require_disjoint` and one `Internal` check header per operation. The `Tensor` overloads stay, so callers do not change; the checks are tested `Small_` on hand-built values.
 17. RW-140, ruled the same day: SushiProfiler's `SB_ZONE` writes into the process-wide collector, so no port can stand in front of the writing side. The port wraps the reading side only: a test reads the zones through a reader it is given, and the writing side stays `Medium_`.
+18. RW-147, ruled 2026-11-07 by the orchestrator on the owner's delegation: the refusal of a live count or key range above capacity belongs to SushiRuntime, which resolves each `LateCount`; graph_primitives adds no second check, and one `Medium_` test per primitive keeps it. What the primitives decide (scan passes, sort resolution, the empty reduction, the segment fold) moves into host functions the node bodies call, tested `Small_`.
+19. RW-146, ruled the same day: `Detail::fold_block_output` is the host-callable fold of the row blocks. GMRES reads `x` as a warm start, so the poisoned-start test pairs a NaN guess with a zero right-hand side, and the reference test shares one non-zero guess with the device solve.
+20. The `SharedAllocatorContract` checks live once in `tests/support/shared_allocator_contract.hpp`; each adapter declares the typed suite under its own size prefix, since the size is read from the suite name.
 
 ## Risks the final build checks
 
@@ -117,6 +120,10 @@ dispatch: J16 M27 M31 M32 kernels tests — sonnet medium, 1 round, passed after
 dispatch: J16 M10 M12 M19 foundation tests — sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
 dispatch: J16 RW-140..143 ports — sonnet medium, 1 round, stopped early on shutdown, rung 1
 dispatch: J16 RW-144..147 seams — sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-141 finish host_device — sonnet medium, 1 round, passed after lead renamed the contract helpers to expect_*, rung 1
+dispatch: J16 RW-144 RW-145 operand tests and helpers — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-140 profile reading port — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-147 in part, rung 1
 
 ## Totals
 

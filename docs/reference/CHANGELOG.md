@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-07 — general: Gave the row-blocks fold a host function and a device GMRES test a poisoned start (RW-146, `6c2e8f68`).
 - 2026-11-07 — profiling_logging: Gave the profile gate a reading port, so the reading side runs small and SB_ZONE's writing side stays medium (RW-140, `009e0dbc`).
 - 2026-11-07 — profiling_logging: Gave the logger a port with an in-memory sink so its tests run small (RW-142, `5a1ffa4a`).
 - 2026-11-07 — general: Replaced the test_runner LogCapture stand-in with SushiLog::LogCapture (RW-143, `5a1ffa4a`).
