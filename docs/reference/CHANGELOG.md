@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-07 — verification: Make Engine hold no nullable runtime: is_host() and runtime() stop differing by kind (RW-155, `e64552f6`).
+- 2026-11-07 — verification: Give ScratchPool no nullable runtime: it lends from its ScratchBlockSource alone (RW-156, `e64552f6`).
 - 2026-11-07 — verification: Gave ScratchPool a block source port with a host adapter, so the lease tests run small (RW-153, `c986a77f`).
 - 2026-11-07 — general: Gave the row-blocks fold a host function and a device GMRES test a poisoned start (RW-146, `6c2e8f68`).
 - 2026-11-07 — profiling_logging: Gave the profile gate a reading port, so the reading side runs small and SB_ZONE's writing side stays medium (RW-140, `009e0dbc`).

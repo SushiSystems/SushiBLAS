@@ -26,8 +26,6 @@
 | RW-151 | P3 | open | Let RandomOps record on an in-memory task recorder, so its refusal tests run small | The truncated-normal, parameter, dtype and storage refusals of RandomOps run Small_ with no engine, device queue or process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-152 | P3 | open | Pull the reduction refusals and empty-input rules into host functions to test them small | The axis, dtype, malformed, empty and partial-plan refusal tests of operations/reductions run Small_ on host functions; one Medium_ launch per family stays |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-154 | P1 | open | Give SushiBLAS a host engine that runs the reference kernels with no device | HostEngineTest runs the operations' reference paths on host memory with no SYCL queue, and EngineContract passes small on it and medium on the runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
-| RW-155 | P2 | open | Make Engine hold no nullable runtime: is_host() and runtime() stop differing by kind | Engine has no member that is null for one kind; its runtime reaches RecordingGraph and the benchmark harness through their own callers |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
-| RW-156 | P2 | open | Give ScratchPool no nullable runtime: it lends from its ScratchBlockSource alone | ScratchPool has no runtime member and no runtime() that throws over a block source; every pool is built over a ScratchBlockSource |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 
