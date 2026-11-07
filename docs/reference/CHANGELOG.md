@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-07 — verification: Let the host sink report what each recorded task stated, so the index-ops recording and refusal tests run small (RW-149, `62dba19b`).
 - 2026-11-07 — general: Give the graph primitives a value-level seam so their capacity and refusal tests run small (RW-147, `e70bbcfc`).
 - 2026-11-07 — verification: Give the engine fixture a host tensor and host run, so the LogicOps tests run small (RW-150, `d735f640`).
 - 2026-11-07 — verification: Let RandomOps record on an in-memory task recorder, so its refusal tests run small (RW-151, `d735f640`).
