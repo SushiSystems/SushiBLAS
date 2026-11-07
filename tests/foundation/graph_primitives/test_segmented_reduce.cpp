@@ -370,14 +370,6 @@ namespace SushiBLAS
                 graph.run().value();
             }
 
-            /** @brief Holds the sizes of a call that records nothing because one is short. */
-            struct MisSizedRow
-            {
-                const char* name;        /**< Names the row in the test report. */
-                std::size_t offsets;     /**< Elements of the offsets buffer. */
-                std::size_t outputs;     /**< Elements of the output buffer. */
-            };
-
             /** @brief Names the operand a window probe writes into. */
             enum class WindowOperand
             {
@@ -434,38 +426,6 @@ namespace SushiBLAS
                 };
             }
 
-            /** @brief Holds a window that reaches past its buffer and the operand it names. */
-            struct PastEndRow
-            {
-                const char* name;              /**< Names the row in the test report. */
-                SegmentedReduceWindow window;  /**< The refused window. */
-                const char* operand;           /**< The operand the refusal must name. */
-            };
-
-            /** @brief Returns one window past its buffer's end per operand and way of passing it. */
-            std::vector<PastEndRow> past_end_rows()
-            {
-                const SegmentedReduceWindow fits = WindowedSegments::window();
-
-                SegmentedReduceWindow long_values = fits;
-                long_values.values_count =
-                    WindowedSegments::value_count() + WindowedSegments::K_TAIL + 1;
-                SegmentedReduceWindow late_values = fits;
-                late_values.values_offset = WindowedSegments::wide_value_count() + 1;
-                late_values.values_count = SegmentedReduceWindow::K_TO_END;
-                SegmentedReduceWindow late_bounds = fits;
-                late_bounds.offsets_offset =
-                    WindowedSegments::K_BOUNDS_OFFSET + WindowedSegments::K_TAIL + 1;
-                SegmentedReduceWindow late_output = fits;
-                late_output.output_offset =
-                    WindowedSegments::K_OUTPUT_OFFSET + WindowedSegments::K_TAIL + 1;
-
-                return {{"ValuesCountPastTheEnd", long_values, "values"},
-                        {"ValuesStartPastTheEnd", late_values, "values"},
-                        {"OffsetsPastTheEnd", late_bounds, "segment_offsets"},
-                        {"OutputPastTheEnd", late_output, "output"}};
-            }
-
             /** @brief Holds the small operands of a call that is recorded but never run. */
             struct SmallCall
             {
@@ -502,22 +462,6 @@ namespace SushiBLAS
                         {"LateBound", CountForm::LateBound, {"gather.resolve", "gather.segment"}}};
             }
 
-            /** @brief Holds options that name nothing or hold no real class. */
-            struct OptionsRow
-            {
-                const char* name;         /**< Names the row in the test report. */
-                PrimitiveOptions options; /**< The refused options. */
-            };
-
-            /** @brief Returns the refused option sets. */
-            std::vector<OptionsRow> refused_options_rows()
-            {
-                return {{"Unnamed", PrimitiveOptions{}},
-                        {"NullName",
-                         PrimitiveOptions{std::string_view{}, SushiRuntime::Determinism::Bitwise}},
-                        {"UnknownClass",
-                         PrimitiveOptions{"gather", static_cast<SushiRuntime::Determinism>(250)}}};
-            }
         } // namespace
 
         /** @brief Tests a segmented reduce over ragged segments, an empty one included. */
@@ -574,40 +518,6 @@ namespace SushiBLAS
                                                    K_RAGGED_SEGMENTS),
                                  [](const ::testing::TestParamInfo<std::size_t>& info)
                                  { return "Live" + std::to_string(info.param); });
-
-        /// @brief Runs one mis-sized call in one count form.
-        class Medium_GraphPrimitivesSegmentedReduceMisSized
-            : public ::testing::TestWithParam<std::tuple<CountForm, MisSizedRow>>
-        {
-        };
-
-        /** @brief Tests that short offsets or a short output are refused when the call records. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceMisSized, RejectsMisSizedArguments)
-        {
-            const CountForm form = std::get<0>(GetParam());
-            const MisSizedRow& row = std::get<1>(GetParam());
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(16).value();
-            auto bounds = runtime.buffer<std::uint32_t>(row.offsets).value();
-            auto out = runtime.buffer<float>(row.outputs).value();
-
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded =
-                record_reduce(graph.recorder(), values, bounds, out, form, std::size_t{4});
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        // Four segments need five offsets and four outputs.
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesSegmentedReduceMisSized,
-            ::testing::Combine(both_forms(),
-                               ::testing::Values(MisSizedRow{"ShortOffsets", 2, 4},
-                                                 MisSizedRow{"ShortOutput", 5, 1},
-                                                 MisSizedRow{"BothShort", 2, 1})),
-            formed_name<MisSizedRow>);
 
         /** @brief Tests that the fixed-count node launches at segment_count, not a buffer size. */
         TEST(Medium_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
@@ -752,36 +662,6 @@ namespace SushiBLAS
                                                     ::testing::ValuesIn(probe_rows())),
                                  formed_name<ProbeRow>);
 
-        /// @brief Records one window past its buffer in one count form.
-        class Medium_GraphPrimitivesSegmentedReduceWindowBounds
-            : public ::testing::TestWithParam<std::tuple<CountForm, PastEndRow>>
-        {
-        };
-
-        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceWindowBounds, RejectsAWindowPastItsBuffer)
-        {
-            const CountForm form = std::get<0>(GetParam());
-            const PastEndRow& row = std::get<1>(GetParam());
-            auto runtime = Runtime::create().value();
-            const WindowedSegments buffers(runtime);
-
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded =
-                record_windowed(graph.recorder(), buffers, form, row.window);
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find(row.operand), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesSegmentedReduceWindowBounds,
-                                 ::testing::Combine(both_forms(),
-                                                    ::testing::ValuesIn(past_end_rows())),
-                                 formed_name<PastEndRow>);
-
         /// @brief Records one small call in one count form and reads its node labels.
         class Medium_GraphPrimitivesSegmentedReduceLabels
             : public ::testing::TestWithParam<LabelRow>
@@ -836,34 +716,6 @@ namespace SushiBLAS
 
         INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesSegmentedReduceLabels,
                                  ::testing::ValuesIn(label_rows()), row_name<LabelRow>);
-
-        /// @brief Records one call with refused options in one count form.
-        class Medium_GraphPrimitivesSegmentedReduceOptions
-            : public ::testing::TestWithParam<std::tuple<CountForm, OptionsRow>>
-        {
-        };
-
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceOptions, RejectsOptionsThatNameNothing)
-        {
-            const CountForm form = std::get<0>(GetParam());
-            const OptionsRow& row = std::get<1>(GetParam());
-            SmallCall call;
-            auto graph = call.runtime.graph();
-
-            const SushiRuntime::Result<void> recorded = call.record(graph, form, row.options);
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesSegmentedReduceOptions,
-                                 ::testing::Combine(both_forms(),
-                                                    ::testing::ValuesIn(refused_options_rows())),
-                                 formed_name<OptionsRow>);
 
     } // namespace Test
 } // namespace SushiBLAS

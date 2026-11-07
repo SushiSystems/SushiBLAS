@@ -77,7 +77,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | H7 | RW-155, RW-156: `Engine` and `ScratchPool` hold no nullable runtime; `is_host()` and the throwing `runtime()` go; `RecordingGraph` and its 26 `RecordingGraph(engine)` callers take what they need, not an `Engine` | H6 | done |
 | S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43, H7 | done |
 | S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | done |
-| S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10, H7 | todo |
+| S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10, H7 | done |
 | S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39, H7 | todo |
 | S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44, H7 | todo |
 | S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | done |

@@ -33,6 +33,7 @@ if (!report)
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
 | `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
 | `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
+| `argument_checks.hpp` | `Detail::validate_counting_sort`, `validate_prefix_scan`, `validate_reduce` and `validate_segmented_reduce`: each takes the sizes, windows, devices and options of one call as plain values and returns nothing or the `InvalidGraph` error; every recording function calls its check before it records |
 | `element_window.hpp` | `invalid_graph.hpp` and SushiRuntime's `Buffer`, `Reads`, `Writes`, `BufferRegion` and `Result` |
 | `reduce.hpp`, `segmented_reduce.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
 | `prefix_scan.hpp`, `counting_sort.hpp` | `primitive_options.hpp` and SushiRuntime's `Recorder`, `Buffer`, `LateCount` and `Result`; their sources include the rest |

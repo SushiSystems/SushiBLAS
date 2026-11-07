@@ -45,6 +45,7 @@
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/graph_primitives/argument_checks.hpp>
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
@@ -72,31 +73,25 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            SushiRuntime::Result<void> named = Detail::require_options("prefix_scan", options);
-            if (!named)
-                return named;
+            const std::size_t capacity = n.capacity();
+            Detail::PrefixScanShape shape;
+            shape.capacity = capacity;
+            shape.counts =
+                Detail::Operand{counts.size(), window.counts_offset, counts.device_index()};
+            shape.offsets =
+                Detail::Operand{offsets.size(), window.offsets_offset, offsets.device_index()};
+            shape.total = Detail::Operand{total.size(), window.total_offset, total.device_index()};
+            SushiRuntime::Result<void> checked = Detail::validate_prefix_scan(shape, options);
+            if (!checked)
+                return checked;
             Detail::NodeStamper stamper(options, "graph.prefix_scan");
 
-            const std::size_t capacity = n.capacity();
             const Detail::ElementSpan<std::uint32_t> counts_span =
                 Detail::elements(counts, window.counts_offset, capacity);
             const Detail::ElementSpan<std::uint32_t> offsets_span =
                 Detail::elements(offsets, window.offsets_offset, capacity + 1);
             const Detail::ElementSpan<std::uint32_t> total_span =
                 Detail::elements(total, window.total_offset, std::size_t{1});
-            SushiRuntime::Result<void> fits = Detail::require_window(
-                "prefix_scan", "counts", counts.size(), counts_span.offset, counts_span.count);
-            if (fits)
-                fits = Detail::require_window("prefix_scan", "offsets", offsets.size(),
-                                              offsets_span.offset, offsets_span.count);
-            if (fits)
-                fits = Detail::require_window("prefix_scan", "total", total.size(),
-                                              total_span.offset, total_span.count);
-            if (!fits)
-                return fits;
-            if (offsets.device_index() != counts.device_index())
-                return Detail::invalid_graph(
-                    "prefix_scan: counts and offsets must live on the same device.");
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
             const std::uint32_t* counts_base = counts_span.data();

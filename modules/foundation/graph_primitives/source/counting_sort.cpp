@@ -43,6 +43,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
+#include <SushiBLAS/graph_primitives/argument_checks.hpp>
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
@@ -75,16 +76,8 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            SushiRuntime::Result<void> named = Detail::require_options("counting_sort", options);
-            if (!named)
-                return named;
-            Detail::NodeStamper stamper(options, "graph.counting_sort");
-
             const std::size_t n_capacity = n.capacity();
             const std::size_t key_capacity = key_range.capacity();
-
-            if (key_capacity == 0)
-                return Detail::invalid_graph("counting_sort: key_range.capacity() is zero.");
 
             using Span = Detail::ElementSpan<std::uint32_t>;
             const Span keys_span = Detail::elements(keys, window.keys_offset, n_capacity);
@@ -96,28 +89,22 @@ namespace SushiBLAS
                 ? Detail::elements(*counts, window.counts_offset, key_capacity)
                 : Span{};
 
-            SushiRuntime::Result<void> fits = Detail::require_window(
-                "counting_sort", "keys", keys.size(), keys_span.offset, keys_span.count);
-            if (fits)
-                fits = Detail::require_window("counting_sort", "indices", indices.size(),
-                                              indices_span.offset, indices_span.count);
-            if (fits)
-                fits = Detail::require_window("counting_sort", "offsets", offsets.size(),
-                                              offsets_span.offset, offsets_span.count);
-            if (fits)
-                fits = Detail::require_window("counting_sort", "total", total.size(),
-                                              total_span.offset, total_span.count);
-            if (fits && counts != nullptr)
-                fits = Detail::require_window("counting_sort", "counts", counts->size(),
-                                              counts_span.offset, counts_span.count);
-            if (!fits)
-                return fits;
-            if (indices.device_index() != keys.device_index() ||
-                offsets.device_index() != keys.device_index() ||
-                (counts != nullptr && counts->device_index() != keys.device_index()))
-                return Detail::invalid_graph(
-                    "counting_sort: keys, indices, offsets and counts must live on the same "
-                    "device.");
+            Detail::CountingSortShape shape;
+            shape.n_capacity = n_capacity;
+            shape.key_capacity = key_capacity;
+            shape.keys = Detail::Operand{keys.size(), window.keys_offset, keys.device_index()};
+            shape.indices =
+                Detail::Operand{indices.size(), window.indices_offset, indices.device_index()};
+            shape.offsets =
+                Detail::Operand{offsets.size(), window.offsets_offset, offsets.device_index()};
+            shape.total = Detail::Operand{total.size(), window.total_offset, total.device_index()};
+            if (counts != nullptr)
+                shape.counts =
+                    Detail::Operand{counts->size(), window.counts_offset, counts->device_index()};
+            SushiRuntime::Result<void> checked = Detail::validate_counting_sort(shape, options);
+            if (!checked)
+                return checked;
+            Detail::NodeStamper stamper(options, "graph.counting_sort");
 
             const std::size_t digit_count = Detail::radix_digit_count(key_capacity);
             const std::size_t plan_words = digit_count * Detail::K_RADIX_PLAN_WORDS;

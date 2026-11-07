@@ -137,19 +137,6 @@ namespace SushiBLAS
                 Output
             };
 
-            /// @brief Names a call that a mis-sized operand must refuse.
-            struct MisSizedRow
-            {
-                /// @brief Names the row in the test report.
-                const char* name;
-                /// @brief Holds how the call passes its count.
-                CountForm form;
-                /// @brief Holds the count the call asks for, over an input of 16.
-                std::size_t count;
-                /// @brief Holds the size of the output buffer.
-                std::size_t output_size;
-            };
-
             /// @brief Names a part of an operand a probe writes, and whether the reduce orders it.
             struct ProbeRow
             {
@@ -165,19 +152,6 @@ namespace SushiBLAS
                 bool ordered;
             };
 
-            /// @brief Names a window past its buffer's end and the operand the refusal names.
-            struct WindowRefusalRow
-            {
-                /// @brief Names the row in the test report.
-                const char* name;
-                /// @brief Holds how the call passes its count.
-                CountForm form;
-                /// @brief Holds the window that does not fit.
-                ReduceWindow window;
-                /// @brief Holds the operand the message must name.
-                const char* operand;
-            };
-
             /// @brief Names a shape of a named call and the node names it must record.
             struct NamedShapeRow
             {
@@ -189,15 +163,6 @@ namespace SushiBLAS
                 std::size_t count;
                 /// @brief Holds the name of each node, in recording order.
                 std::vector<std::string> names;
-            };
-
-            /// @brief Names options that name nothing.
-            struct OptionsRow
-            {
-                /// @brief Names the row in the test report.
-                const char* name;
-                /// @brief Holds the options the call must refuse.
-                PrimitiveOptions options;
             };
 
             /** @brief Folds each tile of in left to right and returns one partial per tile. */
@@ -370,26 +335,10 @@ namespace SushiBLAS
                 return WindowProbe::region_of(out, row.offset, row.count);
             }
 
-            /** @brief Expects a record call to have returned an InvalidGraph error. */
-            void expect_invalid_graph(const SushiRuntime::Result<void>& recorded)
-            {
-                ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            }
-
             /** @brief Returns the options that name every node "sum" and state Bitwise. */
             PrimitiveOptions sum_options()
             {
                 return {"sum", Determinism::Bitwise};
-            }
-
-            /** @brief Returns the refused calls, one per form and mis-sized operand. */
-            std::vector<MisSizedRow> mis_sized_rows()
-            {
-                return {{"FixedCountPastTheInput", CountForm::Fixed, 17, 1},
-                        {"FixedCountIntoAnEmptyOutput", CountForm::Fixed, 4, 0},
-                        {"LateCountPastTheInput", CountForm::Late, 17, 1},
-                        {"LateCountIntoAnEmptyOutput", CountForm::Late, 4, 0}};
             }
 
             /** @brief Returns the probed parts around the window, and whether each is ordered. */
@@ -404,15 +353,6 @@ namespace SushiBLAS
                     {"OutputBeforeTheWindow", Operand::Output, 0, 1, false},
                     {"OutputTheWindowNames", Operand::Output, 1, 1, true},
                 };
-            }
-
-            /** @brief Returns the windows past an input of 16 or an output of 2, per form. */
-            std::vector<WindowRefusalRow> window_refusal_rows()
-            {
-                return {{"FixedInput", CountForm::Fixed, ReduceWindow{13, 0}, "input"},
-                        {"FixedOutput", CountForm::Fixed, ReduceWindow{0, 2}, "output"},
-                        {"LateInput", CountForm::Late, ReduceWindow{13, 0}, "input"},
-                        {"LateOutput", CountForm::Late, ReduceWindow{0, 2}, "output"}};
             }
 
             /** @brief Returns the three shapes of a named call and the names each records. */
@@ -432,15 +372,6 @@ namespace SushiBLAS
                      PlanLabels::staged("sum", late_stages)},
                     {"Empty", CountForm::Fixed, 0, {"sum.level"}},
                 };
-            }
-
-            /** @brief Returns the options that name nothing or state no real class. */
-            std::vector<OptionsRow> options_rows()
-            {
-                return {{"Unnamed", PrimitiveOptions{}},
-                        {"NullName", PrimitiveOptions{std::string_view{}, Determinism::Bitwise}},
-                        {"UnknownClass",
-                         PrimitiveOptions{"sum", static_cast<Determinism>(250)}}};
             }
 
             /** @brief Returns the name of a count form. */
@@ -635,28 +566,6 @@ namespace SushiBLAS
             EXPECT_EQ(total[0], static_cast<int>(K_COUNT));
             EXPECT_EQ(twice[0], static_cast<int>(K_COUNT) * 2);
         }
-
-        /// @brief Runs one mis-sized call against an input of 16.
-        class Medium_GraphPrimitivesReduceMisSized : public ::testing::TestWithParam<MisSizedRow>
-        {
-        };
-
-        /** @brief Tests that a mis-sized input or output is refused when the call records. */
-        TEST_P(Medium_GraphPrimitivesReduceMisSized, RejectsMisSizedArguments)
-        {
-            const MisSizedRow& row = GetParam();
-
-            auto runtime = Runtime::create().value();
-            auto in = runtime.buffer<float>(16).value();
-            auto out = runtime.buffer<float>(row.output_size).value();
-
-            auto graph = runtime.graph();
-            expect_invalid_graph(record_sum(graph, in, out, row.form, row.count));
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceMisSized,
-                                 ::testing::ValuesIn(mis_sized_rows()), row_name<MisSizedRow>);
 
         /// @brief Runs a late-bound and a fixed-count Sum at one live count.
         class Medium_GraphPrimitivesReduceLateCount : public ReduceAtCount
@@ -939,34 +848,6 @@ namespace SushiBLAS
                                                                       CountForm::Late)),
                                  row_form_name<ProbeRow>);
 
-        /// @brief Runs one window past its buffer's end.
-        class Medium_GraphPrimitivesReduceWindowRefusal
-            : public ::testing::TestWithParam<WindowRefusalRow>
-        {
-        };
-
-        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST_P(Medium_GraphPrimitivesReduceWindowRefusal, RejectsAWindowPastItsBuffer)
-        {
-            const WindowRefusalRow& row = GetParam();
-
-            auto runtime = Runtime::create().value();
-            auto in = runtime.buffer<float>(16).value();
-            auto out = runtime.buffer<float>(2).value();
-
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded =
-                record_sum(graph, in, out, row.form, std::size_t{4}, row.window);
-            ASSERT_NO_FATAL_FAILURE(expect_invalid_graph(recorded));
-            EXPECT_NE(recorded.error().message.find(row.operand), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceWindowRefusal,
-                                 ::testing::ValuesIn(window_refusal_rows()),
-                                 row_name<WindowRefusalRow>);
-
         /// @brief Runs one shape of a reduce named "sum" with the Bitwise class.
         class Medium_GraphPrimitivesReduceNamedCall : public ::testing::TestWithParam<NamedShapeRow>
         {
@@ -1048,37 +929,6 @@ namespace SushiBLAS
         INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceUnnamedCall,
                                  ::testing::Values(CountForm::Fixed, CountForm::Late),
                                  form_param_name);
-
-        /// @brief Runs one set of options that names nothing in one count form.
-        class Medium_GraphPrimitivesReduceOptionsRefusal
-            : public ::testing::TestWithParam<std::tuple<OptionsRow, CountForm>>
-        {
-        };
-
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST_P(Medium_GraphPrimitivesReduceOptionsRefusal, RejectsOptionsThatNameNothing)
-        {
-            const OptionsRow& row = std::get<0>(GetParam());
-
-            auto runtime = Runtime::create().value();
-            auto in = runtime.buffer<float>(16).value();
-            auto out = runtime.buffer<float>(1).value();
-
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded = record_sum(
-                graph, in, out, std::get<1>(GetParam()), std::size_t{4}, ReduceWindow{},
-                row.options);
-            ASSERT_NO_FATAL_FAILURE(expect_invalid_graph(recorded));
-            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceOptionsRefusal,
-                                 ::testing::Combine(::testing::ValuesIn(options_rows()),
-                                                    ::testing::Values(CountForm::Fixed,
-                                                                      CountForm::Late)),
-                                 row_form_name<OptionsRow>);
 
     } // namespace Test
 } // namespace SushiBLAS

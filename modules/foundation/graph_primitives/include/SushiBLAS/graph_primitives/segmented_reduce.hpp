@@ -43,6 +43,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
+#include <SushiBLAS/graph_primitives/argument_checks.hpp>
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
@@ -72,16 +73,18 @@ namespace SushiBLAS
         namespace Detail
         {
             /**
-             * @brief Returns the spans of a segmented reduction, or why one does not fit.
-             * @return Nothing, or an InvalidGraph error naming the operand whose window is short.
+             * @brief Checks a segmented reduction's call, then returns its three spans.
+             * @return Nothing, or the InvalidGraph error of the first rule broken.
              */
             template <typename T>
             [[nodiscard]] SushiRuntime::Result<void>
             segment_spans(const SushiRuntime::Buffer<T>& values,
                           const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                           const SushiRuntime::Buffer<T>& output, std::size_t segment_count,
-                          const SegmentedReduceWindow& window, ElementSpan<T>& value_span,
-                          ElementSpan<std::uint32_t>& offset_span, ElementSpan<T>& output_span)
+                          const SegmentedReduceWindow& window,
+                          const std::optional<PrimitiveOptions>& options,
+                          ElementSpan<T>& value_span, ElementSpan<std::uint32_t>& offset_span,
+                          ElementSpan<T>& output_span)
             {
                 const std::size_t value_count =
                     (window.values_count == SegmentedReduceWindow::K_TO_END)
@@ -89,21 +92,24 @@ namespace SushiBLAS
                                ? values.size() - window.values_offset
                                : 0)
                         : window.values_count;
+
+                SegmentedReduceShape shape;
+                shape.segment_count = segment_count;
+                shape.values =
+                    Operand{values.size(), window.values_offset, values.device_index()};
+                shape.values_count = value_count;
+                shape.segment_offsets = Operand{segment_offsets.size(), window.offsets_offset,
+                                                segment_offsets.device_index()};
+                shape.output =
+                    Operand{output.size(), window.output_offset, output.device_index()};
+                SushiRuntime::Result<void> checked = validate_segmented_reduce(shape, options);
+                if (!checked)
+                    return checked;
+
                 value_span = elements(values, window.values_offset, value_count);
                 offset_span = elements(segment_offsets, window.offsets_offset, segment_count + 1);
                 output_span = elements(output, window.output_offset, segment_count);
-
-                SushiRuntime::Result<void> fits = require_window(
-                    "segmented_reduce", "values", values.size(), value_span.offset,
-                    value_span.count);
-                if (fits)
-                    fits = require_window("segmented_reduce", "segment_offsets",
-                                          segment_offsets.size(), offset_span.offset,
-                                          offset_span.count);
-                if (fits)
-                    fits = require_window("segmented_reduce", "output", output.size(),
-                                          output_span.offset, output_span.count);
-                return fits;
+                return {};
             }
         } // namespace Detail
 
@@ -129,9 +135,6 @@ namespace SushiBLAS
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
 
-            SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
-            if (!named)
-                return named;
             Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
             Detail::ElementSpan<T> value_span;
@@ -139,7 +142,7 @@ namespace SushiBLAS
             Detail::ElementSpan<T> output_span;
             SushiRuntime::Result<void> fits =
                 Detail::segment_spans(values, segment_offsets, output, segment_count, window,
-                                      value_span, offset_span, output_span);
+                                      options, value_span, offset_span, output_span);
             if (!fits)
                 return fits;
 
@@ -184,9 +187,6 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
-            if (!named)
-                return named;
             Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
             const std::size_t capacity = segment_count.capacity();
@@ -194,7 +194,7 @@ namespace SushiBLAS
             Detail::ElementSpan<std::uint32_t> offset_span;
             Detail::ElementSpan<T> output_span;
             SushiRuntime::Result<void> fits =
-                Detail::segment_spans(values, segment_offsets, output, capacity, window,
+                Detail::segment_spans(values, segment_offsets, output, capacity, window, options,
                                       value_span, offset_span, output_span);
             if (!fits)
                 return fits;

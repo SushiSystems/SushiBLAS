@@ -15,6 +15,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
 | `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
 | `test_invalid_graph.cpp` | Tests the InvalidGraph error a primitive returns and the outcome of a recording |
+| `test_argument_checks.cpp` | Tests the four argument checks of the recording primitives on plain sizes, windows, devices and options, without a device |
 | `test_node_stamper.cpp` | Tests the options a node stamper builds for a named and an unnamed call, without a device |
 | `test_prefix_scan.cpp` | Tests prefix_scan() against a host scan, across live counts, replays and node widths |
 | `test_primitive_options.cpp` | Tests the check that refuses options naming no node or holding no class of the runtime, without a device |
@@ -69,9 +70,6 @@ a run.
 
 `DeviceCountIsReadAfterItsProducer`: a kernel of the same graph writes the count. The reduce has
 to fold the count written in its own run, not the one the previous run left.
-
-`RejectsMisSizedArguments` checks that each call returns an `ErrorCode::InvalidGraph` error and
-that the recorder holds no node afterwards.
 
 ## test_segmented_reduce.cpp
 
@@ -146,5 +144,4 @@ primitive over windows that start past element 0 and again over buffers that hol
 windows, in one graph, and compares the two results bit for bit; the elements around an output
 window hold a canary. `WindowOrdersOnlyOverlappingWriters` adds a node that writes a part of an
 operand's buffer and reads its `predecessor_count` from `Graph::plan()`: zero for a part outside
-the window, at least one for a part inside it. `RejectsAWindowPastItsBuffer` checks the
-`ErrorCode::InvalidGraph` error, the operand its message names, and that nothing was recorded.
+the window, at least one for a part inside it.

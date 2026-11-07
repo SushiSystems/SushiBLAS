@@ -121,39 +121,6 @@ namespace SushiBLAS
                 *out << "{total " << end.total << ", sentinel " << end.sentinel << "}";
             }
 
-            /// @brief Names a short operand and the live count that does not fit it.
-            struct MisSizedRow
-            {
-                /// @brief Names the row in the test report.
-                const char* name;
-                /// @brief Holds the element count of the counts buffer.
-                std::size_t counts;
-                /// @brief Holds the element count of the offsets buffer.
-                std::size_t offsets;
-                /// @brief Holds the element count of the total buffer.
-                std::size_t total;
-                /// @brief Holds the capacity the call is recorded with.
-                std::size_t capacity;
-            };
-
-            /// @brief Names an operand and a window that reaches one element past its buffer.
-            struct WindowRefusalRow
-            {
-                /// @brief Names the row in the test report, and the operand the error names.
-                const char* name;
-                /// @brief Holds the window that does not fit.
-                GraphPrimitives::PrefixScanWindow window;
-            };
-
-            /// @brief Names a set of options that names no node or states no class.
-            struct OptionRefusalRow
-            {
-                /// @brief Names the row in the test report.
-                const char* name;
-                /// @brief Holds the options the call is refused for.
-                GraphPrimitives::PrimitiveOptions options;
-            };
-
             /// @brief Names a pass of a two-level scan and the width it launches at.
             struct NodeWidthRow
             {
@@ -613,36 +580,6 @@ namespace SushiBLAS
                                                    NodeWidthRow{"Close", 4, 1u}),
                                  row_name<NodeWidthRow>);
 
-        /// @brief Records a scan whose buffers are too short for its capacity.
-        class Medium_GraphPrimitivesPrefixScanMisSized
-            : public ::testing::TestWithParam<MisSizedRow>
-        {
-        };
-
-        /** @brief Tests that a short buffer is refused with invalid_graph and records nothing. */
-        TEST_P(Medium_GraphPrimitivesPrefixScanMisSized, RejectsMisSizedArguments)
-        {
-            const MisSizedRow& row = GetParam();
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = scan_buffers(runtime, row.counts, row.offsets, row.total);
-            auto graph = runtime.graph();
-
-            const SushiRuntime::Result<void> recorded =
-                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
-                            LateCount::fixed(row.capacity));
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesPrefixScanMisSized,
-            ::testing::Values(MisSizedRow{"NineCountsInEight", 8, 9, 1, 9},
-                              MisSizedRow{"NoRoomForTheSentinel", 8, 8, 1, 8},
-                              MisSizedRow{"EmptyTotal", 8, 9, 0, 8}),
-            row_name<MisSizedRow>);
-
         /** @brief Tests that a live count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
         {
@@ -779,38 +716,6 @@ namespace SushiBLAS
             EXPECT_GT(predecessors(region_of(total, window.total_offset, 1)), 0u);
         }
 
-        /// @brief Records a scan whose window reaches past one operand's buffer.
-        class Medium_GraphPrimitivesPrefixScanWindowRefusal
-            : public ::testing::TestWithParam<WindowRefusalRow>
-        {
-        };
-
-        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST_P(Medium_GraphPrimitivesPrefixScanWindowRefusal, RejectsAWindowPastItsBuffer)
-        {
-            const WindowRefusalRow& row = GetParam();
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = buffers_for(runtime, 8);
-            auto graph = runtime.graph();
-
-            const SushiRuntime::Result<void> recorded =
-                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
-                            LateCount::fixed(8), row.window);
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find(row.name), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesPrefixScanWindowRefusal,
-            ::testing::Values(WindowRefusalRow{"counts", {1, 0, 0}},
-                              WindowRefusalRow{"offsets", {0, 1, 0}},
-                              WindowRefusalRow{"total", {0, 0, 1}}),
-            row_name<WindowRefusalRow>);
-
         /** @brief Tests that a named call names its nodes by stage. */
         TEST(Medium_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesByStage)
         {
@@ -866,43 +771,6 @@ namespace SushiBLAS
                       std::vector<SushiRuntime::Determinism>(
                           K_TWO_LEVEL_PASSES, SushiRuntime::Determinism::Unstated));
         }
-
-        /// @brief Records a scan with options that name nothing or state no class.
-        class Medium_GraphPrimitivesPrefixScanOptionRefusal
-            : public ::testing::TestWithParam<OptionRefusalRow>
-        {
-        };
-
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST_P(Medium_GraphPrimitivesPrefixScanOptionRefusal, RejectsOptionsThatNameNothing)
-        {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = buffers_for(runtime, 8);
-            auto graph = runtime.graph();
-
-            const SushiRuntime::Result<void> recorded =
-                prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
-                            LateCount::fixed(8), GraphPrimitives::PrefixScanWindow{},
-                            GetParam().options);
-
-            ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesPrefixScanOptionRefusal,
-            ::testing::Values(
-                OptionRefusalRow{"Unnamed", GraphPrimitives::PrimitiveOptions{}},
-                OptionRefusalRow{"NullName",
-                                 GraphPrimitives::PrimitiveOptions{
-                                     std::string_view{}, SushiRuntime::Determinism::Bitwise}},
-                OptionRefusalRow{"UnknownClass",
-                                 GraphPrimitives::PrimitiveOptions{
-                                     "offsets", static_cast<SushiRuntime::Determinism>(250)}}),
-            row_name<OptionRefusalRow>);
 
     } // namespace Test
 } // namespace SushiBLAS

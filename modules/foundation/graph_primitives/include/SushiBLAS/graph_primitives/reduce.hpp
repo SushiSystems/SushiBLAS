@@ -44,6 +44,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
+#include <SushiBLAS/graph_primitives/argument_checks.hpp>
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
@@ -87,21 +88,19 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
-            if (!named)
-                return named;
+            Detail::ReduceShape shape;
+            shape.count = n;
+            shape.input = Detail::Operand{input.size(), window.input_offset, input.device_index()};
+            shape.output =
+                Detail::Operand{output.size(), window.output_offset, output.device_index()};
+            SushiRuntime::Result<void> checked = Detail::validate_reduce(shape, options);
+            if (!checked)
+                return checked;
             Detail::NodeStamper stamper(options, "graph.reduce");
 
             const Detail::ElementSpan<T> in_span = Detail::elements(input, window.input_offset, n);
             const Detail::ElementSpan<T> out_span =
                 Detail::elements(output, window.output_offset, std::size_t{1});
-            SushiRuntime::Result<void> fits = Detail::require_window(
-                "reduce", "input", input.size(), in_span.offset, in_span.count);
-            if (fits)
-                fits = Detail::require_window("reduce", "output", output.size(), out_span.offset,
-                                              out_span.count);
-            if (!fits)
-                return fits;
 
             T* out_base = out_span.data();
             if (n == 0)
@@ -190,23 +189,21 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
-            if (!named)
-                return named;
+            const std::size_t capacity = n.capacity();
+            Detail::ReduceShape shape;
+            shape.count = capacity;
+            shape.input = Detail::Operand{input.size(), window.input_offset, input.device_index()};
+            shape.output =
+                Detail::Operand{output.size(), window.output_offset, output.device_index()};
+            SushiRuntime::Result<void> checked = Detail::validate_reduce(shape, options);
+            if (!checked)
+                return checked;
             Detail::NodeStamper stamper(options, "graph.reduce");
 
-            const std::size_t capacity = n.capacity();
             const Detail::ElementSpan<T> in_span =
                 Detail::elements(input, window.input_offset, capacity);
             const Detail::ElementSpan<T> out_span =
                 Detail::elements(output, window.output_offset, std::size_t{1});
-            SushiRuntime::Result<void> fits = Detail::require_window(
-                "reduce", "input", input.size(), in_span.offset, in_span.count);
-            if (fits)
-                fits = Detail::require_window("reduce", "output", output.size(), out_span.offset,
-                                              out_span.count);
-            if (!fits)
-                return fits;
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
             T* out_base = out_span.data();

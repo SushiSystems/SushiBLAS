@@ -693,49 +693,6 @@ namespace SushiBLAS
                 std::uint32_t width;
             };
 
-            /// @brief Names one combination of operand sizes counting_sort() refuses.
-            struct MisSizedRow
-            {
-                /// @brief Holds the size of the indices buffer.
-                std::size_t indices;
-                /// @brief Holds the size of the offsets buffer.
-                std::size_t offsets;
-                /// @brief Holds the size of the total buffer.
-                std::size_t total;
-                /// @brief Holds the element count; the keys buffer holds eight.
-                std::size_t count;
-                /// @brief Holds the key range.
-                std::size_t key_range;
-                /// @brief Holds the size of the counts buffer, or nothing for no counts.
-                std::optional<std::size_t> counts;
-                /// @brief Holds why the call is refused.
-                const char* reason;
-            };
-
-            /** @brief Records a sort of eight keys over the operand sizes of row. */
-            SushiRuntime::Result<void> record_mis_sized(Runtime& runtime,
-                                                        SushiRuntime::Graph& graph,
-                                                        const MisSizedRow& row)
-            {
-                const Words keys = filled(runtime, 8, 0u);
-                const Words indices = filled(runtime, row.indices, 0u);
-                const Words offsets = filled(runtime, row.offsets, 0u);
-                const Words total = filled(runtime, row.total, 0u);
-                const Words counts = filled(runtime, row.counts.value_or(0), 0u);
-                return counting_sort(graph.recorder(), keys, indices, offsets, total,
-                                     LateCount::fixed(row.count), LateCount::fixed(row.key_range),
-                                     row.counts ? &counts : nullptr);
-            }
-
-            /// @brief Names a window that passes one operand's buffer, and that operand.
-            struct WindowPastRow
-            {
-                /// @brief Holds the window.
-                Window window;
-                /// @brief Holds the name the refusal must give.
-                const char* operand;
-            };
-
             /// @brief Names a region of one operand and whether a writer of it waits.
             struct ProbeRow
             {
@@ -749,14 +706,6 @@ namespace SushiBLAS
                 bool ordered;
             };
 
-            /// @brief Names a set of options that names nothing.
-            struct OptionsRow
-            {
-                /// @brief Holds the options.
-                GraphPrimitives::PrimitiveOptions options;
-                /// @brief Holds what is wrong with them.
-                const char* fault;
-            };
         } // namespace
 
         /** @brief Tests that duplicate keys come out in the order std::stable_sort gives. */
@@ -1101,39 +1050,6 @@ namespace SushiBLAS
                          static_cast<std::uint32_t>(GraphPrimitives::Detail::K_RADIX_DIGIT_BINS)},
                 WidthRow{3, 1u}, WidthRow{4, 2u}, WidthRow{5, 51u}, WidthRow{6, 50u}));
 
-        /// @brief Records a sort over one refused set of operand sizes.
-        class Medium_GraphPrimitivesCountingSortMisSized
-            : public ::testing::TestWithParam<MisSizedRow>
-        {
-        };
-
-        /** @brief Tests that a broken size rule is refused with invalid_graph. */
-        TEST_P(Medium_GraphPrimitivesCountingSortMisSized, RejectsMisSizedArguments)
-        {
-            auto runtime = Runtime::create().value();
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded =
-                record_mis_sized(runtime, graph, GetParam());
-
-            ASSERT_FALSE(recorded.has_value()) << GetParam().reason;
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_EQ(graph.recorder().node_count(), 0u);
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesCountingSortMisSized,
-            ::testing::Values(
-                MisSizedRow{8, 5, 1, 8, 0, std::nullopt,
-                            "a key range capacity of zero has no bucket"},
-                MisSizedRow{8, 5, 1, 9, 4, std::nullopt, "nine keys do not fit a buffer of eight"},
-                MisSizedRow{3, 5, 1, 8, 4, std::nullopt,
-                            "three indices cannot hold eight elements"},
-                MisSizedRow{8, 3, 1, 8, 4, std::nullopt,
-                            "three offsets cannot hold four buckets and the sentinel"},
-                MisSizedRow{8, 5, 0, 8, 4, std::nullopt, "an empty total cannot receive the count"},
-                MisSizedRow{8, 5, 1, 8, 4, std::size_t{3},
-                            "three counts cannot hold four buckets"}));
-
         /** @brief Tests that a live element count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
         {
@@ -1261,39 +1177,6 @@ namespace SushiBLAS
                          K_WINDOW_TAIL, false},
                 ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset, 1, true}));
 
-        /// @brief Records a sort whose window passes one operand's buffer.
-        class Medium_GraphPrimitivesCountingSortWindowPast
-            : public ::testing::TestWithParam<WindowPastRow>
-        {
-        };
-
-        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
-        TEST_P(Medium_GraphPrimitivesCountingSortWindowPast, RejectsAWindowPastItsBuffer)
-        {
-            const WindowPastRow& row = GetParam();
-
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, 4, 0);
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded = counting_sort(
-                graph.recorder(), operands.keys, operands.indices, operands.offsets,
-                operands.total, LateCount::fixed(8), LateCount::fixed(4), &operands.counts,
-                row.window);
-
-            ASSERT_FALSE(recorded.has_value()) << row.operand;
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find(row.operand), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesCountingSortWindowPast,
-                                 ::testing::Values(WindowPastRow{{1, 0, 0, 0, 0}, "keys"},
-                                                   WindowPastRow{{0, 1, 0, 0, 0}, "indices"},
-                                                   WindowPastRow{{0, 0, 1, 0, 0}, "offsets"},
-                                                   WindowPastRow{{0, 0, 0, 1, 0}, "total"},
-                                                   WindowPastRow{{0, 0, 0, 0, 1}, "counts"}));
-
         /// @brief Records a named sort with or without counts.
         class Medium_GraphPrimitivesCountingSortNamedCall : public ::testing::TestWithParam<bool>
         {
@@ -1354,43 +1237,6 @@ namespace SushiBLAS
                       std::vector<Determinism>(stages_for(K_LABEL_KEY_RANGE, false).size(),
                                                Determinism::Unstated));
         }
-
-        /// @brief Records a sort with one set of options that names nothing.
-        class Medium_GraphPrimitivesCountingSortOptions
-            : public ::testing::TestWithParam<OptionsRow>
-        {
-        };
-
-        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
-        TEST_P(Medium_GraphPrimitivesCountingSortOptions, RejectsOptionsThatNameNothing)
-        {
-            const OptionsRow& row = GetParam();
-
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
-            auto graph = runtime.graph();
-            const SushiRuntime::Result<void> recorded = counting_sort(
-                graph.recorder(), operands.keys, operands.indices, operands.offsets,
-                operands.total, LateCount::fixed(8), LateCount::fixed(K_LABEL_KEY_RANGE), nullptr,
-                Window{}, row.options);
-
-            ASSERT_FALSE(recorded.has_value())
-                << row.fault << ": the call recorded instead of refusing";
-            EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
-            EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
-                << recorded.error().message;
-            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesCountingSortOptions,
-            ::testing::Values(
-                OptionsRow{GraphPrimitives::PrimitiveOptions{}, "no name"},
-                OptionsRow{
-                    GraphPrimitives::PrimitiveOptions{std::string_view{}, Determinism::Bitwise},
-                    "a null name"},
-                OptionsRow{GraphPrimitives::PrimitiveOptions{"sort", static_cast<Determinism>(250)},
-                           "an unknown class"}));
 
     } // namespace Test
 } // namespace SushiBLAS
