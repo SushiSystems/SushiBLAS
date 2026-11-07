@@ -122,6 +122,33 @@ namespace SushiBLAS
                 }
 
                 /**
+                 * @brief Stores output j of y = alpha * (the sum of every block's partial)
+                 *        + beta * y.
+                 * @param partials blocks slices of outputs elements; block b alone wrote slice b.
+                 * @param j Output in [0, outputs).
+                 * @param beta Exactly zero skips reading y.
+                 * @see kernels/README.md
+                 */
+                template<typename T>
+                inline void fold_block_output(const Accumulator<T>* partials, int64_t outputs,
+                                              int64_t blocks, int64_t j, T alpha, T beta, T* y,
+                                              int64_t incy)
+                {
+                    using W = Accumulator<T>;
+
+                    // Folding the blocks in ascending order keeps ascending row order.
+                    W sum(0);
+                    for (int64_t block = 0; block < blocks; ++block)
+                        sum += partials[block * outputs + j];
+
+                    const W scaled = multiply(W(alpha), sum);
+                    const int64_t out = j * incy;
+                    y[out] = (beta == T(0))
+                                 ? static_cast<T>(scaled)
+                                 : static_cast<T>(scaled + multiply(W(beta), W(y[out])));
+                }
+
+                /**
                  * @brief Stores y = alpha * (the sum of every block's partial) + beta * y, one
                  *        work-item per output, behind the event of the scatter.
                  * @param partials blocks slices of outputs elements; block b alone wrote slice b.
@@ -135,27 +162,14 @@ namespace SushiBLAS
                                                       const Accumulator<T>* partials, T alpha,
                                                       T beta, T* y, int64_t incy)
                 {
-                    using W = Accumulator<T>;
-
-                    const bool keeps_y = !(beta == T(0));
-
                     return queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(scattered);
                         Launch::indexed(h, queue, static_cast<std::size_t>(outputs),
                                         [=](std::size_t index)
                         {
-                            const int64_t j = static_cast<int64_t>(index);
-
-                            // Folding the blocks in ascending order keeps ascending row order.
-                            W sum(0);
-                            for (int64_t block = 0; block < blocks; ++block)
-                                sum += partials[block * outputs + j];
-
-                            const W scaled = multiply(W(alpha), sum);
-                            const int64_t out = j * incy;
-                            y[out] = keeps_y ? static_cast<T>(scaled + multiply(W(beta), W(y[out])))
-                                             : static_cast<T>(scaled);
+                            fold_block_output(partials, outputs, blocks,
+                                              static_cast<int64_t>(index), alpha, beta, y, incy);
                         });
                     });
                 }

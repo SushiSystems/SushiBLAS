@@ -32,6 +32,7 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/linalg_kernels/gmres_workspace.hpp>
@@ -74,6 +75,18 @@ namespace SushiBLAS
                 return a;
             }
 
+            /** @brief Returns the guess that holds zero in every element. */
+            std::vector<double> zero_guess()
+            {
+                return std::vector<double>(K_N, 0.0);
+            }
+
+            /** @brief Returns a guess that holds a quiet NaN in every element. */
+            std::vector<double> poisoned_guess()
+            {
+                return std::vector<double>(K_N, std::numeric_limits<double>::quiet_NaN());
+            }
+
             /** @brief Holds what one device solve wrote. */
             struct DeviceSolve
             {
@@ -82,14 +95,14 @@ namespace SushiBLAS
                     double residual = 0.0;        /**< The reported relative residual. */
             };
 
-            /** @brief Runs the SYCL solve on @p q from a zero guess. */
+            /** @brief Runs the SYCL solve on @p q from the guess @p x_start. */
             DeviceSolve run_device(sycl::queue& q, const std::vector<double>& a,
-                                   const std::vector<double>& b,
+                                   const std::vector<double>& b, const std::vector<double>& x_start,
                                    const Kernels::GmresSettings& settings)
             {
                 const SharedArray<double> matrix(q, a);
                 const SharedArray<double> rhs(q, b);
-                SharedArray<double> x(q, K_N);
+                SharedArray<double> x(q, x_start);
                 SharedArray<std::uint32_t> iterations(q, 1);
                 SharedArray<double> residual(q, 1);
                 const Kernels::GmresLayout layout(K_N, settings.restart, settings.block_size);
@@ -113,22 +126,23 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SYCLGmres, EqualsTheReferenceWithRestartsAndBlocks)
+        TEST_F(Medium_SYCLGmres, EqualsTheReferenceFromTheSameNonZeroGuess)
         {
             const std::vector<double> a = dominant_matrix(41);
             const std::vector<double> b = values(K_N, 42);
+            const std::vector<double> guess = values(K_N, 45);
             Kernels::GmresSettings settings;
             settings.restart = 4;
             settings.block_size = 3;
             settings.relative_tolerance = K_SOLVE_TOLERANCE;
 
-            std::vector<double> expected(K_N, 0.0);
+            std::vector<double> expected = guess;
             std::uint32_t expected_iterations = 0;
             double expected_residual = 0.0;
             Kernels::Reference::gmres(a.data(), b.data(), expected.data(), &expected_iterations,
                                       &expected_residual, K_N, settings);
 
-            const DeviceSolve got = run_device(queue(), a, b, settings);
+            const DeviceSolve got = run_device(queue(), a, b, guess, settings);
 
             EXPECT_LE(got.residual, settings.relative_tolerance);
             EXPECT_EQ(got.iterations, expected_iterations);
@@ -142,12 +156,25 @@ namespace SushiBLAS
             const std::vector<double> b = values(K_N, 44);
             const Kernels::GmresSettings settings;
 
-            const DeviceSolve first = run_device(queue(), a, b, settings);
-            const DeviceSolve second = run_device(queue(), a, b, settings);
+            const DeviceSolve first = run_device(queue(), a, b, zero_guess(), settings);
+            const DeviceSolve second = run_device(queue(), a, b, zero_guess(), settings);
 
             EXPECT_EQ(first.x, second.x);
             EXPECT_EQ(first.iterations, second.iterations);
             EXPECT_EQ(first.residual, second.residual);
+        }
+
+        TEST_F(Medium_SYCLGmres, ZeroRightHandSideOverwritesAPoisonedGuessWithZero)
+        {
+            const std::vector<double> a = dominant_matrix(46);
+            const std::vector<double> b(K_N, 0.0);
+            const Kernels::GmresSettings settings;
+
+            const DeviceSolve got = run_device(queue(), a, b, poisoned_guess(), settings);
+
+            EXPECT_EQ(got.x, zero_guess());
+            EXPECT_EQ(got.iterations, 0u);
+            EXPECT_EQ(got.residual, 0.0);
         }
     } // namespace Test
 } // namespace SushiBLAS

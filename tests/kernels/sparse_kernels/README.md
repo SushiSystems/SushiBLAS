@@ -15,7 +15,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/test_sptrsv.cpp` | Tests that the reference sptrsv recovers x from op(A) * x for either triangle |
 | `reference/test_structure.cpp` | Tests find_defect on the arrays of a CSR matrix and on the positions of a sparse vector |
 | `sycl/test_level1.cpp` | Tests the SYCL sparse-dense level 1 kernels against the reference ones on the host device |
-| `sycl/test_row_blocks.cpp` | Tests how many row blocks a scattering product takes, where each starts, and their fold; the count and the cover run small, the fold runs medium |
+| `sycl/test_row_blocks.cpp` | Tests how many row blocks a scattering product takes, where each starts, and their fold; the count, the cover and the fold of one output run small, the launched fold runs medium and equals the host fold |
 | `sycl/test_spmm.cpp` | Tests the SYCL spmm against the reference spmm in both layouts and both forms |
 | `sycl/test_spmv.cpp` | Tests the SYCL spmv, plain and scattered transposed, against the reference spmv |
 | `sycl/test_spsymv.cpp` | Tests the scattered SYCL spsymv against the reference spsymv on the host device |
