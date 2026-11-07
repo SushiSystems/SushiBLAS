@@ -248,23 +248,6 @@ namespace SushiBLAS
             EXPECT_EQ(2, this->count(this->bad_at_both_ends(K_LARGE)));
         }
 
-        /**
-         * @brief Returns the message of the `std::invalid_argument` fn throws, or "".
-         */
-        template<typename Fn>
-        static std::string message_of(Fn&& fn)
-        {
-            try
-            {
-                fn();
-            }
-            catch (const std::invalid_argument& e)
-            {
-                return std::string(e.what());
-            }
-            return std::string();
-        }
-
         class Medium_CountNonFiniteTest : public SushiBLASTest
         {
             protected:
@@ -277,90 +260,6 @@ namespace SushiBLAS
                     return host;
                 }
         };
-
-        /** @brief Names a dtype row by the dtype's name. */
-        static std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
-        {
-            return Core::to_string(info.param);
-        }
-
-        /** @brief Records count_nonfinite over an input dtype the op refuses. */
-        class Medium_CountNonFiniteDtype
-            : public SushiBLASTest,
-              public ::testing::WithParamInterface<Core::DataType>
-        {
-        };
-
-        /**
-         * @brief Tests that integer and complex inputs are refused by name.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_P(Medium_CountNonFiniteDtype, NonRealInputIsRefusedByName)
-        {
-            GraphProbe probe;
-            auto result = engine->create_tensor({1}, Core::DataType::Int64);
-            auto t = engine->create_tensor({4}, GetParam());
-
-            const std::string msg = message_of(
-                [&]
-                {
-                    SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result);
-                });
-
-            EXPECT_NE(std::string::npos, msg.find(Core::to_string(GetParam()))) << msg;
-        }
-
-        INSTANTIATE_TEST_SUITE_P(, Medium_CountNonFiniteDtype,
-                                 ::testing::Values(Core::DataType::Int32, Core::DataType::Int64,
-                                                   Core::DataType::Complex32,
-                                                   Core::DataType::Complex64),
-                                 dtype_name);
-
-        /**
-         * @brief Tests that a refused reduction leaves no task on the graph.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_F(Medium_CountNonFiniteTest, ARefusedReductionLeavesNoTaskOnTheGraph)
-        {
-            GraphProbe probe;
-            auto result = engine->create_tensor({1}, Core::DataType::Int64);
-            auto t = engine->create_tensor({4}, Core::DataType::Int32);
-
-            EXPECT_THROW(SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result),
-                         std::invalid_argument);
-
-            EXPECT_EQ(0u, probe.take_recorded_count());
-        }
-
-        /**
-         * @brief Tests that a result of another dtype than INT64 is refused by name.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeInt64)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-            auto wrong_dtype = engine->create_tensor({1}, Core::DataType::Float32);
-
-            const std::string msg = message_of(
-                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, wrong_dtype); });
-
-            EXPECT_NE(std::string::npos, msg.find("INT64")) << msg;
-        }
-
-        /**
-         * @brief Tests that an INT64 result that is not a scalar is refused by name.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeAScalar)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-            auto not_scalar = engine->create_tensor({2}, Core::DataType::Int64);
-
-            const std::string msg = message_of(
-                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, not_scalar); });
-
-            EXPECT_NE(std::string::npos, msg.find("scalar")) << msg;
-        }
 
         /**
          * @brief Tests that the op is ordered behind the op that wrote its offset input view.

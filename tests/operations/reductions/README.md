@@ -14,14 +14,15 @@ the benchmark section of `tests/README.md` describes them.
 | `benchmark_reductions.cpp` | Times full-tensor sum, max and var and prints GB/s per element count |
 | `test_arg_reduction.cpp` | Tests the arg reduction dispatcher on the reference path and on the host device |
 | `test_centred_reduction.cpp` | Tests the centred reduction dispatcher as a variance, on the reference path and on SYCL |
-| `test_dispatch.cpp` | Tests the partial sizes, the lease rule and an index reduction recorded on an engine |
+| `test_dispatch.cpp` | Tests the partial sizes, the lease rule and an index reduction recorded on a host engine and on a runtime engine |
 | `test_reductions/test_axis_reductions.cpp` | Tests the axis reductions, the plan they launch from and both of their kernels |
-| `test_reductions/test_count_nonfinite.cpp` | Tests ReductionOps::count_nonfinite, its refusals and its ordering in the graph |
+| `test_reductions/test_count_nonfinite.cpp` | Tests ReductionOps::count_nonfinite, its counts and its ordering in the graph |
 | `test_reductions/test_max_min_nan.cpp` | Tests max, min, max_along and min_along on NaN, infinite and signed-zero input |
 | `test_reductions/test_mean_spatial.cpp` | Tests ReductionOps::mean_spatial and the single-axis reductions that share its span |
 | `test_reductions/test_reduce_segments.cpp` | Tests Reduce::reduce_segments in both launch shapes and the axis fold that runs on it |
 | `test_reductions/test_reduction_determinism.cpp` | Tests that the folding reductions repeat to the bit and sum accurately |
-| `test_reductions/test_reductions.cpp` | Tests each reduction's results and refusals, and that its host and SYCL paths agree |
+| `test_reductions/test_reductions.cpp` | Tests each reduction's results, and that its host and SYCL paths agree |
+| `test_reductions/test_refusals.cpp` | Tests what the reductions refuse, what an empty operand writes and that a reference reduction leases no scratch, `Small_` on a host engine |
 | `test_reductions/test_scratch_buffer.cpp` | Tests ScratchBuffer, the lease on one pooled device scratch block |
 | `test_reductions/test_sum_edge_cases.cpp` | Tests ReductionOps::sum, mean, max and min on edge-case inputs |
 
@@ -39,8 +40,7 @@ property and the means are the same: `std::memcmp`, not a tolerance.
 The file holds these suites: the planner (`Small_AxisReductionPlan` and `Small_AxisReductionWidth`,
 rows over a `Device::Profile` value that need no device), the public operations over every dtype a
 reduction serves (`Medium_AxisReductionsTyped`), layout, shape and the two kernels
-(`Medium_AxisReductions`), the refusals (`Medium_AxisReductionRefusal` and
-`Medium_AxisReductionDtype`, rows over the malformed operand and the dtype) and the byte stability
+(`Medium_AxisReductions`), the byte stability
 of each kernel shape (`Medium_AxisReductionStability`).
 
 `K_ROW_MAJOR` holds small whole numbers on purpose. They are exact in HALF as well as in the
@@ -84,7 +84,7 @@ they are the bare-pointer hazard described under "Views at a non-zero offset", o
 `Medium_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation` pins it for the whole-tensor
 seam.
 
-`MaxAlongAndSumAlongRefuseItByName`, one row per dtype: a fold needs an ordering and an
+`MaxAlongRefusesIt` and `SumAlongRefusesIt`, one row per dtype (`test_refusals.cpp`): a fold needs an ordering and an
 identity, which `std::complex` does not have, and an integer tensor is not an arithmetic type in
 this library. It is the same `Domain::Real` rule the whole-tensor reductions carry.
 `MaxAlongRefusesItAtRecordTime`, `MinAlongRefusesItAtRecordTime` and
@@ -161,7 +161,7 @@ any element does, so a screen built on a sum of magnitudes would call the tensor
 loss-scaling loop that wrong answer halves the scale on a step that never overflowed, and does it
 again on the next step, for ever.
 
-`NonRealInputIsRefusedByName`, one row per dtype: an integer element cannot be infinite or NaN, so "0"
+`IsRefusedByNameAndRecordsNothing` of `Small_ReductionDtype`, one row per dtype (`test_refusals.cpp`): an integer element cannot be infinite or NaN, so "0"
 would be true and useless. It would tell a caller who handed over the wrong tensor that the
 right one was screened.
 
@@ -257,3 +257,14 @@ must be within the rounding bound of the exact sum.
 `argmax` and `argmin` write an INT64 result, not one of the input's own dtype. `argmax` answers
 with an index, and an index stored in a float stops being exact past 2^24 (past 2048 in HALF).
 The index is compared exactly for the same reason: it is either right or wrong.
+
+## test_reductions/test_refusals.cpp
+
+The refusals of the reductions run `Small_` on a `HostEngineTest`: a host engine records under
+ForceReference and reaches no device. The rows are the real-only reductions over an integer or complex
+dtype (`Small_ReductionDtype`), the malformed operands (`Small_ReductionMalformed`), the axis
+reductions over a malformed pair and over a dtype they cannot fold (`Small_AxisReductionRefusal` and
+`Small_AxisReductionDtype`), and the lease rule (`Small_ReductionLease`). An empty sum is 0 and an empty
+product is 1; an empty mean and max are refused. The device boundary of the same promises stays
+`Medium_` in `test_reductions.cpp`: a device-only operand, and the empty identities on both paths.
+

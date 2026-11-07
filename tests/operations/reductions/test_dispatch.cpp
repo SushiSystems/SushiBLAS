@@ -37,6 +37,7 @@
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/reductions/arg_reduction.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
@@ -54,7 +55,21 @@ namespace SushiBLAS
         /// @brief The bytes of an INT32 partial.
         constexpr std::size_t K_INT32_BYTES = 4;
 
-        /** @brief Records reductions on the fixture's engine. */
+        /** @brief Records an argmax of t into result through recorder. */
+        void record_argmax(TaskRecorder& recorder, const Tensor& t, Tensor& result)
+        {
+            Dispatch::execute_index_reduction(
+                recorder, t, result, "argmax", SushiRuntime::OperationID(),
+                Dispatch::ArgReductionDispatch<Reduce::RunningArgMax>{},
+                Dispatch::planned_partials_for(t));
+        }
+
+        /** @brief Records reductions on a host engine, which runs ForceReference only. */
+        class Small_ReductionDispatchOnHost : public HostEngineTest
+        {
+        };
+
+        /** @brief Records reductions on the fixture's engine under a mode of its own. */
         class Medium_ReductionDispatch : public SushiBLASTest
         {
             protected:
@@ -65,10 +80,7 @@ namespace SushiBLAS
                     Tensor result = create_initialized_tensor<int64_t>({1}, {-1});
 
                     set_mode(mode);
-                    Dispatch::execute_index_reduction(
-                        recorder(), t, result, "argmax", SushiRuntime::OperationID(),
-                        Dispatch::ArgReductionDispatch<Reduce::RunningArgMax>{},
-                        Dispatch::planned_partials_for(t));
+                    record_argmax(recorder(), t, result);
                     EXPECT_TRUE(recording->run().has_value());
 
                     return read_tensor<int64_t>(result);
@@ -90,16 +102,14 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Int32), K_INT32_BYTES);
         }
 
-        TEST_F(Medium_ReductionDispatch, AnEmptyTensorPlansNoPartials)
+        TEST_F(Small_ReductionDispatchOnHost, AnEmptyTensorPlansNoPartials)
         {
             EXPECT_EQ(Dispatch::planned_partials_for(engine->create_tensor({0})), std::size_t{0});
         }
 
-        TEST_F(Medium_ReductionDispatch, TheReferenceRecorderLeasesNoPartials)
+        TEST_F(Small_ReductionDispatchOnHost, TheReferenceRecorderLeasesNoPartials)
         {
-            GraphProbe reference(ExecutionMode::ForceReference);
-
-            EXPECT_EQ(Dispatch::leased_partials(reference.recorder(), 12), std::size_t{0});
+            EXPECT_EQ(Dispatch::leased_partials(recorder(), 12), std::size_t{0});
         }
 
         TEST_F(Medium_ReductionDispatch, TheAutomaticRecorderLeasesThePlannedPartials)
@@ -109,9 +119,15 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::leased_partials(automatic.recorder(), 12), std::size_t{12});
         }
 
-        TEST_F(Medium_ReductionDispatch, AnIndexReductionFindsTheFirstLargestOnTheReference)
+        TEST_F(Small_ReductionDispatchOnHost, AnIndexReductionFindsTheFirstLargestOnTheReference)
         {
-            EXPECT_EQ(argmax_index_under(ExecutionMode::ForceReference), (std::vector<int64_t>{1}));
+            const Tensor t = create_initialized_tensor<float>({5}, {2, 7, -3, 7, -3});
+            Tensor result = create_initialized_tensor<int64_t>({1}, {-1});
+
+            record_argmax(recorder(), t, result);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            EXPECT_EQ(read_tensor<int64_t>(result), (std::vector<int64_t>{1}));
         }
 
         TEST_F(Medium_ReductionDispatch, AnIndexReductionFindsTheFirstLargestOnSYCL)

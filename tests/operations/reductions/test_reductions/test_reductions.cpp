@@ -596,12 +596,6 @@ namespace
         return "Size" + std::to_string(info.param);
     }
 
-    /** @brief Names a dtype row for gtest. */
-    std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
-    {
-        return Core::to_string(info.param);
-    }
-
     /** @brief Names a row by its description, which gtest takes as the test's suffix. */
     template<typename Row>
     std::string row_name(const ::testing::TestParamInfo<Row>& info)
@@ -646,29 +640,6 @@ class Medium_ReductionOps : public SushiBLASTest
             SCOPED_TRACE(name);
             const std::string message = refusal_of(record);
             EXPECT_NE(std::string::npos, message.find("ForceReference")) << message;
-        }
-
-        /**
-         * @brief Expects record to be refused with one message under both forced modes.
-         * @param record Callable `(ReductionOps&)`; it must record nothing.
-         */
-        template<typename Record>
-        void expect_refusal_in_both_modes(const char* name, Record&& record)
-        {
-            SCOPED_TRACE(name);
-
-            GraphProbe on_host(ExecutionMode::ForceReference);
-            GraphProbe on_device(ExecutionMode::ForceSYCL);
-            ReductionOps host_reductions(on_host.recorder());
-            ReductionOps device_reductions(on_device.recorder());
-
-            const std::string host_message = refusal_of([&] { record(host_reductions); });
-            const std::string device_message = refusal_of([&] { record(device_reductions); });
-
-            EXPECT_FALSE(host_message.empty());
-            EXPECT_EQ(host_message, device_message);
-            EXPECT_EQ(0u, on_host.take_recorded_count());
-            EXPECT_EQ(0u, on_device.take_recorded_count());
         }
 
         /** @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing where none can be had. */
@@ -743,49 +714,6 @@ class Medium_ReductionOps : public SushiBLASTest
         }
 };
 
-/** @brief Runs the dtype refusals over one integer dtype. */
-class Medium_ReductionOpsIntegerDtype : public Medium_ReductionOps,
-                                        public ::testing::WithParamInterface<Core::DataType>
-{
-};
-
-/**
- * @brief Tests that the real-only reductions refuse an integer tensor by dtype name.
- */
-TEST_P(Medium_ReductionOpsIntegerDtype, TheRealOnlyReductionsRefuseItByName)
-{
-    SushiBLAS::ReductionOps reductions(recorder());
-
-    auto t = engine->create_tensor({4}, GetParam());
-    auto result = engine->create_tensor({1}, GetParam());
-    const std::string name = Core::to_string(GetParam());
-
-    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.sum(t, result); }).find(name));
-    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.nrm2(t, result); }).find(name));
-    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.mean(t, result); }).find(name));
-}
-
-INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsIntegerDtype,
-                         ::testing::Values(Core::DataType::Int32, Core::DataType::Int64),
-                         dtype_name);
-
-/**
- * @brief Tests that the real-only reductions refuse a complex tensor by dtype name.
- */
-TEST_F(Medium_ReductionOps, ComplexDtypesAreRefusedByName)
-{
-    SushiBLAS::ReductionOps reductions(recorder());
-
-    auto z = engine->create_tensor({4}, Core::DataType::Complex32);
-    auto z_result = engine->create_tensor({1}, Core::DataType::Complex32);
-    const std::string complex_name = Core::to_string(Core::DataType::Complex32);
-
-    EXPECT_NE(std::string::npos,
-              refusal_of([&] { reductions.sum(z, z_result); }).find(complex_name));
-    EXPECT_NE(std::string::npos,
-              refusal_of([&] { reductions.max(z, z_result); }).find(complex_name));
-}
-
 /** @brief Runs the device-only cases, and skips them on a device that hands out no device-only USM. */
 class Medium_ReductionOpsDeviceOnly : public Medium_ReductionOps
 {
@@ -859,52 +787,6 @@ TEST_F(Medium_ReductionOpsDeviceOnly, ADeviceOnlyOperandIsRecordedOnEverySeamUnd
     EXPECT_EQ(6u, on_device.take_recorded_count());
 }
 
-/** @brief One call with a malformed operand or result, recorded over a vector of four and a result of three. */
-struct MalformedCall
-{
-    const char* name;
-    void (*record)(ReductionOps&, const Tensor&, Tensor&);
-};
-
-/** @brief Returns the calls a malformed operand makes: a rank-1 axis reduction and a non-scalar result. */
-static std::vector<MalformedCall> malformed_calls()
-{
-    return {
-        // A rank-1 operand is malformed for every axis reduction.
-        {"SumAlongOfARankOneOperand",
-         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.sum_along(vector, 0, wide); }},
-        {"MaxAlongOfARankOneOperand",
-         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.max_along(vector, 0, wide); }},
-        // A three-element result is not a scalar.
-        {"SumIntoAThreeElementResult",
-         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.sum(vector, wide); }},
-        {"ArgMaxIntoAThreeElementResult",
-         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.argmax(vector, wide); }},
-    };
-}
-
-/** @brief Records one malformed call under both forced modes. */
-class Medium_ReductionOpsMalformed : public Medium_ReductionOps,
-                                     public ::testing::WithParamInterface<MalformedCall>
-{
-};
-
-/**
- * @brief Tests that a malformed operand is refused with the same message under both forced modes.
- */
-TEST_P(Medium_ReductionOpsMalformed, ItIsRefusedAlikeInBothModes)
-{
-    const MalformedCall& call = GetParam();
-    auto vector = engine->create_tensor({4});
-    auto wide = engine->create_tensor({3});
-
-    expect_refusal_in_both_modes(call.name,
-                                 [&](ReductionOps& ops) { call.record(ops, vector, wide); });
-}
-
-INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsMalformed, ::testing::ValuesIn(malformed_calls()),
-                         row_name<MalformedCall>);
-
 /**
  * @brief Tests that the sum of an empty operand is the identity 0 under both forced modes.
  */
@@ -929,98 +811,6 @@ TEST_F(Medium_ReductionOps, AnEmptyProductIsOneInBothModes)
     EXPECT_TRUE(same_bits(1.0f, products.reference[0])) << products.reference[0];
     EXPECT_TRUE(same_bits(1.0f, products.device[0])) << products.device[0];
 }
-
-/**
- * @brief Tests that the mean of an empty operand is refused alike under both forced modes.
- */
-TEST_F(Medium_ReductionOps, AnEmptyMeanIsRefusedAlikeInBothModes)
-{
-    const Tensor empty = empty_operand();
-    auto scalar = engine->create_tensor({1});
-
-    expect_refusal_in_both_modes("mean", [&](ReductionOps& ops) { ops.mean(empty, scalar); });
-}
-
-/**
- * @brief Tests that the maximum of an empty operand is refused alike under both forced modes.
- */
-TEST_F(Medium_ReductionOps, AnEmptyMaxIsRefusedAlikeInBothModes)
-{
-    const Tensor empty = empty_operand();
-    auto scalar = engine->create_tensor({1});
-
-    expect_refusal_in_both_modes("max", [&](ReductionOps& ops) { ops.max(empty, scalar); });
-}
-
-/** @brief One reduction whose recording under ForceReference must lease no scratch. */
-struct LeaseRow
-{
-    const char* name;
-    Core::DataType result_dtype;
-    void (*record)(ReductionOps&, const Tensor&, Tensor&);
-};
-
-/** @brief Returns the folding, centred, index and counting seams. */
-static std::vector<LeaseRow> lease_rows()
-{
-    return {
-        {"Sum", Core::DataType::Float32,
-         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.sum(t, out); }},
-        {"Var", Core::DataType::Float32,
-         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.var(t, out); }},
-        {"ArgMax", Core::DataType::Int64,
-         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.argmax(t, out); }},
-        {"CountNonFinite", Core::DataType::Int64,
-         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.count_nonfinite(t, out); }},
-    };
-}
-
-/** @brief Records one reduction over a two-stage input, and skips the case on a device that plans no partials. */
-class Medium_ReductionOpsLease : public Medium_ReductionOps,
-                                 public ::testing::WithParamInterface<LeaseRow>
-{
-    protected:
-        /** @brief Builds the input, or skips the test when the device plans no partials. */
-        void SetUp() override
-        {
-            Medium_ReductionOps::SetUp();
-
-            input_ = create_initialized_tensor<float>({static_cast<int64_t>(K_TWO_STAGE_SIZE)},
-                                                      parity_values<float>(K_TWO_STAGE_SIZE));
-            if (Dispatch::planned_partials_for(*input_) == 0)
-                GTEST_SKIP() << "the device plans no partials, so the SYCL path would lease none either";
-        }
-
-        /// @brief The two-stage-sized input.
-        std::optional<Tensor> input_;
-};
-
-/**
- * @brief Tests that a reduction recorded under ForceReference leases no scratch and allocates none.
- */
-TEST_P(Medium_ReductionOpsLease, AReferenceReductionLeasesNoScratch)
-{
-    auto result = engine->create_tensor({1}, GetParam().result_dtype);
-
-    GraphProbe probe(ExecutionMode::ForceReference);
-    ReductionOps reductions(probe.recorder());
-
-    const std::size_t idle_before = probe.scratch_pool().idle_block_count();
-    const std::size_t live_before = TestEnvironment::live_allocation_count();
-
-    GetParam().record(reductions, *input_, result);
-
-    // A lease would be a live allocation from the moment its task is recorded.
-    EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
-
-    probe.execute().value();
-
-    EXPECT_EQ(idle_before, probe.scratch_pool().idle_block_count());
-    EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
-}
-
-INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsLease, ::testing::ValuesIn(lease_rows()),
-                         row_name<LeaseRow>);
 
 /**
  * @brief Tests that the host mean of FLOAT32 terms divides its FLOAT64 sum before it narrows.
