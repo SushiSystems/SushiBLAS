@@ -28,6 +28,9 @@ sushiblas_add_test_program(
         reference/test_structure.cpp
         test_csr_pattern.cpp
         test_index_list.cpp
+        test_rhs_index.cpp
+        test_row_block_index.cpp
+        test_triangle_index.cpp
     DEVICE_TESTS
         sycl/test_level1.cpp
         sycl/test_row_blocks.cpp

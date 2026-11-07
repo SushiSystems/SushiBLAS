@@ -36,6 +36,7 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
+#include <SushiBLAS/signal_kernels/fft_line_index.hpp>
 
 namespace SushiBLAS
 {
@@ -67,46 +68,13 @@ namespace SushiBLAS
             [[nodiscard]] std::size_t fft_scratch_bytes(const FftPlan<T>& plan,
                                                         std::size_t batch) noexcept
             {
-                const std::size_t spectrum =
-                    plan.pairing() == FftPairing::RealToComplex && plan.rows() > 1
-                        ? batch * plan.spectrum_scalars() : 0;
-                const std::size_t scalars = plan.values().size() + plan.line_scalars(batch) +
-                                            spectrum + plan.padded_scalars(batch);
-                return scalars * sizeof(T) + plan.indices().size() * sizeof(std::uint32_t);
+                return plan.scratch_bytes(batch);
             }
 
             namespace Detail
             {
-                /**
-                 * @brief Holds how a set of strided lines sits in memory, in complex elements.
-                 * @note Line l is line l % per_group of group l / per_group.
-                 */
-                struct LineLayout
-                {
-                        std::size_t lines = 0;          /**< Lines transformed together. */
-                        std::size_t per_group = 1;      /**< Lines in one evenly strided group. */
-                        std::size_t group_stride = 0;   /**< Distance between groups. */
-                        std::size_t line_stride = 0;    /**< Distance between lines of a group. */
-                        std::size_t element_stride = 1; /**< Distance between a line's elements. */
-
-                        /** @brief Returns the complex offset of element @p k of line @p l. */
-                        [[nodiscard]] std::size_t at(std::size_t l, std::size_t k) const noexcept
-                        {
-                            return (l / per_group) * group_stride + (l % per_group) * line_stride +
-                                   k * element_stride;
-                        }
-                };
-
-                /** @brief Returns the layout of @p lines contiguous lines @p length apart. */
-                [[nodiscard]] inline LineLayout contiguous_lines(std::size_t lines,
-                                                                 std::size_t length) noexcept
-                {
-                    LineLayout layout;
-                    layout.lines = lines;
-                    layout.per_group = lines == 0 ? 1 : lines;
-                    layout.line_stride = length;
-                    return layout;
-                }
+                /// @brief Names the layout of a set of strided lines.
+                using LineLayout = Indexing::FftLineLayout;
 
                 /**
                  * @brief Runs body(i) once for every i below count on the queue.
@@ -157,8 +125,9 @@ namespace SushiBLAS
                     sycl::event last = for_each_index(q, events, layout.lines * size, {dep},
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / size;
-                            const std::size_t i = flat % size;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, size);
+                            const std::size_t l = at.line;
+                            const std::size_t i = at.element;
                             const std::size_t j = reversal[i];
                             if (i >= j)
                                 return;
@@ -176,28 +145,18 @@ namespace SushiBLAS
                     const std::size_t butterflies = size / 2;
                     for (std::size_t span = 2; span <= size; span <<= 1)
                     {
-                        const std::size_t half = span / 2;
-                        const std::size_t stride = size / span;
                         last = for_each_index(q, events, layout.lines * butterflies, {last},
                             [=](std::size_t flat)
                             {
-                                const std::size_t l = flat / butterflies;
-                                const std::size_t b = flat % butterflies;
-                                const std::size_t start = (b / half) * span;
-                                const std::size_t k = b % half;
-                                const T wr = twiddles[2 * (k * stride)];
-                                const T wi = sign * twiddles[2 * (k * stride) + 1];
-                                T* u = data + 2 * layout.at(l, start + k);
-                                T* v = data + 2 * layout.at(l, start + k + half);
-                                T vr;
-                                T vi;
-                                Kernels::Detail::complex_multiply(v[0], v[1], wr, wi, vr, vi);
-                                const T ur = u[0];
-                                const T ui = u[1];
-                                u[0] = ur + vr;
-                                u[1] = ui + vi;
-                                v[0] = ur - vr;
-                                v[1] = ui - vi;
+                                const Indexing::FftFlatCoord at =
+                                    Indexing::fft_flat_coord(flat, butterflies);
+                                const Indexing::ButterflyPositions pair =
+                                    Indexing::butterfly_number(at.element, span, size);
+                                const T wr = twiddles[2 * pair.twiddle];
+                                const T wi = sign * twiddles[2 * pair.twiddle + 1];
+                                Kernels::Detail::butterfly(data + 2 * layout.at(at.line, pair.upper),
+                                                           data + 2 * layout.at(at.line, pair.lower),
+                                                           wr, wi);
                             });
                     }
                     return last;
@@ -223,15 +182,16 @@ namespace SushiBLAS
                     const std::size_t size = line.power_size;
                     const T* chirp = line.chirp;
                     const T* kernel = line.kernel;
-                    const LineLayout work = contiguous_lines(layout.lines, size);
+                    const LineLayout work = Indexing::contiguous_lines(layout.lines, size);
 
                     sycl::event last = for_each_index(q, events, layout.lines * size, {dep},
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / size;
-                            const std::size_t k = flat % size;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, size);
+                            const std::size_t l = at.line;
+                            const std::size_t k = at.element;
                             T* w = padded + 2 * flat;
-                            if (k >= length)
+                            if (Indexing::is_padding_lane(k, length))
                             {
                                 w[0] = T(0);
                                 w[1] = T(0);
@@ -247,7 +207,7 @@ namespace SushiBLAS
                     last = for_each_index(q, events, layout.lines * size, {last},
                         [=](std::size_t flat)
                         {
-                            const std::size_t k = flat % size;
+                            const std::size_t k = Indexing::fft_flat_coord(flat, size).element;
                             T* w = padded + 2 * flat;
                             const T wr = w[0];
                             const T wi = w[1];
@@ -260,8 +220,9 @@ namespace SushiBLAS
                     return for_each_index(q, events, layout.lines * length, {last},
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / length;
-                            const std::size_t k = flat % length;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, length);
+                            const std::size_t l = at.line;
+                            const std::size_t k = at.element;
                             const T* w = padded + 2 * (l * size + k);
                             T yr;
                             T yi;
@@ -273,20 +234,6 @@ namespace SushiBLAS
                             x[0] = yr;
                             x[1] = inverse ? -yi : yi;
                         });
-                }
-
-                /** @brief Returns the layout of the columns of @p batch spectra. */
-                template<typename T>
-                [[nodiscard]] LineLayout column_layout(const FftPlan<T>& plan,
-                                                       std::size_t batch) noexcept
-                {
-                    LineLayout layout;
-                    layout.lines = batch * plan.spectrum_columns();
-                    layout.per_group = plan.spectrum_columns();
-                    layout.group_stride = plan.rows() * plan.spectrum_columns();
-                    layout.line_stride = 1;
-                    layout.element_stride = plan.spectrum_columns();
-                    return layout;
                 }
             } // namespace Detail
 
@@ -302,11 +249,8 @@ namespace SushiBLAS
                 T* values = static_cast<T*>(scratch);
                 FftDeviceTables<T> tables;
                 tables.lines = values + plan.values().size();
-                const std::size_t spectrum =
-                    plan.pairing() == FftPairing::RealToComplex && plan.rows() > 1
-                        ? batch * plan.spectrum_scalars() : 0;
                 tables.spectrum = tables.lines + plan.line_scalars(batch);
-                tables.padded = tables.spectrum + spectrum;
+                tables.padded = tables.spectrum + plan.spectrum_copy_scalars(batch);
                 const auto* indices = reinterpret_cast<const std::uint32_t*>(
                     tables.padded + plan.padded_scalars(batch));
                 tables.row = plan.row_line(values, indices);
@@ -373,7 +317,7 @@ namespace SushiBLAS
                     });
                     events.append(last);
                     last = Detail::run_lines(q, events, tables.row, output,
-                                             Detail::contiguous_lines(row_lines, columns),
+                                             Indexing::contiguous_lines(row_lines, columns),
                                              tables.padded, FftDirection::Forward, last);
                 }
                 else
@@ -384,22 +328,24 @@ namespace SushiBLAS
                     last = Detail::for_each_index(q, events, row_lines * length, deps,
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / length;
-                            const std::size_t k = flat % length;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, length);
+                            const std::size_t l = at.line;
+                            const std::size_t k = at.element;
                             const T* row = input + l * columns;
                             lines[2 * flat] = packed ? row[2 * k] : row[k];
                             lines[2 * flat + 1] = packed ? row[2 * k + 1] : T(0);
                         });
                     last = Detail::run_lines(q, events, tables.row, lines,
-                                             Detail::contiguous_lines(row_lines, length),
+                                             Indexing::contiguous_lines(row_lines, length),
                                              tables.padded, FftDirection::Forward, last);
 
                     const T* roots = tables.half_roots;
                     last = Detail::for_each_index(q, events, row_lines * width, {last},
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / width;
-                            const std::size_t k = flat % width;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, width);
+                            const std::size_t l = at.line;
+                            const std::size_t k = at.element;
                             const T* line = lines + 2 * l * length;
                             T* out = output + 2 * flat;
                             if (!packed)
@@ -409,27 +355,17 @@ namespace SushiBLAS
                                 return;
                             }
                             const std::size_t half = length;
-                            const T zr = line[2 * (k % half)];
-                            const T zi = line[2 * (k % half) + 1];
-                            const T mr = line[2 * ((half - k) % half)];
-                            const T mi = -line[2 * ((half - k) % half) + 1];
-                            const T even_r = (zr + mr) * T(0.5);
-                            const T even_i = (zi + mi) * T(0.5);
-                            T odd_r;
-                            T odd_i;
-                            Kernels::Detail::complex_multiply(zr - mr, zi - mi, T(0), T(-0.5),
-                                                              odd_r, odd_i);
-                            T turned_r;
-                            T turned_i;
-                            Kernels::Detail::complex_multiply(roots[2 * k], roots[2 * k + 1],
-                                                              odd_r, odd_i, turned_r, turned_i);
-                            out[0] = even_r + turned_r;
-                            out[1] = even_i + turned_i;
+                            const std::size_t own = k % half;
+                            const std::size_t mirror = Indexing::mirror_bin(k, half);
+                            Kernels::Detail::unpack_forward_bin(
+                                line[2 * own], line[2 * own + 1], line[2 * mirror],
+                                -line[2 * mirror + 1], roots[2 * k], roots[2 * k + 1], out[0],
+                                out[1]);
                         });
                 }
 
                 Detail::run_lines(q, events, tables.column, output,
-                                  Detail::column_layout(plan, batch), tables.padded,
+                                  Indexing::column_layout(batch, plan.rows(), plan.spectrum_columns()), tables.padded,
                                   FftDirection::Forward, last);
                 return events;
             }
@@ -463,10 +399,10 @@ namespace SushiBLAS
                     });
                     events.append(last);
                     last = Detail::run_lines(q, events, tables.column, output,
-                                             Detail::column_layout(plan, batch), tables.padded,
+                                             Indexing::column_layout(batch, plan.rows(), plan.spectrum_columns()), tables.padded,
                                              FftDirection::Inverse, last);
                     last = Detail::run_lines(q, events, tables.row, output,
-                                             Detail::contiguous_lines(row_lines, columns),
+                                             Indexing::contiguous_lines(row_lines, columns),
                                              tables.padded, FftDirection::Inverse, last);
                 }
                 else
@@ -482,7 +418,7 @@ namespace SushiBLAS
                         });
                         events.append(last);
                         last = Detail::run_lines(q, events, tables.column, copy,
-                                                 Detail::column_layout(plan, batch), tables.padded,
+                                                 Indexing::column_layout(batch, plan.rows(), plan.spectrum_columns()), tables.padded,
                                                  FftDirection::Inverse, last);
                         spectrum = copy;
                     }
@@ -497,37 +433,28 @@ namespace SushiBLAS
                     last = Detail::for_each_index(q, events, row_lines * length, start,
                         [=](std::size_t flat)
                         {
-                            const std::size_t l = flat / length;
-                            const std::size_t k = flat % length;
+                            const Indexing::FftFlatCoord at = Indexing::fft_flat_coord(flat, length);
+                            const std::size_t l = at.line;
+                            const std::size_t k = at.element;
                             const T* in = spectrum + 2 * l * width;
                             T* line = lines + 2 * flat;
                             if (!packed)
                             {
-                                const bool stored = k < width;
-                                const std::size_t source = stored ? k : columns - k;
-                                line[0] = in[2 * source];
-                                line[1] = stored ? in[2 * source + 1] : -in[2 * source + 1];
+                                const Indexing::HermitianSource from =
+                                    Indexing::hermitian_source(k, width, columns);
+                                line[0] = in[2 * from.bin];
+                                line[1] = from.conjugated ? -in[2 * from.bin + 1]
+                                                          : in[2 * from.bin + 1];
                                 return;
                             }
                             const std::size_t half = length;
-                            const T mr = in[2 * (half - k)];
-                            const T mi = -in[2 * (half - k) + 1];
-                            const T even_r = in[2 * k] + mr;
-                            const T even_i = in[2 * k + 1] + mi;
-                            T odd_r;
-                            T odd_i;
-                            Kernels::Detail::complex_multiply(in[2 * k] - mr, in[2 * k + 1] - mi,
-                                                              roots[2 * k], -roots[2 * k + 1],
-                                                              odd_r, odd_i);
-                            T turned_r;
-                            T turned_i;
-                            Kernels::Detail::complex_multiply(T(0), T(1), odd_r, odd_i, turned_r,
-                                                              turned_i);
-                            line[0] = even_r + turned_r;
-                            line[1] = even_i + turned_i;
+                            Kernels::Detail::pack_inverse_bin(
+                                in[2 * k], in[2 * k + 1], in[2 * (half - k)],
+                                -in[2 * (half - k) + 1], roots[2 * k], roots[2 * k + 1], line[0],
+                                line[1]);
                         });
                     last = Detail::run_lines(q, events, tables.row, lines,
-                                             Detail::contiguous_lines(row_lines, length),
+                                             Indexing::contiguous_lines(row_lines, length),
                                              tables.padded, FftDirection::Inverse, last);
                     if (!packed)
                     {

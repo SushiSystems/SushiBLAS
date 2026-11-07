@@ -39,6 +39,7 @@
 #include <SushiBLAS/substitution/running_solution.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/triangle_index.hpp>
 
 namespace SushiBLAS
 {
@@ -81,7 +82,7 @@ namespace SushiBLAS
                             // A lower triangle is solved from row 0 down, an upper one upwards.
                             for (int64_t step = 0; step < n; ++step)
                             {
-                                const int64_t i = lower ? step : n - 1 - step;
+                                const int64_t i = Indexing::ordered_row(step, n, lower);
 
                                 W sum = W(b[i]);
                                 W diagonal(0);
@@ -90,7 +91,7 @@ namespace SushiBLAS
                                     const int64_t j = pattern.column(k);
                                     if (j == i)
                                         diagonal += W(values[k]);
-                                    else if (lower ? j < i : j > i)
+                                    else if (Indexing::in_stored_triangle(lower, j, i))
                                         sum -= multiply(W(values[k]), X.get(j));
                                 }
                                 X.set(i, unit_diag ? sum : divide(sum, diagonal));
@@ -104,7 +105,7 @@ namespace SushiBLAS
                         // op(A) of a lower triangle is upper, so its rows are solved from n - 1 up.
                         for (int64_t step = 0; step < n; ++step)
                         {
-                            const int64_t i = lower ? n - 1 - step : step;
+                            const int64_t i = Indexing::ordered_row(step, n, !lower);
 
                             W diagonal(0);
                             for (int64_t k = pattern.row_begin(i); k < pattern.row_end(i); ++k)
@@ -119,7 +120,7 @@ namespace SushiBLAS
                             for (int64_t k = pattern.row_begin(i); k < pattern.row_end(i); ++k)
                             {
                                 const int64_t j = pattern.column(k);
-                                if (lower ? j < i : j > i)
+                                if (Indexing::in_stored_triangle(lower, j, i))
                                     X.set(j, X.get(j) -
                                                  multiply(W(conjugate_if(conjugated, values[k])),
                                                           solved));

@@ -42,6 +42,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/row_block_index.hpp>
 #include <SushiBLAS/sparse_kernels/sycl/row_blocks.hpp>
 
 namespace SushiBLAS
@@ -106,13 +107,13 @@ namespace SushiBLAS
                                    [=](sycl::id<1> id)
                     {
                         const int64_t block = static_cast<int64_t>(id[0]);
-                        W* partial = partials + block * outputs;
+                        W* partial = partials + Indexing::partial_index(block, outputs, 0);
 
                         for (int64_t j = 0; j < outputs; ++j)
                             partial[j] = W(0);
 
-                        const int64_t first = Detail::block_first_row(pattern, block, used_blocks);
-                        const int64_t last = Detail::block_end_row(pattern, block, used_blocks);
+                        const int64_t first = Indexing::block_first_row(pattern, block, used_blocks);
+                        const int64_t last = Indexing::block_end_row(pattern, block, used_blocks);
                         for (int64_t i = first; i < last; ++i)
                         {
                             const W xi = W(x[i * incx]);

@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
+#include <SushiBLAS/signal_kernels/convolve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -50,7 +51,7 @@ namespace SushiBLAS
                              const T* signal, const T* taps, T* out)
             {
                 using RW = ReferenceAccumulator<T>;
-                const int64_t out_length = signal_length - tap_count + 1;
+                const int64_t out_length = Indexing::convolve_out_length(signal_length, tap_count);
 
                 for (int64_t row = 0; row < rows; ++row)
                 {
@@ -63,7 +64,7 @@ namespace SushiBLAS
                         ReferenceSum<T> sum;
 
                         for (int64_t k = 0; k < tap_count; ++k)
-                            sum.add(RW(row_signal[n + tap_count - 1 - k]) * RW(taps[k]));
+                            sum.add(RW(row_signal[Indexing::convolve_source(n, tap_count, k)]) * RW(taps[k]));
 
                         row_out[n] = static_cast<T>(sum.value());
                     }

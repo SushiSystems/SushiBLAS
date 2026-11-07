@@ -31,13 +31,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/row_block_index.hpp>
 
 namespace SushiBLAS
 {
@@ -49,13 +49,14 @@ namespace SushiBLAS
              * @brief Holds the ceiling on the row blocks of one scattering product.
              * @see kernels/README.md
              */
-            inline constexpr std::size_t K_MAX_SCATTER_BLOCKS = 256;
+            inline constexpr std::size_t K_MAX_SCATTER_BLOCKS = Indexing::K_MAX_SCATTER_BLOCKS;
 
             /**
              * @brief Holds how many partial sums a scattering product may keep per stored entry.
              * @see kernels/README.md
              */
-            inline constexpr std::size_t K_SCATTER_PARTIALS_PER_ENTRY = 2;
+            inline constexpr std::size_t K_SCATTER_PARTIALS_PER_ENTRY =
+                Indexing::K_SCATTER_PARTIALS_PER_ENTRY;
 
             /**
              * @brief Returns how many row blocks a scattering product over nnz entries uses.
@@ -66,61 +67,14 @@ namespace SushiBLAS
             [[nodiscard]] inline std::size_t scatter_blocks(const Device::Profile& profile,
                                                             int64_t outputs, int64_t nnz) noexcept
             {
-                if (outputs <= 0)
-                    return 0;
-
-                const std::size_t resident =
-                    profile.is_cpu ? profile.compute_units
-                                   : profile.compute_units * Device::K_WAVES_PER_COMPUTE_UNIT;
-                const std::size_t affordable =
-                    (K_SCATTER_PARTIALS_PER_ENTRY * static_cast<std::size_t>(nnz)) /
-                    static_cast<std::size_t>(outputs);
-
-                const std::size_t blocks = std::min({resident, affordable, K_MAX_SCATTER_BLOCKS});
-                return blocks > 0 ? blocks : std::size_t{1};
+                return Indexing::scatter_block_count(
+                    Indexing::resident_blocks(profile.is_cpu, profile.compute_units,
+                                              Device::K_WAVES_PER_COMPUTE_UNIT),
+                    outputs, nnz);
             }
 
             namespace Detail
             {
-                /**
-                 * @brief Returns the first row of one of the blocks that split the stored entries
-                 *        evenly.
-                 * @param block In [0, blocks]; blocks itself gives the end of the last block.
-                 * @return The first row whose entries start at or after entry nnz * block / blocks.
-                 * @see kernels/README.md
-                 */
-                template<typename Index>
-                [[nodiscard]] inline int64_t block_first_row(const CsrPattern<Index>& pattern,
-                                                             int64_t block, int64_t blocks) noexcept
-                {
-                    const int64_t target = (pattern.nnz / blocks) * block +
-                                           ((pattern.nnz % blocks) * block) / blocks;
-
-                    int64_t low = 0;
-                    int64_t high = pattern.rows;
-                    while (low < high)
-                    {
-                        const int64_t middle = low + (high - low) / 2;
-                        if (pattern.row_begin(middle) < target)
-                            low = middle + 1;
-                        else
-                            high = middle;
-                    }
-                    return low;
-                }
-
-                /**
-                 * @brief Returns one past the last row of a block: the next block's first row, or
-                 *        the row count for the last block.
-                 */
-                template<typename Index>
-                [[nodiscard]] inline int64_t block_end_row(const CsrPattern<Index>& pattern,
-                                                           int64_t block, int64_t blocks) noexcept
-                {
-                    return (block + 1 == blocks) ? pattern.rows
-                                                 : block_first_row(pattern, block + 1, blocks);
-                }
-
                 /**
                  * @brief Stores output j of y = alpha * (the sum of every block's partial)
                  *        + beta * y.
@@ -139,7 +93,7 @@ namespace SushiBLAS
                     // Folding the blocks in ascending order keeps ascending row order.
                     W sum(0);
                     for (int64_t block = 0; block < blocks; ++block)
-                        sum += partials[block * outputs + j];
+                        sum += partials[Indexing::partial_index(block, outputs, j)];
 
                     const W scaled = multiply(W(alpha), sum);
                     const int64_t out = j * incy;

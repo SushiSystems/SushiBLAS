@@ -36,6 +36,7 @@
 #include <utility>
 #include <algorithm>
 #include <SushiBLAS/arithmetic/no_contraction.hpp>
+#include <SushiBLAS/signal_kernels/fft_line_index.hpp>
 
 namespace SushiBLAS
 {
@@ -95,6 +96,67 @@ namespace SushiBLAS
             }
 
             /**
+             * @brief Runs one radix-2 butterfly on the interleaved elements u and v in place.
+             * @param wr Real part of the root, with the direction's sign already applied to wi.
+             * @param wi Imaginary part of the root.
+             */
+            template<typename T>
+            inline void butterfly(T* u, T* v, T wr, T wi) noexcept
+            {
+                T vr;
+                T vi;
+                complex_multiply(v[0], v[1], wr, wi, vr, vi);
+                const T ur = u[0];
+                const T ui = u[1];
+                u[0] = ur + vr;
+                u[1] = ui + vi;
+                v[0] = ur - vr;
+                v[1] = ui - vi;
+            }
+
+            /**
+             * @brief Writes bin k of the half spectrum of a real row from the packed line's bins
+             *        z[k] and the conjugate of its mirror m.
+             * @param root exp(-2 pi i k / columns).
+             */
+            template<typename T>
+            inline void unpack_forward_bin(T zr, T zi, T mr, T mi, T root_r, T root_i, T& out_r,
+                                           T& out_i) noexcept
+            {
+                const T even_r = (zr + mr) * T(0.5);
+                const T even_i = (zi + mi) * T(0.5);
+                T odd_r;
+                T odd_i;
+                complex_multiply(zr - mr, zi - mi, T(0), T(-0.5), odd_r, odd_i);
+                T turned_r;
+                T turned_i;
+                complex_multiply(root_r, root_i, odd_r, odd_i, turned_r, turned_i);
+                out_r = even_r + turned_r;
+                out_i = even_i + turned_i;
+            }
+
+            /**
+             * @brief Writes bin k of the packed line of a real row from bin k of its half spectrum
+             *        a and the conjugate of the mirror bin m.
+             * @param root exp(-2 pi i k / columns).
+             */
+            template<typename T>
+            inline void pack_inverse_bin(T ar, T ai, T mr, T mi, T root_r, T root_i, T& out_r,
+                                         T& out_i) noexcept
+            {
+                const T even_r = ar + mr;
+                const T even_i = ai + mi;
+                T odd_r;
+                T odd_i;
+                complex_multiply(ar - mr, ai - mi, root_r, -root_i, odd_r, odd_i);
+                T turned_r;
+                T turned_i;
+                complex_multiply(T(0), T(1), odd_r, odd_i, turned_r, turned_i);
+                out_r = even_r + turned_r;
+                out_i = even_i + turned_i;
+            }
+
+            /**
              * @brief Runs the iterative radix-2 transform of one contiguous interleaved line.
              * @param data line.power_size complex elements, transformed in place.
              */
@@ -121,19 +183,11 @@ namespace SushiBLAS
                     for (std::size_t start = 0; start < size; start += span)
                         for (std::size_t k = 0; k < half; ++k)
                         {
-                            const T wr = line.twiddles[2 * (k * stride)];
-                            const T wi = sign * line.twiddles[2 * (k * stride) + 1];
-                            T* u = data + 2 * (start + k);
-                            T* v = data + 2 * (start + k + half);
-                            T vr;
-                            T vi;
-                            complex_multiply(v[0], v[1], wr, wi, vr, vi);
-                            const T ur = u[0];
-                            const T ui = u[1];
-                            u[0] = ur + vr;
-                            u[1] = ui + vi;
-                            v[0] = ur - vr;
-                            v[1] = ui - vi;
+                            const Indexing::ButterflyPositions at =
+                                Indexing::butterfly_at(start, k, half, stride);
+                            const T wr = line.twiddles[2 * at.twiddle];
+                            const T wi = sign * line.twiddles[2 * at.twiddle + 1];
+                            butterfly(data + 2 * at.upper, data + 2 * at.lower, wr, wi);
                         }
                 }
             }
@@ -156,7 +210,7 @@ namespace SushiBLAS
                 const std::size_t padded = line.power_size;
                 for (std::size_t k = 0; k < padded; ++k)
                 {
-                    if (k >= line.length)
+                    if (Indexing::is_padding_lane(k, line.length))
                     {
                         work[2 * k] = T(0);
                         work[2 * k + 1] = T(0);
@@ -294,6 +348,22 @@ namespace SushiBLAS
                 [[nodiscard]] const T* half_roots(const T* values) const noexcept
                 {
                     return packed_ ? values + half_roots_ : nullptr;
+                }
+
+                /** @brief Returns the T elements of the spectrum copy a real inverse of @p batch needs. */
+                [[nodiscard]] std::size_t spectrum_copy_scalars(std::size_t batch) const noexcept
+                {
+                    return pairing_ == FftPairing::RealToComplex && rows_ > 1
+                               ? batch * spectrum_scalars() : 0;
+                }
+
+                /** @brief Returns the bytes of device scratch a transform of @p batch entries needs. */
+                [[nodiscard]] std::size_t scratch_bytes(std::size_t batch) const noexcept
+                {
+                    const std::size_t scalars = values_.size() + line_scalars(batch) +
+                                                spectrum_copy_scalars(batch) +
+                                                padded_scalars(batch);
+                    return scalars * sizeof(T) + indices_.size() * sizeof(std::uint32_t);
                 }
 
                 /** @brief Returns the T elements of real-row scratch @p batch entries need. */

@@ -38,6 +38,7 @@
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/triangle_index.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
 
 namespace SushiBLAS
@@ -80,7 +81,7 @@ namespace SushiBLAS
                         {
                             sums[static_cast<std::size_t>(i)].add(Conj::diagonal(value) * xi);
                         }
-                        else if (lower ? j < i : j > i)
+                        else if (Indexing::in_stored_triangle(lower, j, i))
                         {
                             sums[static_cast<std::size_t>(i)].add(value * RW(x[j * incx]));
                             sums[static_cast<std::size_t>(j)].add(Conj::apply(value) * xi);

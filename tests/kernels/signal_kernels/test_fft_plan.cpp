@@ -23,7 +23,7 @@
 
 /**
  * @file test_fft_plan.cpp
- * @brief Tests that FftPlan cooks the radix-2 and Bluestein tables and sizes its scratch.
+ * @brief Tests that FftPlan cooks the radix-2 and Bluestein tables and sizes its scratch, and the butterfly and packed-bin steps of the transform.
  * @author Mustafa Garip
  */
 
@@ -153,5 +153,156 @@ namespace SushiBLAS
 
             EXPECT_EQ(plan.column_line(plan.values().data(), plan.indices().data()).length, 3u);
         }
+
+        /** @brief Holds a plan's shape, a batch, and the scratch it must report. */
+        struct PlanScratchRow
+        {
+                const char* name;
+                std::size_t rows;
+                std::size_t columns;
+                Kernels::FftPairing pairing;
+                std::size_t batch;
+                std::size_t copy_scalars;
+                std::size_t bytes;
+        };
+
+        /** @brief Returns the rows with their scratch worked by hand for double. */
+        static std::vector<PlanScratchRow> scratch_rows()
+        {
+            return {// 1 x 8 complex: 8 scalars and 8 indices, 8 * 8 + 8 * 4 = 96.
+                    {"ComplexPowerOfTwo", 1, 8, Kernels::FftPairing::ComplexToComplex, 5, 0, 96},
+                    // 1 x 3 complex: padded 8, (8 + 6 + 16 table scalars + 2 * 2 * 8 padded) * 8 + 8 * 4 = 528.
+                    {"ComplexBluestein", 1, 3, Kernels::FftPairing::ComplexToComplex, 2, 0, 528},
+                    // 1 x 8 real: packed lines of 4, (4 + 10 table scalars + 2 * 2 * 4 lines) * 8 + 4 * 4 = 256.
+                    {"RealPackedOneRow", 1, 8, Kernels::FftPairing::RealToComplex, 2, 0, 256},
+                    // 2 x 4 real: (2 + 2 + 6 table scalars + 24 lines + 3 * 12 copy) * 8 + 4 * 4 = 576.
+                    {"RealPackedTwoRows", 2, 4, Kernels::FftPairing::RealToComplex, 3, 36, 576}};
+        }
+
+        /// @brief Names a row, which gtest takes as the test suffix.
+        static std::string scratch_row_name(const ::testing::TestParamInfo<PlanScratchRow>& info)
+        {
+            return info.param.name;
+        }
+
+        class Small_FftPlanScratch : public ::testing::TestWithParam<PlanScratchRow>
+        {
+        };
+
+        TEST_P(Small_FftPlanScratch, ReportsTheBytesOfTablesLinesCopyAndPaddedLines)
+        {
+            const PlanScratchRow row = GetParam();
+            const Kernels::FftPlan<double> plan(row.rows, row.columns, row.pairing);
+
+            EXPECT_EQ(plan.scratch_bytes(row.batch), row.bytes);
+        }
+
+        TEST_P(Small_FftPlanScratch, KeepsASpectrumCopyOnlyForARealInverseOverSeveralRows)
+        {
+            const PlanScratchRow row = GetParam();
+            const Kernels::FftPlan<double> plan(row.rows, row.columns, row.pairing);
+
+            EXPECT_EQ(plan.spectrum_copy_scalars(row.batch), row.copy_scalars);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_FftPlanScratch, ::testing::ValuesIn(scratch_rows()),
+                                 scratch_row_name);
+
+        /** @brief Holds a butterfly's inputs and the pair it must leave. */
+        struct ButterflyStepRow
+        {
+                double u[2];
+                double v[2];
+                double wr;
+                double wi;
+                double new_u[2];
+                double new_v[2];
+        };
+
+        class Small_FftButterfly : public ::testing::TestWithParam<ButterflyStepRow>
+        {
+        };
+
+        TEST_P(Small_FftButterfly, LeavesThePairAsSumAndDifferenceOfUAndTheTwiddledV)
+        {
+            const ButterflyStepRow row = GetParam();
+            double u[2] = {row.u[0], row.u[1]};
+            double v[2] = {row.v[0], row.v[1]};
+
+            Kernels::Detail::butterfly(u, v, row.wr, row.wi);
+
+            EXPECT_EQ(u[0], row.new_u[0]);
+            EXPECT_EQ(u[1], row.new_u[1]);
+            EXPECT_EQ(v[0], row.new_v[0]);
+            EXPECT_EQ(v[1], row.new_v[1]);
+        }
+
+        // v * w is (-4, 3), (3, 4) and (0.5, -1.5) for the three rows.
+        INSTANTIATE_TEST_SUITE_P(, Small_FftButterfly,
+                                 ::testing::Values(ButterflyStepRow{{1, 2}, {3, 4}, 0, 1, {-3, 5}, {5, -1}},
+                                                   ButterflyStepRow{{1, 2}, {3, 4}, 1, 0, {4, 6}, {-2, -2}},
+                                                   ButterflyStepRow{{0, 0}, {2, -1}, 0.5, -0.5,
+                                                                {0.5, -1.5}, {-0.5, 1.5}}));
+
+        /** @brief Holds the inputs of a packed-real bin step and the bin it must give. */
+        struct PackedBinRow
+        {
+                double ar;
+                double ai;
+                double mr;
+                double mi;
+                double root_r;
+                double root_i;
+                double out_r;
+                double out_i;
+        };
+
+        class Small_FftUnpackForwardBin : public ::testing::TestWithParam<PackedBinRow>
+        {
+        };
+
+        TEST_P(Small_FftUnpackForwardBin, GivesTheEvenPartPlusTheTurnedOddPart)
+        {
+            const PackedBinRow row = GetParam();
+            double out_r = 0;
+            double out_i = 0;
+
+            Kernels::Detail::unpack_forward_bin(row.ar, row.ai, row.mr, row.mi, row.root_r,
+                                                row.root_i, out_r, out_i);
+
+            EXPECT_EQ(out_r, row.out_r);
+            EXPECT_EQ(out_i, row.out_i);
+        }
+
+        // z = (3, 1), m = (1, 1): even (2, 1), odd (2, 0) * (0, -0.5) = (0, -1); root (0, -1) turns it to (-1, 0).
+        INSTANTIATE_TEST_SUITE_P(, Small_FftUnpackForwardBin,
+                                 ::testing::Values(PackedBinRow{3, 1, 1, 1, 0, -1, 1, 1},
+                                                   // Root (1, 0) keeps odd (0, -1): (2, 1) + (0, -1).
+                                                   PackedBinRow{3, 1, 1, 1, 1, 0, 2, 0},
+                                                   // z = (4, 0), m = 0: even (2, 0), odd (0, -2) turned to (-2, 0).
+                                                   PackedBinRow{4, 0, 0, 0, 0, -1, 0, 0}));
+
+        class Small_FftPackInverseBin : public ::testing::TestWithParam<PackedBinRow>
+        {
+        };
+
+        TEST_P(Small_FftPackInverseBin, GivesTheEvenPartPlusITimesTheTwiddledOddPart)
+        {
+            const PackedBinRow row = GetParam();
+            double out_r = 0;
+            double out_i = 0;
+
+            Kernels::Detail::pack_inverse_bin(row.ar, row.ai, row.mr, row.mi, row.root_r,
+                                              row.root_i, out_r, out_i);
+
+            EXPECT_EQ(out_r, row.out_r);
+            EXPECT_EQ(out_i, row.out_i);
+        }
+
+        // a = (3, 1), m = (1, 1): even (4, 2); root (1, 0) leaves odd (2, 0), i * odd = (0, 2).
+        INSTANTIATE_TEST_SUITE_P(, Small_FftPackInverseBin,
+                                 ::testing::Values(PackedBinRow{3, 1, 1, 1, 1, 0, 4, 4},
+                                                   // Root (0, -1) gives odd (0, 2), i * odd = (-2, 0).
+                                                   PackedBinRow{3, 1, 1, 1, 0, -1, 2, 2}));
     } // namespace Test
 } // namespace SushiBLAS

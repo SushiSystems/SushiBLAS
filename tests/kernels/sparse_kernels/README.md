@@ -15,12 +15,15 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/test_sptrsv.cpp` | Tests that the reference sptrsv recovers x from op(A) * x for either triangle |
 | `reference/test_structure.cpp` | Tests find_defect on the arrays of a CSR matrix and on the positions of a sparse vector |
 | `sycl/test_level1.cpp` | Tests the SYCL sparse-dense level 1 kernels against the reference ones on the host device |
-| `sycl/test_row_blocks.cpp` | Tests how many row blocks a scattering product takes, where each starts, and their fold; the count, the cover and the fold of one output run small, the launched fold runs medium and equals the host fold |
+| `sycl/test_row_blocks.cpp` | Tests how many row blocks a scattering product takes on a device profile, and their fold; the count and the fold of one output run small, the launched fold runs medium and equals the host fold |
 | `sycl/test_spmm.cpp` | Tests the SYCL spmm against the reference spmm in both layouts and both forms |
 | `sycl/test_spmv.cpp` | Tests the SYCL spmv, plain and scattered transposed, against the reference spmv |
 | `sycl/test_spsymv.cpp` | Tests the scattered SYCL spsymv against the reference spsymv on the host device |
 | `sycl/test_sptrsv.cpp` | Tests the SYCL sptrsv against the reference sptrsv for every flag on the host device |
 | `test_csr_pattern.cpp` | Tests that a CsrPattern reads its rows and columns under either index base |
 | `test_index_list.cpp` | Tests that an IndexList reads the dense positions of its entries under either base |
-| `compile_sparse.cpp` | Compile check, never run: `sparse.hpp` stands alone |
+| `test_rhs_index.cpp` | Tests the split of a flat product index into a matrix row and a right-hand side against nested loops |
+| `test_row_block_index.cpp` | Tests the row-block counts, targets and boundaries against a scan over the rows and hand values |
+| `test_triangle_index.cpp` | Tests the stored-triangle test and the substitution row order |
+| `test_index_list.cpp` | Compile check, never run: `sparse.hpp` stands alone |
 | `compile_sparse_kernels_log_category.cpp` | Compile check, never run: the log category names its module and the SushiBLAS project |

@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/signal_kernels/convolve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -56,7 +57,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                const int64_t out_length = signal_length - tap_count + 1;
+                const int64_t out_length = Indexing::convolve_out_length(signal_length, tap_count);
                 const int64_t total = rows * out_length;
                 if (total <= 0)
                     return sycl::event();
@@ -76,14 +77,15 @@ namespace SushiBLAS
                             const int64_t i = static_cast<int64_t>(flat);
 
                             // Neighbouring work-items take neighbouring samples, so reads coalesce.
-                            const int64_t row = i / out_length;
-                            const int64_t n = i % out_length;
+                            const Indexing::ConvolveCoord at = Indexing::convolve_coord(i, out_length);
+                            const int64_t row = at.row;
+                            const int64_t n = at.n;
                             const T* row_signal = signal + row * signal_length;
 
                             // The taps are added in ascending k order on every device.
                             W total_value = W(0);
                             for (int64_t k = 0; k < tap_count; ++k)
-                                total_value += W(row_signal[n + tap_count - 1 - k]) * W(taps[k]);
+                                total_value += W(row_signal[Indexing::convolve_source(n, tap_count, k)]) * W(taps[k]);
 
                             out[i] = static_cast<T>(total_value);
                         }

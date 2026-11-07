@@ -40,6 +40,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/triangle_index.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
 
 namespace SushiBLAS
@@ -79,7 +80,7 @@ namespace SushiBLAS
                     // A lower triangle is solved from row 0 down, an upper one from row n - 1 up.
                     for (int64_t step = 0; step < n; ++step)
                     {
-                        const int64_t i = lower ? step : n - 1 - step;
+                        const int64_t i = Indexing::ordered_row(step, n, lower);
 
                         ReferenceSum<T> sum;
                         sum.add(RW(b[i]));
@@ -89,7 +90,7 @@ namespace SushiBLAS
                             const int64_t j = pattern.column(k);
                             if (j == i)
                                 diagonal += RW(values[k]);
-                            else if (lower ? j < i : j > i)
+                            else if (Indexing::in_stored_triangle(lower, j, i))
                                 sum.add(-(RW(values[k]) * RW(X.get(j))));
                         }
                         X.set(i, static_cast<W>(unit_diag ? sum.value() : sum.value() / diagonal));
@@ -105,7 +106,7 @@ namespace SushiBLAS
                 // op(A) of a lower triangle is upper, so its rows are solved from n - 1 up.
                 for (int64_t step = 0; step < n; ++step)
                 {
-                    const int64_t i = lower ? n - 1 - step : step;
+                    const int64_t i = Indexing::ordered_row(step, n, !lower);
 
                     RW diagonal(0);
                     for (int64_t k = pattern.row_begin(i); k < pattern.row_end(i); ++k)
@@ -121,7 +122,7 @@ namespace SushiBLAS
                     for (int64_t k = pattern.row_begin(i); k < pattern.row_end(i); ++k)
                     {
                         const int64_t j = pattern.column(k);
-                        if (lower ? j < i : j > i)
+                        if (Indexing::in_stored_triangle(lower, j, i))
                             pending[static_cast<std::size_t>(j)].add(
                                 -(RW(conjugate_if(conjugated, values[k])) * solved));
                     }

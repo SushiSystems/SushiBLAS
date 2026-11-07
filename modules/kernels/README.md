@@ -579,7 +579,7 @@ runs. The kernels split the rows into blocks instead. `scatter_blocks` picks the
 smallest of the compute units of a CPU or the resident work-groups of another device,
 `K_MAX_SCATTER_BLOCKS` = 256, and the count at which the partial sums reach
 `K_SCATTER_PARTIALS_PER_ENTRY` = 2 per stored entry, and never below 1 while the result has an
-element. `block_first_row` cuts the rows so the blocks hold about the same number of
+element. `Indexing::block_first_row` (in `row_block_index.hpp`) cuts the rows so the blocks hold about the same number of
 entries. Block `b` alone writes its own slice of the scratch,
 `partials[b * outputs, (b + 1) * outputs)`, walking its rows in order. A second launch, one
 work-item per output, folds the blocks' partials in ascending block order and stores

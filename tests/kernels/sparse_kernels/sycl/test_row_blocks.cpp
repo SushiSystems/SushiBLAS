@@ -23,7 +23,7 @@
 
 /**
  * @file test_row_blocks.cpp
- * @brief Tests how many row blocks a scattering product takes, where each starts, and their fold.
+ * @brief Tests how many row blocks a scattering product takes on a device profile, and their fold.
  * @author Mustafa Garip
  */
 
@@ -36,11 +36,9 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/sycl/row_blocks.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
-#include <SushiBLAS/sparse_fixtures/integer_csr.hpp>
 
 namespace SushiBLAS
 {
@@ -141,17 +139,6 @@ namespace SushiBLAS
                                                               y.data(), 1);
                 return y;
             }
-
-            /** @brief Expects the blocks of a matrix to start at row 0, end at the last row, and touch end to start. */
-            void expect_blocks_cover_the_rows(const Kernels::CsrPattern<int64_t>& pattern,
-                                              int64_t blocks)
-            {
-                EXPECT_EQ(Blocks::Detail::block_first_row(pattern, 0, blocks), int64_t{0});
-                EXPECT_EQ(Blocks::Detail::block_end_row(pattern, blocks - 1, blocks), pattern.rows);
-                for (int64_t block = 0; block + 1 < blocks; ++block)
-                    EXPECT_EQ(Blocks::Detail::block_end_row(pattern, block, blocks),
-                              Blocks::Detail::block_first_row(pattern, block + 1, blocks));
-            }
         } // namespace
 
         /** @brief Runs scatter_blocks one profile at a time. */
@@ -172,15 +159,6 @@ namespace SushiBLAS
 
         INSTANTIATE_TEST_SUITE_P(, Small_RowBlocks, ::testing::ValuesIn(block_count_rows()),
                                  block_count_row_name);
-
-        TEST(Small_RowBlocksCoverage, TheBlocksCoverTheRowsInOrder)
-        {
-            const IntegerCsr a = integer_csr(50, 40, 3, false);
-            const Kernels::CsrPattern<int64_t> pattern{50, 40, a.nnz(), 0, a.offsets.data(),
-                                                       a.columns.data()};
-
-            expect_blocks_cover_the_rows(pattern, 6);
-        }
 
         /** @brief Folds one output at a time on the host. */
         class Small_RowBlocksFold : public ::testing::TestWithParam<FoldRow>

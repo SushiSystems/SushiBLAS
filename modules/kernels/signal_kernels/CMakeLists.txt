@@ -17,6 +17,8 @@ sushiblas_add_test_program(
     TESTS
         reference/test_convolve_1d.cpp
         reference/test_fft.cpp
+        test_convolve_index.cpp
+        test_fft_line_index.cpp
         test_fft_plan.cpp
     DEVICE_TESTS
         sycl/test_convolve_1d.cpp

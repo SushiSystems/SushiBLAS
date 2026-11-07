@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <SushiBLAS/signal_kernels/fft_plan.hpp>
+#include <SushiBLAS/signal_kernels/fft_line_index.hpp>
 
 namespace SushiBLAS
 {
@@ -123,22 +124,12 @@ namespace SushiBLAS
                     const T* roots = plan.half_roots(plan.values().data());
                     for (std::size_t k = 0; k <= half; ++k)
                     {
-                        const T zr = line[2 * (k % half)];
-                        const T zi = line[2 * (k % half) + 1];
-                        const T mr = line[2 * ((half - k) % half)];
-                        const T mi = -line[2 * ((half - k) % half) + 1];
-                        const T even_r = (zr + mr) * T(0.5);
-                        const T even_i = (zi + mi) * T(0.5);
-                        T odd_r;
-                        T odd_i;
-                        Kernels::Detail::complex_multiply(zr - mr, zi - mi, T(0), T(-0.5), odd_r,
-                                                          odd_i);
-                        T turned_r;
-                        T turned_i;
-                        Kernels::Detail::complex_multiply(roots[2 * k], roots[2 * k + 1], odd_r,
-                                                          odd_i, turned_r, turned_i);
-                        out[2 * k] = even_r + turned_r;
-                        out[2 * k + 1] = even_i + turned_i;
+                        const std::size_t own = k % half;
+                        const std::size_t mirror = Indexing::mirror_bin(k, half);
+                        Kernels::Detail::unpack_forward_bin(
+                            line[2 * own], line[2 * own + 1], line[2 * mirror],
+                            -line[2 * mirror + 1], roots[2 * k], roots[2 * k + 1], out[2 * k],
+                            out[2 * k + 1]);
                     }
                 }
 
@@ -155,10 +146,11 @@ namespace SushiBLAS
                     {
                         for (std::size_t k = 0; k < columns; ++k)
                         {
-                            const bool stored = k < plan.spectrum_columns();
-                            const std::size_t source = stored ? k : columns - k;
-                            line[2 * k] = in[2 * source];
-                            line[2 * k + 1] = stored ? in[2 * source + 1] : -in[2 * source + 1];
+                            const Indexing::HermitianSource from =
+                                Indexing::hermitian_source(k, plan.spectrum_columns(), columns);
+                            line[2 * k] = in[2 * from.bin];
+                            line[2 * k + 1] = from.conjugated ? -in[2 * from.bin + 1]
+                                                              : in[2 * from.bin + 1];
                         }
                         Kernels::Detail::run_line(row, line, scratch.work.data(),
                                                   FftDirection::Inverse);
@@ -171,21 +163,10 @@ namespace SushiBLAS
                     const T* roots = plan.half_roots(plan.values().data());
                     for (std::size_t k = 0; k < half; ++k)
                     {
-                        const T mr = in[2 * (half - k)];
-                        const T mi = -in[2 * (half - k) + 1];
-                        const T even_r = in[2 * k] + mr;
-                        const T even_i = in[2 * k + 1] + mi;
-                        T odd_r;
-                        T odd_i;
-                        Kernels::Detail::complex_multiply(in[2 * k] - mr, in[2 * k + 1] - mi,
-                                                          roots[2 * k], -roots[2 * k + 1], odd_r,
-                                                          odd_i);
-                        T turned_r;
-                        T turned_i;
-                        Kernels::Detail::complex_multiply(T(0), T(1), odd_r, odd_i, turned_r,
-                                                          turned_i);
-                        line[2 * k] = even_r + turned_r;
-                        line[2 * k + 1] = even_i + turned_i;
+                        Kernels::Detail::pack_inverse_bin(
+                            in[2 * k], in[2 * k + 1], in[2 * (half - k)],
+                            -in[2 * (half - k) + 1], roots[2 * k], roots[2 * k + 1],
+                            line[2 * k], line[2 * k + 1]);
                     }
                     Kernels::Detail::run_line(row, line, scratch.work.data(),
                                               FftDirection::Inverse);

@@ -43,6 +43,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/rhs_index.hpp>
 
 namespace SushiBLAS
 {
@@ -80,8 +81,10 @@ namespace SushiBLAS
                         Launch::indexed(h, queue, static_cast<std::size_t>(pattern.rows * nrhs),
                                         [=](std::size_t index)
                         {
-                            const int64_t i = static_cast<int64_t>(index) / nrhs;
-                            const int64_t r = static_cast<int64_t>(index) % nrhs;
+                            const Indexing::RhsCoord at =
+                                Indexing::rhs_coord(static_cast<int64_t>(index), nrhs);
+                            const int64_t i = at.row;
+                            const int64_t r = at.rhs;
 
                             W sum(0);
                             for (int64_t k = pattern.row_begin(i); k < pattern.row_end(i); ++k)

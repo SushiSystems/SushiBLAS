@@ -42,6 +42,8 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/row_block_index.hpp>
+#include <SushiBLAS/sparse_kernels/triangle_index.hpp>
 #include <SushiBLAS/sparse_kernels/sycl/row_blocks.hpp>
 
 namespace SushiBLAS
@@ -82,13 +84,13 @@ namespace SushiBLAS
                                    [=](sycl::id<1> id)
                     {
                         const int64_t block = static_cast<int64_t>(id[0]);
-                        W* partial = partials + block * n;
+                        W* partial = partials + Indexing::partial_index(block, n, 0);
 
                         for (int64_t j = 0; j < n; ++j)
                             partial[j] = W(0);
 
-                        const int64_t first = Detail::block_first_row(pattern, block, used_blocks);
-                        const int64_t last = Detail::block_end_row(pattern, block, used_blocks);
+                        const int64_t first = Indexing::block_first_row(pattern, block, used_blocks);
+                        const int64_t last = Indexing::block_end_row(pattern, block, used_blocks);
                         for (int64_t i = first; i < last; ++i)
                         {
                             const W xi = W(x[i * incx]);
@@ -100,7 +102,7 @@ namespace SushiBLAS
                                 {
                                     partial[i] += multiply(Conj::diagonal(value), xi);
                                 }
-                                else if (lower ? j < i : j > i)
+                                else if (Indexing::in_stored_triangle(lower, j, i))
                                 {
                                     partial[i] += multiply(value, W(x[j * incx]));
                                     partial[j] += multiply(Conj::apply(value), xi);

@@ -13,4 +13,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/test_convolve_1d.cpp` | Tests the reference valid-mode convolution against hand values and a direct loop |
 | `sycl/test_convolve_1d.cpp` | Tests the SYCL valid-mode convolution against the reference on the host device |
 | `sycl/test_fft.cpp` | Tests that the SYCL batched FFT equals the reference bit for bit on the host device |
-| `test_fft_plan.cpp` | Tests that FftPlan cooks the radix-2 and Bluestein tables and sizes its scratch |
+| `test_convolve_index.cpp` | Tests the output length, the sample split and the tap sources against nested loops |
+| `test_fft_line_index.cpp` | Tests the line layouts, the butterfly positions and the spectrum mirroring against nested loops and hand values |
+| `test_fft_plan.cpp` | Tests that FftPlan cooks the radix-2 and Bluestein tables and sizes its scratch, and the butterfly and packed-bin steps against hand values |
