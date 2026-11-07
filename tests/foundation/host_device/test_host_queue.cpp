@@ -27,10 +27,12 @@
  * @author Mustafa Garip
  */
 
+#include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/host_queue.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -41,6 +43,22 @@ namespace SushiBLAS
         {
 
         };
+
+        TEST(Small_HostQueue, NoDeviceGivesNoQueue)
+        {
+            EXPECT_FALSE(Detail::make_host_queue(std::vector<sycl::device>{}).has_value());
+        }
+
+        TEST(Medium_HostQueue, TheFirstDeviceOfTheListGivesAnInOrderQueue)
+        {
+            const sycl::device device = TestEnvironment::queue().get_device();
+
+            const auto queue = Detail::make_host_queue(std::vector<sycl::device>{device});
+
+            ASSERT_TRUE(queue.has_value());
+            EXPECT_EQ(queue->get_device(), device);
+            EXPECT_TRUE(queue->is_in_order());
+        }
 
         TEST_F(Medium_HostQueueOnDevice, ReturnsTheSameInOrderQueueOnACPUDevice)
         {

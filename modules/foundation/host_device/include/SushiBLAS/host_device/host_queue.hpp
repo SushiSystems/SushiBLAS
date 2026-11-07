@@ -39,14 +39,19 @@ namespace SushiBLAS
     {
         namespace Detail
         {
-            /** @brief Returns an in-order queue on the first CPU device, or nothing without one. */
-            [[nodiscard]] inline std::optional<sycl::queue> make_host_queue()
+            /** @brief Returns an in-order queue on the first of @p devices, or nothing when the list is empty. */
+            [[nodiscard]] inline std::optional<sycl::queue> make_host_queue(
+                const std::vector<sycl::device>& devices)
             {
-                const std::vector<sycl::device> devices =
-                    sycl::device::get_devices(sycl::info::device_type::cpu);
                 if (devices.empty())
                     return std::nullopt;
                 return sycl::queue(devices.front(), sycl::property::queue::in_order());
+            }
+
+            /** @brief Returns an in-order queue on the first CPU device SYCL reports, or nothing without one. */
+            [[nodiscard]] inline std::optional<sycl::queue> make_host_queue()
+            {
+                return make_host_queue(sycl::device::get_devices(sycl::info::device_type::cpu));
             }
         } // namespace Detail
 

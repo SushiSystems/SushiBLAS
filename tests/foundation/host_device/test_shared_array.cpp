@@ -23,50 +23,100 @@
 
 /**
  * @file test_shared_array.cpp
- * @brief Tests that SharedArray aligns and fills its elements and that a kernel reaches them.
+ * @brief Tests that SharedArray fills, copies and aligns its elements through its allocator and that a kernel reaches them.
  * @author Mustafa Garip
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
+#include <SushiBLAS/host_device/host_shared_allocator.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the SharedArray tests on the host CPU queue. */
+        /** @brief Runs the SharedArray value tests on host memory, with no device and no queue. */
+        class Small_SharedArray : public ::testing::Test
+        {
+            protected:
+                /// @brief The memory every array of a test comes from.
+                HostSharedAllocator allocator;
+        };
+
+        /** @brief Runs the SharedArray tests that reach a kernel on the host CPU queue. */
         class Medium_SharedArray : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Medium_SharedArray, StartsValueInitialised)
+        TEST_F(Small_SharedArray, StartsValueInitialised)
         {
-            const SharedArray<float> array(queue(), 5);
+            const SharedArray<float> array(allocator, 5);
 
             EXPECT_EQ(array.size(), std::size_t{5});
             EXPECT_EQ(array.values(), std::vector<float>(5, 0.0f));
         }
 
-        TEST_F(Medium_SharedArray, IsAlignedToTheSharedArrayAlignment)
+        TEST_F(Small_SharedArray, AsksTheAllocatorForTheSharedArrayAlignment)
+        {
+            const SharedArray<float> array(allocator, 5);
+
+            EXPECT_EQ(allocator.last_alignment(), K_SHARED_ARRAY_ALIGNMENT);
+            EXPECT_EQ(allocator.last_bytes(), 5 * sizeof(float));
+        }
+
+        TEST_F(Small_SharedArray, HoldsTheValuesItWasGiven)
+        {
+            const std::vector<int> values{3, 1, 4, 1, 5};
+            const SharedArray<int> array(allocator, values);
+
+            EXPECT_EQ(array.values(), values);
+        }
+
+        TEST_F(Small_SharedArray, AnEmptyArrayHasNoElements)
+        {
+            const SharedArray<double> array(allocator, 0);
+
+            EXPECT_EQ(array.size(), std::size_t{0});
+            EXPECT_TRUE(array.values().empty());
+        }
+
+        TEST_F(Small_SharedArray, AnEmptyArrayStillTakesOneElementOfMemory)
+        {
+            const SharedArray<double> array(allocator, 0);
+
+            EXPECT_EQ(allocator.last_bytes(), sizeof(double));
+        }
+
+        TEST_F(Small_SharedArray, GivesItsMemoryBackWhenItGoesOutOfScope)
+        {
+            {
+                const SharedArray<int> array(allocator, 4);
+            }
+
+            EXPECT_EQ(allocator.free_count(), allocator.allocation_count());
+            EXPECT_EQ(allocator.allocation_count(), std::size_t{1});
+        }
+
+        TEST_F(Small_SharedArray, ThrowsWhenTheAllocatorHasNoMemory)
+        {
+            allocator.set_failing(true);
+
+            EXPECT_THROW(SharedArray<int>(allocator, 4), std::bad_alloc);
+        }
+
+        TEST_F(Medium_SharedArray, IsAlignedToTheSharedArrayAlignmentOnTheQueue)
         {
             const SharedArray<float> array(queue(), 5);
 
             EXPECT_EQ(reinterpret_cast<std::uintptr_t>(array.get()) % K_SHARED_ARRAY_ALIGNMENT,
                       std::uintptr_t{0});
-        }
-
-        TEST_F(Medium_SharedArray, HoldsTheValuesItWasGiven)
-        {
-            const std::vector<int> values{3, 1, 4, 1, 5};
-            const SharedArray<int> array(queue(), values);
-
-            EXPECT_EQ(array.values(), values);
         }
 
         TEST_F(Medium_SharedArray, AKernelWritesWhatTheHostReads)
@@ -80,14 +130,6 @@ namespace SushiBLAS
             }).wait();
 
             EXPECT_EQ(array.values(), (std::vector<int>{0, 2, 4, 6, 8, 10, 12, 14}));
-        }
-
-        TEST_F(Medium_SharedArray, AnEmptyArrayHasNoElements)
-        {
-            const SharedArray<double> array(queue(), 0);
-
-            EXPECT_EQ(array.size(), std::size_t{0});
-            EXPECT_TRUE(array.values().empty());
         }
     } // namespace Test
 } // namespace SushiBLAS

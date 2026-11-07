@@ -15,7 +15,10 @@ sushiblas_add_test_program(
     MODULE host_device
     TESTS
         test_host_queue.cpp
+        test_host_shared_allocator.cpp
+        test_usm_shared_allocator.cpp
     DEVICE_TESTS
         test_shared_array.cpp
     COMPILE_CHECKS
-        compile_host_device_test.cpp)
+        compile_host_device_test.cpp
+        compile_shared_allocator.cpp)

@@ -32,8 +32,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <new>
+#include <optional>
 #include <vector>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/host_device/shared_allocator.hpp>
+#include <SushiBLAS/host_device/usm_shared_allocator.hpp>
 
 namespace SushiBLAS
 {
@@ -43,7 +46,10 @@ namespace SushiBLAS
         inline constexpr std::size_t K_SHARED_ARRAY_ALIGNMENT = 128;
 
         /**
-         * @brief Owns one aligned shared USM array that host code and a kernel both read.
+         * @brief Owns one aligned array that host code reads and, with the default allocator, a kernel too.
+         *
+         * The queue constructors take shared USM from a UsmSharedAllocator on that queue. The
+         * allocator constructors take the memory from any SharedAllocator, which must outlive the array.
          * @tparam T The element type; trivially copyable.
          */
         template<typename T>
@@ -59,19 +65,30 @@ namespace SushiBLAS
 
                 /** @brief Allocates count value-initialised elements on the device of queue. */
                 SharedArray(sycl::queue& queue, std::size_t count)
-                    : queue_(queue), count_(count),
-                      data_(sycl::aligned_alloc_shared<T>(K_SHARED_ARRAY_ALIGNMENT,
-                                                          count ? count : 1, queue))
+                    : owned_(std::in_place, queue), allocator_(*owned_), count_(count),
+                      data_(allocate())
                 {
-                    if (data_ == nullptr)
-                        throw std::bad_alloc();
-                    std::fill(data_, data_ + count_, T{});
+
+                }
+
+                /** @brief Allocates one element per value from allocator and copies the values in. */
+                SharedArray(SharedAllocator& allocator, const std::vector<T>& values)
+                    : SharedArray(allocator, values.size())
+                {
+                    std::copy(values.begin(), values.end(), data_);
+                }
+
+                /** @brief Allocates count value-initialised elements from allocator. */
+                SharedArray(SharedAllocator& allocator, std::size_t count)
+                    : allocator_(allocator), count_(count), data_(allocate())
+                {
+
                 }
 
                 /** @brief Frees the array. */
                 ~SharedArray()
                 {
-                    sycl::free(data_, queue_);
+                    allocator_.deallocate(data_);
                 }
 
                 SharedArray(const SharedArray&) = delete;
@@ -98,8 +115,22 @@ namespace SushiBLAS
                 }
 
             private:
-                /** @brief The queue whose context owns the array. */
-                sycl::queue& queue_;
+                /** @brief Takes the block for count_ elements, at least one, and value-initialises them. */
+                [[nodiscard]] T* allocate() const
+                {
+                    T* block = static_cast<T*>(allocator_.allocate(
+                        (count_ ? count_ : 1) * sizeof(T), K_SHARED_ARRAY_ALIGNMENT));
+                    if (block == nullptr)
+                        throw std::bad_alloc();
+                    std::fill(block, block + count_, T{});
+                    return block;
+                }
+
+                /** @brief The allocator of the queue constructors; empty for the others. */
+                std::optional<UsmSharedAllocator> owned_;
+
+                /** @brief The allocator the block came from and goes back to. */
+                SharedAllocator& allocator_;
 
                 /** @brief The element count. */
                 std::size_t count_;
