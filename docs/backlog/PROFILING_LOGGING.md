@@ -9,7 +9,6 @@
 | RW-119 | P2 | unmeasured | Measure what the profiling zones, counters and instants cost | the per-record and per-launch cost of `blas.record`, the lock wait, the scratch counters and the GEMM instants is recorded with the profiler off, on with no… |  | `docs/design/PROFILING/README.md` | 2026-10-26 |
 | RW-121 | P2 | open | Write a cost rule for every `Unaudited` row of the cost table | no row of `cost_table.cpp` is `Unaudited`: each is costed from its body, or declared `DataDependent` with its reason in the cost README |  |  | 2026-10-26 |
 | RW-122 | P2 | blocked | State the variant a kernel ran as, and its shape, on the span of its node | a GEMM span names its variant and a kernel span its launch shape as attributes, and the per-launch instants of `gemm.hpp` are gone | external: SushiProfiler has no way to write a fact from a task body and join it to its node | `docs/design/PROFILING/README.md` | 2026-10-26 |
-| RW-140 | P2 | decision | Give the profile gate tests a collector port so they run small | Medium_ProfileGate reads events through an in-memory collector adapter and is renamed Small_ |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 
