@@ -46,6 +46,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -96,7 +97,9 @@ namespace SushiBLAS
             std::memset(result.data(), 0,
                         static_cast<std::size_t>(result.num_elements) * sizeof(float));
 
-            ScratchPool scratch(runtime);
+            RuntimeScratchSource scratch_source(runtime);
+
+            ScratchPool scratch(scratch_source);
             LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)

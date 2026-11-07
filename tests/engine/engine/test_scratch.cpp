@@ -33,6 +33,7 @@
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -50,7 +51,8 @@ namespace SushiBLAS
 
         TEST(Medium_Scratch, ALeaseNamesItsBytesAndItsRegion)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             const ScratchBuffer buffer(pool, 1000, 0);
 
             EXPECT_FALSE(buffer.is_empty());
@@ -62,7 +64,8 @@ namespace SushiBLAS
 
         TEST(Medium_Scratch, TheBlockReturnsToTheShelfWhenTheLastCopyGoes)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             const std::size_t idle_before = pool.idle_block_count();
             {
                 const ScratchBuffer first(pool, 256, 0);

@@ -191,7 +191,7 @@ namespace SushiBLAS
                                           const Tensor& signal, const Tensor& taps)
             {
                 Tensor out = sentinel_tensor<T>(engine, c.output_dims());
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 SushiBLAS::SignalOps(graph.recorder()).convolve_1d(signal, taps, out);
                 graph.run().value();
                 return SushiBLAS::IO().to_vector<T>(out);
@@ -434,7 +434,7 @@ namespace SushiBLAS
         /** @brief Tests that a well-formed call records and runs, the control of the refusals. */
         TEST_F(Medium_SignalConvolve1D, AWellFormedCallRecordsAndRuns)
         {
-            RecordingFixture graph(*engine);
+            RecordingFixture graph(TestEnvironment::runtime(), *engine);
             SignalOps ops(graph.recorder());
 
             const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
@@ -503,7 +503,7 @@ namespace SushiBLAS
         /** @brief Tests that the operation refuses an output that is also an input. */
         TEST_F(Medium_SignalConvolve1D, RefusesAnOutputThatOverlapsAnInput)
         {
-            RecordingFixture graph(*engine);
+            RecordingFixture graph(TestEnvironment::runtime(), *engine);
             SignalOps ops(graph.recorder());
 
             Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));

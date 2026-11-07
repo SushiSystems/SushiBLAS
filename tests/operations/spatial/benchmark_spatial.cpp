@@ -112,10 +112,10 @@ namespace
     }
 
     /// @brief Times the window gathers, the window products and the poolings at one side.
-    void benchmark_windows(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                           DataType dtype, int64_t side)
+    void benchmark_windows(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                           const Bench::ResultTable& table, DataType dtype, int64_t side)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "spatial");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
@@ -184,10 +184,10 @@ namespace
     }
 
     /// @brief Times the upsampling, the channel copies, the affine, the broadcast and the layout.
-    void benchmark_copies(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                          DataType dtype, int64_t side)
+    void benchmark_copies(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                          const Bench::ResultTable& table, DataType dtype, int64_t side)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "spatial");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
@@ -256,7 +256,7 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "spatial");
+        Bench::print_environment(runtime, engine, "spatial");
         std::printf("batch:         %lld images of %lld channels\n\n",
                     static_cast<long long>(K_BATCH), static_cast<long long>(K_CHANNELS));
 
@@ -265,8 +265,8 @@ namespace
         {
             for (const int64_t side : sizes)
             {
-                benchmark_windows(engine, table, dtype, side);
-                benchmark_copies(engine, table, dtype, side);
+                benchmark_windows(runtime, engine, table, dtype, side);
+                benchmark_copies(runtime, engine, table, dtype, side);
             }
         }
     }

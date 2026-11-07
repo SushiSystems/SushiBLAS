@@ -170,10 +170,11 @@ namespace
     }
 
     /// @brief Times the four matrix products on n x n operands and prints one row each.
-    void benchmark_products(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                        DataType dtype, int64_t n, const SushiBLAS::Tensor& a)
+    void benchmark_products(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                            const Bench::ResultTable& table, DataType dtype, int64_t n,
+                            const SushiBLAS::Tensor& a)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::Tensor g = constant_matrix(engine, dtype, n, n, K_G_VALUE);
@@ -206,10 +207,11 @@ namespace
     }
 
     /// @brief Times TRMV on a vector of ones under one execution mode and prints one row.
-    void benchmark_trmv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                    int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
+    void benchmark_trmv(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                        const Bench::ResultTable& table, DataType dtype, int64_t n,
+                        const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
@@ -223,10 +225,11 @@ namespace
     }
 
     /// @brief Times TRSV on a vector of ones under one execution mode and prints one row.
-    void benchmark_trsv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                    int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
+    void benchmark_trsv(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                        const Bench::ResultTable& table, DataType dtype, int64_t n,
+                        const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
@@ -240,10 +243,11 @@ namespace
     }
 
     /// @brief Times TRSM from the left on n x columns right-hand sides of ones and prints one row.
-    void benchmark_trsm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                    int64_t n, const SushiBLAS::Tensor& a, int64_t columns, const char* label)
+    void benchmark_trsm(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                        const Bench::ResultTable& table, DataType dtype, int64_t n,
+                        const SushiBLAS::Tensor& a, int64_t columns, const char* label)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "triangular");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
@@ -325,18 +329,21 @@ namespace
     }
 
     /// @brief Times every row of the program for one data type and one order.
-    void benchmark_size(sycl::queue& queue, SushiBLAS::Engine& engine,
-                    const Bench::ResultTable& table, DataType dtype, int64_t n)
+    void benchmark_size(SushiRuntime::Runtime& runtime, sycl::queue& queue,
+                        SushiBLAS::Engine& engine, const Bench::ResultTable& table,
+                        DataType dtype, int64_t n)
     {
         const SushiBLAS::Tensor a = unit_lower(engine, dtype, n);
 
-        benchmark_products(engine, table, dtype, n, a);
-        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trmv");
-        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trmv ref");
-        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trsv");
-        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trsv ref");
-        benchmark_trsm(engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
-        benchmark_trsm(engine, table, dtype, n, a, n, "trsm r=n");
+        benchmark_products(runtime, engine, table, dtype, n, a);
+        benchmark_trmv(runtime, engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trmv");
+        benchmark_trmv(runtime, engine, table, dtype, n, a, ExecutionMode::ForceReference,
+                       "trmv ref");
+        benchmark_trsv(runtime, engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trsv");
+        benchmark_trsv(runtime, engine, table, dtype, n, a, ExecutionMode::ForceReference,
+                       "trsv ref");
+        benchmark_trsm(runtime, engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
+        benchmark_trsm(runtime, engine, table, dtype, n, a, n, "trsm r=n");
         benchmark_solve_kernels(queue, engine, table, n, a);
     }
 
@@ -345,14 +352,14 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine, "triangular");
+        Bench::print_environment(runtime, engine, "triangular");
 
         sycl::queue& queue = runtime.advanced().queue(SushiRuntime::DeviceIndex{0});
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_size(queue, engine, table, dtype, n);
+                benchmark_size(runtime, queue, engine, table, dtype, n);
         }
         std::printf("\n");
     }

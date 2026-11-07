@@ -56,10 +56,10 @@ namespace
     constexpr double K_B_VALUE = 0.5;
 
     /// @brief Times C = A * B for n x n matrices and prints one row.
-    void benchmark_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                    int64_t n)
+    void benchmark_gemm(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                        const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
@@ -89,10 +89,10 @@ namespace
         {512, 2304, 2888}};
 
     /// @brief Times C = A^T * B for one deep shape and prints one row, sized by k.
-    void benchmark_deep_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                             const DeepShape& shape)
+    void benchmark_deep_gemm(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                             const Bench::ResultTable& table, const DeepShape& shape)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
@@ -119,10 +119,10 @@ namespace
         {255, 256, 1352}, {256, 2304, 1352}};
 
     /// @brief Times C = A * B^T for one deep shape and prints one row, sized by k.
-    void benchmark_strided_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                                const DeepShape& shape)
+    void benchmark_strided_gemm(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                                const Bench::ResultTable& table, const DeepShape& shape)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "gemm");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
@@ -149,7 +149,7 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine, "gemm");
+        Bench::print_environment(runtime, engine, "gemm");
 
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)
@@ -161,14 +161,14 @@ namespace
                 continue;
             }
             for (const int64_t n : sizes)
-                benchmark_gemm(engine, table, dtype, n);
+                benchmark_gemm(runtime, engine, table, dtype, n);
         }
 
         for (const DeepShape& shape : K_DEEP_SHAPES)
-            benchmark_deep_gemm(engine, table, shape);
+            benchmark_deep_gemm(runtime, engine, table, shape);
 
         for (const DeepShape& shape : K_STRIDED_SHAPES)
-            benchmark_strided_gemm(engine, table, shape);
+            benchmark_strided_gemm(runtime, engine, table, shape);
         std::printf("\n");
     }
 

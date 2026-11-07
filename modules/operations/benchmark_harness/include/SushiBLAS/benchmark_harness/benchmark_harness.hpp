@@ -152,16 +152,18 @@ namespace SushiBLAS::Bench
     /**
      * @brief Prints the environment as above, then starts the program's SushiProfiler record when
      *        the SB_BENCH_PROFILE variable names a folder.
+     * @param runtime The runtime the program runs on; the record reads its device spans.
      * @param scenario The program's name; the record is `<scenario>.sprec.json` in that folder.
      */
-    inline void print_environment(Engine& engine, const char* scenario)
+    inline void print_environment(SushiRuntime::Runtime& runtime, Engine& engine, const char* scenario)
     {
         print_environment(engine);
 #if SB_ENABLE_PROFILER
-        if (ProfileSession::start_from_environment(engine.runtime(), scenario) != nullptr)
+        if (ProfileSession::start_from_environment(runtime, scenario) != nullptr)
             std::printf("profile:       recording to %s\n\n",
                         environment_value(K_PROFILE_FOLDER_VARIABLE).c_str());
 #else
+        static_cast<void>(runtime);
         static_cast<void>(scenario);
 #endif
     }

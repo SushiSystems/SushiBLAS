@@ -150,14 +150,5 @@ namespace SushiBLAS
 
             EXPECT_EQ(source.served_blocks(), std::size_t{1});
         }
-
-        /** @brief Tests that a pool over a source has no runtime to give. */
-        TEST(Small_ScratchPoolOverASource, ItHasNoRuntime)
-        {
-            HostScratchSource source;
-            const ScratchPool pool(source);
-
-            EXPECT_THROW((void)pool.runtime(), UnsupportedExecution);
-        }
     } // namespace Test
 } // namespace SushiBLAS

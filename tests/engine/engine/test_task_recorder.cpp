@@ -56,6 +56,7 @@
 #if SB_ENABLE_PROFILER
 #include <SushiProfiler/collector/collector.hpp>
 #include <SushiProfiler/events/trace_event.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #endif
 
 namespace SushiBLAS
@@ -129,7 +130,7 @@ namespace SushiBLAS
         /** @brief Tests that the determinism of a description reaches the runtime's plan. */
         TEST_F(Medium_TaskRecorderTest, ADescriptionsDeterminismReachesThePlanNode)
         {
-            RecordingFixture fixture(*engine);
+            RecordingFixture fixture(TestEnvironment::runtime(), *engine);
             Tensor out = vector_of_four();
             OperandSet operands;
             operands.writes(out);
@@ -156,7 +157,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode :
                  {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
             {
-                RecordingFixture fixture(*engine);
+                RecordingFixture fixture(TestEnvironment::runtime(), *engine);
                 fixture.recorder().set_mode(mode);
                 Tensor out = vector_of_four();
                 OperandSet operands;
@@ -175,9 +176,10 @@ namespace SushiBLAS
         /** @brief Tests that a late-count task of a live recorder runs the indices below its count. */
         TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunsWhileItsRecorderLives)
         {
-            SushiRuntime::Graph graph = engine->runtime().graph();
-            ScratchPool scratch_pool(engine->runtime());
-            LateCountHold late_counts(engine->runtime());
+            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
+            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
+            ScratchPool scratch_pool(scratch_pool_source);
+            LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             Tensor out = vector_of_four();
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
@@ -208,8 +210,9 @@ namespace SushiBLAS
          */
         TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunAfterItsHoldIsGoneIsRefused)
         {
-            SushiRuntime::Graph graph = engine->runtime().graph();
-            ScratchPool scratch_pool(engine->runtime());
+            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
+            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
+            ScratchPool scratch_pool(scratch_pool_source);
             Tensor out = vector_of_four();
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);
@@ -221,7 +224,7 @@ namespace SushiBLAS
             float* marks = out.data_as<float>();
 
             {
-                LateCountHold late_counts(engine->runtime());
+                LateCountHold late_counts(TestEnvironment::runtime());
                 TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
                 recorder.record_late_pair(
                     TaskDescription(), operands, "test", count, 4, [] {},
@@ -244,9 +247,10 @@ namespace SushiBLAS
         {
             using SushiRuntime::Literals::operator""_class;
 
-            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             SushiRuntime::Graph graph = runtime.graph();
-            ScratchPool scratch_pool(runtime);
+            RuntimeScratchSource scratch_pool_source(runtime);
+            ScratchPool scratch_pool(scratch_pool_source);
             LateCountHold late_counts(runtime);
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             const SushiRuntime::PlacementScope scope =
@@ -559,9 +563,10 @@ namespace SushiBLAS
         /** @brief Tests that each record call adds exactly one rule, at the node count the graph had before it. */
         TEST_F(Medium_TaskRecorderJoin, EachRecordCallAddsOneRuleAtTheNodeCountItSaw)
         {
-            SushiRuntime::Graph graph = engine->runtime().graph();
-            ScratchPool scratch_pool(engine->runtime());
-            LateCountHold late_counts(engine->runtime());
+            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
+            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
+            ScratchPool scratch_pool(scratch_pool_source);
+            LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             const Tensor a = engine->create_tensor({2, 3}, Core::DataType::Float32);
             const Tensor b = engine->create_tensor({3, 4}, Core::DataType::Float32);
@@ -580,9 +585,10 @@ namespace SushiBLAS
         /** @brief Tests that a late-count pair is one rule. */
         TEST_F(Medium_TaskRecorderJoin, ALateCountPairIsOneRule)
         {
-            SushiRuntime::Graph graph = engine->runtime().graph();
-            ScratchPool scratch_pool(engine->runtime());
-            LateCountHold late_counts(engine->runtime());
+            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
+            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
+            ScratchPool scratch_pool(scratch_pool_source);
+            LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
@@ -600,9 +606,10 @@ namespace SushiBLAS
         /** @brief Tests that the runtime maps every rule of a chain to its own registration index. */
         TEST_F(Medium_TaskRecorderJoin, RuleRegistrationMapsEveryRuleToADistinctIndex)
         {
-            SushiRuntime::Graph graph = engine->runtime().graph();
-            ScratchPool scratch_pool(engine->runtime());
-            LateCountHold late_counts(engine->runtime());
+            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
+            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
+            ScratchPool scratch_pool(scratch_pool_source);
+            LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             const Tensor a = engine->create_tensor({2, 3}, Core::DataType::Float32);
             const Tensor b = engine->create_tensor({3, 4}, Core::DataType::Float32);
@@ -826,7 +833,7 @@ namespace SushiBLAS
         /** @brief Tests that every node a graph primitive records carries an operation id. */
         TEST_F(Medium_TaskRecorderCoverage, EveryNodeOfAGraphPrimitiveCarriesAnOperationId)
         {
-            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             auto counts = runtime.buffer<std::uint32_t>(64).value();
             auto offsets = runtime.buffer<std::uint32_t>(65).value();
             auto total = runtime.buffer<std::uint32_t>(1).value();

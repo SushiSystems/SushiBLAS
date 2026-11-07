@@ -54,7 +54,7 @@ owns the graph, the `TaskRecorder`, `run()`, `discard()` and `plan()`, and forwa
 `run_succeeds()`, `run()` as a GoogleTest assertion that prints the runtime's message on failure.
 It holds the graph rather than deriving from it, so `RecordingGraph` keeps its non-virtual
 destructor and a fixture exposes only the calls a test makes. The constructors mirror those of
-`RecordingGraph`.
+`RecordingGraph`; the one that takes an engine takes the runtime the engine was built on beside it.
 
 The fixture includes no operation family. A test includes the headers of the families it
 records, or `<SushiBLAS/SushiBLAS.hpp>`.

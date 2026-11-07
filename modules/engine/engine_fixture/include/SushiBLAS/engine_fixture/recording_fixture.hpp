@@ -64,12 +64,13 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Builds an empty graph on an engine's runtime and a recorder over it that
-                 *        borrows the engine's scratch pool and execution mode.
+                 * @brief Builds an empty graph on a runtime and a recorder over it that borrows
+                 *        the scratch pool and the execution mode of an engine built on that runtime.
+                 * @param runtime Must outlive the fixture.
                  * @param engine Must outlive the fixture.
                  */
-                explicit RecordingFixture(Engine& engine)
-                    : graph_(engine)
+                RecordingFixture(SushiRuntime::Runtime& runtime, Engine& engine)
+                    : graph_(runtime, engine.scratch_pool(), engine.mode())
                 {
 
                 }

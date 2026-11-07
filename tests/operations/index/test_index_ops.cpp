@@ -43,6 +43,7 @@
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -801,9 +802,10 @@ namespace SushiBLAS
          */
         TEST_F(Medium_Regression_IndexOps, AReplayedLateForEachRunsOnTheLiveCountOfEachRun)
         {
-            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             SushiRuntime::Graph graph = runtime.graph();
-            ScratchPool scratch_pool(runtime);
+            RuntimeScratchSource scratch_pool_source(runtime);
+            ScratchPool scratch_pool(scratch_pool_source);
             LateCountHold late_counts(runtime);
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);
@@ -822,9 +824,10 @@ namespace SushiBLAS
          */
         TEST_F(Medium_Regression_IndexOps, ReleasingTheHoldOfALateForEachLeavesTheTensorsTheirOwners)
         {
-            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             SushiRuntime::Graph graph = runtime.graph();
-            ScratchPool scratch_pool(runtime);
+            RuntimeScratchSource scratch_pool_source(runtime);
+            ScratchPool scratch_pool(scratch_pool_source);
             LateCountHold late_counts(runtime);
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);

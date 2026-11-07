@@ -63,7 +63,7 @@ namespace SushiBLAS
                 {
                     engine = std::make_unique<Engine>(TestEnvironment::runtime(),
                                                       Core::Layout::RowMajor);
-                    recording = std::make_unique<RecordingFixture>(*engine);
+                    recording = std::make_unique<RecordingFixture>(TestEnvironment::runtime(), *engine);
                     reset_fill_random_generator();
                 }
 
@@ -77,7 +77,7 @@ namespace SushiBLAS
                 {
                     recording.reset();
                     engine = std::make_unique<Engine>(TestEnvironment::runtime(), layout);
-                    recording = std::make_unique<RecordingFixture>(*engine);
+                    recording = std::make_unique<RecordingFixture>(TestEnvironment::runtime(), *engine);
                 }
 
                 /**

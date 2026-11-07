@@ -49,6 +49,7 @@
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -312,7 +313,8 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchBuffer, ADeviceWriteOverALeaseSurvivesItsPool)
         {
-            std::optional<ScratchPool> pool(std::in_place, TestEnvironment::runtime());
+            RuntimeScratchSource device_source(TestEnvironment::runtime());
+            std::optional<ScratchPool> pool(std::in_place, device_source);
             const ScratchBuffer lease(*pool, 256, K_DEVICE);
             pool.reset();
 
@@ -337,7 +339,8 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchBuffer, LeasesAreSafeAcrossThreads)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             const std::size_t baseline =
                 TestEnvironment::live_allocation_count() - pool.idle_block_count();
 
@@ -382,7 +385,8 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchBufferReduction, AClearedRecorderReturnsItsLeaseToThePool)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
             LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder first_recorder(first_graph.recorder(), pool, late_counts);
@@ -397,7 +401,8 @@ namespace SushiBLAS
         TEST_F(Medium_ScratchBufferReduction, ASecondRecorderLeasesTheBlockTheFirstReturned)
         {
             Tensor second_result = engine->create_tensor({1});
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
             SushiRuntime::Graph second_graph = TestEnvironment::runtime().graph();
             LateCountHold late_counts(TestEnvironment::runtime());

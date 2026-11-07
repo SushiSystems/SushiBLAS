@@ -33,7 +33,6 @@
 #include <cstddef>
 #include <string>
 #include <utility>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
@@ -65,17 +64,6 @@ namespace SushiBLAS
                            ExecutionMode mode = K_DEFAULT_RECORDING_MODE)
                 : graph_(runtime.graph()), late_counts_(runtime),
                   recorder_(graph_.recorder(), scratch_pool, late_counts_, mode)
-            {
-
-            }
-
-            /**
-             * @brief Builds an empty graph on an engine's runtime and a recorder over it that
-             *        borrows the engine's scratch pool and execution mode.
-             * @param engine Must outlive this object.
-             */
-            explicit RecordingGraph(Engine& engine)
-                : RecordingGraph(engine.runtime(), engine.scratch_pool(), engine.mode())
             {
 
             }

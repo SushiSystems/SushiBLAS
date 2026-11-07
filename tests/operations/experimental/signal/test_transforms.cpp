@@ -166,7 +166,7 @@ namespace SushiBLAS
 
                 const Tensor in = tensor_of(engine, input);
                 Tensor out = tensor_of(engine, std::vector<C>(count, C(7)));
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 TransformsOps(graph.recorder()).fft(in, out, shape);
                 graph.run().value();
 
@@ -218,7 +218,7 @@ namespace SushiBLAS
                 const Tensor in = tensor_of(engine, run.input);
                 Tensor spectrum = tensor_of(engine, std::vector<C>(spectrum_count, C(7)));
                 Tensor back = tensor_of(engine, std::vector<T>(count, T(7)));
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 TransformsOps view(graph.recorder());
                 view.fft(in, spectrum, shape);
                 view.inverse_fft(spectrum, back, shape);
@@ -320,7 +320,7 @@ namespace SushiBLAS
             const FftShape shape{1, 4, 1, FftKind::ComplexToComplex};
             const Tensor in = tensor_of(engine, std::vector<float>(4, 0.0f));
             Tensor out = tensor_of(engine, std::vector<std::complex<float>>(4));
-            RecordingFixture graph(engine);
+            RecordingFixture graph(TestEnvironment::runtime(), engine);
 
             expect_refusal([&] { TransformsOps(graph.recorder()).fft(in, out, shape); },
                            "signal.fft", "input");
@@ -332,7 +332,7 @@ namespace SushiBLAS
             const FftShape shape{1, 0, 1, FftKind::ComplexToComplex};
             const Tensor in = tensor_of(engine, std::vector<std::complex<float>>(1));
             Tensor out = tensor_of(engine, std::vector<std::complex<float>>(1));
-            RecordingFixture graph(engine);
+            RecordingFixture graph(TestEnvironment::runtime(), engine);
 
             expect_refusal([&] { TransformsOps(graph.recorder()).inverse_fft(in, out, shape); },
                            "signal.inverse_fft", "shape");

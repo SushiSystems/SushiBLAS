@@ -30,7 +30,6 @@
 #pragma once
 
 #include <cstddef>
-#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/scratch_block_source.hpp>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -47,22 +46,13 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Builds an empty pool whose blocks are device memory of a runtime.
-             * @param runtime Allocates every block; must outlive every ScratchBuffer leased here.
-             */
-            explicit ScratchPool(SushiRuntime::Runtime& runtime)
-                : runtime_(&runtime), shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(runtime))
-            {
-
-            }
-
-            /**
-             * @brief Builds an empty pool over a block source.
+             * @brief Builds an empty pool over a block source, such as a RuntimeScratchSource
+             *        for device memory or a HostScratchSource.
              * @param source Serves every block; must outlive the pool and every ScratchBuffer
              *        leased here.
              */
             explicit ScratchPool(ScratchBlockSource& source)
-                : runtime_(nullptr), shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(source))
+                : shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(source))
             {
 
             }
@@ -79,17 +69,6 @@ namespace SushiBLAS
                 return shelf_;
             }
 
-            /**
-             * @brief Returns the runtime the pool was built over.
-             * @throws UnsupportedExecution on a pool built over a block source, which has none.
-             */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const
-            {
-                if (runtime_ == nullptr)
-                    throw UnsupportedExecution("A scratch pool over a block source has no runtime");
-                return *runtime_;
-            }
-
             /** @brief Returns how many blocks sit idle in the pool. */
             [[nodiscard]] std::size_t idle_block_count() const { return shelf_->idle_block_count(); }
 
@@ -97,9 +76,6 @@ namespace SushiBLAS
             void trim() { shelf_->trim(); }
 
         private:
-            /// @brief The runtime the pool was built over; null over a block source.
-            SushiRuntime::Runtime* runtime_;
-
             /// @brief The shared shelf; lent blocks hold it too, so it outlives the pool if they do.
             SushiRuntime::sushi_ptr<Detail::ScratchShelf> shelf_;
     };

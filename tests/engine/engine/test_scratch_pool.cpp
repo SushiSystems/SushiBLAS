@@ -32,6 +32,7 @@
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -39,7 +40,8 @@ namespace SushiBLAS
     {
         TEST(Medium_ScratchPool, StartsWithoutIdleBlocks)
         {
-            const ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            const ScratchPool pool(pool_source);
 
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
             EXPECT_TRUE(pool.shelf());
@@ -47,7 +49,8 @@ namespace SushiBLAS
 
         TEST(Medium_ScratchPool, AReturnedBlockIsReusedForTheSameSize)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             void* first_address = nullptr;
             {
                 const ScratchBuffer first(pool, 4096, 0);
@@ -63,7 +66,8 @@ namespace SushiBLAS
 
         TEST(Medium_ScratchPool, TrimReleasesTheIdleBlocks)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            ScratchPool pool(pool_source);
             const std::size_t live_before = TestEnvironment::live_allocation_count();
             {
                 const ScratchBuffer buffer(pool, 512, 0);

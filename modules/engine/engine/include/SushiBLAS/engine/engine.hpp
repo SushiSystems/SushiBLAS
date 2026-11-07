@@ -49,7 +49,7 @@ namespace SushiBLAS
 {
     /**
      * @class Engine
-     * @brief Owns a runtime binding, a scratch pool over an owned block source, a tensor
+     * @brief Owns a scratch pool over an owned block source, a tensor
      *        factory, a random stream and an owned mode admission; it records and runs no graph.
      *        Its two constructors are its composition roots, for the runtime and the host.
      * @see docs/design/LAYERED_EXECUTION/README.md
@@ -58,8 +58,8 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Builds an engine on a runtime.
-             * @param runtime Must outlive the engine.
+             * @brief Builds an engine on a runtime, which wires its tensor factory and scratch source.
+             * @param runtime Must outlive the engine; the engine keeps no reference to it.
              * @param layout The memory layout of tensors this engine creates.
              */
             explicit Engine(SushiRuntime::Runtime& runtime,
@@ -100,20 +100,6 @@ namespace SushiBLAS
              * @see modules/engine/engine/README.md
              */
             [[nodiscard]] ScratchPool& scratch_pool() noexcept { return scratch_pool_; }
-
-            /** @brief Returns whether the engine is a host engine and has no runtime. */
-            [[nodiscard]] bool is_host() const noexcept { return runtime_ == nullptr; }
-
-            /**
-             * @brief Returns the runtime the engine was built on.
-             * @throws UnsupportedExecution on a host engine, which has none.
-             */
-            [[nodiscard]] SushiRuntime::Runtime& runtime()
-            {
-                if (runtime_ == nullptr)
-                    throw UnsupportedExecution("A host Engine has no runtime");
-                return *runtime_;
-            }
 
             /**
              * @brief Sets the execution mode a recorder built from now on starts with.
@@ -173,9 +159,6 @@ namespace SushiBLAS
             }
 
         private:
-            /// @brief The runtime that allocates and executes; null on a host engine.
-            SushiRuntime::Runtime* runtime_;
-
             /// @brief The source of every scratch block the pool lends; never null.
             std::unique_ptr<ScratchBlockSource> block_source_;
 

@@ -293,7 +293,7 @@ namespace SushiBLAS
             std::vector<T> blend_of(Engine& engine, const BlendCase& c, const BlendTensors& in)
             {
                 Tensor out = sentinel_tensor<T>(engine, {c.points, c.components});
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 SushiBLAS::BlendOps(graph.recorder())
                     .blend_transforms(in.points, in.transforms, in.indices, in.weights, out);
                 graph.run().value();
@@ -868,7 +868,7 @@ namespace SushiBLAS
         /** @brief Tests that a well-formed call records and runs, the control of the refusals. */
         TEST_F(Medium_BlendTransforms, AWellFormedCallRecordsAndRuns)
         {
-            RecordingFixture graph(*engine);
+            RecordingFixture graph(TestEnvironment::runtime(), *engine);
             BlendOps ops(graph.recorder());
             BaseOperands ok = base_operands(*engine);
 
@@ -950,7 +950,7 @@ namespace SushiBLAS
         /** @brief Tests that the operation refuses an output that is also an input. */
         TEST_F(Medium_BlendTransforms, RefusesAnOutputThatOverlapsAnInput)
         {
-            RecordingFixture graph(*engine);
+            RecordingFixture graph(TestEnvironment::runtime(), *engine);
             BlendOps ops(graph.recorder());
 
             Tensor points = tensor_from<float>(*engine, {2, 3}, std::vector<double>(6, 1.0));

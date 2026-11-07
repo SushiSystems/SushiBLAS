@@ -8,7 +8,7 @@ runs nothing. Its interface is short:
 - `create_tensor(dims, dtype, residency, device_index)`, from a brace list or a span.
 - `set_mode` and `mode`, the execution mode a recorder built from the engine starts with, and
   `layout`.
-- `tensor_factory()`, `rng()`, `scratch_pool()` and `runtime()`.
+- `tensor_factory()`, `rng()` and `scratch_pool()`. The engine keeps no runtime; the program that built it holds one.
 
 The program owns the graph. It takes one from `runtime.graph()`, builds a `TaskRecorder` over the
 graph's recorder with the engine's scratch pool and mode, and builds the operation families over
@@ -18,7 +18,7 @@ shows the four lines. The engine is not copyable or movable, and the `Runtime` o
 `Engine(Engine::Host{}, layout)` builds a host engine that needs no `Runtime`: the tensor factory makes
 host storages, the scratch pool takes its blocks from a `HostScratchSource`, and a `HostModeAdmission`
 admits `ForceReference` only. `set_mode` asks the engine's `ModeAdmission` on both kinds of engine, so
-another mode throws `UnsupportedExecution` here; `runtime()` throws it too. A test of an operation
+another mode throws `UnsupportedExecution` here. A test of an operation
 records on it through a `TaskRecorder` over a `HostTaskSink` the test fixture owns, and runs the
 bodies on the host, with no queue. Every operation
 body has the shape `(dispatcher, deps)`, so every operation runs on it.
@@ -78,7 +78,8 @@ way to run the graph.
 A view is a small class of record calls bound to a `TaskRecorder` the caller owns:
 
 ```cpp
-ScratchPool pool(TestEnvironment::runtime());
+RuntimeScratchSource pool_source(TestEnvironment::runtime());
+ScratchPool pool(pool_source);
 SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
 LateCountHold late_counts(TestEnvironment::runtime());
 TaskRecorder first_recorder(first_graph.recorder(), pool, late_counts);

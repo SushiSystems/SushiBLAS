@@ -40,7 +40,7 @@
 namespace SushiBLAS
 {
     Engine::Engine(SushiRuntime::Runtime& runtime, Core::Layout layout)
-        : runtime_(&runtime), block_source_(std::make_unique<RuntimeScratchSource>(runtime)),
+        : block_source_(std::make_unique<RuntimeScratchSource>(runtime)),
           admission_(std::make_unique<RuntimeModeAdmission>()), scratch_pool_(*block_source_),
           tensor_factory_(runtime, layout)
     {
@@ -52,7 +52,7 @@ namespace SushiBLAS
     Engine::~Engine() = default;
 
     Engine::Engine(Host, Core::Layout layout)
-        : runtime_(nullptr), block_source_(std::make_unique<HostScratchSource>()),
+        : block_source_(std::make_unique<HostScratchSource>()),
           admission_(std::make_unique<HostModeAdmission>()), scratch_pool_(*block_source_),
           mode_(ExecutionMode::ForceReference), tensor_factory_(TensorFactory::Host{}, layout)
     {

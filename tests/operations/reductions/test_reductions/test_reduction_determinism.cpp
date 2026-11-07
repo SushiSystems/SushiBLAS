@@ -250,7 +250,7 @@ namespace SushiBLAS
                         TestEnvironment::queue().memcpy(t.data(), host.data(),
                                                host.size() * sizeof(float)).wait();
 
-                        RecordingFixture fixture(eng);
+                        RecordingFixture fixture(TestEnvironment::runtime(), eng);
                         row.op(fixture.recorder(), t, res);
                         fixture.run().value();
 

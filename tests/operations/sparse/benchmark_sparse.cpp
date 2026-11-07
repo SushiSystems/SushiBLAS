@@ -122,10 +122,10 @@ namespace
 
     /// @brief Times every sparse routine at one matrix order and prints one row each.
     template<typename T>
-    void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                     int64_t n)
+    void benchmark_order(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                         const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "sparse");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::SparseBuilder builder(engine.tensor_factory());
@@ -221,13 +221,13 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "sparse");
+        Bench::print_environment(runtime, engine, "sparse");
 
         const Bench::ResultTable table("GB/s");
         for (const int64_t n : sizes)
-            benchmark_order<float>(engine, table, DataType::Float32, n);
+            benchmark_order<float>(runtime, engine, table, DataType::Float32, n);
         for (const int64_t n : sizes)
-            benchmark_order<double>(engine, table, DataType::Float64, n);
+            benchmark_order<double>(runtime, engine, table, DataType::Float64, n);
     }
 } // namespace
 

@@ -72,10 +72,10 @@ namespace
     }
 
     /// @brief Times the dense, band and packed forms of the Level 2 routines at one order.
-    void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                         DataType dtype, int64_t n)
+    void benchmark_order(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                         const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "band_packed");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::BLASOps blas(recorder);
@@ -186,13 +186,13 @@ namespace
                           const std::vector<int64_t>& sizes)
     {
         SushiBLAS::Engine engine(runtime, layout);
-        Bench::print_environment(engine, "band_packed");
+        Bench::print_environment(runtime, engine, "band_packed");
 
         const Bench::ResultTable table("Melem/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_order(engine, table, dtype, n);
+                benchmark_order(runtime, engine, table, dtype, n);
         }
         std::printf("\n");
     }

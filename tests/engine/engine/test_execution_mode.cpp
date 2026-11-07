@@ -55,7 +55,7 @@ static Tensor run_axpy(Engine& engine, ExecutionMode mode)
     fill_tensor(x, {1.0f, 2.0f, 3.0f, 4.0f});
     fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
 
-    RecordingFixture fixture(engine);
+    RecordingFixture fixture(TestEnvironment::runtime(), engine);
     SushiBLAS::BLASOps(fixture.recorder()).axpy(2.0, x, y);
     fixture.run().value();
     return y;

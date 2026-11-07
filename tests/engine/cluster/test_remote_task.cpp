@@ -56,6 +56,7 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiRuntime/distributed/distributed.hpp>
 #include <SushiRuntime/distributed/in_process_transport.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -359,7 +360,9 @@ namespace SushiBLAS
                 task.operation = remote_operation(K_OPERATION_NAME, layout->fingerprint());
                 trip.worker_has_op = binding.has_worker_for(task.operation);
 
-                ScratchPool scratch(master);
+                RuntimeScratchSource scratch_source(master);
+
+                ScratchPool scratch(scratch_source);
                 LateCountHold late_counts(master);
                 const TensorPack* inputs[] = {&input};
                 const TensorPack* outputs[] = {&output};

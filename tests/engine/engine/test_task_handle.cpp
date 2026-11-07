@@ -115,7 +115,7 @@ namespace SushiBLAS
         /** @brief Tests that the first handles of two recorders compare unequal. */
         TEST_F(Medium_TaskHandleTest, HandlesOfTwoRecordersDiffer)
         {
-            RecordingFixture other(*engine);
+            RecordingFixture other(TestEnvironment::runtime(), *engine);
 
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);

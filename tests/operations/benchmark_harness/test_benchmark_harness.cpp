@@ -145,7 +145,7 @@ namespace SushiBLAS
         {
             SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
             Engine engine(runtime);
-            RecordingGraph graph(engine);
+            RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
             Tensor out = engine.create_tensor({4});
             std::atomic<int> runs{0};
 

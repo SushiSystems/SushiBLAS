@@ -49,10 +49,10 @@ namespace
     constexpr double K_INPUT_VALUE = 1.5;
 
     /// @brief Times the three reductions at one element count and prints one row each.
-    void benchmark_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                     int64_t n)
+    void benchmark_count(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                         const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "reductions");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor input = engine.create_tensor({n}, dtype);
@@ -94,13 +94,13 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "reductions");
+        Bench::print_environment(runtime, engine, "reductions");
 
         const Bench::ResultTable table("GB/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_count(engine, table, dtype, n);
+                benchmark_count(runtime, engine, table, dtype, n);
         }
     }
 } // namespace

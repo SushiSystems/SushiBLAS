@@ -52,10 +52,10 @@ namespace
     constexpr double K_B_VALUE = 0.75;
 
     /// @brief Times the three element-wise operations at one count and prints one row each.
-    void benchmark_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                     int64_t n)
+    void benchmark_count(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                         const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "elementwise");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n}, dtype);
@@ -89,13 +89,13 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "elementwise");
+        Bench::print_environment(runtime, engine, "elementwise");
 
         const Bench::ResultTable table("GB/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_count(engine, table, dtype, n);
+                benchmark_count(runtime, engine, table, dtype, n);
         }
     }
 } // namespace

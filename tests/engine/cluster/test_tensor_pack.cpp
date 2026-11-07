@@ -46,6 +46,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
@@ -97,7 +98,8 @@ namespace SushiBLAS
 
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
                                                sources.data(), sources.size())), 0);
-            ScratchPool scratch(runtime);
+            RuntimeScratchSource scratch_source(runtime);
+            ScratchPool scratch(scratch_source);
             LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)
@@ -139,7 +141,8 @@ namespace SushiBLAS
             {
                 const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
                                                    sources.data(), sources.size())), 0);
-                ScratchPool scratch(runtime);
+                RuntimeScratchSource scratch_source(runtime);
+                ScratchPool scratch(scratch_source);
                 LateCountHold late_counts(runtime);
                 auto graph = runtime.graph();
                 graph.extend([&](SushiRuntime::Recorder& recorder)
@@ -217,7 +220,8 @@ namespace SushiBLAS
             const std::vector<Tensor> other = {shared_tensor(runtime, Core::DataType::Float32, 5)};
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
                                                layout_tensors.data(), layout_tensors.size())), 0);
-            ScratchPool scratch(runtime);
+            RuntimeScratchSource scratch_source(runtime);
+            ScratchPool scratch(scratch_source);
             LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)
@@ -268,7 +272,8 @@ namespace SushiBLAS
                 shared_tensor(runtime, Core::DataType::Float32, 4, 1)};
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
                                                on_second.data(), on_second.size())), 0);
-            ScratchPool scratch(runtime);
+            RuntimeScratchSource scratch_source(runtime);
+            ScratchPool scratch(scratch_source);
             LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)

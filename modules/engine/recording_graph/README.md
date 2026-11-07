@@ -17,10 +17,10 @@ It depends on `engine`. Its header is included as
 `set_label` names the graph in the spans of its runs, as `Graph::set_label` does.
 
 `Engine` keeps no graph to run. `RecordingGraph` holds a `SushiRuntime::Graph`, a `TaskRecorder`
-over that graph's recorder and the `RunReport` every run writes into. The constructor that takes
-an `Engine&` borrows the engine's scratch pool and execution mode; the one that takes a runtime
-takes a pool and a mode of its own. `K_DEFAULT_RECORDING_MODE` is the mode of the second
-constructor when none is passed.
+over that graph's recorder and the `RunReport` every run writes into. The one constructor
+takes the runtime, a scratch pool and a mode; a caller that holds an engine passes
+`engine.scratch_pool()` and `engine.mode()`. `K_DEFAULT_RECORDING_MODE` is the mode when none is
+passed.
 
 `recorder()` is what a caller builds its operation families on. `run()` runs the graph, returns
 when every task has finished and empties it, so the object records and runs again; it returns

@@ -317,7 +317,7 @@ namespace SushiBLAS
                                       const Tensor& weights)
             {
                 Tensor out = sentinel_tensor<T>(engine, c.output_dims());
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 SushiBLAS::SpatialOps(graph.recorder()).window_dot(in, weights, out, c.geometry);
                 graph.run().value();
                 return SushiBLAS::IO().to_vector<T>(out);
@@ -329,7 +329,7 @@ namespace SushiBLAS
                                              const Tensor& weights)
             {
                 Tensor dx = sentinel_tensor<T>(engine, c.input_dims());
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 SushiBLAS::SpatialOps(graph.recorder())
                     .window_dot_backward(dy, weights, dx, c.geometry);
                 graph.run().value();
@@ -342,7 +342,7 @@ namespace SushiBLAS
                                               const Tensor& in)
             {
                 Tensor dweights = sentinel_tensor<T>(engine, c.tap_dims());
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 SushiBLAS::SpatialOps(graph.recorder())
                     .window_dot_weights_backward(dy, in, dweights, c.geometry);
                 graph.run().value();

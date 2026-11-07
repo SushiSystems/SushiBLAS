@@ -67,10 +67,10 @@ namespace
     constexpr double K_ELEMENTS_PER_MEGAELEMENT = 1.0e6;
 
     /// @brief Times every draw on one vector length and prints one row each.
-    void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                          DataType dtype, int64_t n)
+    void benchmark_length(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                          const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "random");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
@@ -110,10 +110,10 @@ namespace
     }
 
     /// @brief Times orthogonal on one n x n matrix and prints one row, sized by n.
-    void benchmark_orthogonal(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                              DataType dtype, int64_t n)
+    void benchmark_orthogonal(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                              const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "random");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
@@ -132,19 +132,19 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "random");
+        Bench::print_environment(runtime, engine, "random");
 
         const Bench::ResultTable table("Melem/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_length(engine, table, dtype, n);
+                benchmark_length(runtime, engine, table, dtype, n);
         }
 
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : K_ORTHOGONAL_ORDERS)
-                benchmark_orthogonal(engine, table, dtype, n);
+                benchmark_orthogonal(runtime, engine, table, dtype, n);
         }
     }
 } // namespace

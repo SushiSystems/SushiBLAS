@@ -153,7 +153,7 @@ namespace SushiBLAS
                         ASSERT_TRUE(started.ok()) << started.error;
 
                         Engine engine(runtime);
-                        RecordingGraph graph(engine);
+                        RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
                         const Tensor a = engine.create_tensor({64, 64}, Core::DataType::Float32);
                         const Tensor b = engine.create_tensor({64, 64}, Core::DataType::Float32);
                         Tensor c = engine.create_tensor({64, 64}, Core::DataType::Float32);
@@ -328,7 +328,7 @@ namespace SushiBLAS
             ASSERT_TRUE(started.ok()) << started.error;
 
             Engine engine(runtime);
-            RecordingGraph graph(engine);
+            RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
             const Tensor a = engine.create_tensor({64, 64}, Core::DataType::Half);
             const Tensor b = engine.create_tensor({64, 64}, Core::DataType::Half);
             Tensor c = engine.create_tensor({64, 64}, Core::DataType::Half);

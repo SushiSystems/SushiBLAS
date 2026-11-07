@@ -40,6 +40,7 @@
 #include <SushiBLAS/recording_graph/recording_graph.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -81,7 +82,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, AFreshGraphIsEmptyAndRunsNothing)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
 
             EXPECT_TRUE(graph.is_empty());
             EXPECT_EQ(graph.recorded_count(), std::size_t{0});
@@ -90,7 +91,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, RunningTheGraphEmptiesIt)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
             record_nothing(graph);
             EXPECT_EQ(graph.recorded_count(), std::size_t{1});
 
@@ -100,7 +101,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, DiscardDropsTheTasksAndCountsThem)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
             record_nothing(graph);
             record_nothing(graph);
 
@@ -111,7 +112,7 @@ namespace SushiBLAS
         TEST_F(Medium_RecordingGraph, TheRecorderBorrowsTheModeOfTheEngine)
         {
             engine.set_mode(ExecutionMode::ForceReference);
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
 
             EXPECT_EQ(graph.recorder().mode(), ExecutionMode::ForceReference);
         }
@@ -127,7 +128,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, TheGraphRunsAgainAfterItWasEmptied)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
             record_nothing(graph);
             ASSERT_TRUE(graph.run().has_value());
 
@@ -138,7 +139,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, ThePlanOrdersOneEntryPerRecordedTask)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
             record_nothing(graph);
             record_nothing(graph);
 
@@ -202,7 +203,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingGraph, ALabelledGraphRecordsAndRunsAsAnUnlabelledOneDoes)
         {
-            RecordingGraph graph(engine);
+            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
             graph.set_label("scenario");
             record_nothing(graph);
 

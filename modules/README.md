@@ -62,11 +62,11 @@ this page.
 
 ### `Engine`
 
-`Engine` keeps what is per process. It is built on a `SushiRuntime::Runtime`, which `runtime()`
-returns, and owns four bricks: a `ScratchPool`, a `TensorFactory`, an `RNGStream` and an
+`Engine` keeps what is per process. It is built on a `SushiRuntime::Runtime` and keeps no
+reference to it, and owns four bricks: a `ScratchPool`, a `TensorFactory`, an `RNGStream` and an
 `ExecutionMode`. It owns no graph and no `TaskRecorder`, declares no operation and records
-nothing. A caller that needs a device queue or a wait takes it from the runtime:
-`runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`, `runtime().wait()`.
+nothing. A caller that needs a device queue or a wait takes it from the runtime it built the
+engine on: `runtime.advanced().queue(SushiRuntime::DeviceIndex{0})`, `runtime.wait()`.
 
 A caller that records owns a graph and a `LateCountHold` that lives as long as the graph's nodes,
 and builds a `TaskRecorder` over that graph's recorder, with the engine's pool, the hold and the
@@ -75,8 +75,8 @@ engine's mode. An operation view (`BLASOps`, `SparseOps`, `SpatialOps`,
 recorder, and `RandomOps` also takes the engine's `rng()`:
 
 ```cpp
-SushiRuntime::Graph graph = engine.runtime().graph();
-SushiBLAS::LateCountHold late_counts(engine.runtime());
+SushiRuntime::Graph graph = runtime.graph();
+SushiBLAS::LateCountHold late_counts(runtime);
 SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
                                  engine.mode());
 SushiBLAS::BLASOps blas(recorder);

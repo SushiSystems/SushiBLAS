@@ -34,6 +34,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -82,7 +83,7 @@ namespace SushiBLAS
             public:
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
-                    : scratch_pool_(TestEnvironment::runtime()),
+                    : source_(TestEnvironment::runtime()), scratch_pool_(source_),
                       fixture_(TestEnvironment::runtime(), scratch_pool_, mode)
                 {
 
@@ -169,6 +170,9 @@ namespace SushiBLAS
                 }
 
             private:
+                /// @brief The source of the blocks the pool lends, on the test runtime.
+                RuntimeScratchSource source_;
+
                 /// @brief The pool the recorder hands to operations that lease scratch.
                 ScratchPool scratch_pool_;
 

@@ -372,7 +372,7 @@ namespace
         for (ExecutionMode mode : {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
         {
             engine.set_mode(mode);
-            RecordingFixture recording(engine);
+            RecordingFixture recording(TestEnvironment::runtime(), engine);
 
             Tensor result = engine.create_tensor(
                 SushiRuntime::span<const int64_t>(call.result_dims.data(), call.result_dims.size()),

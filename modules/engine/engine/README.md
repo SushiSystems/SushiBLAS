@@ -337,8 +337,8 @@ and wires `TensorFactory(TensorFactory::Host{})`, a `HostScratchSource` and a `H
 which admits `ForceReference` only, and starts there. `set_mode` is one call for both: it asks the
 `ModeAdmission`, and a refused mode throws `UnsupportedExecution` saying the engine does not admit it,
 and leaves the mode. The engine owns no `TaskSink`, since the recorders of an engine on a runtime
-record on a graph each. `runtime()` throws `UnsupportedExecution` on a host engine, and `is_host()`
-tells which. `RNGStream` holds a seed and an offset under a mutex and reaches no runtime, so the host
+record on a graph each. The engine keeps no runtime after its constructor wires its adapters, so it
+has no accessor for it, and a host engine differs from the other only in the adapters it wired; a caller that needs the runtime holds it. `RNGStream` holds a seed and an offset under a mutex and reaches no runtime, so the host
 engine uses it as it is.
 
 A recorder on a host engine records through a `HostTaskSink` its owner builds:
@@ -553,10 +553,10 @@ builds a `Storage` for scratch itself.
 
 `ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
 the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
-blocks sit idle and `trim()` frees them; neither touches a block out on lease. `ScratchPool(Runtime&)`
-builds a `RuntimeScratchSource` that the shelf owns, and `runtime()` returns that runtime.
-`ScratchPool(ScratchBlockSource&)` takes the blocks from a source the caller keeps alive for the pool and
-every lease; `runtime()` then throws `UnsupportedExecution`. `Engine` owns one
+blocks sit idle and `trim()` frees them; neither touches a block out on lease. The one constructor,
+`ScratchPool(ScratchBlockSource&)`, takes the blocks from a source the caller keeps alive for the pool and
+every lease: a `RuntimeScratchSource` built over a runtime for device memory, or a `HostScratchSource`.
+The pool keeps no runtime. `Engine` owns one
 pool and its recorder hands it to operations through `TaskRecorder::scratch_pool()`.
 
 `ScratchBlockSource` serves `serve(bytes, device_index)`, a `Storage` of at least `bytes`, and

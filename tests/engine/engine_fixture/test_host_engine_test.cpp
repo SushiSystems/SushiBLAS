@@ -43,9 +43,8 @@ namespace SushiBLAS
         {
         };
 
-        TEST_F(Small_HostEngineTest, TheEngineIsAHostEngineInForceReference)
+        TEST_F(Small_HostEngineTest, TheEngineRecordsInForceReference)
         {
-            EXPECT_TRUE(engine->is_host());
             EXPECT_EQ(engine->mode(), ExecutionMode::ForceReference);
             EXPECT_EQ(recorder().mode(), ExecutionMode::ForceReference);
         }
@@ -63,7 +62,6 @@ namespace SushiBLAS
             reinit_engine(Core::Layout::ColumnMajor);
 
             EXPECT_EQ(engine->layout(), Core::Layout::ColumnMajor);
-            EXPECT_TRUE(engine->is_host());
             EXPECT_EQ(recorder().mode(), ExecutionMode::ForceReference);
         }
 

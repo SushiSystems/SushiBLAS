@@ -247,7 +247,7 @@ g.pad_top = pad_top;
 g.pad_left = pad_left;
 // ...
 Tensor out = sentinel_tensor<T>(engine, c.output_dims());
-RecordingFixture graph(engine);
+RecordingFixture graph(TestEnvironment::runtime(), engine);
 SushiBLAS::SpatialOps(graph.recorder()).window_dot(in, weights, out, c.geometry);
 ```
 

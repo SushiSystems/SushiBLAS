@@ -215,7 +215,7 @@ namespace SushiBLAS
                 Tensor pivots = tensor_of(
                     engine, std::vector<std::uint32_t>(K_FACTOR_BATCH * K_FACTOR_ORDER, 99u));
                 Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_FACTOR_BATCH, 7u));
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 LinalgOps(graph.recorder())
                     .lu_factor(a, pivots, singular, K_FACTOR_ORDER, K_FACTOR_BATCH);
                 graph.run().value();
@@ -278,7 +278,7 @@ namespace SushiBLAS
                 Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(K_SOLVE_BATCH * K_N));
                 Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(K_SOLVE_BATCH));
                 Tensor x = tensor_of(engine, b_values);
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 LinalgOps view(graph.recorder());
                 view.lu_factor(a, pivots, singular, K_N, K_SOLVE_BATCH);
                 view.lu_solve(a, pivots, x, K_N, 1, K_SOLVE_BATCH);
@@ -345,7 +345,7 @@ namespace SushiBLAS
                 Tensor x = tensor_of(engine, std::vector<T>(K_N, T(0)));
                 Tensor iterations = tensor_of(engine, std::vector<std::uint32_t>(1, 0u));
                 Tensor residual = tensor_of(engine, std::vector<T>(1, T(-1)));
-                RecordingFixture graph(engine);
+                RecordingFixture graph(TestEnvironment::runtime(), engine);
                 LinalgOps(graph.recorder()).gmres(a, b, x, iterations, residual, run.options);
                 graph.run().value();
 
@@ -461,7 +461,7 @@ namespace SushiBLAS
             Tensor a = tensor_of(engine, std::vector<float>(4, 1.0f));
             Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(3));
             Tensor singular = tensor_of(engine, std::vector<std::uint32_t>(1));
-            RecordingFixture graph(engine);
+            RecordingFixture graph(TestEnvironment::runtime(), engine);
 
             expect_refusal(
                 [&] { LinalgOps(graph.recorder()).lu_factor(a, pivots, singular, 2, 1); },
@@ -474,7 +474,7 @@ namespace SushiBLAS
             const Tensor a = tensor_of(engine, std::vector<float>(4, 1.0f));
             const Tensor pivots = tensor_of(engine, std::vector<std::uint32_t>(2));
             Tensor rhs = tensor_of(engine, std::vector<std::int32_t>(2));
-            RecordingFixture graph(engine);
+            RecordingFixture graph(TestEnvironment::runtime(), engine);
 
             expect_refusal([&] { LinalgOps(graph.recorder()).lu_solve(a, pivots, rhs, 2, 1, 1); },
                            "linalg.lu_solve", "rhs");
@@ -488,7 +488,7 @@ namespace SushiBLAS
             Tensor x = tensor_of(engine, std::vector<float>(2, 0.0f));
             Tensor iterations = tensor_of(engine, std::vector<std::uint32_t>(1));
             Tensor residual = tensor_of(engine, std::vector<float>(1));
-            RecordingFixture graph(engine);
+            RecordingFixture graph(TestEnvironment::runtime(), engine);
 
             expect_refusal([&]
                            {

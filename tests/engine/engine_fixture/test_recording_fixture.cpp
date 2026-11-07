@@ -73,14 +73,14 @@ namespace SushiBLAS
 
         TEST_F(Medium_RecordingFixture, RunSucceedsAcceptsAnEmptyFixture)
         {
-            RecordingFixture fixture(*engine);
+            RecordingFixture fixture(TestEnvironment::runtime(), *engine);
 
             EXPECT_TRUE(fixture.run_succeeds());
         }
 
         TEST_F(Medium_RecordingFixture, RunSucceedsRunsTheRecordedTaskAndEmptiesTheFixture)
         {
-            RecordingFixture fixture(*engine);
+            RecordingFixture fixture(TestEnvironment::runtime(), *engine);
             record_nothing(fixture);
             EXPECT_EQ(fixture.recorded_count(), std::size_t{1});
 

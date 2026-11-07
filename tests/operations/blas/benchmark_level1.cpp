@@ -64,10 +64,10 @@ namespace
     constexpr double K_ROT_SINE = 0.8;
 
     /// @brief Times the nine level 1 routines at one length and prints one row each.
-    void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
-                          DataType dtype, int64_t n)
+    void benchmark_length(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                          const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
-        SushiBLAS::RecordingGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
         Bench::label_graph(graph, "level1");
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
@@ -131,13 +131,13 @@ namespace
 
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
-        Bench::print_environment(engine, "level1");
+        Bench::print_environment(runtime, engine, "level1");
 
         const Bench::ResultTable table("GB/s");
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                benchmark_length(engine, table, dtype, n);
+                benchmark_length(runtime, engine, table, dtype, n);
         }
     }
 } // namespace
