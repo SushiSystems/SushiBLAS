@@ -97,6 +97,26 @@ namespace SushiBLAS
             EXPECT_FALSE(sink.admits(ExecutionMode::ForceSYCL));
         }
 
+        /** @brief Tests that the sink reports the name, operation, class and regions a task stated. */
+        TEST(Small_HostTaskSink, ItReportsWhatEachTaskStated)
+        {
+            HostTaskSink sink;
+            TaskDescription description;
+            description.name = "host.stated";
+            description.operation = SushiRuntime::OperationID();
+            description.determinism = SushiRuntime::Determinism::Tolerant;
+            sink.add_pair(description, OperandSet(), ExecutionMode::ForceReference, std::string(),
+                          [](PairRun&) {});
+
+            const std::vector<HostTaskRecord> records = sink.records();
+
+            ASSERT_EQ(records.size(), std::size_t{1});
+            EXPECT_EQ(records[0].name, "host.stated");
+            EXPECT_EQ(records[0].determinism, SushiRuntime::Determinism::Tolerant);
+            EXPECT_TRUE(records[0].reads.empty());
+            EXPECT_TRUE(records[0].writes.empty());
+        }
+
         /** @brief Tests that a run of nothing succeeds. */
         TEST(Small_HostTaskSink, AnEmptySinkRunsSuccessfully)
         {

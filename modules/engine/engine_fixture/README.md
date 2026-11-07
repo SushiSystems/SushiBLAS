@@ -42,7 +42,7 @@ std::vector<sycl::event>&)`, the one shape every operation body has, so every op
 
 `HostRecordingFixture` owns a `HostTaskSink` and a `TaskRecorder` over it, with the host engine's
 scratch pool and mode. It is a composition root, so it builds the concrete sink itself; the engine
-hands out no sink. It forwards `recorder()`, `recorded_count()`, `is_empty()`, `replay()` and `discard()`. `run()`
+hands out no sink. It forwards `recorder()`, `recorded_count()`, `records()`, `is_empty()`, `replay()` and `discard()`. `run()`
 replays the bodies once in record order, drops them, and returns the first `HostTaskFailure`, or nothing; `run_succeeds()` is
 `run()` as a GoogleTest assertion that names the failed task. It builds no graph, so it has no `plan()`.
 

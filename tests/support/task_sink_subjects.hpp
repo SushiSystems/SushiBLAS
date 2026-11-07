@@ -37,6 +37,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/host_task_sink.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/recording_graph/recording_graph.hpp>
@@ -152,8 +153,11 @@ namespace SushiBLAS
                 /// @brief Makes the target tensor.
                 RuntimeTensorSubject tensors_;
 
+                /// @brief Lends device memory to the pool from the test runtime.
+                RuntimeScratchSource source_{TestEnvironment::runtime()};
+
                 /// @brief Lends scratch to the recorder.
-                ScratchPool pool_{TestEnvironment::runtime()};
+                ScratchPool pool_{source_};
 
                 /// @brief The graph and the recorder over its adapter.
                 RecordingGraph graph_{TestEnvironment::runtime(), pool_};

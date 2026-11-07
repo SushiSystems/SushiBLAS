@@ -32,6 +32,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/host_task_sink.hpp>
@@ -79,6 +80,9 @@ namespace SushiBLAS
                 {
                     return sink_.recorded_count();
                 }
+
+                /** @brief Returns what each recorded task stated, in record order. */
+                [[nodiscard]] std::vector<HostTaskRecord> records() const { return sink_.records(); }
 
                 /** @brief Reports whether a run would have nothing to do. */
                 [[nodiscard]] bool is_empty() const noexcept { return recorded_count() == 0; }

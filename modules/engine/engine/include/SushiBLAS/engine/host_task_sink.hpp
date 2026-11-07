@@ -32,10 +32,14 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 #include <cstddef>
 #include <optional>
 #include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiRuntime/core/determinism.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
+#include <SushiRuntime/region/buffer_region.hpp>
 
 namespace SushiBLAS
 {
@@ -50,6 +54,21 @@ namespace SushiBLAS
 
         /// @brief The what() of the exception the body threw, or a fixed text for one that is not a std::exception.
         std::string message;
+    };
+
+    /** @brief Holds what a task stated when it was recorded, as a test reads it back. */
+    struct HostTaskRecord
+    {
+        /// @brief The name of the task's description.
+        std::string name;
+        /// @brief The operation the task names; a default id names none.
+        SushiRuntime::OperationID operation;
+        /// @brief The determinism class the task stated.
+        SushiRuntime::Determinism determinism = SushiRuntime::Determinism::Unstated;
+        /// @brief The regions the task declared as read, in declaration order.
+        std::vector<SushiRuntime::BufferRegion> reads;
+        /// @brief The regions the task declared as written, in declaration order.
+        std::vector<SushiRuntime::BufferRegion> writes;
     };
 
     /**
@@ -82,6 +101,9 @@ namespace SushiBLAS
 
             /** @brief Returns how many tasks are kept and have not run. */
             [[nodiscard]] std::size_t recorded_count() const noexcept;
+
+            /** @brief Returns what each kept task stated, in record order. */
+            [[nodiscard]] std::vector<HostTaskRecord> records() const;
 
             /**
              * @brief Runs the kept bodies in record order and keeps them for the next replay.

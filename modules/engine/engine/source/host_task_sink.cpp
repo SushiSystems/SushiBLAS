@@ -46,8 +46,8 @@ namespace SushiBLAS
         /** @brief One kept task. */
         struct Task
         {
-            /// @brief The name of the task's description, copied.
-            std::string name;
+            /// @brief What the task stated when it was recorded.
+            HostTaskRecord record;
 
             /// @brief The recorded body.
             PairBody body;
@@ -70,12 +70,24 @@ namespace SushiBLAS
     void HostTaskSink::add_pair(const TaskDescription& description, const OperandSet& operands,
                                 ExecutionMode, const std::string&, PairBody body)
     {
-        tasks_->kept.push_back(Tasks::Task{description.name, std::move(body), operands.retained()});
+        tasks_->kept.push_back(Tasks::Task{
+            HostTaskRecord{description.name, description.operation, description.determinism,
+                           operands.read_regions(), operands.write_regions()},
+            std::move(body), operands.retained()});
     }
 
     std::size_t HostTaskSink::recorded_count() const noexcept
     {
         return tasks_->kept.size();
+    }
+
+    std::vector<HostTaskRecord> HostTaskSink::records() const
+    {
+        std::vector<HostTaskRecord> records;
+        records.reserve(tasks_->kept.size());
+        for (const Tasks::Task& task : tasks_->kept)
+            records.push_back(task.record);
+        return records;
     }
 
     std::optional<HostTaskFailure> HostTaskSink::replay()
@@ -93,11 +105,11 @@ namespace SushiBLAS
             }
             catch (const std::exception& error)
             {
-                return HostTaskFailure{index, tasks[index].name, error.what()};
+                return HostTaskFailure{index, tasks[index].record.name, error.what()};
             }
             catch (...)
             {
-                return HostTaskFailure{index, tasks[index].name,
+                return HostTaskFailure{index, tasks[index].record.name,
                                        "the body threw something that is not a std::exception"};
             }
         }

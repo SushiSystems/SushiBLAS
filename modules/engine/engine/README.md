@@ -313,7 +313,8 @@ the cost of the table plus the bytes, the region access of the operands, and a t
 each operand storage. That task and the node insertion (the `NodeOptions`, the node count before and
 after, and the refusal message) are defined in `source/graph_task_sink.cpp`, not in the header.
 
-`HostTaskSink` admits `ForceReference` only. It keeps the bodies, the task names and the operand
+`HostTaskSink` admits `ForceReference` only. It keeps the bodies, what each task stated (its name,
+operation, determinism class and declared regions, which `records()` returns as `HostTaskRecord`s) and the operand
 storages in record order, in a type `source/host_task_sink.cpp` defines. A recording is made once and
 replayed as often as its owner asks: `replay()` runs the bodies in that order, each with
 `KernelPairDispatcher(ForceReference)` that holds no queue and with no dependencies, and keeps them;

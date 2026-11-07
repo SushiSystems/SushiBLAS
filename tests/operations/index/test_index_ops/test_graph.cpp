@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_index_ops.cpp                                                     */
+/* test_graph.cpp                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -21,7 +21,7 @@
 /* permissions and limitations under the License.                         */
 
 /**
- * @file test_index_ops.cpp
+ * @file test_graph.cpp
  * @brief Tests IndexOps::for_each with a fixed count and with a count a previous node writes.
  * @author Mustafa Garip
  */
@@ -203,7 +203,7 @@ namespace SushiBLAS
                         {"AboveACapacityOfZero", std::size_t{0}, std::int32_t{2}}};
             }
 
-            /// @brief One count tensor for_each refuses: where it lives and what it holds.
+            /// @brief One count tensor in shared memory for_each refuses: what it holds.
             struct CountRefusalRow
             {
                 std::string name;
@@ -213,8 +213,7 @@ namespace SushiBLAS
                 std::size_t capacity;
             };
 
-            /// @brief Returns the refused count tensors: each in both modes, then a float count
-            ///        at a capacity of zero.
+            /// @brief Returns the refused count tensors that live in shared memory, in both modes.
             std::vector<CountRefusalRow> count_refusal_rows()
             {
                 struct Refused
@@ -223,10 +222,8 @@ namespace SushiBLAS
                     Core::DataType type;
                     SushiRuntime::Residency residency;
                 };
-                const std::array<Refused, 4> refused = {
-                    {{"FloatInHostMemory", Core::DataType::Float32, SushiRuntime::Residency::Host},
-                     {"Int64InHostMemory", Core::DataType::Int64, SushiRuntime::Residency::Host},
-                     {"Int32InSharedMemory", Core::DataType::Int32, SushiRuntime::Residency::Shared},
+                const std::array<Refused, 2> refused = {
+                    {{"Int32InSharedMemory", Core::DataType::Int32, SushiRuntime::Residency::Shared},
                      {"UInt32InSharedMemory", Core::DataType::UInt32,
                       SushiRuntime::Residency::Shared}}};
 
@@ -237,82 +234,7 @@ namespace SushiBLAS
                         rows.push_back({std::string(kind.name) + "Under" + mode_name(mode), mode,
                                         kind.type, kind.residency, std::size_t{4}});
                 }
-                rows.push_back({"FloatInHostMemoryAtACapacityOfZero", ExecutionMode::ForceSYCL,
-                                Core::DataType::Float32, SushiRuntime::Residency::Host,
-                                std::size_t{0}});
                 return rows;
-            }
-
-            /// @brief The operands an update declares twice.
-            enum class Overlap
-            {
-                ReadsWhatItUpdates,        ///< A read of the tensor the task updates.
-                WritesWhatItUpdates,       ///< A write of the tensor the task updates.
-                WritesAViewOfWhatItUpdates, ///< A write of a view into the updated tensor.
-                UpdatesAViewOfWhatItUpdates ///< A second update of a view into the tensor.
-            };
-
-            /// @brief One overlapping declaration and the count the task is recorded with.
-            struct OverlapRow
-            {
-                const char* name;
-                Overlap overlap;
-                std::size_t count;
-            };
-
-            /// @brief Returns the overlapping declarations, and one at a count of zero.
-            std::vector<OverlapRow> overlap_rows()
-            {
-                return {{"ReadOfTheUpdatedTensor", Overlap::ReadsWhatItUpdates, 4},
-                        {"WriteOfTheUpdatedTensor", Overlap::WritesWhatItUpdates, 4},
-                        {"WriteOfAViewOfTheUpdatedTensor", Overlap::WritesAViewOfWhatItUpdates, 2},
-                        {"UpdateOfAViewOfTheUpdatedTensor", Overlap::UpdatesAViewOfWhatItUpdates, 2},
-                        {"ReadOfTheUpdatedTensorAtACountOfZero", Overlap::ReadsWhatItUpdates, 0}};
-            }
-
-            /// @brief Records one for_each whose operands overlap as the row says.
-            void record_overlap(IndexOps& index, const OverlapRow& row, Tensor& x,
-                                Tensor& head)
-            {
-                const OperationOptions options{"overlap", SushiRuntime::Determinism::Bitwise};
-                switch (row.overlap)
-                {
-                    case Overlap::ReadsWhatItUpdates:
-                        index.for_each(row.count,
-                                       Dispatch::bind_updates(
-                                           Dispatch::bind_reads(
-                                               [](std::size_t, const float*, float*) {},
-                                               Dispatch::read_as<float>(x)),
-                                           Dispatch::update_as<float>(x)),
-                                       options);
-                        break;
-                    case Overlap::WritesWhatItUpdates:
-                        index.for_each(row.count,
-                                       Dispatch::bind_writes(
-                                           Dispatch::bind_updates(
-                                               [](std::size_t, float*, float*) {},
-                                               Dispatch::update_as<float>(x)),
-                                           Dispatch::write_as<float>(x)),
-                                       options);
-                        break;
-                    case Overlap::WritesAViewOfWhatItUpdates:
-                        index.for_each(row.count,
-                                       Dispatch::bind_writes(
-                                           Dispatch::bind_updates(
-                                               [](std::size_t, float*, float*) {},
-                                               Dispatch::update_as<float>(x)),
-                                           Dispatch::write_as<float>(head)),
-                                       options);
-                        break;
-                    case Overlap::UpdatesAViewOfWhatItUpdates:
-                        index.for_each(row.count,
-                                       Dispatch::bind_updates(
-                                           [](std::size_t, float*, float*) {},
-                                           Dispatch::update_as<float>(x),
-                                           Dispatch::update_as<float>(head)),
-                                       options);
-                        break;
-                }
             }
         } // namespace
 
@@ -480,39 +402,6 @@ namespace SushiBLAS
             EXPECT_EQ(bits_of(by_reference), bits_of(scattered_on_the_host()));
         }
 
-        TEST_F(Medium_IndexOps, ACountOfZeroRecordsNothing)
-        {
-            GraphProbe probe(ExecutionMode::ForceReference);
-            IndexOps index(probe.recorder());
-            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-
-            const TaskHandle handle = index.for_each(
-                0, Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                         Dispatch::write_as<float>(out)),
-                OperationOptions{"empty", SushiRuntime::Determinism::Bitwise});
-
-            EXPECT_FALSE(handle.is_valid());
-            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
-        }
-
-        TEST_F(Medium_IndexOps, TheNodeCarriesTheNameOfItsOptionsAndTheOperationId)
-        {
-            GraphProbe probe(ExecutionMode::ForceReference);
-            IndexOps index(probe.recorder());
-            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-
-            index.for_each(4,
-                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                 Dispatch::write_as<float>(out)),
-                           OperationOptions{"fill_out", SushiRuntime::Determinism::Tolerant});
-
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].name, "fill_out");
-            EXPECT_EQ((*tasks)[0].operation, "index.for_each"_op);
-        }
-
         TEST_F(Medium_IndexOps, ATaskThatReadsWhatAnEarlierNodeWroteWaitsForIt)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
@@ -563,39 +452,6 @@ namespace SushiBLAS
             const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
             ASSERT_TRUE(counts);
             EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1, 1}));
-        }
-
-        TEST_F(Medium_IndexOps, AnUpdateDeclaresOneReadAndOneWrite)
-        {
-            GraphProbe probe(ExecutionMode::ForceReference);
-            IndexOps index(probe.recorder());
-            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
-
-            index.for_each(4,
-                           Dispatch::bind_updates([](std::size_t i, float* p) { p[i] += 1.0f; },
-                                                  Dispatch::update_as<float>(x)),
-                           OperationOptions{"bump_x", SushiRuntime::Determinism::Bitwise});
-
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].reads.size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].writes.size(), std::size_t{1});
-        }
-
-        TEST_F(Medium_IndexOps, ATaskThatWritesItsOwnCountIsRefused)
-        {
-            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
-                                                 SushiRuntime::Residency::Host);
-            IndexOps index(recorder());
-
-            EXPECT_THROW(index.for_each(4, count,
-                                        Dispatch::bind_writes(
-                                            [](std::size_t, std::int32_t* slot) { slot[0] = 1; },
-                                            Dispatch::write_as<std::int32_t>(count)),
-                                        OperationOptions{"self_count",
-                                                     SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
         }
 
         /** @brief Runs one late count of the table of late_count_rows(). */
@@ -674,30 +530,6 @@ namespace SushiBLAS
         INSTANTIATE_TEST_SUITE_P(
             , Medium_IndexOpsCountRefusal, ::testing::ValuesIn(count_refusal_rows()),
             [](const ::testing::TestParamInfo<CountRefusalRow>& info) { return info.param.name; });
-
-        /** @brief Runs one overlapping declaration of the table of overlap_rows(). */
-        class Medium_IndexOpsOverlap : public Medium_IndexOps,
-                                       public ::testing::WithParamInterface<OverlapRow>
-        {
-
-        };
-
-        TEST_P(Medium_IndexOpsOverlap, IsRefusedAndRecordsNothing)
-        {
-            const OverlapRow row = GetParam();
-            GraphProbe probe(ExecutionMode::ForceReference);
-            IndexOps index(probe.recorder());
-            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
-            Tensor head = x.slice(0, 0, 2);
-
-            EXPECT_THROW(record_overlap(index, row, x, head), std::invalid_argument);
-            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_IndexOpsOverlap, ::testing::ValuesIn(overlap_rows()),
-            [](const ::testing::TestParamInfo<OverlapRow>& info)
-            { return std::string(info.param.name); });
 
         /** @brief Runs one test in each execution mode. */
         class Medium_IndexOpsInEachMode : public Medium_IndexOps,

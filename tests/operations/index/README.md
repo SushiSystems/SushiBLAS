@@ -8,9 +8,10 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_index_ops.cpp` | Tests IndexOps::for_each with a fixed count and with a count a previous node writes |
+| `test_index_ops/test_graph.cpp` | Tests IndexOps::for_each with a fixed count and with a count a previous node writes, against the runtime |
+| `test_index_ops/test_recording.cpp` | Tests what IndexOps::for_each records and refuses, on a host engine with no device |
 
-## test_index_ops.cpp
+## test_index_ops/test_graph.cpp
 
 The scatter runs a chain of 33 vertices in two colours, the even edges and the odd edges. Inside a
 colour no two edges share a vertex; across the colours they do, so only the order of the two
@@ -25,13 +26,16 @@ the host) and its value. The count tensor starts at capacity plus one when a nod
 task that read it before the node wrote it would mark everything. A count of 0 and a count equal
 to the capacity run on both paths. A count above the capacity, a negative count and a count above
 a capacity of zero fail the run on `ForceSYCL`, where the runtime's dynamic node reports them; the
-host body's refusal is tested in `test_index_task.cpp`. The refused count tensors (a float or an
-`Int64` count in host memory, an `Int32` or `UInt32` count in shared memory) are one table over
-both modes, and the overlapping declarations, also at a count of zero, are another. The ordering
-cases assert on `dependency_count`, not on a value; the node's name and operation id, its reads
-and writes and the order around an update are one test each. The determinism case reads
-`PlanNode::determinism` from the runtime's plan, for a fixed and a late node; the default
-`Unstated` class is tested in `tests/engine/engine/test_operation_options.cpp`, and so is the
-refusal of an empty name. A fixed count of zero over an update that overlaps a read is refused, so
-a declaration error does not hide behind an empty count. The tests that build a `GraphProbe`, or
-that record on the fixture's engine, stay `Medium_`: both reach the process-wide runtime.
+host body's refusal is tested in `test_index_task.cpp`. The refused count tensors in shared memory (an `Int32` or `UInt32` count) are one table over
+both modes; residency is the boundary. The ordering cases assert on `dependency_count`, not on a
+value, since the graph plan owns the order. The determinism case reads `PlanNode::determinism`
+from the runtime's plan, for a fixed and a late node; the default `Unstated` class is tested in
+`tests/engine/engine/test_operation_options.cpp`, and so is the refusal of an empty name.
+
+## test_index_ops/test_recording.cpp
+
+The tests run `Small_` on a `HostEngineTest`: they read what the host sink kept. They cover the
+name, operation id and determinism class of a recorded task, the one read and one write of an
+update, the refusal of a float or `Int64` count tensor (also at a capacity of zero), the refusal of
+a task that writes its own count, the overlapping declarations (also at a count of zero), and that
+a count of zero records nothing. A refusal records nothing.
