@@ -144,11 +144,11 @@ namespace SushiBLAS
             }
 
             /** @brief Returns elements [offset, offset + count) of a host-addressable buffer. */
-            template <typename T>
-            std::vector<T> read_buffer(const Buffer<T>& buffer, std::size_t offset,
-                                       std::size_t count)
+            template <class B>
+            std::vector<GraphPrimitives::Detail::BufferValue<B>>
+            read_buffer(const B& buffer, std::size_t offset, std::size_t count)
             {
-                std::vector<T> values;
+                std::vector<GraphPrimitives::Detail::BufferValue<B>> values;
                 values.reserve(count);
                 for (std::size_t i = 0; i < count; ++i)
                     values.push_back(buffer[offset + i]);
@@ -156,8 +156,8 @@ namespace SushiBLAS
             }
 
             /** @brief Sets every element of a host-addressable buffer to value. */
-            template <typename T>
-            void fill_constant(Buffer<T>& buffer, T value)
+            template <class B>
+            void fill_constant(B& buffer, GraphPrimitives::Detail::BufferValue<B> value)
             {
                 for (std::size_t i = 0; i < buffer.size(); ++i)
                     buffer[i] = value;
@@ -210,21 +210,27 @@ namespace SushiBLAS
                 }
             };
 
+            /// @brief Names the recorder whose operands the host rows use.
+            using HostRecorder = GraphPrimitives::HostPrimitiveRecorder;
+
+            /// @brief Names the uint32 operand of a host recorder.
+            using HostWords = GraphPrimitives::HostBuffer<std::uint32_t>;
+
             /** @brief Holds one-value segments in offsets and output padded past the count. */
             struct UnitSegments
             {
                 static constexpr std::size_t K_OFFSETS_PAD = 9; /**< Offsets past the count. */
                 static constexpr std::size_t K_OUTPUT_PAD = 8;  /**< Outputs past the count. */
 
-                Buffer<std::uint32_t> offsets; /**< Bounds s at index s, then padding. */
-                Buffer<std::uint32_t> values;  /**< One per segment, every one 1. */
-                Buffer<std::uint32_t> out;     /**< One result per segment, then padding. */
+                HostWords offsets; /**< Bounds s at index s, then padding. */
+                HostWords values;  /**< One per segment, every one 1. */
+                HostWords out;     /**< One result per segment, then padding. */
 
                 /** @brief Allocates segments one-value segments and writes their bounds and values. */
-                UnitSegments(Runtime& runtime, std::size_t segments)
-                    : offsets(runtime.buffer<std::uint32_t>(segments + K_OFFSETS_PAD).value()),
-                      values(runtime.buffer<std::uint32_t>(segments).value()),
-                      out(runtime.buffer<std::uint32_t>(segments + K_OUTPUT_PAD).value())
+                explicit UnitSegments(std::size_t segments)
+                    : offsets(HostRecorder::buffer<std::uint32_t>(segments + K_OFFSETS_PAD)),
+                      values(HostRecorder::buffer<std::uint32_t>(segments)),
+                      out(HostRecorder::buffer<std::uint32_t>(segments + K_OUTPUT_PAD))
                 {
                     for (std::size_t s = 0; s <= segments; ++s)
                         offsets[s] = static_cast<std::uint32_t>(s);
@@ -273,8 +279,9 @@ namespace SushiBLAS
             template <typename T>
             SushiRuntime::Result<void>
             record_reduce(GraphPrimitives::HostPrimitiveRecorder& recorder,
-                          const Buffer<T>& values, const Buffer<std::uint32_t>& bounds,
-                          const Buffer<T>& out, CountForm form, std::size_t segments,
+                          const GraphPrimitives::HostBuffer<T>& values, const HostWords& bounds,
+                          const GraphPrimitives::HostBuffer<T>& out, CountForm form,
+                          std::size_t segments,
                           const SegmentedReduceWindow& window = SegmentedReduceWindow{},
                           const std::optional<PrimitiveOptions>& options = std::nullopt)
             {
@@ -348,10 +355,31 @@ namespace SushiBLAS
                 }
             };
 
+            /** @brief Holds the wide operands of a windowed call on a host recorder. */
+            struct HostWindowedSegments
+            {
+                GraphPrimitives::HostBuffer<float> wide_values; /**< Values inside a window. */
+                HostWords wide_bounds;                          /**< Offsets inside a window. */
+                GraphPrimitives::HostBuffer<float> wide_out;    /**< Output inside a window. */
+
+                /** @brief Allocates the wide operands at the size WindowedSegments gives them. */
+                HostWindowedSegments()
+                    : wide_values(HostRecorder::buffer<float>(
+                          WindowedSegments::wide_value_count())),
+                      wide_bounds(HostRecorder::buffer<std::uint32_t>(
+                          WindowedSegments::K_BOUNDS_OFFSET + K_RAGGED_OFFSETS.size() +
+                          WindowedSegments::K_TAIL)),
+                      wide_out(HostRecorder::buffer<float>(
+                          WindowedSegments::K_OUTPUT_OFFSET + WindowedSegments::segments() +
+                          WindowedSegments::K_TAIL))
+                {
+                }
+            };
+
             /** @brief Records a segmented reduction of the wide buffers on a host recorder. */
             SushiRuntime::Result<void>
             record_windowed(GraphPrimitives::HostPrimitiveRecorder& recorder,
-                            const WindowedSegments& buffers, CountForm form,
+                            const HostWindowedSegments& buffers, CountForm form,
                             const SegmentedReduceWindow& window)
             {
                 return record_reduce(recorder, buffers.wide_values, buffers.wide_bounds,
@@ -406,7 +434,7 @@ namespace SushiBLAS
             };
 
             /** @brief Returns the region a probe row names inside the wide buffers. */
-            SushiRuntime::BufferRegion probed_region(const WindowedSegments& buffers,
+            SushiRuntime::BufferRegion probed_region(const HostWindowedSegments& buffers,
                                                      const ProbeRow& row)
             {
                 if (row.operand == WindowOperand::Values)
@@ -438,10 +466,12 @@ namespace SushiBLAS
             /** @brief Holds the small operands of a call that is recorded but never run. */
             struct SmallCall
             {
-                Runtime runtime = Runtime::create().value();                       /**< The runtime. */
-                Buffer<float> values = runtime.buffer<float>(8).value();           /**< Values. */
-                Buffer<std::uint32_t> bounds = runtime.buffer<std::uint32_t>(3).value(); /**< Offsets. */
-                Buffer<float> out = runtime.buffer<float>(2).value();              /**< Output. */
+                /// @brief Holds the values.
+                GraphPrimitives::HostBuffer<float> values = HostRecorder::buffer<float>(8);
+                /// @brief Holds the segment offsets.
+                HostWords bounds = HostRecorder::buffer<std::uint32_t>(3);
+                /// @brief Holds the output.
+                GraphPrimitives::HostBuffer<float> out = HostRecorder::buffer<float>(2);
 
                 /** @brief Records a two-segment sum on a host recorder in the given form. */
                 SushiRuntime::Result<void>
@@ -450,15 +480,6 @@ namespace SushiBLAS
                 {
                     return record_reduce(recorder, values, bounds, out, form, std::size_t{2},
                                          SegmentedReduceWindow{}, options);
-                }
-
-                /** @brief Records a two-segment sum into graph in the given form. */
-                SushiRuntime::Result<void>
-                record(SushiRuntime::Graph& graph, CountForm form,
-                       const std::optional<PrimitiveOptions>& options = std::nullopt) const
-                {
-                    return record_reduce(graph.recorder(), values, bounds, out, form,
-                                         std::size_t{2}, SegmentedReduceWindow{}, options);
                 }
             };
 
@@ -541,8 +562,7 @@ namespace SushiBLAS
         TEST(Small_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
         {
             constexpr std::size_t K_SEGMENTS = 64;
-            auto runtime = Runtime::create().value();
-            UnitSegments segments(runtime, K_SEGMENTS);
+            UnitSegments segments(K_SEGMENTS);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             GraphPrimitives::segmented_reduce(recorder, segments.values, segments.offsets,
@@ -560,8 +580,7 @@ namespace SushiBLAS
         TEST(Small_GraphPrimitivesSegmentedReduce, LateBoundWidthsAreOneAndTheCapacity)
         {
             constexpr std::size_t K_SEGMENTS = 128;
-            auto runtime = Runtime::create().value();
-            UnitSegments segments(runtime, K_SEGMENTS);
+            UnitSegments segments(K_SEGMENTS);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             GraphPrimitives::segmented_reduce(recorder, segments.values, segments.offsets,
@@ -661,8 +680,7 @@ namespace SushiBLAS
         {
             const CountForm form = std::get<0>(GetParam());
             const ProbeRow& row = std::get<1>(GetParam());
-            auto runtime = Runtime::create().value();
-            const WindowedSegments buffers(runtime);
+            const HostWindowedSegments buffers;
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_windowed(recorder, buffers, form, WindowedSegments::window()).value();

@@ -60,17 +60,14 @@ namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
-        namespace
-        {
-        /** @brief Records prefix_scan() through any PrimitiveRecorder. */
         template <class Port>
         SushiRuntime::Result<void>
-        prefix_scan_through(Port& recorder,
-                            const SushiRuntime::Buffer<std::uint32_t>& counts,
-                            const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                            const SushiRuntime::Buffer<std::uint32_t>& total,
-                            SushiRuntime::LateCount n, PrefixScanWindow window,
-                            const std::optional<PrimitiveOptions>& options)
+        prefix_scan(Port& recorder,
+                    const typename Port::template Buffer<std::uint32_t>& counts,
+                    const typename Port::template Buffer<std::uint32_t>& offsets,
+                    const typename Port::template Buffer<std::uint32_t>& total,
+                    SushiRuntime::LateCount n, PrefixScanWindow window,
+                    const std::optional<PrimitiveOptions>& options)
         {
             static_assert(K_IS_PRIMITIVE_RECORDER<Port>, "Port must be a PrimitiveRecorder.");
             using SushiRuntime::Access;
@@ -93,11 +90,11 @@ namespace SushiBLAS
                 return checked;
             Detail::NodeStamper stamper(options, "graph.prefix_scan");
 
-            const Detail::ElementSpan<std::uint32_t> counts_span =
+            const auto counts_span =
                 Detail::elements(counts, window.counts_offset, capacity);
-            const Detail::ElementSpan<std::uint32_t> offsets_span =
+            const auto offsets_span =
                 Detail::elements(offsets, window.offsets_offset, capacity + 1);
-            const Detail::ElementSpan<std::uint32_t> total_span =
+            const auto total_span =
                 Detail::elements(total, window.total_offset, std::size_t{1});
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
@@ -265,28 +262,21 @@ namespace SushiBLAS
 
             return Detail::recording_outcome(recorder);
         }
-        } // namespace
 
-        SushiRuntime::Result<void>
-        prefix_scan(RuntimePrimitiveRecorder& recorder,
-                    const SushiRuntime::Buffer<std::uint32_t>& counts,
-                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                    const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n, PrefixScanWindow window,
-                    const std::optional<PrimitiveOptions>& options)
-        {
-            return prefix_scan_through(recorder, counts, offsets, total, n, window, options);
-        }
+        template SushiRuntime::Result<void>
+        prefix_scan<RuntimePrimitiveRecorder>(
+            RuntimePrimitiveRecorder&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            SushiRuntime::LateCount, PrefixScanWindow, const std::optional<PrimitiveOptions>&);
 
-        SushiRuntime::Result<void>
-        prefix_scan(HostPrimitiveRecorder& recorder,
-                    const SushiRuntime::Buffer<std::uint32_t>& counts,
-                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                    const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n, PrefixScanWindow window,
-                    const std::optional<PrimitiveOptions>& options)
-        {
-            return prefix_scan_through(recorder, counts, offsets, total, n, window, options);
-        }
+        template SushiRuntime::Result<void>
+        prefix_scan<HostPrimitiveRecorder>(
+            HostPrimitiveRecorder&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            SushiRuntime::LateCount, PrefixScanWindow, const std::optional<PrimitiveOptions>&);
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

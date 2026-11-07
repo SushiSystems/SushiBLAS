@@ -38,7 +38,9 @@
 #include <SushiRuntime/core/result.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 
+#include <SushiBLAS/graph_primitives/host_buffer.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 
 namespace SushiBLAS
 {
@@ -50,23 +52,27 @@ namespace SushiBLAS
              * @brief Names elements [offset, offset + count) of one buffer.
              * @see modules/foundation/graph_primitives/README.md
              */
-            template <typename T>
+            template <class BufferType>
             struct ElementSpan
             {
-                const SushiRuntime::Buffer<T>* buffer = nullptr; /**< Buffer the span lies in. */
-                std::size_t offset = 0;                          /**< First element. */
-                std::size_t count = 0;                           /**< Elements spanned. */
+                const BufferType* buffer = nullptr; /**< Buffer the span lies in. */
+                std::size_t offset = 0;             /**< First element. */
+                std::size_t count = 0;              /**< Elements spanned. */
 
                 /** @brief Returns the address of the span's first element. */
-                [[nodiscard]] T* data() const noexcept { return buffer->data() + offset; }
+                [[nodiscard]] BufferValue<BufferType>* data() const noexcept
+                {
+                    return buffer->data() + offset;
+                }
             };
 
             /** @brief Returns the span of count elements of buffer from offset. */
-            template <typename T>
-            [[nodiscard]] ElementSpan<T> elements(const SushiRuntime::Buffer<T>& buffer,
-                                                  std::size_t offset, std::size_t count) noexcept
+            template <class BufferType>
+            [[nodiscard]] ElementSpan<BufferType> elements(const BufferType& buffer,
+                                                           std::size_t offset,
+                                                           std::size_t count) noexcept
             {
-                return ElementSpan<T>{&buffer, offset, count};
+                return ElementSpan<BufferType>{&buffer, offset, count};
             }
 
             /**
@@ -101,9 +107,17 @@ namespace SushiBLAS
             /** @brief Returns the buffer of a span as the handle a dependency set collects. */
             template <typename T>
             [[nodiscard]] const SushiRuntime::Buffer<T>&
-            handle_of(const ElementSpan<T>& span) noexcept
+            handle_of(const ElementSpan<SushiRuntime::Buffer<T>>& span) noexcept
             {
                 return *span.buffer;
+            }
+
+            /** @brief Returns the whole-buffer region of a host buffer as the handle. */
+            template <typename T>
+            [[nodiscard]] SushiRuntime::BufferRegion
+            handle_of(const ElementSpan<HostBuffer<T>>& span) noexcept
+            {
+                return span.buffer->region();
             }
 
             /** @brief Leaves the region of a bare region as it was named. */
@@ -114,11 +128,12 @@ namespace SushiBLAS
             }
 
             /** @brief Narrows the whole-buffer region of a span's buffer to the span's bytes. */
-            template <typename T>
-            void narrow(SushiRuntime::BufferRegion& key, const ElementSpan<T>& span) noexcept
+            template <class BufferType>
+            void narrow(SushiRuntime::BufferRegion& key,
+                        const ElementSpan<BufferType>& span) noexcept
             {
-                key.offset += span.offset * sizeof(T);
-                key.length = span.count * sizeof(T);
+                key.offset += span.offset * sizeof(BufferValue<BufferType>);
+                key.length = span.count * sizeof(BufferValue<BufferType>);
             }
 
             /**
@@ -136,8 +151,8 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the region a span names, keyed as its buffer is keyed. */
-            template <typename T>
-            [[nodiscard]] SushiRuntime::BufferRegion region_of(const ElementSpan<T>& span)
+            template <class BufferType>
+            [[nodiscard]] SushiRuntime::BufferRegion region_of(const ElementSpan<BufferType>& span)
             {
                 return access_of<SushiRuntime::Reads>(span).keys.front();
             }

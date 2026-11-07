@@ -47,6 +47,7 @@
 #include <SushiRuntime/core/error.hpp>
 #include <SushiRuntime/core/result.hpp>
 
+#include <SushiBLAS/graph_primitives/host_buffer.hpp>
 #include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 
 namespace SushiBLAS
@@ -65,6 +66,17 @@ namespace SushiBLAS
             public:
                 /** @brief Marks this type as a PrimitiveRecorder. */
                 static constexpr bool K_PRIMITIVE_RECORDER = true;
+
+                /** @brief The operand type of this port; buffer() allocates it. */
+                template <typename T>
+                using Buffer = HostBuffer<T>;
+
+                /** @brief Allocates a zeroed operand of count elements; it needs no runtime. */
+                template <typename T>
+                [[nodiscard]] static Buffer<T> buffer(std::size_t count)
+                {
+                    return Buffer<T>(count);
+                }
 
                 /** @brief Guard of one rule; nodes recorded while it lives share the rule. */
                 class RuleScope

@@ -303,6 +303,40 @@ namespace SushiBLAS
                     filled(runtime, window.counts_offset + key_range + tail, K_CANARY)};
             }
 
+            /// @brief Names the operand type of a host recorder.
+            using HostWords = GraphPrimitives::HostBuffer<std::uint32_t>;
+
+            /** @brief Returns a host buffer of size elements, each holding value. */
+            HostWords host_filled(std::size_t size, std::uint32_t value)
+            {
+                HostWords buffer =
+                    GraphPrimitives::HostPrimitiveRecorder::buffer<std::uint32_t>(size);
+                std::fill(buffer.data(), buffer.data() + size, value);
+                return buffer;
+            }
+
+            /** @brief Holds the five host buffers of one counting_sort() call on a host recorder. */
+            struct HostSortOperands
+            {
+                HostWords keys;    /**< Keys. */
+                HostWords indices; /**< Sorted order. */
+                HostWords offsets; /**< Bucket starts. */
+                HostWords total;   /**< Element count. */
+                HostWords counts;  /**< Bucket sizes. */
+            };
+
+            /** @brief Returns host operands placed at window, sized as operands_for() sizes them. */
+            HostSortOperands host_operands_for(std::size_t count, std::size_t key_range,
+                                               std::size_t tail, const Window& window = Window{})
+            {
+                return HostSortOperands{
+                    host_filled(std::max<std::size_t>(window.keys_offset + count + tail, 1), 0u),
+                    host_filled(window.indices_offset + count + tail, K_CANARY),
+                    host_filled(window.offsets_offset + key_range + 1 + tail, K_CANARY),
+                    host_filled(window.total_offset + 1 + tail, K_CANARY),
+                    host_filled(window.counts_offset + key_range + tail, K_CANARY)};
+            }
+
             /** @brief Records counting_sort() over operands; the call must be accepted. */
             void record_sort(SushiRuntime::Recorder& recorder, const SortOperands& operands,
                              const LateCount& count, const LateCount& key_range,
@@ -317,8 +351,8 @@ namespace SushiBLAS
 
             /** @brief Records counting_sort() over operands on a host recorder; it must be accepted. */
             void record_sort(GraphPrimitives::HostPrimitiveRecorder& recorder,
-                             const SortOperands& operands, const LateCount& count,
-                             const LateCount& key_range, const Words* counts = nullptr,
+                             const HostSortOperands& operands, const LateCount& count,
+                             const LateCount& key_range, const HostWords* counts = nullptr,
                              const Window& window = Window{},
                              const std::optional<GraphPrimitives::PrimitiveOptions>& options =
                                  std::nullopt)
@@ -654,7 +688,7 @@ namespace SushiBLAS
 
             /** @brief Returns a host recorder holding one sort of 8 keys over 4 buckets with options. */
             GraphPrimitives::HostPrimitiveRecorder labelled_sort(
-                const SortOperands& operands, bool with_counts,
+                const HostSortOperands& operands, bool with_counts,
                 const std::optional<GraphPrimitives::PrimitiveOptions>& options)
             {
                 GraphPrimitives::HostPrimitiveRecorder recorder;
@@ -714,7 +748,7 @@ namespace SushiBLAS
             struct ProbeRow
             {
                 /// @brief Holds the operand the region lies in.
-                Words SortOperands::*operand;
+                HostWords HostSortOperands::*operand;
                 /// @brief Holds the first element of the region.
                 std::size_t offset;
                 /// @brief Holds the elements of the region.
@@ -883,8 +917,8 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 10;
             const NodeCountRow& row = GetParam();
 
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, K_COUNT, row.key_capacity, 0);
+            const HostSortOperands operands =
+                host_operands_for(K_COUNT, row.key_capacity, 0);
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sort(recorder, operands, LateCount::fixed(K_COUNT),
                         LateCount::fixed(row.key_capacity));
@@ -1050,9 +1084,8 @@ namespace SushiBLAS
         {
             const WidthRow& row = GetParam();
 
-            auto runtime = Runtime::create().value();
-            const SortOperands operands =
-                operands_for(runtime, K_CAPTURED_COUNT, K_CAPTURED_KEY_RANGE, 0);
+            const HostSortOperands operands =
+                host_operands_for(K_CAPTURED_COUNT, K_CAPTURED_KEY_RANGE, 0);
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sort(recorder, operands, LateCount::fixed(K_CAPTURED_COUNT),
                         LateCount::fixed(K_CAPTURED_KEY_RANGE), &operands.counts);
@@ -1165,9 +1198,8 @@ namespace SushiBLAS
         {
             const ProbeRow& row = GetParam();
 
-            auto runtime = Runtime::create().value();
-            const SortOperands operands =
-                operands_for(runtime, K_PROBE_COUNT, K_PROBE_KEY_RANGE, K_WINDOW_TAIL, K_WINDOW);
+            const HostSortOperands operands =
+                host_operands_for(K_PROBE_COUNT, K_PROBE_KEY_RANGE, K_WINDOW_TAIL, K_WINDOW);
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sort(recorder, operands, LateCount::fixed(K_PROBE_COUNT),
                         LateCount::fixed(K_PROBE_KEY_RANGE), &operands.counts, K_WINDOW);
@@ -1180,22 +1212,22 @@ namespace SushiBLAS
         INSTANTIATE_TEST_SUITE_P(
             , Small_GraphPrimitivesCountingSortWindowProbe,
             ::testing::Values(
-                ProbeRow{&SortOperands::keys, 0, K_WINDOW.keys_offset, false},
-                ProbeRow{&SortOperands::keys, K_WINDOW.keys_offset + K_PROBE_COUNT, K_WINDOW_TAIL,
-                         false},
-                ProbeRow{&SortOperands::keys, K_WINDOW.keys_offset, 1, true},
-                ProbeRow{&SortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT,
+                ProbeRow{&HostSortOperands::keys, 0, K_WINDOW.keys_offset, false},
+                ProbeRow{&HostSortOperands::keys, K_WINDOW.keys_offset + K_PROBE_COUNT,
                          K_WINDOW_TAIL, false},
-                ProbeRow{&SortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT - 1, 1,
-                         true},
-                ProbeRow{&SortOperands::offsets, 0, K_WINDOW.offsets_offset, false},
-                ProbeRow{&SortOperands::offsets, K_WINDOW.offsets_offset + K_PROBE_KEY_RANGE, 1,
-                         true},
-                ProbeRow{&SortOperands::total, K_WINDOW.total_offset + 1, 1, false},
-                ProbeRow{&SortOperands::total, K_WINDOW.total_offset, 1, true},
-                ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset + K_PROBE_KEY_RANGE,
+                ProbeRow{&HostSortOperands::keys, K_WINDOW.keys_offset, 1, true},
+                ProbeRow{&HostSortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT,
                          K_WINDOW_TAIL, false},
-                ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset, 1, true}));
+                ProbeRow{&HostSortOperands::indices, K_WINDOW.indices_offset + K_PROBE_COUNT - 1, 1,
+                         true},
+                ProbeRow{&HostSortOperands::offsets, 0, K_WINDOW.offsets_offset, false},
+                ProbeRow{&HostSortOperands::offsets, K_WINDOW.offsets_offset + K_PROBE_KEY_RANGE, 1,
+                         true},
+                ProbeRow{&HostSortOperands::total, K_WINDOW.total_offset + 1, 1, false},
+                ProbeRow{&HostSortOperands::total, K_WINDOW.total_offset, 1, true},
+                ProbeRow{&HostSortOperands::counts, K_WINDOW.counts_offset + K_PROBE_KEY_RANGE,
+                         K_WINDOW_TAIL, false},
+                ProbeRow{&HostSortOperands::counts, K_WINDOW.counts_offset, 1, true}));
 
         /// @brief Records a named sort with or without counts.
         class Small_GraphPrimitivesCountingSortNamedCall : public ::testing::TestWithParam<bool>
@@ -1208,8 +1240,8 @@ namespace SushiBLAS
             const bool with_counts = GetParam();
             const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
 
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            const HostSortOperands operands =
+                host_operands_for(8, K_LABEL_KEY_RANGE, 0);
             const GraphPrimitives::HostPrimitiveRecorder recorded =
                 labelled_sort(operands, with_counts, options);
 
@@ -1223,8 +1255,8 @@ namespace SushiBLAS
             const bool with_counts = GetParam();
             const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
 
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            const HostSortOperands operands =
+                host_operands_for(8, K_LABEL_KEY_RANGE, 0);
             const GraphPrimitives::HostPrimitiveRecorder recorded =
                 labelled_sort(operands, with_counts, options);
 
@@ -1238,8 +1270,8 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
         TEST(Small_GraphPrimitivesCountingSort, UnnamedCallKeepsItsNodesUnnamed)
         {
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            const HostSortOperands operands =
+                host_operands_for(8, K_LABEL_KEY_RANGE, 0);
             const GraphPrimitives::HostPrimitiveRecorder recorded =
                 labelled_sort(operands, false, std::nullopt);
 
@@ -1251,8 +1283,8 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options leaves the class of every node Unstated. */
         TEST(Small_GraphPrimitivesCountingSort, UnnamedCallLeavesEveryClassUnstated)
         {
-            auto runtime = Runtime::create().value();
-            const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
+            const HostSortOperands operands =
+                host_operands_for(8, K_LABEL_KEY_RANGE, 0);
             const GraphPrimitives::HostPrimitiveRecorder recorded =
                 labelled_sort(operands, false, std::nullopt);
 

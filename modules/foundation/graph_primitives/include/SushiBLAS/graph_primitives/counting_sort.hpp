@@ -59,35 +59,23 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Records a stable argsort of uint32 keys by radix digits, with bucket offsets.
+         * @brief Records a stable argsort of uint32 keys with bucket offsets, on either recorder.
          * @param indices Receives the sorted order, as indices into the keys window.
          * @param offsets Receives the bucket starts; holds key_range.capacity() + 1 elements.
          * @param counts  Optional bucket sizes; holds key_range.capacity() elements.
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
          */
+        template <class Port>
         [[nodiscard]] SushiRuntime::Result<void>
-        counting_sort(RuntimePrimitiveRecorder& recorder,
-                      const SushiRuntime::Buffer<std::uint32_t>& keys,
-                      const SushiRuntime::Buffer<std::uint32_t>& indices,
-                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                      const SushiRuntime::Buffer<std::uint32_t>& total,
+        counting_sort(Port& recorder,
+                      const typename Port::template Buffer<std::uint32_t>& keys,
+                      const typename Port::template Buffer<std::uint32_t>& indices,
+                      const typename Port::template Buffer<std::uint32_t>& offsets,
+                      const typename Port::template Buffer<std::uint32_t>& total,
                       SushiRuntime::LateCount n,
                       SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr,
-                      CountingSortWindow window = {},
-                      const std::optional<PrimitiveOptions>& options = std::nullopt);
-
-        /** @brief Records counting_sort() through a HostPrimitiveRecorder. */
-        [[nodiscard]] SushiRuntime::Result<void>
-        counting_sort(HostPrimitiveRecorder& recorder,
-                      const SushiRuntime::Buffer<std::uint32_t>& keys,
-                      const SushiRuntime::Buffer<std::uint32_t>& indices,
-                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                      const SushiRuntime::Buffer<std::uint32_t>& total,
-                      SushiRuntime::LateCount n,
-                      SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr,
+                      const typename Port::template Buffer<std::uint32_t>* counts = nullptr,
                       CountingSortWindow window = {},
                       const std::optional<PrimitiveOptions>& options = std::nullopt);
 

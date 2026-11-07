@@ -77,15 +77,14 @@ namespace SushiBLAS
              * @brief Checks a segmented reduction's call, then returns its three spans.
              * @return Nothing, or the InvalidGraph error of the first rule broken.
              */
-            template <typename T>
+            template <class Values, class Offsets, class Output>
             [[nodiscard]] SushiRuntime::Result<void>
-            segment_spans(const SushiRuntime::Buffer<T>& values,
-                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
-                          const SushiRuntime::Buffer<T>& output, std::size_t segment_count,
+            segment_spans(const Values& values, const Offsets& segment_offsets,
+                          const Output& output, std::size_t segment_count,
                           const SegmentedReduceWindow& window,
                           const std::optional<PrimitiveOptions>& options,
-                          ElementSpan<T>& value_span, ElementSpan<std::uint32_t>& offset_span,
-                          ElementSpan<T>& output_span)
+                          ElementSpan<Values>& value_span, ElementSpan<Offsets>& offset_span,
+                          ElementSpan<Output>& output_span)
             {
                 const std::size_t value_count =
                     (window.values_count == SegmentedReduceWindow::K_TO_END)
@@ -122,26 +121,30 @@ namespace SushiBLAS
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, InvalidGraph (a window or options), or the recorder's refusal.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Values, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         segmented_reduce(Port& recorder,
-                         const SushiRuntime::Buffer<T>& values,
-                         const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
-                         const SushiRuntime::Buffer<T>& output,
-                         std::size_t segment_count, Combine op, T identity,
+                         const Values& values,
+                         const typename Port::template Buffer<std::uint32_t>& segment_offsets,
+                         const Output& output,
+                         std::size_t segment_count, Combine op, Detail::BufferValue<Values> identity,
                          SegmentedReduceWindow window = {},
                          const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
+            using T = Detail::BufferValue<Values>;
+            static_assert(Detail::K_IS_PORT_BUFFER<Port, Values> &&
+                              Detail::K_IS_PORT_BUFFER<Port, Output>,
+                          "The operands of segmented_reduce() must be the Buffer type of the port.");
             using SushiRuntime::Access;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
 
             Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
-            Detail::ElementSpan<T> value_span;
-            Detail::ElementSpan<std::uint32_t> offset_span;
-            Detail::ElementSpan<T> output_span;
+            Detail::ElementSpan<Values> value_span;
+            Detail::ElementSpan<typename Port::template Buffer<std::uint32_t>> offset_span;
+            Detail::ElementSpan<Output> output_span;
             SushiRuntime::Result<void> fits =
                 Detail::segment_spans(values, segment_offsets, output, segment_count, window,
                                       options, value_span, offset_span, output_span);
@@ -172,17 +175,21 @@ namespace SushiBLAS
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return As the fixed-count overload, or AllocationFailed; a run fails past the capacity.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Values, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         segmented_reduce(Port& recorder,
-                         const SushiRuntime::Buffer<T>& values,
-                         const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
-                         const SushiRuntime::Buffer<T>& output,
-                         SushiRuntime::LateCount segment_count, Combine op, T identity,
+                         const Values& values,
+                         const typename Port::template Buffer<std::uint32_t>& segment_offsets,
+                         const Output& output,
+                         SushiRuntime::LateCount segment_count, Combine op, Detail::BufferValue<Values> identity,
                          SegmentedReduceWindow window = {},
                          const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
+            using T = Detail::BufferValue<Values>;
+            static_assert(Detail::K_IS_PORT_BUFFER<Port, Values> &&
+                              Detail::K_IS_PORT_BUFFER<Port, Output>,
+                          "The operands of segmented_reduce() must be the Buffer type of the port.");
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
@@ -193,9 +200,9 @@ namespace SushiBLAS
             Detail::NodeStamper stamper(options, "graph.segmented_reduce");
 
             const std::size_t capacity = segment_count.capacity();
-            Detail::ElementSpan<T> value_span;
-            Detail::ElementSpan<std::uint32_t> offset_span;
-            Detail::ElementSpan<T> output_span;
+            Detail::ElementSpan<Values> value_span;
+            Detail::ElementSpan<typename Port::template Buffer<std::uint32_t>> offset_span;
+            Detail::ElementSpan<Output> output_span;
             SushiRuntime::Result<void> fits =
                 Detail::segment_spans(values, segment_offsets, output, capacity, window, options,
                                       value_span, offset_span, output_span);
@@ -243,13 +250,13 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Values, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         segmented_reduce(Port& recorder,
-                         const SushiRuntime::Buffer<T>& values,
-                         const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
-                         const SushiRuntime::Buffer<T>& output,
+                         const Values& values,
+                         const typename Port::template Buffer<std::uint32_t>& segment_offsets,
+                         const Output& output,
                          std::size_t segment_count, Combine op,
                          SegmentedReduceWindow window = {},
                          const std::optional<PrimitiveOptions>& options = std::nullopt)
@@ -264,13 +271,13 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Values, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         segmented_reduce(Port& recorder,
-                         const SushiRuntime::Buffer<T>& values,
-                         const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
-                         const SushiRuntime::Buffer<T>& output,
+                         const Values& values,
+                         const typename Port::template Buffer<std::uint32_t>& segment_offsets,
+                         const Output& output,
                          SushiRuntime::LateCount segment_count, Combine op,
                          SegmentedReduceWindow window = {},
                          const std::optional<PrimitiveOptions>& options = std::nullopt)

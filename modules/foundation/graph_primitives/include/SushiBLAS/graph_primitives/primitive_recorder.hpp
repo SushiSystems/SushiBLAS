@@ -77,8 +77,9 @@ namespace SushiBLAS
         /**
          * @brief Tells whether Port declares itself an adapter of the PrimitiveRecorder port.
          *
-         * An adapter sets a static constexpr K_PRIMITIVE_RECORDER to true. The port is a
-         * compile-time contract because a kernel body stays a device-copyable type.
+         * An adapter sets a static constexpr K_PRIMITIVE_RECORDER to true and names its operand
+         * type with a member template Buffer. The port is a compile-time contract because a
+         * kernel body stays a device-copyable type.
          * @see modules/foundation/graph_primitives/README.md
          */
         template <class Port, class = void>
@@ -88,6 +89,25 @@ namespace SushiBLAS
         template <class Port>
         inline constexpr bool K_IS_PRIMITIVE_RECORDER<
             Port, std::void_t<decltype(Port::K_PRIMITIVE_RECORDER)>> = Port::K_PRIMITIVE_RECORDER;
+
+        namespace Detail
+        {
+            /** @brief Names the element type an operand buffer holds. */
+            template <class BufferType>
+            using BufferValue =
+                std::remove_pointer_t<decltype(std::declval<const BufferType&>().data())>;
+
+            /**
+             * @brief Tells whether BufferType is the operand type Port declares for its elements.
+             *
+             * A port names its operand type with a member template Buffer; a primitive takes
+             * that type and no other.
+             */
+            template <class Port, class BufferType>
+            inline constexpr bool K_IS_PORT_BUFFER =
+                std::is_same_v<BufferType,
+                               typename Port::template Buffer<BufferValue<BufferType>>>;
+        } // namespace Detail
 
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

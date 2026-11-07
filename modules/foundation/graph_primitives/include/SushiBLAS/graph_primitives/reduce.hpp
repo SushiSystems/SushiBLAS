@@ -76,15 +76,19 @@ namespace SushiBLAS
          * @return Nothing, InvalidGraph, AllocationFailed or the recorder's refusal.
          * @see modules/foundation/graph_primitives/README.md
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Input, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         reduce(Port& recorder,
-               const SushiRuntime::Buffer<T>& input,
-               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
-               T identity, ReduceWindow window = {},
+               const Input& input,
+               const Output& output, std::size_t n, Combine op,
+               Detail::BufferValue<Input> identity, ReduceWindow window = {},
                const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
+            using T = Detail::BufferValue<Input>;
+            static_assert(Detail::K_IS_PORT_BUFFER<Port, Input> &&
+                              Detail::K_IS_PORT_BUFFER<Port, Output>,
+                          "The operands of reduce() must be the Buffer type of the port.");
             using SushiRuntime::Access;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
@@ -100,8 +104,8 @@ namespace SushiBLAS
                 return checked;
             Detail::NodeStamper stamper(options, "graph.reduce");
 
-            const Detail::ElementSpan<T> in_span = Detail::elements(input, window.input_offset, n);
-            const Detail::ElementSpan<T> out_span =
+            const auto in_span = Detail::elements(input, window.input_offset, n);
+            const auto out_span =
                 Detail::elements(output, window.output_offset, std::size_t{1});
 
             T* out_base = out_span.data();
@@ -176,15 +180,20 @@ namespace SushiBLAS
          * @return Nothing, or an error as the fixed-count overload returns, for n.capacity();
          *         a run returns an error if the live count exceeds n.capacity().
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Input, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         reduce(Port& recorder,
-               const SushiRuntime::Buffer<T>& input,
-               const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-               Combine op, T identity, ReduceWindow window = {},
+               const Input& input,
+               const Output& output, SushiRuntime::LateCount n,
+               Combine op, Detail::BufferValue<Input> identity,
+               ReduceWindow window = {},
                const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
+            using T = Detail::BufferValue<Input>;
+            static_assert(Detail::K_IS_PORT_BUFFER<Port, Input> &&
+                              Detail::K_IS_PORT_BUFFER<Port, Output>,
+                          "The operands of reduce() must be the Buffer type of the port.");
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
@@ -203,9 +212,9 @@ namespace SushiBLAS
                 return checked;
             Detail::NodeStamper stamper(options, "graph.reduce");
 
-            const Detail::ElementSpan<T> in_span =
+            const auto in_span =
                 Detail::elements(input, window.input_offset, capacity);
-            const Detail::ElementSpan<T> out_span =
+            const auto out_span =
                 Detail::elements(output, window.output_offset, std::size_t{1});
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
@@ -305,12 +314,12 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Input, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         reduce(Port& recorder,
-               const SushiRuntime::Buffer<T>& input,
-               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
+               const Input& input,
+               const Output& output, std::size_t n, Combine op,
                ReduceWindow window = {},
                const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
@@ -323,12 +332,12 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <class Port, typename T, class Combine,
+        template <class Port, class Input, class Output, class Combine,
                   std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
         reduce(Port& recorder,
-               const SushiRuntime::Buffer<T>& input,
-               const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
+               const Input& input,
+               const Output& output, SushiRuntime::LateCount n,
                Combine op, ReduceWindow window = {},
                const std::optional<PrimitiveOptions>& options = std::nullopt)
         {

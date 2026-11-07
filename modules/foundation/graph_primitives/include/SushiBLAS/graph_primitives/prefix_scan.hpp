@@ -57,27 +57,19 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Records an exclusive scan of uint32 counts into running offsets.
+         * @brief Records an exclusive scan of uint32 counts into offsets, on either recorder.
          * @param counts  Holds at least n.capacity() elements.
          * @param offsets Holds at least n.capacity() + 1; offsets[live n] receives the sum.
          * @param total   Holds at least one element; total[0] receives the sum.
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, or an error the README lists; a run fails past n.capacity().
          */
+        template <class Port>
         [[nodiscard]] SushiRuntime::Result<void>
-        prefix_scan(RuntimePrimitiveRecorder& recorder,
-                    const SushiRuntime::Buffer<std::uint32_t>& counts,
-                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                    const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n, PrefixScanWindow window = {},
-                    const std::optional<PrimitiveOptions>& options = std::nullopt);
-
-        /** @brief Records prefix_scan() through a HostPrimitiveRecorder. */
-        [[nodiscard]] SushiRuntime::Result<void>
-        prefix_scan(HostPrimitiveRecorder& recorder,
-                    const SushiRuntime::Buffer<std::uint32_t>& counts,
-                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                    const SushiRuntime::Buffer<std::uint32_t>& total,
+        prefix_scan(Port& recorder,
+                    const typename Port::template Buffer<std::uint32_t>& counts,
+                    const typename Port::template Buffer<std::uint32_t>& offsets,
+                    const typename Port::template Buffer<std::uint32_t>& total,
                     SushiRuntime::LateCount n, PrefixScanWindow window = {},
                     const std::optional<PrimitiveOptions>& options = std::nullopt);
 

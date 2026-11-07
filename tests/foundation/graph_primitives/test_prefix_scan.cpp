@@ -253,9 +253,26 @@ namespace SushiBLAS
                 return buffers;
             }
 
+            /** @brief Holds the three host operands of one prefix_scan() call. */
+            struct HostScanBuffers
+            {
+                GraphPrimitives::HostBuffer<std::uint32_t> counts;  /**< Counts, zero. */
+                GraphPrimitives::HostBuffer<std::uint32_t> offsets; /**< Offsets, zero. */
+                GraphPrimitives::HostBuffer<std::uint32_t> total;   /**< Total, zero. */
+            };
+
+            /** @brief Returns host operands of compact size for a two-level scan. */
+            HostScanBuffers host_two_level_buffers()
+            {
+                using Recorder = GraphPrimitives::HostPrimitiveRecorder;
+                return {Recorder::buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY),
+                        Recorder::buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1),
+                        Recorder::buffer<std::uint32_t>(1)};
+            }
+
             /** @brief Returns a host recorder holding a two-level scan over buffers, with options if any. */
             GraphPrimitives::HostPrimitiveRecorder
-            host_two_level(const ScanBuffers& buffers,
+            host_two_level(const HostScanBuffers& buffers,
                            const std::optional<GraphPrimitives::PrimitiveOptions>& options)
             {
                 GraphPrimitives::HostPrimitiveRecorder recorder;
@@ -540,8 +557,7 @@ namespace SushiBLAS
         /** @brief Tests that a two-level call records five passes under one rule. */
         TEST(Small_GraphPrimitivesPrefixScan, TwoLevelCallRecordsFivePassesUnderOneRule)
         {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder =
                 host_two_level(buffers, std::nullopt);
 
@@ -580,8 +596,7 @@ namespace SushiBLAS
         TEST_P(Small_GraphPrimitivesPrefixScanNodeWidth, NodeWidthsMatchTheLevelPlan)
         {
             const NodeWidthRow& row = GetParam();
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder =
                 host_two_level(buffers, std::nullopt);
 
@@ -707,12 +722,12 @@ namespace SushiBLAS
             constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
             const GraphPrimitives::PrefixScanWindow window{9, 6, 2};
 
-            auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(window.counts_offset + K_CAPACITY + 4)
-                              .value();
-            auto offsets =
-                runtime.buffer<std::uint32_t>(window.offsets_offset + K_CAPACITY + 1 + 4).value();
-            auto total = runtime.buffer<std::uint32_t>(window.total_offset + 2).value();
+            using Recorder = GraphPrimitives::HostPrimitiveRecorder;
+            const auto counts =
+                Recorder::buffer<std::uint32_t>(window.counts_offset + K_CAPACITY + 4);
+            const auto offsets =
+                Recorder::buffer<std::uint32_t>(window.offsets_offset + K_CAPACITY + 1 + 4);
+            const auto total = Recorder::buffer<std::uint32_t>(window.total_offset + 2);
 
             const auto predecessors = [&](const SushiRuntime::BufferRegion& written)
             {
@@ -737,8 +752,7 @@ namespace SushiBLAS
         /** @brief Tests that a named call names its nodes by stage. */
         TEST(Small_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesByStage)
         {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder = host_two_level(
                 buffers, GraphPrimitives::PrimitiveOptions{
                              "offsets", SushiRuntime::Determinism::Bitwise});
@@ -751,8 +765,7 @@ namespace SushiBLAS
         /** @brief Tests that a named call states its class on every node. */
         TEST(Small_GraphPrimitivesPrefixScan, NamedCallStatesTheClassOfEveryNode)
         {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder = host_two_level(
                 buffers, GraphPrimitives::PrimitiveOptions{
                              "offsets", SushiRuntime::Determinism::Bitwise});
@@ -765,8 +778,7 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
         TEST(Small_GraphPrimitivesPrefixScan, UnnamedCallKeepsItsNodesUnnamed)
         {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder =
                 host_two_level(buffers, std::nullopt);
 
@@ -777,8 +789,7 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options leaves every node Unstated. */
         TEST(Small_GraphPrimitivesPrefixScan, UnnamedCallLeavesEveryNodeUnstated)
         {
-            auto runtime = Runtime::create().value();
-            const ScanBuffers buffers = two_level_buffers(runtime);
+            const HostScanBuffers buffers = host_two_level_buffers();
             const GraphPrimitives::HostPrimitiveRecorder recorder =
                 host_two_level(buffers, std::nullopt);
 

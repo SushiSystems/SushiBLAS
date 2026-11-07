@@ -14,6 +14,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_fixed_order_fold.cpp` | Tests the two host folds against the fixed tile order, without a device |
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
 | `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
+| `test_host_buffer.cpp` | Tests the size, zeroed memory, region and indexing of `HostBuffer` |
 | `test_host_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite small on `HostPrimitiveRecorder` and tests the record it keeps of each node |
 | `test_primitive_recorder.cpp` | Tests which types declare themselves an adapter of the `PrimitiveRecorder` port |
 | `test_runtime_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite medium on `RuntimePrimitiveRecorder` |
@@ -41,8 +42,8 @@ A primitive records through the `PrimitiveRecorder` port. The rows that only rec
 its nodes (names, classes, widths, rules and the window dependencies) run `Small_` on a
 `HostPrimitiveRecorder` and read `nodes()`; the rows that run a graph, replay it or provoke a
 runtime refusal keep `Medium_` and call the primitive through `runtime_port_calls.hpp`. The
-operands are still `SushiRuntime::Buffer`s, so a host row allocates them from a runtime it
-creates; no node of a host row is submitted to a device.
+operands of a host row are `HostBuffer`s from `HostPrimitiveRecorder::buffer<T>()`, so a `Small_`
+row makes no runtime and submits no node to a device.
 
 ## The runtime a test builds
 

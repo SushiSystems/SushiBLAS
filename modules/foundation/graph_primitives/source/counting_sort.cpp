@@ -59,19 +59,16 @@ namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
-        namespace
-        {
-        /** @brief Records counting_sort() through any PrimitiveRecorder. */
         template <class Port>
         SushiRuntime::Result<void>
-        counting_sort_through(Port& recorder,
-                      const SushiRuntime::Buffer<std::uint32_t>& keys,
-                      const SushiRuntime::Buffer<std::uint32_t>& indices,
-                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                      const SushiRuntime::Buffer<std::uint32_t>& total,
+        counting_sort(Port& recorder,
+                      const typename Port::template Buffer<std::uint32_t>& keys,
+                      const typename Port::template Buffer<std::uint32_t>& indices,
+                      const typename Port::template Buffer<std::uint32_t>& offsets,
+                      const typename Port::template Buffer<std::uint32_t>& total,
                       SushiRuntime::LateCount n,
                       SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts,
+                      const typename Port::template Buffer<std::uint32_t>* counts,
                       CountingSortWindow window,
                       const std::optional<PrimitiveOptions>& options)
         {
@@ -86,7 +83,7 @@ namespace SushiBLAS
             const std::size_t n_capacity = n.capacity();
             const std::size_t key_capacity = key_range.capacity();
 
-            using Span = Detail::ElementSpan<std::uint32_t>;
+            using Span = Detail::ElementSpan<typename Port::template Buffer<std::uint32_t>>;
             const Span keys_span = Detail::elements(keys, window.keys_offset, n_capacity);
             const Span indices_span = Detail::elements(indices, window.indices_offset, n_capacity);
             const Span offsets_span =
@@ -362,38 +359,27 @@ namespace SushiBLAS
 
             return Detail::recording_outcome(recorder);
         }
-        } // namespace
 
-        SushiRuntime::Result<void>
-        counting_sort(RuntimePrimitiveRecorder& recorder,
-                      const SushiRuntime::Buffer<std::uint32_t>& keys,
-                      const SushiRuntime::Buffer<std::uint32_t>& indices,
-                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                      const SushiRuntime::Buffer<std::uint32_t>& total,
-                      SushiRuntime::LateCount n,
-                      SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts,
-                      CountingSortWindow window,
-                      const std::optional<PrimitiveOptions>& options)
-        {
-            return counting_sort_through(recorder, keys, indices, offsets, total, n, key_range,
-                                         counts, window, options);
-        }
+        template SushiRuntime::Result<void>
+        counting_sort<RuntimePrimitiveRecorder>(
+            RuntimePrimitiveRecorder&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>&,
+            SushiRuntime::LateCount, SushiRuntime::LateCount,
+            const RuntimePrimitiveRecorder::Buffer<std::uint32_t>*, CountingSortWindow,
+            const std::optional<PrimitiveOptions>&);
 
-        SushiRuntime::Result<void>
-        counting_sort(HostPrimitiveRecorder& recorder,
-                      const SushiRuntime::Buffer<std::uint32_t>& keys,
-                      const SushiRuntime::Buffer<std::uint32_t>& indices,
-                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                      const SushiRuntime::Buffer<std::uint32_t>& total,
-                      SushiRuntime::LateCount n,
-                      SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts,
-                      CountingSortWindow window,
-                      const std::optional<PrimitiveOptions>& options)
-        {
-            return counting_sort_through(recorder, keys, indices, offsets, total, n, key_range,
-                                         counts, window, options);
-        }
+        template SushiRuntime::Result<void>
+        counting_sort<HostPrimitiveRecorder>(
+            HostPrimitiveRecorder&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>&,
+            SushiRuntime::LateCount, SushiRuntime::LateCount,
+            const HostPrimitiveRecorder::Buffer<std::uint32_t>*, CountingSortWindow,
+            const std::optional<PrimitiveOptions>&);
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

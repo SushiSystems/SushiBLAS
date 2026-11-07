@@ -52,10 +52,10 @@ namespace SushiBLAS
         class HostPrimitiveSubject
         {
             public:
-                /** @brief Builds the output buffer on a runtime of its own. */
+                /** @brief Builds the output buffer on the recorder; no runtime is made. */
                 HostPrimitiveSubject()
-                    : runtime_(SushiRuntime::Runtime::create().value()),
-                      output_(runtime_.buffer<std::uint32_t>(K_SUBJECT_OUTPUT_WORDS).value())
+                    : output_(GraphPrimitives::HostPrimitiveRecorder::buffer<std::uint32_t>(
+                          K_SUBJECT_OUTPUT_WORDS))
                 {
                 }
 
@@ -93,11 +93,8 @@ namespace SushiBLAS
                 void run() { port_.run().value(); }
 
             private:
-                /// @brief Owns the output buffer.
-                SushiRuntime::Runtime runtime_;
-
                 /// @brief The words the checks write into.
-                SushiRuntime::Buffer<std::uint32_t> output_;
+                GraphPrimitives::HostBuffer<std::uint32_t> output_;
 
                 /// @brief The recorder under test.
                 GraphPrimitives::HostPrimitiveRecorder port_;

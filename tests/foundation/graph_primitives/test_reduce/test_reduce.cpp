@@ -309,11 +309,16 @@ namespace SushiBLAS
                 return reduce(graph.recorder(), in, out, count, Sum<T>{}, window, options);
             }
 
+            /// @brief Names the recorder whose operands the host rows use.
+            using HostRecorder = GraphPrimitives::HostPrimitiveRecorder;
+
             /** @brief Records a Sum reduce of count values on a host recorder, passing the count in form. */
             template <typename T>
             SushiRuntime::Result<void>
-            record_sum(GraphPrimitives::HostPrimitiveRecorder& recorder, const Buffer<T>& in,
-                       const Buffer<T>& out, CountForm form, std::size_t count,
+            record_sum(GraphPrimitives::HostPrimitiveRecorder& recorder,
+                       const GraphPrimitives::HostBuffer<T>& in,
+                       const GraphPrimitives::HostBuffer<T>& out, CountForm form,
+                       std::size_t count,
                        ReduceWindow window = {},
                        const std::optional<PrimitiveOptions>& options = std::nullopt)
             {
@@ -324,8 +329,9 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the part of in or out that row names, as a region. */
-            SushiRuntime::BufferRegion probed_region(const ProbeRow& row, const Buffer<float>& in,
-                                                     const Buffer<float>& out)
+            SushiRuntime::BufferRegion probed_region(const ProbeRow& row,
+                                                     const GraphPrimitives::HostBuffer<float>& in,
+                                                     const GraphPrimitives::HostBuffer<float>& out)
             {
                 if (row.operand == Operand::Input)
                     return WindowProbe::region_of(in, row.offset, row.count);
@@ -701,9 +707,8 @@ namespace SushiBLAS
         {
             const std::vector<std::size_t> expected_widths = {3u, 1u};
 
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             GraphPrimitives::reduce(recorder, values, total, K_TWO_LEVEL_COUNT, Sum<float>{})
@@ -715,9 +720,8 @@ namespace SushiBLAS
         /** @brief Tests that the levels of one call record as one rule. */
         TEST(Small_GraphPrimitivesReduce, TheLevelsOfOneCallAreOneRule)
         {
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             GraphPrimitives::reduce(recorder, values, total, K_TWO_LEVEL_COUNT, Sum<float>{})
@@ -743,9 +747,8 @@ namespace SushiBLAS
         /** @brief Tests that a fixed count of zero records one node of width one. */
         TEST(Small_GraphPrimitivesReduce, ZeroCountStampsWidthOne)
         {
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(1).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(1);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             GraphPrimitives::reduce(recorder, values, total, std::size_t{0}, Sum<float>{})
@@ -820,10 +823,8 @@ namespace SushiBLAS
         {
             const ProbeRow& row = std::get<0>(GetParam());
 
-            auto runtime = Runtime::create().value();
-            auto in = runtime.buffer<float>(K_PROBED_OFFSET + K_PROBED_COUNT + K_PROBED_TAIL)
-                          .value();
-            auto out = runtime.buffer<float>(4).value();
+            auto in = HostRecorder::buffer<float>(K_PROBED_OFFSET + K_PROBED_COUNT + K_PROBED_TAIL);
+            auto out = HostRecorder::buffer<float>(4);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sum(recorder, in, out, std::get<1>(GetParam()), K_PROBED_COUNT,
@@ -849,9 +850,8 @@ namespace SushiBLAS
         {
             const NamedShapeRow& row = GetParam();
 
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sum(recorder, values, total, row.form, row.count, ReduceWindow{},
@@ -866,9 +866,8 @@ namespace SushiBLAS
         {
             const NamedShapeRow& row = GetParam();
 
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sum(recorder, values, total, row.form, row.count, ReduceWindow{},
@@ -891,9 +890,8 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
         TEST_P(Small_GraphPrimitivesReduceUnnamedCall, UnnamedCallKeepsItsNodesUnnamed)
         {
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sum(recorder, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();
@@ -906,9 +904,8 @@ namespace SushiBLAS
         /** @brief Tests that a call with no options leaves the class of every node Unstated. */
         TEST_P(Small_GraphPrimitivesReduceUnnamedCall, UnnamedCallLeavesItsClassUnstated)
         {
-            auto runtime = Runtime::create().value();
-            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
-            auto total = runtime.buffer<float>(1).value();
+            auto values = HostRecorder::buffer<float>(K_TWO_LEVEL_COUNT);
+            auto total = HostRecorder::buffer<float>(1);
 
             GraphPrimitives::HostPrimitiveRecorder recorder;
             record_sum(recorder, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();

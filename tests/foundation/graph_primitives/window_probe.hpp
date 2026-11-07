@@ -37,6 +37,8 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 
+#include <SushiBLAS/graph_primitives/host_buffer.hpp>
+
 namespace SushiBLAS
 {
     namespace Test
@@ -51,6 +53,18 @@ namespace SushiBLAS
                       std::size_t count)
             {
                 SushiRuntime::BufferRegion region = SushiRuntime::Reads(buffer).keys.front();
+                region.offset += offset * sizeof(T);
+                region.length = count * sizeof(T);
+                return region;
+            }
+
+            /** @brief Returns elements [offset, offset + count) of a host buffer as a region. */
+            template <typename T>
+            [[nodiscard]] SushiRuntime::BufferRegion
+            region_of(const GraphPrimitives::HostBuffer<T>& buffer, std::size_t offset,
+                      std::size_t count)
+            {
+                SushiRuntime::BufferRegion region = buffer.region();
                 region.offset += offset * sizeof(T);
                 region.length = count * sizeof(T);
                 return region;

@@ -58,6 +58,10 @@ namespace SushiBLAS
                 /** @brief Marks this type as a PrimitiveRecorder. */
                 static constexpr bool K_PRIMITIVE_RECORDER = true;
 
+                /** @brief The operand type of this port; the runtime that owns it makes it. */
+                template <typename T>
+                using Buffer = SushiRuntime::Buffer<T>;
+
                 /** @brief Guard of one rule; nodes recorded while it lives share the rule. */
                 using RuleScope = SushiRuntime::Recorder::RuleScope;
 
