@@ -33,8 +33,8 @@
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/io/file_remover.hpp>
+#include <SushiBLAS/io/memory_file_remover.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
-#include "support/memory_file_remover.hpp"
 
 namespace SushiBLAS
 {
@@ -46,7 +46,7 @@ namespace SushiBLAS
             struct MemorySubject
             {
                 /// @brief The adapter under test.
-                MemoryFileRemover remover;
+                IOFiles::MemoryFileRemover remover;
 
                 /** @brief Puts a file at @p path. */
                 void create(const std::string& path) { remover.add(path); }

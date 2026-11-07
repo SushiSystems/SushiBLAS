@@ -31,11 +31,11 @@
 #include <cstddef>
 #include <string>
 #include <gtest/gtest.h>
+#include <SushiBLAS/io/memory_file_remover.hpp>
 #include <SushiBLAS/io/partial_file.hpp>
 #include <SushiLog/log/log_capture.hpp>
 #include <SushiBLAS/test_runner/captured_record_count.hpp>
 #include <SushiBLAS/test_runner/scoped_log_level.hpp>
-#include "support/memory_file_remover.hpp"
 
 namespace SushiBLAS
 {
@@ -49,7 +49,7 @@ namespace SushiBLAS
 
         TEST(Small_IoLog, ARemovedPartialFileIsReportedGone)
         {
-            MemoryFileRemover remover;
+            IOFiles::MemoryFileRemover remover;
             remover.add(K_PARTIAL_PATH);
 
             EXPECT_TRUE(IOFiles::remove_partial_file(K_PARTIAL_PATH, remover));
@@ -58,7 +58,7 @@ namespace SushiBLAS
 
         TEST(Small_IoLog, ARemovedPartialFileStatesNothing)
         {
-            MemoryFileRemover remover;
+            IOFiles::MemoryFileRemover remover;
             remover.add(K_PARTIAL_PATH);
             const ScopedLogLevel level(SushiLog::LogLevel::Trace);
             const SushiLog::LogCapture capture;
@@ -70,7 +70,7 @@ namespace SushiBLAS
 
         TEST(Small_IoLog, AFailedCleanupWarns)
         {
-            const MemoryFileRemover remover;
+            const IOFiles::MemoryFileRemover remover;
             const SushiLog::LogCapture capture;
 
             EXPECT_FALSE(IOFiles::remove_partial_file(K_PARTIAL_PATH, remover));

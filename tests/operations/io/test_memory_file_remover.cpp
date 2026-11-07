@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* memory_file_remover.hpp                                                */
+/* test_memory_file_remover.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,40 +22,28 @@
 /**************************************************************************/
 
 /**
- * @file memory_file_remover.hpp
- * @brief Declares MemoryFileRemover, a FileRemover over a set of paths held in memory.
+ * @file test_memory_file_remover.cpp
+ * @brief Tests that MemoryFileRemover holds each path on its own.
  * @author Mustafa Garip
+ * @see tests/operations/io/README.md
  */
 
-#pragma once
-
-#include <set>
-#include <string>
-#include <SushiBLAS/io/file_remover.hpp>
+#include <gtest/gtest.h>
+#include <SushiBLAS/io/memory_file_remover.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Holds a set of paths as the files it can delete; touches no disk. */
-        class MemoryFileRemover final : public IOFiles::FileRemover
+        TEST(Small_MemoryFileRemover, RemovingOnePathLeavesTheOthersHeld)
         {
-            public:
-                /** @brief Adds a file at @p path. */
-                void add(const std::string& path) { files.insert(path); }
+            IOFiles::MemoryFileRemover remover;
+            remover.add("first.bin");
+            remover.add("second.bin");
 
-                /** @brief True when a file is held at @p path. */
-                [[nodiscard]] bool has(const std::string& path) const { return files.count(path) != 0; }
-
-                /** @copydoc IOFiles::FileRemover::remove */
-                [[nodiscard]] bool remove(const std::string& path) const override
-                {
-                    return files.erase(path) != 0;
-                }
-
-            private:
-                /// @brief The paths still held; erased through a const remove, as a disk delete is.
-                mutable std::set<std::string> files;
-        };
+            EXPECT_TRUE(remover.remove("first.bin"));
+            EXPECT_FALSE(remover.has("first.bin"));
+            EXPECT_TRUE(remover.has("second.bin"));
+        }
     } // namespace Test
 } // namespace SushiBLAS

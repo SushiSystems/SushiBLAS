@@ -23,6 +23,7 @@ sushiblas_add_test_program(
         test_file_header.cpp
         test_file_remover.cpp
         test_io_status.cpp
+        test_memory_file_remover.cpp
         test_partial_file.cpp
     DEVICE_TESTS
         test_io/test_host_text.cpp
