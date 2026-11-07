@@ -21,5 +21,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE engine_fixture
     TESTS
+        test_host_engine_test.cpp
+        test_host_recording_fixture.cpp
         test_recording_fixture.cpp
         test_sushiblas_test.cpp)

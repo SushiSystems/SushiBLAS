@@ -38,6 +38,7 @@
 #include <unordered_set>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/engine/host_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -123,6 +124,14 @@ namespace SushiBLAS
             }
         } // namespace
 
+        /** @brief Gives each test a host block source to build its pool over. */
+        class Small_ScratchBuffer : public ::testing::Test
+        {
+            protected:
+                /// @brief Serves the blocks of every pool of the test and counts them.
+                HostScratchSource source;
+        };
+
         /** @brief Gives each test the fixture's engine and the test environment's runtime. */
         class Medium_ScratchBuffer : public SushiBLASTest
         {
@@ -159,10 +168,10 @@ namespace SushiBLAS
                 std::optional<Tensor> result_;
         };
 
-        TEST_F(Medium_ScratchBuffer, ZeroBytesLeaseNothing)
+        TEST_F(Small_ScratchBuffer, ZeroBytesLeaseNothing)
         {
-            ScratchPool pool(TestEnvironment::runtime());
-            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
+            ScratchPool pool(source);
+            const std::size_t served_baseline = source.served_blocks();
             const std::size_t idle_baseline = pool.idle_block_count();
 
             {
@@ -172,7 +181,7 @@ namespace SushiBLAS
                 EXPECT_EQ(lease.data(), nullptr);
                 EXPECT_EQ(lease.bytes(), std::size_t{0});
                 EXPECT_EQ(lease.storage().get(), nullptr);
-                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
+                EXPECT_EQ(source.served_blocks(), served_baseline);
             }
 
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
@@ -197,15 +206,15 @@ namespace SushiBLAS
         }
 
         /** @brief Leases one request size from a fresh pool. */
-        class Medium_ScratchBufferClass : public Medium_ScratchBuffer,
+        class Small_ScratchBufferClass : public Small_ScratchBuffer,
                                           public ::testing::WithParamInterface<ClassRow>
         {
         };
 
-        TEST_P(Medium_ScratchBufferClass, ALeaseHoldsABlockOfItsClass)
+        TEST_P(Small_ScratchBufferClass, ALeaseHoldsABlockOfItsClass)
         {
             const ClassRow& row = GetParam();
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
 
             const ScratchBuffer lease(pool, row.request, K_DEVICE);
 
@@ -216,15 +225,15 @@ namespace SushiBLAS
             EXPECT_EQ(lease.storage()->size_bytes(), row.block_bytes);
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_ScratchBufferClass, ::testing::ValuesIn(class_rows()),
+        INSTANTIATE_TEST_SUITE_P(, Small_ScratchBufferClass, ::testing::ValuesIn(class_rows()),
                                  [](const ::testing::TestParamInfo<ClassRow>& info)
                                  {
                                      return info.param.name;
                                  });
 
-        TEST_F(Medium_ScratchBuffer, ACopyHoldsTheBlockOfItsOriginal)
+        TEST_F(Small_ScratchBuffer, ACopyHoldsTheBlockOfItsOriginal)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
             const ScratchBuffer original(pool, std::size_t{128}, K_DEVICE);
 
             const ScratchBuffer copy(original);
@@ -232,9 +241,9 @@ namespace SushiBLAS
             EXPECT_EQ(copy.data(), original.data());
         }
 
-        TEST_F(Medium_ScratchBuffer, ACopyKeepsTheBlockOutOfThePoolWhenTheOriginalIsReleased)
+        TEST_F(Small_ScratchBuffer, ACopyKeepsTheBlockOutOfThePoolWhenTheOriginalIsReleased)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
 
             std::optional<ScratchBuffer> original(std::in_place, pool, std::size_t{128}, K_DEVICE);
             const ScratchBuffer copy(*original);
@@ -246,9 +255,9 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
         }
 
-        TEST_F(Medium_ScratchBuffer, NoBlockReturnsToThePoolWhileACopyOrAnAssignmentHoldsIt)
+        TEST_F(Small_ScratchBuffer, NoBlockReturnsToThePoolWhileACopyOrAnAssignmentHoldsIt)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
             const std::size_t idle_baseline = pool.idle_block_count();
 
             const ScratchBuffer original(pool, 512, K_DEVICE);
@@ -259,9 +268,9 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
         }
 
-        TEST_F(Medium_ScratchBuffer, TheLastCopyReturnsTheBlockToThePool)
+        TEST_F(Small_ScratchBuffer, TheLastCopyReturnsTheBlockToThePool)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
             const std::size_t idle_baseline = pool.idle_block_count();
 
             {
@@ -274,9 +283,9 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), idle_baseline + 1);
         }
 
-        TEST_F(Medium_ScratchBuffer, ABlockReturnedToThePoolIsHandedOutAgain)
+        TEST_F(Small_ScratchBuffer, ABlockReturnedToThePoolIsHandedOutAgain)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
             const void* leased = nullptr;
 
             {
@@ -288,22 +297,17 @@ namespace SushiBLAS
             EXPECT_EQ(next.data(), leased);
         }
 
-        TEST_F(Medium_ScratchBuffer, ALeaseOutlivesItsPool)
+        TEST_F(Small_ScratchBuffer, ALeaseOutlivesItsPool)
         {
-            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
+            std::optional<ScratchPool> pool(std::in_place, source);
+            const ScratchBuffer lease(*pool, 256, K_DEVICE);
+            const void* leased = lease.data();
+            pool.reset();
 
-            {
-                std::optional<ScratchPool> pool(std::in_place, TestEnvironment::runtime());
-                const ScratchBuffer lease(*pool, 256, K_DEVICE);
-                const void* leased = lease.data();
-                pool.reset();
-
-                EXPECT_EQ(lease.data(), leased);
-                EXPECT_EQ(lease.bytes(), std::size_t{256});
-                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline + 1);
-            }
-
-            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
+            EXPECT_EQ(lease.data(), leased);
+            EXPECT_EQ(lease.bytes(), std::size_t{256});
+            EXPECT_EQ(lease.storage()->size_bytes(), std::size_t{256});
+            EXPECT_EQ(source.served_blocks(), std::size_t{1});
         }
 
         TEST_F(Medium_ScratchBuffer, ADeviceWriteOverALeaseSurvivesItsPool)
@@ -320,9 +324,9 @@ namespace SushiBLAS
             EXPECT_EQ(back, std::vector<unsigned char>(lease.bytes(), K_PATTERN));
         }
 
-        TEST_F(Medium_ScratchBuffer, LiveLeasesNeverShareABlock)
+        TEST_F(Small_ScratchBuffer, LiveLeasesNeverShareABlock)
         {
-            ScratchPool pool(TestEnvironment::runtime());
+            ScratchPool pool(source);
 
             const std::unordered_set<const void*> addresses =
                 addresses_of_live_leases(pool, K_LIVE_LEASES);

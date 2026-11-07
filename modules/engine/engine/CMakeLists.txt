@@ -27,6 +27,9 @@ sushiblas_add_test_program(
         test_operation_options.cpp
         test_profile_hooks.cpp
         test_scratch.cpp
+        test_host_scratch_source.cpp
+        test_scratch_block_source.cpp
+        test_runtime_scratch_source.cpp
         test_scratch_pool.cpp
         test_scratch_shelf.cpp
         test_task.cpp
@@ -36,6 +39,7 @@ sushiblas_add_test_program(
         test_pair_body.cpp
         test_task_description.cpp
     DEVICE_TESTS
+        test_engine/test_engine_contract.cpp
         test_engine/test_reduce_plans.cpp
         test_engine/test_run_failure.cpp
         test_engine/test_runtime_shapes.cpp

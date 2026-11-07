@@ -108,7 +108,9 @@ product, the wide solution of a substitution, the partial sums of a sparse scatt
 record time and the task holds the lease by value.
 
 - `ScratchPool` (`engine/scratch_pool.hpp`) owns a reference-counted `Detail::ScratchShelf`
-  (`engine/scratch_shelf.hpp`) of idle device blocks per device queue. The engine owns one pool
+  (`engine/scratch_shelf.hpp`) of idle blocks per device queue. The shelf takes new blocks from a
+  `ScratchBlockSource` (`engine/scratch_block_source.hpp`): `RuntimeScratchSource` allocates device
+  memory, `HostScratchSource` serves host memory for a host engine. The engine owns one pool
   and the recorder hands it out through `scratch_pool()`.
 - `ScratchBuffer` (`engine/scratch.hpp`) is the lease. The block goes back to the shelf when the
   last copy of the handle is destroyed, which for a recorded task is when the graph drops the

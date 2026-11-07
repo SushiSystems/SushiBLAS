@@ -42,6 +42,7 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_copy.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 
 namespace SushiBLAS
@@ -66,11 +67,8 @@ namespace SushiBLAS
             std::vector<T> host_actual(size);
             std::vector<T> host_expected(size);
 
-            // Fetch runtime queue for synchronization and copy
-            auto& q = TestEnvironment::queue();
-
-            q.memcpy(host_actual.data(), actual.data(), size * sizeof(T)).wait();
-            q.memcpy(host_expected.data(), expected.data(), size * sizeof(T)).wait();
+            copy_tensor_to_host(host_actual.data(), actual, size * sizeof(T));
+            copy_tensor_to_host(host_expected.data(), expected, size * sizeof(T));
 
             for (size_t i = 0; i < size; ++i)
             {
@@ -153,9 +151,7 @@ namespace SushiBLAS
             {
                 const size_t size = static_cast<size_t>(tensor.num_elements);
                 std::vector<H> host(size);
-                TestEnvironment::queue()
-                    .memcpy(host.data(), tensor.data(), size * sizeof(H))
-                    .wait();
+                copy_tensor_to_host(host.data(), tensor, size * sizeof(H));
 
                 for (size_t i = 0; i < size; ++i)
                 {

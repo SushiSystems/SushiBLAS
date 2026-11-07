@@ -47,8 +47,8 @@ namespace SushiBLAS
         {
             protected:
                 /// @brief The shelf under test; empty when a test starts.
-                SushiRuntime::sushi_ptr<Detail::ScratchShelf> shelf_ =
-                    SushiRuntime::make_sushi<Detail::ScratchShelf>(TestEnvironment::runtime());
+                SushiRuntime::sushi_ptr<SushiBLAS::Detail::ScratchShelf> shelf_ =
+                    SushiRuntime::make_sushi<SushiBLAS::Detail::ScratchShelf>(TestEnvironment::runtime());
         };
 
         TEST_F(Medium_ScratchShelf, ARequestIsRoundedUpToItsClass)
@@ -58,9 +58,9 @@ namespace SushiBLAS
 
             for (std::size_t i = 0; i < requests.size(); ++i)
             {
-                Detail::ScratchBlock* block = shelf_->take(requests[i], 0);
+                SushiBLAS::Detail::ScratchBlock* block = shelf_->take(requests[i], 0);
                 ASSERT_NE(block, nullptr);
-                EXPECT_EQ(Detail::scratch_class_bytes(block->size_class), expected[i])
+                EXPECT_EQ(SushiBLAS::Detail::scratch_class_bytes(block->size_class), expected[i])
                     << "request of " << requests[i] << " bytes";
                 shelf_->give_back(block);
             }
@@ -68,12 +68,12 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchShelf, AReturnedBlockIsLentAgain)
         {
-            Detail::ScratchBlock* first = shelf_->take(128, 0);
+            SushiBLAS::Detail::ScratchBlock* first = shelf_->take(128, 0);
             const void* first_base = first->storage->allocation_base();
             shelf_->give_back(first);
             const std::size_t live_after_return = TestEnvironment::live_allocation_count();
 
-            Detail::ScratchBlock* second = shelf_->take(128, 0);
+            SushiBLAS::Detail::ScratchBlock* second = shelf_->take(128, 0);
             EXPECT_EQ(second->storage->allocation_base(), first_base);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_after_return);
             shelf_->give_back(second);
@@ -84,8 +84,8 @@ namespace SushiBLAS
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t idle_baseline = shelf_->idle_block_count();
 
-            Detail::ScratchBlock* block = shelf_->take(4097, 0);
-            EXPECT_EQ(block->size_class, Detail::K_SCRATCH_UNPOOLED);
+            SushiBLAS::Detail::ScratchBlock* block = shelf_->take(4097, 0);
+            EXPECT_EQ(block->size_class, SushiBLAS::Detail::K_SCRATCH_UNPOOLED);
             shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), idle_baseline);
@@ -95,13 +95,13 @@ namespace SushiBLAS
         TEST_F(Medium_ScratchShelf, AFullClassFreesWhatItCannotKeep)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
-            const std::size_t taken = Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS + 1;
+            const std::size_t taken = SushiBLAS::Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS + 1;
 
-            std::vector<Detail::ScratchBlock*> blocks;
+            std::vector<SushiBLAS::Detail::ScratchBlock*> blocks;
             blocks.reserve(taken);
             for (std::size_t i = 0; i < taken; ++i)
                 blocks.push_back(shelf_->take(512, 0));
-            for (Detail::ScratchBlock* block : blocks)
+            for (SushiBLAS::Detail::ScratchBlock* block : blocks)
                 shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{64});
@@ -112,8 +112,8 @@ namespace SushiBLAS
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
-            Detail::ScratchBlock* narrow = shelf_->take(128, 0);
-            Detail::ScratchBlock* wide = shelf_->take(4096, 0);
+            SushiBLAS::Detail::ScratchBlock* narrow = shelf_->take(128, 0);
+            SushiBLAS::Detail::ScratchBlock* wide = shelf_->take(4096, 0);
             shelf_->give_back(narrow);
             shelf_->give_back(wide);
             ASSERT_EQ(shelf_->idle_block_count(), std::size_t{2});
@@ -135,7 +135,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchShelf, ALeaseThatFindsItsClassEmptyIsAMiss)
         {
-            Detail::ScratchBlock* block = shelf_->take(128, 0);
+            SushiBLAS::Detail::ScratchBlock* block = shelf_->take(128, 0);
 
             EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{1});
             EXPECT_EQ(shelf_->pool_hits(), std::uint64_t{0});
@@ -146,7 +146,7 @@ namespace SushiBLAS
         {
             shelf_->give_back(shelf_->take(128, 0));
 
-            Detail::ScratchBlock* again = shelf_->take(128, 0);
+            SushiBLAS::Detail::ScratchBlock* again = shelf_->take(128, 0);
 
             EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{1});
             EXPECT_EQ(shelf_->pool_hits(), std::uint64_t{1});
@@ -155,9 +155,9 @@ namespace SushiBLAS
 
         TEST_F(Medium_ScratchShelf, ALeaseAboveTheLargestClassIsCountedAsUnpooled)
         {
-            Detail::ScratchBlock* big = shelf_->take(Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
+            SushiBLAS::Detail::ScratchBlock* big = shelf_->take(SushiBLAS::Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
             shelf_->give_back(big);
-            Detail::ScratchBlock* again = shelf_->take(Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
+            SushiBLAS::Detail::ScratchBlock* again = shelf_->take(SushiBLAS::Detail::K_SCRATCH_MAX_BLOCK_BYTES + 1, 0);
 
             EXPECT_EQ(shelf_->unpooled_leases(), std::uint64_t{2});
             EXPECT_EQ(shelf_->pool_misses(), std::uint64_t{0});

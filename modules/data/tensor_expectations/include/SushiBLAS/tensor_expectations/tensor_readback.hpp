@@ -37,6 +37,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_copy.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 
 namespace SushiBLAS
@@ -57,9 +58,7 @@ namespace SushiBLAS
 
             const size_t size = static_cast<size_t>(tensor.num_elements);
             std::vector<T> host(size);
-            TestEnvironment::queue()
-                .memcpy(host.data(), tensor.data(), size * sizeof(T))
-                .wait();
+            copy_tensor_to_host(host.data(), tensor, size * sizeof(T));
             return host;
         }
     } // namespace Test

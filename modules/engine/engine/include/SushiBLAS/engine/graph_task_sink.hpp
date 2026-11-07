@@ -101,6 +101,9 @@ namespace SushiBLAS
             /** @brief Reports true: the runtime runs a task of every mode. */
             [[nodiscard]] bool admits(ExecutionMode) const noexcept override { return true; }
 
+            /** @brief Reports true: the runtime hands every body the queue of its device. */
+            [[nodiscard]] bool provides_queue() const noexcept override { return true; }
+
             /** @brief Returns this sink. */
             [[nodiscard]] GraphTaskSink* graph() noexcept override { return this; }
 

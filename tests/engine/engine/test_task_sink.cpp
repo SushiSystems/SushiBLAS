@@ -191,33 +191,6 @@ namespace SushiBLAS
             EXPECT_THROW((void)recorder.scratch_pool(), UnsupportedExecution);
         }
 
-        /** @brief Tests that a body of the old shape fails on a host sink, which has no queue to give it. */
-        TEST(Small_HostTaskRecorder, ABodyOfTheOldShapeIsReportedAsFailedOnAHostSink)
-        {
-            HostSinkSubject subject;
-            bool ran = false;
-            bool* ran_out = &ran;
-            TaskDescription description;
-            description.name = "sink.old_shape";
-            OperandSet operands;
-            operands.writes(subject.target());
-
-            subject.recorder().record_pair(
-                description, operands, "TaskSink contract",
-                [ran_out](const KernelPairDispatcher&, sycl::queue&,
-                          const std::vector<sycl::event>&) -> sycl::event
-                {
-                    *ran_out = true;
-                    return sycl::event();
-                });
-
-            const std::string failure = subject.run();
-
-            EXPECT_NE(failure.find("sink.old_shape"), std::string::npos) << failure;
-            EXPECT_NE(failure.find("no queue"), std::string::npos) << failure;
-            EXPECT_FALSE(ran);
-        }
-
         /** @brief Tests that a body of the old shape gets the queue of the graph adapter. */
         TEST(Medium_GraphTaskRecorder, ABodyOfTheOldShapeGetsTheDispatchersQueue)
         {

@@ -9,4 +9,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_sushiblas_test.cpp` | Tests that SushiBLASTest gives each test a row-major engine, a graph and initialised tensors |
+| `test_host_engine_test.cpp` | Tests that HostEngineTest gives a test a host engine, a recorder that runs on the host and read-back by memcpy |
+| `test_host_recording_fixture.cpp` | Tests that HostRecordingFixture records on the host sink of an engine, runs the bodies and names a failed task |
 | `test_recording_fixture.cpp` | Tests that RecordingFixture forwards to its RecordingGraph and asserts on a run |

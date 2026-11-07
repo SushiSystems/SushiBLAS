@@ -42,6 +42,7 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_copy.hpp>
 
 namespace SushiBLAS
 {
@@ -56,56 +57,55 @@ namespace SushiBLAS
             size_t size = static_cast<size_t>(tensor.num_elements);
             ASSERT_EQ(values.size(), size) << "fill_tensor: value count does not match tensor size.";
 
-            auto& q = TestEnvironment::queue();
             switch (tensor.dtype)
             {
                 case Core::DataType::Half:
                 {
                     std::vector<sycl::half> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(sycl::half)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(sycl::half));
                     break;
                 }
                 case Core::DataType::Float32:
                 {
                     std::vector<float> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(float)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(float));
                     break;
                 }
                 case Core::DataType::Float64:
                 {
                     std::vector<double> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(double)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(double));
                     break;
                 }
                 case Core::DataType::Complex32:
                 {
                     std::vector<std::complex<float>> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<float>)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(std::complex<float>));
                     break;
                 }
                 case Core::DataType::Complex64:
                 {
                     std::vector<std::complex<double>> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<double>)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(std::complex<double>));
                     break;
                 }
                 // The integer arms truncate the given values, as every other arm casts them.
                 case Core::DataType::Int32:
                 {
                     std::vector<int32_t> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(int32_t)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(int32_t));
                     break;
                 }
                 case Core::DataType::Int64:
                 {
                     std::vector<int64_t> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(int64_t)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(int64_t));
                     break;
                 }
                 case Core::DataType::UInt32:
                 {
                     std::vector<uint32_t> host(values.begin(), values.end());
-                    q.memcpy(tensor.data(), host.data(), size * sizeof(uint32_t)).wait();
+                    copy_host_to_tensor(tensor, host.data(), size * sizeof(uint32_t));
                     break;
                 }
             }
@@ -164,8 +164,7 @@ namespace SushiBLAS
                     host_data[i] = static_cast<T>(get_rand());
             }
 
-            auto& q = TestEnvironment::queue();
-            q.memcpy(tensor.data(), host_data.data(), size * sizeof(T)).wait();
+            copy_host_to_tensor(tensor, host_data.data(), size * sizeof(T));
         }
     } // namespace Test
 } // namespace SushiBLAS

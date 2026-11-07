@@ -15,6 +15,14 @@ graph's recorder with the engine's scratch pool and mode, and builds the operati
 that recorder. `graph.run()` runs what was recorded; [the first program](../getting_started/FIRST_PROGRAM.md)
 shows the four lines. The engine is not copyable or movable, and the `Runtime` object must outlive it.
 
+`Engine(Engine::Host{}, layout)` builds a host engine that needs no `Runtime`: the tensor factory makes
+host storages, the scratch pool takes its blocks from a `HostScratchSource`, and the engine owns the
+`HostTaskSink` that `host_sink()` returns. Its mode is `ForceReference`, and `set_mode` with another mode
+and `runtime()` throw `UnsupportedExecution`. A test of an operation records on it through a
+`TaskRecorder` over `host_sink()` and runs the bodies on the host, with no queue. It accepts a body of
+the shape `(dispatcher, deps)`; a body of the old shape is refused at record time with
+`UnsupportedExecution`, and the message names the task.
+
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`
 
 `TaskRecorder` (`engine/task_recorder.hpp`) records tasks through a `TaskSink` (`engine/task_sink.hpp`)
@@ -35,7 +43,8 @@ the dispatcher: `KernelPairDispatcher` holds the mode and the queue the task run
 sink holds no queue, and `queue()` throws `UnsupportedExecution`. On the SYCL side every command
 group calls `h.depends_on(deps)`; `check_engine_seams.py` reports a command group without it. The
 old body shape `(const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)` is
-deprecated and still accepted until every body has moved (H5 of the test review plan).
+deprecated and still accepted on the graph sink until every body has moved (H5 of the test review
+plan); a sink that provides no queue (`TaskSink::provides_queue()`) refuses it.
 
 One mutex in the recorder serialises record calls, so several threads may record on one recorder
 at once; the tasks reach the graph in the order the threads took the lock. A run of the graph and

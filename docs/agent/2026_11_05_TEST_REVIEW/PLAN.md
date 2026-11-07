@@ -70,7 +70,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M49 | the tests of `tools` (7 files): 11 rewrite, 37 resize, 11 split, 14 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | H1 | Seam: `data/tensor` host storage and a host `TensorFactory` (no runtime), and the shape-only tensor for validation; `TensorFactoryContract` and `StorageContract` suites, small on host, medium on the runtime | M46 | done |
 | H2 | Seam: `engine/engine` `KernelPairDispatcher` holds the queue (`pair.queue()`, `pair.run(deps, reference, sycl)`), the body drops its queue parameter; `TaskSink` port in `TaskRecorder` with the graph adapter and a host adapter that runs bodies in record order under `ForceReference`; `TaskSinkContract` | H1 | done |
-| H3 | Seam: `ScratchPool` block source port with a host adapter (RW-153), `Engine` host constructor, a host `RNGStream` path, `engine_fixture` `HostEngineTest` and a host `RecordingFixture`; `EngineContract` | H2 | running |
+| H3 | Seam: `ScratchPool` block source port with a host adapter (RW-153), `Engine` host constructor, a host `RNGStream` path, `engine_fixture` `HostEngineTest` and a host `RecordingFixture`; `EngineContract` | H2 | done |
 | H4 | Bodies onto H2 in `engine/*` and `operations/elementwise`, `logic`, `nonlinear`, `random`, `reductions` | H2 | todo |
 | H5 | Bodies onto H2 in `operations/blas`, `sparse`, `spatial`, `signal`, `blend`, `index`, `io`, `experimental` and `library` | H4 | todo |
 | H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | todo |
@@ -79,7 +79,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10 | todo |
 | S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39 | todo |
 | S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44 | todo |
-| S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | todo |
+| S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | done |
 
 M10, M39, M40, M43 and M44 are `todo` again: each left resize records at `Medium_` for a missing seam, which the owner's order of 2026-11-07 does not accept. The S job that builds the seam applies those records, and the M job turns `done` with it: S1 closes M43, S2 closes M40, S3 closes M10, S4 closes M39, S5 and S6 close M44.
 

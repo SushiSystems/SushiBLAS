@@ -9,6 +9,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_dispatch.cpp` | Tests the element domains, the dtype switch and the task parameters of the dispatch seam |
+| `test_engine/test_engine_contract.cpp` | Tests that a host engine and an engine on a runtime keep the Engine contract, and what only a host engine refuses |
 | `test_engine/test_reduce_plans.cpp` | Tests the plan-taking forms of Reduce::reduce and Reduce::reduce_indexed |
 | `test_engine/test_run_failure.cpp` | Tests what a run of a test-owned graph returns and leaves behind when a body throws |
 | `test_engine/test_runtime_shapes.cpp` | Tests create_tensor and reshape with dimensions held in a std::vector |
@@ -25,6 +26,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, thread safety and seed determinism |
 | `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
+| `test_host_scratch_source.cpp` | Tests what HostScratchSource counts and the memory it serves |
+| `test_runtime_scratch_source.cpp` | Tests what RuntimeScratchSource serves beyond the BlockSource contract |
+| `test_scratch_block_source.cpp` | Tests that the host and runtime adapters of ScratchBlockSource keep the BlockSource contract, and what the host adapter counts |
 | `test_scratch_pool.cpp` | Tests that a ScratchPool keeps returned blocks idle, reuses them and trims them |
 | `test_scratch_shelf.cpp` | Tests the shelf of idle device scratch blocks and its size classes |
 | `test_task.cpp` | Tests that a typed task records for an admitted dtype, runs its arm and refuses the rest |

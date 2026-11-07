@@ -13,9 +13,11 @@ It depends on `core`, `tensor`, `test_runner` and GoogleTest. Its headers are in
 | `tensor_comparison.hpp` | `expect_tensor`, `expect_tensor_equal`, `assert_tensor_near`, `EXPECT_TENSOR_NEAR` and `SB_ASSERT_TENSOR_NEAR` |
 | `tolerance_bounds.hpp` | `absolute_tolerance`, `half_absolute_tolerance` and `K_DEFAULT_TOLERANCE`, the absolute bounds a comparison takes |
 | `tensor_readback.hpp` | `read_tensor`, which copies a tensor's elements into a host vector |
+| `tensor_copy.hpp` | `copy_tensor_to_host` and `copy_host_to_tensor`, which the fill, comparison and readback headers copy through |
 
-The fill, comparison and readback headers copy through `TestEnvironment::queue()` and wait, so a
-call returns with the copy done.
+The fill, comparison and readback headers copy through `tensor_copy.hpp`. A tensor in host storage
+(`Storage::is_host()`) is copied by `memcpy` and reaches no queue; any other tensor is copied through
+`TestEnvironment::queue()` and waits, so a call returns with the copy done.
 
 ## The complex-type trait
 

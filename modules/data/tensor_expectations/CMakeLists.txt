@@ -19,6 +19,7 @@ sushiblas_add_test_program(
     MODULE tensor_expectations
     TESTS
         test_scalar_dtype.cpp
+        test_tensor_copy.cpp
         test_tensor_comparison.cpp
         test_tensor_fill.cpp
         test_tensor_readback.cpp

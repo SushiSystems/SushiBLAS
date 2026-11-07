@@ -33,10 +33,13 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/engine/profile_hooks.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
+#include <SushiBLAS/engine/scratch_block_source.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -92,11 +95,11 @@ namespace SushiBLAS
 
         /**
          * @struct ScratchBlock
-         * @brief Holds one device allocation the shelf lends and the count of handles on it.
+         * @brief Holds one allocation the shelf lends and the count of handles on it.
          */
         struct ScratchBlock
         {
-            /** @brief The device allocation. */
+            /** @brief The allocation the block source served. */
             SushiRuntime::sushi_ptr<Storage> storage;
 
             /** @brief The device queue that owns the allocation. */
@@ -113,31 +116,36 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Keeps the idle device scratch blocks of one runtime, per device and size class.
+         * @brief Keeps the idle scratch blocks of one block source, per device and size class.
          * @see modules/engine/engine/README.md
          */
         class ScratchShelf final : public SushiRuntime::RefCounted
         {
             public:
                 /**
-                 * @brief Reserves the idle lists, so returning a block never allocates.
-                 * @param runtime Allocates every block; must outlive the shelf.
+                 * @brief Reserves the idle lists over a runtime, so returning a block never allocates.
+                 * @param runtime Allocates every block as device memory; must outlive the shelf.
                  */
                 explicit ScratchShelf(SushiRuntime::Runtime& runtime)
-                    : runtime_(&runtime), idle_(runtime.advanced().device_count())
+                    : owned_source_(std::in_place, runtime), source_(&*owned_source_),
+                      idle_(source_->device_count())
                 {
-                    for (auto& classes : idle_)
-                    {
-                        for (auto& idle : classes)
-                            idle.reserve(K_SCRATCH_IDLE_BLOCKS_PER_CLASS);
-                    }
+                    reserve_idle_lists();
                 }
 
-                /** @brief Returns the runtime that allocates every block. */
-                [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept { return *runtime_; }
+                /**
+                 * @brief Reserves the idle lists over a block source, so returning a block never
+                 *        allocates.
+                 * @param source Serves every block; must outlive the shelf and every block it lent.
+                 */
+                explicit ScratchShelf(ScratchBlockSource& source)
+                    : source_(&source), idle_(source.device_count())
+                {
+                    reserve_idle_lists();
+                }
 
                 /**
-                 * @brief Lends a device block of at least bytes: an idle one, or a new allocation.
+                 * @brief Lends a block of at least bytes: an idle one, or a new allocation.
                  * @pre bytes is above zero.
                  * @return A block with no handle on it and no shelf set; the caller owns it.
                  * @throws std::runtime_error if device_index is out of range or the allocation fails.
@@ -220,14 +228,27 @@ namespace SushiBLAS
                 using ClassLists =
                     std::array<std::vector<std::unique_ptr<ScratchBlock>>, K_SCRATCH_CLASS_COUNT>;
 
-                /// @brief The runtime that allocates every block; never null.
-                SushiRuntime::Runtime* runtime_;
+                /// @brief The source ScratchShelf(Runtime&) builds over its runtime; empty over an outside source.
+                std::optional<RuntimeScratchSource> owned_source_;
+
+                /// @brief The source that serves every block; never null.
+                ScratchBlockSource* source_;
 
                 /// @brief Serialises every read and write of idle_.
                 mutable std::mutex guard_;
 
                 /// @brief The idle blocks, indexed by device queue and then by size class.
                 std::vector<ClassLists> idle_;
+
+                /// @brief Reserves every idle list to its ceiling.
+                void reserve_idle_lists()
+                {
+                    for (auto& classes : idle_)
+                    {
+                        for (auto& idle : classes)
+                            idle.reserve(K_SCRATCH_IDLE_BLOCKS_PER_CLASS);
+                    }
+                }
 
                 /// @brief Hands out an idle block of the size class, or allocates one; take times it.
                 [[nodiscard]] ScratchBlock* lease_block(std::size_t bytes, std::size_t device_index)
@@ -264,8 +285,7 @@ namespace SushiBLAS
                                                      : scratch_class_bytes(size_class);
 
                     auto block = std::make_unique<ScratchBlock>();
-                    block->storage = SushiRuntime::make_sushi<Storage>(
-                        *runtime_, capacity, SushiRuntime::Residency::Device, device_index);
+                    block->storage = source_->serve(capacity, device_index);
                     block->device_index = device_index;
                     block->size_class = size_class;
                     return block.release();

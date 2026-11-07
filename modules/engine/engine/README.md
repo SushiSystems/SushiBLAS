@@ -27,8 +27,12 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
 | `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
 | `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block |
-| `scratch_pool.hpp` | `ScratchPool`, the owner of the device scratch blocks an `Engine` lends |
-| `scratch_shelf.hpp` | The shelf of idle device scratch blocks and the block it lends |
+| `scratch_pool.hpp` | `ScratchPool`, the owner of the scratch blocks an `Engine` lends |
+| `scratch_shelf.hpp` | The shelf of idle scratch blocks and the block it lends |
+| `scratch_block_source.hpp` | `ScratchBlockSource`, the port a `ScratchPool` takes its blocks from |
+| `runtime_scratch_source.hpp` | `RuntimeScratchSource`, the adapter that allocates device memory from a runtime |
+| `host_scratch_source.hpp` | `HostScratchSource`, the adapter that serves host memory and counts what it served |
+| `engine.hpp` | `Engine`, which owns what a process shares between graphs; a runtime constructor and a host constructor |
 | `rng_stream.hpp` | `RNGStream`, the seed and counter offset random operations draw from |
 | `blas.hpp` | `BLASOps`, the view that records every dense BLAS operation |
 | `sparse.hpp` | `SparseOps`, the view that records the sparse BLAS operations |
@@ -285,11 +289,11 @@ that empties its graph does it through it. Three things are outside the lock:
 
 ### `TaskSink`, `GraphTaskSink` and `HostTaskSink`
 
-`TaskSink` is the port: `admits(mode)`, `graph()` and `add_pair(description, operands, mode, origin,
+`TaskSink` is the port: `admits(mode)`, `provides_queue()`, `graph()` and `add_pair(description, operands, mode, origin,
 body)`, where the body is a `std::function<sycl::event(const KernelPairDispatcher&, const
 std::vector<sycl::event>&)>`. `TaskRecorder` calls it with its recording mutex held.
 
-`GraphTaskSink` admits every mode. `add_pair` records a node with the cost of the table plus the
+`GraphTaskSink` admits every mode and provides a queue; `HostTaskSink` provides none. `add_pair` records a node with the cost of the table plus the
 bytes, the region access of the operands, and a `Detail::GraphPairTask` that builds
 `KernelPairDispatcher(mode, q)` with the queue the runtime gives the task and keeps one reference to
 each operand storage. `insert_node` holds what `TaskRecorder::insert_node` held: the
@@ -308,6 +312,31 @@ take no lock, so a caller does not record while it runs.
 Both adapters pass `TaskSinkContract` (`tests/engine/engine/test_task_sink.cpp`): record
 order is run order, the reference half runs under `ForceReference`, a failing body stops the run
 and is reported, and the dispatcher holds a queue exactly when the adapter has one.
+
+### `Engine`
+
+`Engine(Runtime&, Layout)` wires a `TensorFactory`, a `ScratchPool` over a `RuntimeScratchSource`,
+the random stream and the mode `Auto`. `Engine(Engine::Host{}, Layout)` needs no `SushiRuntime::Runtime`
+and wires `TensorFactory(TensorFactory::Host{})`, a `ScratchPool` over a `HostScratchSource`, the
+same random stream and a `HostTaskSink` that `host_sink()` returns. Its mode is `ForceReference`:
+`set_mode` with any other mode throws `UnsupportedExecution` and leaves the mode. `runtime()` throws
+`UnsupportedExecution` on a host engine, and `host_sink()` throws it on an engine built on a runtime;
+`is_host()` tells which. `RNGStream` holds a seed and an offset under a mutex and reaches no runtime, so
+the host engine uses it as it is.
+
+A recorder on a host engine is `TaskRecorder(engine.host_sink(), &engine.scratch_pool())`;
+`HostRecordingFixture` in `engine_fixture` builds that. A host engine accepts a body of the shape
+`(const KernelPairDispatcher&, const std::vector<sycl::event>&)`: `pair.run(deps, reference_fn,
+sycl_fn)` runs `reference_fn`, and `pair.queue()` throws. A body of the old shape `(dispatcher,
+sycl::queue&, deps)` cannot run there, since a host sink has no queue to hand it, so
+`record_pair` throws `UnsupportedExecution` at record time with a message that names the task, and records
+nothing. `TaskSink::provides_queue()` is what it asks. A dtype-dispatched body of the old shape
+`(T, dispatcher, queue, deps)` is not seen at record time; it fails at run time, and `HostTaskSink::run()`
+names the task. The old shape is removed in H5 of the test review plan.
+
+`EngineContract` (`tests/engine/engine/test_engine/test_engine_contract.cpp`) runs on both: `Small_` on
+the host engine, `Medium_` on the engine on a runtime. It creates a tensor and reads its bytes back,
+records a reference task and runs it, leases scratch and returns it, and checks the mode rule.
 
 ### `TaskRecorder::record_pair`
 
@@ -512,16 +541,25 @@ builds a `Storage` for scratch itself.
 
 `ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
 the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
-blocks sit idle and `trim()` frees them; neither touches a block out on lease. `runtime()` returns the
-runtime the pool was built over. `Engine` owns one
+blocks sit idle and `trim()` frees them; neither touches a block out on lease. `ScratchPool(Runtime&)`
+builds a `RuntimeScratchSource` that the shelf owns, and `runtime()` returns that runtime.
+`ScratchPool(ScratchBlockSource&)` takes the blocks from a source the caller keeps alive for the pool and
+every lease; `runtime()` then throws `UnsupportedExecution`. `Engine` owns one
 pool and its recorder hands it to operations through `TaskRecorder::scratch_pool()`.
+
+`ScratchBlockSource` serves `serve(bytes, device_index)`, a `Storage` of at least `bytes`, and
+`device_count()`; it refuses zero bytes and a device past the last with `std::runtime_error`.
+`RuntimeScratchSource` serves `Residency::Device` storages of a runtime. `HostScratchSource` serves host
+storages for device 0 and counts them (`served_blocks()`, `served_bytes()`), so a pool runs in a test that
+makes no device. Both pass `BlockSourceContract` (`tests/engine/engine/test_scratch_block_source.cpp`),
+`Small_` on the host source and `Medium_` on the runtime source.
 
 ## `scratch_shelf.hpp`
 
 `Detail::ScratchShelf` keeps idle blocks per device queue and per size class. There are six
 classes, 128 bytes to 4096 bytes in powers of two, and a request is rounded up to the smallest
-class that holds it. `take` hands out an idle block of that class or allocates a new
-`Residency::Device` storage. A request above 4096 bytes is allocated at its own size and freed
+class that holds it. `take` hands out an idle block of that class or asks the block source for a new
+storage (`Residency::Device` from the runtime source). A request above 4096 bytes is allocated at its own size and freed
 when it comes back. `give_back` keeps at most 64 idle blocks per class per device and frees the
 rest. The idle lists are reserved to that ceiling when the shelf is built, so returning a block
 never allocates. One `std::mutex` guards the lists; it is taken at record time and when a task

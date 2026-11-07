@@ -23,13 +23,15 @@
 
 /**
  * @file scratch_pool.hpp
- * @brief Declares ScratchPool, the owner of the device scratch blocks an Engine lends.
+ * @brief Declares ScratchPool, the owner of the scratch blocks an Engine lends.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <cstddef>
+#include <SushiBLAS/core/errors.hpp>
+#include <SushiBLAS/engine/scratch_block_source.hpp>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -38,18 +40,29 @@ namespace SushiBLAS
 {
     /**
      * @class ScratchPool
-     * @brief Owns the shelf of device scratch blocks that ScratchBuffer leases come from.
+     * @brief Owns the shelf of scratch blocks that ScratchBuffer leases come from.
      * @see modules/engine/engine/README.md
      */
     class ScratchPool final
     {
         public:
             /**
-             * @brief Builds an empty pool over a runtime.
+             * @brief Builds an empty pool whose blocks are device memory of a runtime.
              * @param runtime Allocates every block; must outlive every ScratchBuffer leased here.
              */
             explicit ScratchPool(SushiRuntime::Runtime& runtime)
-                : shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(runtime))
+                : runtime_(&runtime), shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(runtime))
+            {
+
+            }
+
+            /**
+             * @brief Builds an empty pool over a block source.
+             * @param source Serves every block; must outlive the pool and every ScratchBuffer
+             *        leased here.
+             */
+            explicit ScratchPool(ScratchBlockSource& source)
+                : runtime_(nullptr), shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(source))
             {
 
             }
@@ -66,10 +79,15 @@ namespace SushiBLAS
                 return shelf_;
             }
 
-            /** @brief Returns the runtime the pool was built over. */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept
+            /**
+             * @brief Returns the runtime the pool was built over.
+             * @throws UnsupportedExecution on a pool built over a block source, which has none.
+             */
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const
             {
-                return shelf_->runtime();
+                if (runtime_ == nullptr)
+                    throw UnsupportedExecution("A scratch pool over a block source has no runtime");
+                return *runtime_;
             }
 
             /** @brief Returns how many blocks sit idle in the pool. */
@@ -79,6 +97,9 @@ namespace SushiBLAS
             void trim() { shelf_->trim(); }
 
         private:
+            /// @brief The runtime the pool was built over; null over a block source.
+            SushiRuntime::Runtime* runtime_;
+
             /// @brief The shared shelf; lent blocks hold it too, so it outlives the pool if they do.
             SushiRuntime::sushi_ptr<Detail::ScratchShelf> shelf_;
     };

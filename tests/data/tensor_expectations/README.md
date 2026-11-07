@@ -10,5 +10,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | --- | --- |
 | `test_scalar_dtype.cpp` | Tests that sushiblas_dtype names the DataType of each element type a test uses |
 | `test_tensor_comparison.cpp` | Tests that the tensor comparisons accept a match and report a mismatch, NaN included |
+| `test_tensor_copy.cpp` | Tests that copy_host_to_tensor and copy_tensor_to_host move the bytes of a host tensor by memcpy |
 | `test_tensor_fill.cpp` | Tests that fill_tensor converts its values to each dtype and that fill_random repeats |
 | `test_tensor_readback.cpp` | Tests that read_tensor copies a tensor's elements out and refuses another element type |
