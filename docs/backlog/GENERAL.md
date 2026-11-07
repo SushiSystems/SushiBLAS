@@ -11,7 +11,6 @@
 | RW-5 | P2 | decision | Decide whether ELU accepts complex input | ELU takes complex input, or the owner has ruled it real-only |  |  | 2026-10-19 |
 | RW-7 | P2 | decision | Decide whether a green CI on the tagged commit is a release condition | the owner has ruled, and the build jobs build against the tagged runtime |  |  | 2026-10-19 |
 | RW-9 | P2 | decision | Rule how a function-local `constexpr` is spelt | the about 124 local values not spelt `K_UPPER_SNAKE` are renamed, or the owner has ruled that a local keeps `snake_case` |  |  | 2026-10-19 |
-| RW-147 | P3 | open | Give the graph primitives a value-level seam so their capacity and refusal tests run small | The scan, sort, reduce and segment decisions run Small_ through host functions; the above-capacity refusals stay Medium_ as SushiRuntime owns them |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 
