@@ -35,7 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include "../random_statistics.hpp"
@@ -76,7 +76,7 @@ namespace
     /// @brief Holds a Poisson mean below 10, where the draw is the Knuth product.
     constexpr double K_KNUTH_LAMBDA = 4.0;
 
-    /// @brief Holds the FLOAT32 roundings a device exp may differ from the host one by.
+    /// @brief Holds the FLOAT32 roundings the exp of the mean may differ from the exact value by.
     constexpr std::size_t K_EXP_OPERATIONS = 8;
 
     /// @brief Holds a lower bound far below any draw; the kernel clamps it to -40.
@@ -86,7 +86,7 @@ namespace
     using Record = std::function<void(RandomOps&, Tensor&)>;
 }
 
-class Medium_DistributionsTest : public SushiBLASTest
+class Small_DistributionsTest : public HostEngineTest
 {
     protected:
         /** @brief Records one fill on count FLOAT32 elements from seed, runs it and returns the elements widened. */
@@ -96,7 +96,7 @@ class Medium_DistributionsTest : public SushiBLASTest
             RandomOps random(recorder(), engine->rng());
             random.set_seed(seed);
             record(random, t);
-            recording->run().value();
+            EXPECT_TRUE(recording->run_succeeds());
             return widened(read_tensor<float>(t));
         }
 
@@ -116,7 +116,7 @@ class Medium_DistributionsTest : public SushiBLASTest
         }
 };
 
-TEST_F(Medium_DistributionsTest, LogNormalMomentsMatchItsLaw)
+TEST_F(Small_DistributionsTest, LogNormalMomentsMatchItsLaw)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -126,7 +126,7 @@ TEST_F(Medium_DistributionsTest, LogNormalMomentsMatchItsLaw)
     expect_moments_match(samples, log_normal_law(0.0, K_LOG_NORMAL_STDDEV));
 }
 
-TEST_F(Medium_DistributionsTest, ExponentialMomentsMatchItsLaw)
+TEST_F(Small_DistributionsTest, ExponentialMomentsMatchItsLaw)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -136,7 +136,7 @@ TEST_F(Medium_DistributionsTest, ExponentialMomentsMatchItsLaw)
     expect_moments_match(samples, exponential_law(K_EXPONENTIAL_RATE));
 }
 
-TEST_F(Medium_DistributionsTest, PoissonBelowTenMatchesItsMoments)
+TEST_F(Small_DistributionsTest, PoissonBelowTenMatchesItsMoments)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -147,7 +147,7 @@ TEST_F(Medium_DistributionsTest, PoissonBelowTenMatchesItsMoments)
     expect_moments_match(samples, poisson_law(K_KNUTH_LAMBDA));
 }
 
-TEST_F(Medium_DistributionsTest, BernoulliMomentsMatchItsLaw)
+TEST_F(Small_DistributionsTest, BernoulliMomentsMatchItsLaw)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -158,7 +158,7 @@ TEST_F(Medium_DistributionsTest, BernoulliMomentsMatchItsLaw)
     expect_moments_match(samples, bernoulli_law(K_PROBABILITY));
 }
 
-TEST_F(Medium_DistributionsTest, DiscreteUniformMomentsMatchItsLaw)
+TEST_F(Small_DistributionsTest, DiscreteUniformMomentsMatchItsLaw)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -190,13 +190,13 @@ std::vector<BoundsRow> bounds_rows()
 }
 
 /** @brief Runs one row of bounds_rows(). */
-class Medium_TruncatedNormalBounds : public Medium_DistributionsTest,
-                                     public ::testing::WithParamInterface<BoundsRow>
+class Small_TruncatedNormalBounds : public Small_DistributionsTest,
+                                    public ::testing::WithParamInterface<BoundsRow>
 {
 
 };
 
-TEST_P(Medium_TruncatedNormalBounds, SamplesStayInsideMeanPlusStddevTimesTheCuts)
+TEST_P(Small_TruncatedNormalBounds, SamplesStayInsideMeanPlusStddevTimesTheCuts)
 {
     const BoundsRow row = GetParam();
 
@@ -210,10 +210,10 @@ TEST_P(Medium_TruncatedNormalBounds, SamplesStayInsideMeanPlusStddevTimesTheCuts
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_TruncatedNormalBounds, ::testing::ValuesIn(bounds_rows()),
+    , Small_TruncatedNormalBounds, ::testing::ValuesIn(bounds_rows()),
     [](const ::testing::TestParamInfo<BoundsRow>& info) { return std::string(info.param.name); });
 
-TEST_F(Medium_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTail)
+TEST_F(Small_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTail)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -225,7 +225,7 @@ TEST_F(Medium_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpper
     expect_mean_matches(samples, truncated_normal_law(1.0, 3.0));
 }
 
-TEST_F(Medium_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
+TEST_F(Small_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
 {
     const std::vector<double> samples = draw(K_FAR_BOUND_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -237,7 +237,7 @@ TEST_F(Medium_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpen
     expect_mean_matches(samples, truncated_normal_law(K_FAR_LOWER_BOUND, 2.0));
 }
 
-TEST_F(Medium_DistributionsTest, ANormalWithZeroStddevDrawsTheMeanEverywhere)
+TEST_F(Small_DistributionsTest, ANormalWithZeroStddevDrawsTheMeanEverywhere)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
@@ -247,14 +247,14 @@ TEST_F(Medium_DistributionsTest, ANormalWithZeroStddevDrawsTheMeanEverywhere)
     expect_inside(samples, 1.0, 1.0);
 }
 
-TEST_F(Medium_DistributionsTest, ALogNormalWithZeroStddevDrawsExpOfTheMeanEverywhere)
+TEST_F(Small_DistributionsTest, ALogNormalWithZeroStddevDrawsExpOfTheMeanEverywhere)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
     {
         random.log_normal(t, 1.0, 0.0);
     }, K_BOUNDED_DRAWS);
 
-    // The device exp may differ from the host one by a few FLOAT32 roundings of e.
+    // The FLOAT32 store rounds the host exp by a few ulps of e.
     const double expected = std::exp(1.0);
     const double tolerance = absolute_tolerance<float>(K_EXP_OPERATIONS, expected);
     expect_inside(samples, expected - tolerance, expected + tolerance);

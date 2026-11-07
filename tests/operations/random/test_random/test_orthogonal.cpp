@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 using namespace SushiBLAS::Test;
@@ -65,25 +65,15 @@ namespace
                 {"GainScalesTheDiagonalQuadratically", 5, 5, 11, 2.5f},
                 {"SingleVectorIsScaledToTheGain", 1, 4, 99, 3.0f}};
     }
-}
 
-/** @brief Runs one row of gram_rows(). */
-class Medium_OrthogonalGram : public SushiBLASTest,
-                              public ::testing::WithParamInterface<GramRow>
+/**
+ * @brief Expects the vectors of a matrix to have the Gram matrix of the gain squared times the identity.
+ *
+ * The shorter axis holds the vectors: rows of a wide matrix, columns of a tall one, so Q Q^T or
+ * Q^T Q is gain^2 I.
+ */
+void expect_gram_of_gain(const std::vector<float>& matrix, const GramRow& row)
 {
-
-};
-
-TEST_P(Medium_OrthogonalGram, VectorsHaveTheGramMatrixOfTheGainTimesIdentity)
-{
-    const GramRow row = GetParam();
-    auto t = engine->create_tensor({row.rows, row.cols});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(row.seed);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t, row.gain);
-    recording->run().value();
-
-    // The shorter axis holds the vectors: rows of a wide matrix, columns of a tall one, so Q Q^T or Q^T Q is gain^2 I.
-    const std::vector<float> matrix = read_tensor<float>(t);
     const bool by_rows = row.rows <= row.cols;
     const int64_t count = by_rows ? row.rows : row.cols;
     const int64_t length = by_rows ? row.cols : row.rows;
@@ -107,7 +97,26 @@ TEST_P(Medium_OrthogonalGram, VectorsHaveTheGramMatrixOfTheGainTimesIdentity)
         }
     }
 }
+}
+
+/** @brief Runs one row of gram_rows(). */
+class Small_OrthogonalGram : public HostEngineTest,
+                             public ::testing::WithParamInterface<GramRow>
+{
+
+};
+
+TEST_P(Small_OrthogonalGram, VectorsHaveTheGramMatrixOfTheGainTimesIdentity)
+{
+    const GramRow row = GetParam();
+    auto t = engine->create_tensor({row.rows, row.cols});
+    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(row.seed);
+    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t, row.gain);
+    EXPECT_TRUE(recording->run_succeeds());
+
+    expect_gram_of_gain(read_tensor<float>(t), row);
+}
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_OrthogonalGram, ::testing::ValuesIn(gram_rows()),
+    , Small_OrthogonalGram, ::testing::ValuesIn(gram_rows()),
     [](const ::testing::TestParamInfo<GramRow>& info) { return std::string(info.param.name); });

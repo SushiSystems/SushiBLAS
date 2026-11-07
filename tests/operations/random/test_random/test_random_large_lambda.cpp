@@ -35,7 +35,7 @@
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include "../random_statistics.hpp"
 using namespace SushiBLAS::Test;
@@ -85,7 +85,7 @@ namespace
     }
 }
 
-class Medium_RandomLargeLambdaTest : public SushiBLASTest
+class Small_RandomLargeLambdaTest : public HostEngineTest
 {
     protected:
         /** @brief Returns count FLOAT64 Poisson draws of mean lambda from seed. */
@@ -94,7 +94,7 @@ class Medium_RandomLargeLambdaTest : public SushiBLASTest
             auto t = engine->create_tensor({count}, DataType::Float64);
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
             SushiBLAS::RandomOps(recorder(), engine->rng()).poisson(t, lambda);
-            recording->run().value();
+            EXPECT_TRUE(recording->run_succeeds());
             return read_tensor<double>(t);
         }
 
@@ -110,13 +110,13 @@ class Medium_RandomLargeLambdaTest : public SushiBLASTest
 };
 
 /** @brief Runs one row of moment_rows(). */
-class Medium_PoissonMoments : public Medium_RandomLargeLambdaTest,
-                              public ::testing::WithParamInterface<LambdaRow>
+class Small_PoissonMoments : public Small_RandomLargeLambdaTest,
+                             public ::testing::WithParamInterface<LambdaRow>
 {
 
 };
 
-TEST_P(Medium_PoissonMoments, MatchLambdaWithinStandardErrors)
+TEST_P(Small_PoissonMoments, MatchLambdaWithinStandardErrors)
 {
     const double lambda = GetParam().lambda;
     const std::vector<double> values = draw(lambda, K_MOMENT_SEED);
@@ -126,17 +126,17 @@ TEST_P(Medium_PoissonMoments, MatchLambdaWithinStandardErrors)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_PoissonMoments, ::testing::ValuesIn(moment_rows()),
+    , Small_PoissonMoments, ::testing::ValuesIn(moment_rows()),
     [](const ::testing::TestParamInfo<LambdaRow>& info) { return std::string(info.param.name); });
 
 /** @brief Runs one row of replay_rows(). */
-class Medium_PoissonReplay : public Medium_RandomLargeLambdaTest,
-                             public ::testing::WithParamInterface<LambdaRow>
+class Small_PoissonReplay : public Small_RandomLargeLambdaTest,
+                            public ::testing::WithParamInterface<LambdaRow>
 {
 
 };
 
-TEST_P(Medium_PoissonReplay, ReplaysBitForBitFromOneSeed)
+TEST_P(Small_PoissonReplay, ReplaysBitForBitFromOneSeed)
 {
     const double lambda = GetParam().lambda;
     const std::vector<double> first = draw(lambda, K_REPLAY_SEED);
@@ -146,11 +146,11 @@ TEST_P(Medium_PoissonReplay, ReplaysBitForBitFromOneSeed)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_PoissonReplay, ::testing::ValuesIn(replay_rows()),
+    , Small_PoissonReplay, ::testing::ValuesIn(replay_rows()),
     [](const ::testing::TestParamInfo<LambdaRow>& info) { return std::string(info.param.name); });
 
 // A cap the record call refuses throws out of draw(), so this test also fails when the cap is not accepted.
-TEST_F(Medium_RandomLargeLambdaTest, PoissonAtTheCapDrawsNonNegativeIntegers)
+TEST_F(Small_RandomLargeLambdaTest, PoissonAtTheCapDrawsNonNegativeIntegers)
 {
     expect_counts(draw(SushiBLAS::K_MAX_POISSON_LAMBDA, K_CAP_SEED, K_CAP_DRAWS));
 }

@@ -32,7 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include "../random_statistics.hpp"
@@ -59,7 +59,7 @@ namespace
     constexpr uint64_t K_OTHER_SEED = 7;
 }
 
-class Medium_NormalTest : public SushiBLASTest
+class Small_NormalTest : public HostEngineTest
 {
     protected:
         /**
@@ -72,7 +72,7 @@ class Medium_NormalTest : public SushiBLASTest
             auto t = engine->create_tensor({K_DRAWS}, sushiblas_dtype<T>());
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
             SushiBLAS::RandomOps(recorder(), engine->rng()).normal(t, K_MEAN, K_STDDEV);
-            recording->run().value();
+            EXPECT_TRUE(recording->run_succeeds());
             return widened(read_tensor<T>(t));
         }
 
@@ -86,20 +86,20 @@ class Medium_NormalTest : public SushiBLASTest
 };
 
 /** @brief Runs one dtype of the moment test. */
-class Medium_NormalMoments : public Medium_NormalTest,
-                             public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
+class Small_NormalMoments : public Small_NormalTest,
+                            public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
 {
 
 };
 
-TEST_P(Medium_NormalMoments, MatchTheRequestedDistribution)
+TEST_P(Small_NormalMoments, MatchTheRequestedDistribution)
 {
     const std::vector<double> samples = draw_as(GetParam(), K_SEED);
 
     expect_moments_match(samples, normal_law(K_MEAN, K_STDDEV));
 }
 
-TEST_P(Medium_NormalMoments, SpreadReachesBothTails)
+TEST_P(Small_NormalMoments, SpreadReachesBothTails)
 {
     const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
 
@@ -108,19 +108,19 @@ TEST_P(Medium_NormalMoments, SpreadReachesBothTails)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_NormalMoments,
+    , Small_NormalMoments,
     ::testing::Values(SushiBLAS::Core::DataType::Float32, SushiBLAS::Core::DataType::Float64),
     [](const ::testing::TestParamInfo<SushiBLAS::Core::DataType>& info)
     { return std::string(SushiBLAS::Core::to_string(info.param)); });
 
-TEST_F(Medium_NormalTest, EqualSeedsDrawEqualSamples)
+TEST_F(Small_NormalTest, EqualSeedsDrawEqualSamples)
 {
     const std::vector<double> first = draw<float>(K_SEED);
     const std::vector<double> second = draw<float>(K_SEED);
     EXPECT_EQ(first, second);
 }
 
-TEST_F(Medium_NormalTest, DifferentSeedsDrawDifferentSamples)
+TEST_F(Small_NormalTest, DifferentSeedsDrawDifferentSamples)
 {
     EXPECT_NE(draw<float>(K_SEED), draw<float>(K_OTHER_SEED));
 }

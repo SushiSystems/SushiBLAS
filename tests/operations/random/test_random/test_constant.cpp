@@ -33,7 +33,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
@@ -50,7 +50,7 @@ namespace
     constexpr int64_t K_ODD_SIZE = 1001;
 }
 
-class Medium_ConstantTest : public SushiBLASTest
+class Small_ConstantTest : public HostEngineTest
 {
     protected:
         /**
@@ -61,7 +61,7 @@ class Medium_ConstantTest : public SushiBLASTest
         {
             auto t = engine->create_tensor({size}, dtype);
             SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, value);
-            recording->run().value();
+            ASSERT_TRUE(recording->run_succeeds());
             expect_tensor_equal(t, std::vector<double>(static_cast<size_t>(size), value));
         }
 };
@@ -89,13 +89,13 @@ std::vector<ConstantRow> constant_rows()
 }
 
 /** @brief Runs one row of constant_rows(). */
-class Medium_ConstantFill : public Medium_ConstantTest,
-                            public ::testing::WithParamInterface<ConstantRow>
+class Small_ConstantFill : public Small_ConstantTest,
+                           public ::testing::WithParamInterface<ConstantRow>
 {
 
 };
 
-TEST_P(Medium_ConstantFill, WritesTheValueToEveryElement)
+TEST_P(Small_ConstantFill, WritesTheValueToEveryElement)
 {
     const ConstantRow row = GetParam();
 
@@ -103,5 +103,5 @@ TEST_P(Medium_ConstantFill, WritesTheValueToEveryElement)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_ConstantFill, ::testing::ValuesIn(constant_rows()),
+    , Small_ConstantFill, ::testing::ValuesIn(constant_rows()),
     [](const ::testing::TestParamInfo<ConstantRow>& info) { return std::string(info.param.name); });

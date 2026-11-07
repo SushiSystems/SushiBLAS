@@ -33,7 +33,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include "../random_statistics.hpp"
@@ -66,7 +66,7 @@ namespace
     }
 }
 
-class Medium_UniformTest : public SushiBLASTest
+class Small_UniformTest : public HostEngineTest
 {
     protected:
         /**
@@ -79,7 +79,7 @@ class Medium_UniformTest : public SushiBLASTest
             auto t = engine->create_tensor({K_DRAWS}, sushiblas_dtype<T>());
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
             SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, K_MIN, K_MAX);
-            recording->run().value();
+            EXPECT_TRUE(recording->run_succeeds());
             return widened(read_tensor<T>(t));
         }
 
@@ -93,13 +93,13 @@ class Medium_UniformTest : public SushiBLASTest
 };
 
 /** @brief Runs one dtype of the range and moment tests. */
-class Medium_UniformDraw : public Medium_UniformTest,
-                           public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
+class Small_UniformDraw : public Small_UniformTest,
+                          public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
 {
 
 };
 
-TEST_P(Medium_UniformDraw, StaysInTheHalfOpenRange)
+TEST_P(Small_UniformDraw, StaysInTheHalfOpenRange)
 {
     const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
 
@@ -107,7 +107,7 @@ TEST_P(Medium_UniformDraw, StaysInTheHalfOpenRange)
     EXPECT_LT(measured.highest, K_MAX);
 }
 
-TEST_P(Medium_UniformDraw, FillsTheRangeToBothEdges)
+TEST_P(Small_UniformDraw, FillsTheRangeToBothEdges)
 {
     const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
 
@@ -115,25 +115,25 @@ TEST_P(Medium_UniformDraw, FillsTheRangeToBothEdges)
     EXPECT_GT(measured.highest, K_MAX - edge_band());
 }
 
-TEST_P(Medium_UniformDraw, MomentsMatchTheUniformLaw)
+TEST_P(Small_UniformDraw, MomentsMatchTheUniformLaw)
 {
     expect_moments_match(draw_as(GetParam(), K_SEED), uniform_law(K_MIN, K_MAX));
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_UniformDraw,
+    , Small_UniformDraw,
     ::testing::Values(SushiBLAS::Core::DataType::Float32, SushiBLAS::Core::DataType::Float64),
     [](const ::testing::TestParamInfo<SushiBLAS::Core::DataType>& info)
     { return std::string(SushiBLAS::Core::to_string(info.param)); });
 
-TEST_F(Medium_UniformTest, EqualSeedsDrawEqualSamples)
+TEST_F(Small_UniformTest, EqualSeedsDrawEqualSamples)
 {
     const std::vector<double> first = draw<float>(K_SEED);
     const std::vector<double> second = draw<float>(K_SEED);
     EXPECT_EQ(first, second);
 }
 
-TEST_F(Medium_UniformTest, DifferentSeedsDrawDifferentSamples)
+TEST_F(Small_UniformTest, DifferentSeedsDrawDifferentSamples)
 {
     EXPECT_NE(draw<float>(K_SEED), draw<float>(K_OTHER_SEED));
 }

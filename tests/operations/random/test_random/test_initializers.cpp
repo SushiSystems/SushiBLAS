@@ -35,7 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include "../random_statistics.hpp"
 using namespace SushiBLAS::Test;
@@ -105,8 +105,8 @@ namespace
 }
 
 /** @brief Runs one row of initializer_rows() on a FLOAT32 square tensor. */
-class Medium_InitializersTest : public SushiBLASTest,
-                                public ::testing::WithParamInterface<InitializerRow>
+class Small_InitializersTest : public HostEngineTest,
+                               public ::testing::WithParamInterface<InitializerRow>
 {
     protected:
         /** @brief Records the initializer of the row from K_SEED, runs it and returns the elements widened. */
@@ -116,17 +116,17 @@ class Medium_InitializersTest : public SushiBLASTest,
             RandomOps random(recorder(), engine->rng());
             random.set_seed(K_SEED);
             GetParam().record(random, t);
-            recording->run().value();
+            EXPECT_TRUE(recording->run_succeeds());
             return widened(read_tensor<float>(t));
         }
 };
 
-TEST_P(Medium_InitializersTest, MomentsMatchTheInitializerLaw)
+TEST_P(Small_InitializersTest, MomentsMatchTheInitializerLaw)
 {
     expect_moments_match(draw(), GetParam().law);
 }
 
-TEST_P(Medium_InitializersTest, DrawsStayInsideTheInitializerBound)
+TEST_P(Small_InitializersTest, DrawsStayInsideTheInitializerBound)
 {
     const SampleMoments measured = measure_moments(draw());
 
@@ -135,5 +135,5 @@ TEST_P(Medium_InitializersTest, DrawsStayInsideTheInitializerBound)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    , Medium_InitializersTest, ::testing::ValuesIn(initializer_rows()),
+    , Small_InitializersTest, ::testing::ValuesIn(initializer_rows()),
     [](const ::testing::TestParamInfo<InitializerRow>& info) { return std::string(info.param.name); });
