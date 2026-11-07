@@ -47,13 +47,6 @@ namespace SushiBLAS
             EXPECT_EQ(maker.device_count(), std::size_t{1});
         }
 
-        TEST(Small_HostBlockMaker, ItHasNoRuntime)
-        {
-            const HostBlockMaker maker;
-
-            EXPECT_THROW((void)maker.runtime(), UnsupportedExecution);
-        }
-
         TEST(Small_HostBlockMaker, ItMakesHostMemoryWhateverResidencyIsAsked)
         {
             const HostBlockMaker maker;

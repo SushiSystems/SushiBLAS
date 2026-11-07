@@ -134,13 +134,6 @@ namespace SushiBLAS
             TensorFactoryContract::expect_created_tensors_do_not_overlap(this->subject);
         }
 
-        TEST(Small_HostTensorFactory, ItHasNoRuntime)
-        {
-            const TensorFactory factory(TensorFactory::Host{});
-
-            EXPECT_THROW((void)factory.runtime(), UnsupportedExecution);
-        }
-
         TEST(Small_HostTensorFactory, ItMakesHostStorageWhateverResidencyIsAsked)
         {
             const TensorFactory factory(TensorFactory::Host{});
@@ -152,13 +145,6 @@ namespace SushiBLAS
 
             EXPECT_EQ(tensor.storage->block().queue(), nullptr);
             EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Host);
-        }
-
-        TEST(Medium_TensorFactory, ARuntimeFactoryKeepsItsRuntime)
-        {
-            const TensorFactory factory(TestEnvironment::runtime());
-
-            EXPECT_EQ(&factory.runtime(), &TestEnvironment::runtime());
         }
     } // namespace Test
 } // namespace SushiBLAS

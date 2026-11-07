@@ -43,8 +43,7 @@ no queue (`block().queue()` is null). `Storage::queue()` throws `UnsupportedExec
 
 `TensorFactory(TensorFactory::Host{}, layout)` needs no runtime and makes host storages. `create`
 ignores the residency it is given, accepts only device index 0, and returns a tensor without storage
-for a shape with a zero dimension, as the runtime factory does. `runtime()` throws
-`UnsupportedExecution`. The factory owns a `BlockMaker`, `HostBlockMaker` or `RuntimeBlockMaker`, that its
+for a shape with a zero dimension, as the runtime factory does. The factory owns a `BlockMaker`, `HostBlockMaker` or `RuntimeBlockMaker`, that its
 constructors build. The constructor that takes a runtime, and its `create`, are unchanged.
 
 ## Shape-only tensors

@@ -33,12 +33,10 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
-#include <optional>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/engine/profile_hooks.hpp>
-#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch_block_source.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -122,17 +120,6 @@ namespace SushiBLAS
         class ScratchShelf final : public SushiRuntime::RefCounted
         {
             public:
-                /**
-                 * @brief Reserves the idle lists over a runtime, so returning a block never allocates.
-                 * @param runtime Allocates every block as device memory; must outlive the shelf.
-                 */
-                explicit ScratchShelf(SushiRuntime::Runtime& runtime)
-                    : owned_source_(std::in_place, runtime), source_(&*owned_source_),
-                      idle_(source_->device_count())
-                {
-                    reserve_idle_lists();
-                }
-
                 /**
                  * @brief Reserves the idle lists over a block source, so returning a block never
                  *        allocates.
@@ -227,9 +214,6 @@ namespace SushiBLAS
                 /// @brief The idle lists of one device, one per size class.
                 using ClassLists =
                     std::array<std::vector<std::unique_ptr<ScratchBlock>>, K_SCRATCH_CLASS_COUNT>;
-
-                /// @brief The source ScratchShelf(Runtime&) builds over its runtime; empty over an outside source.
-                std::optional<RuntimeScratchSource> owned_source_;
 
                 /// @brief The source that serves every block; never null.
                 ScratchBlockSource* source_;

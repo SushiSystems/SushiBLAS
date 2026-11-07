@@ -47,7 +47,7 @@ namespace SushiBLAS
             return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
         }
 
-        TEST(Medium_TensorFactory, KeepsItsRuntimeAndLayout)
+        TEST(Medium_TensorFactory, KeepsItsLayout)
         {
             const TensorFactory row_major(TestEnvironment::runtime());
             const TensorFactory column_major(TestEnvironment::runtime(),
@@ -55,7 +55,6 @@ namespace SushiBLAS
 
             EXPECT_EQ(row_major.layout(), Core::Layout::RowMajor);
             EXPECT_EQ(column_major.layout(), Core::Layout::ColumnMajor);
-            EXPECT_EQ(&row_major.runtime(), &TestEnvironment::runtime());
         }
 
         TEST(Medium_TensorFactory, AllocationBytesIsTheElementCountTimesTheElementSize)

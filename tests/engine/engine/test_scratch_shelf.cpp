@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -46,9 +47,12 @@ namespace SushiBLAS
         class Medium_ScratchShelf : public ::testing::Test
         {
             protected:
+                /// @brief The source that serves every block of the shelf.
+                RuntimeScratchSource source_{TestEnvironment::runtime()};
+
                 /// @brief The shelf under test; empty when a test starts.
                 SushiRuntime::sushi_ptr<SushiBLAS::Detail::ScratchShelf> shelf_ =
-                    SushiRuntime::make_sushi<SushiBLAS::Detail::ScratchShelf>(TestEnvironment::runtime());
+                    SushiRuntime::make_sushi<SushiBLAS::Detail::ScratchShelf>(source_);
         };
 
         TEST_F(Medium_ScratchShelf, ARequestIsRoundedUpToItsClass)

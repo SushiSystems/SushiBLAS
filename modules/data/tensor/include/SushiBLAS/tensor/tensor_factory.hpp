@@ -94,12 +94,6 @@ namespace SushiBLAS
             [[nodiscard]] Core::Layout layout() const noexcept { return layout_; }
 
             /**
-             * @brief Returns the runtime that allocates.
-             * @throws UnsupportedExecution on a host factory, which has none.
-             */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const { return maker_->runtime(); }
-
-            /**
              * @brief Returns the byte count a dense tensor of dims and dtype needs; 0 if a dimension is 0.
              * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing count.
              */

@@ -34,11 +34,6 @@
 #include <memory>
 #include <SushiBLAS/tensor/storage_block.hpp>
 
-namespace SushiRuntime
-{
-    class Runtime;
-} // namespace SushiRuntime
-
 namespace SushiBLAS
 {
     /**
@@ -65,11 +60,5 @@ namespace SushiBLAS
 
             /** @brief Returns the number of device queues a block can sit on; 1 for host memory. */
             [[nodiscard]] virtual std::size_t device_count() const = 0;
-
-            /**
-             * @brief Returns the runtime that allocates.
-             * @throws UnsupportedExecution on a maker of host memory, which has none.
-             */
-            [[nodiscard]] virtual SushiRuntime::Runtime& runtime() const = 0;
     };
 } // namespace SushiBLAS

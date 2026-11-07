@@ -224,7 +224,7 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the runtime that allocates. */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const override { return runtime_; }
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept { return runtime_; }
 
         private:
             /// @brief Holds the runtime that allocates.

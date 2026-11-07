@@ -163,7 +163,7 @@ namespace SushiBLAS
 
     /**
      * @class HostBlockMaker
-     * @brief Allocates HostBlocks, rounded and aligned to K_STORAGE_ALIGNMENT, and has no runtime.
+     * @brief Allocates HostBlocks, rounded and aligned to K_STORAGE_ALIGNMENT, and names no runtime.
      * @see modules/data/tensor/README.md
      */
     class HostBlockMaker final : public BlockMaker
@@ -184,12 +184,6 @@ namespace SushiBLAS
 
             /** @brief Returns 1; host memory has one place. */
             [[nodiscard]] std::size_t device_count() const override { return 1; }
-
-            /** @brief Always throws UnsupportedExecution; host memory has no runtime. */
-            [[noreturn]] SushiRuntime::Runtime& runtime() const override
-            {
-                throw UnsupportedExecution("A host TensorFactory has no runtime");
-            }
     };
 
     /**

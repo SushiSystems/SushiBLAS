@@ -9,6 +9,7 @@ sushiblas_add_module(
     SOURCES
         file_header.cpp
         io.cpp
+        io_file_stream.cpp
         print.cpp
     DEPENDS
         core
