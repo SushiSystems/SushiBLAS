@@ -361,15 +361,6 @@ namespace SushiBLAS
                     }
                 };
 
-                /** @brief Holds a two-dimensional work-group shape, in work-items. */
-                using Indexing::GroupShape;
-
-                /** @brief Splits a work-item budget into the squarest power-of-two 2-D shape. */
-                using Indexing::group_shape;
-
-                /** @brief Returns the group count covering extent in steps of block, at least one. */
-                using Indexing::group_count;
-
                 /**
                  * @brief Computes GEMM by tiling A and B through local memory, for devices with real scratchpad memory.
                  * @tparam Shape A GemmTileShape of T; every geometry constant comes from it.
@@ -398,8 +389,8 @@ namespace SushiBLAS
                                    static_cast<std::size_t>(Configuration::K_WG_ITEMS)}),
                               "gemm_local_tiled launched on a device that cannot host its local tile");
 
-                    const int64_t m_groups = group_count(m, Configuration::K_BLOCK_M);
-                    const int64_t n_groups = group_count(n, Configuration::K_BLOCK_N);
+                    const int64_t m_groups = Indexing::group_count(m, Configuration::K_BLOCK_M);
+                    const int64_t n_groups = Indexing::group_count(n, Configuration::K_BLOCK_N);
 
                     const sycl::range<3> global(
                         static_cast<std::size_t>(batch_size),
@@ -544,7 +535,8 @@ namespace SushiBLAS
                     using W = Accumulator<T>;
                     using Configuration = GemmNoLocalTile<T>;
 
-                    const GroupShape group = group_shape(Device::work_group_size(profile));
+                    const Indexing::GroupShape group =
+                        Indexing::group_shape(Device::work_group_size(profile));
                     const int wg_rows = static_cast<int>(group.rows);
                     const int wg_cols = static_cast<int>(group.cols);
 
@@ -553,8 +545,8 @@ namespace SushiBLAS
                     const int64_t block_n =
                         static_cast<int64_t>(wg_cols) * Configuration::K_ITEM_COLS;
 
-                    const int64_t m_groups = group_count(m, block_m);
-                    const int64_t n_groups = group_count(n, block_n);
+                    const int64_t m_groups = Indexing::group_count(m, block_m);
+                    const int64_t n_groups = Indexing::group_count(n, block_n);
 
                     const sycl::range<3> global(static_cast<std::size_t>(batch_size),
                                                 static_cast<std::size_t>(m_groups) * group.rows,
@@ -677,8 +669,9 @@ namespace SushiBLAS
 
                     // A tiled launch with fewer groups than compute units leaves units idle.
                     const int64_t units = static_cast<int64_t>(profile.compute_units);
-                    const int64_t tiled_groups = batch_size * group_count(m, Tiled::K_BLOCK_M) *
-                                                 group_count(n, Tiled::K_BLOCK_N);
+                    const int64_t tiled_groups = batch_size *
+                                                 Indexing::group_count(m, Tiled::K_BLOCK_M) *
+                                                 Indexing::group_count(n, Tiled::K_BLOCK_N);
                     if (tiled_groups >= units)
                         return DepthSplitPlan{};
 
@@ -690,11 +683,13 @@ namespace SushiBLAS
                         return plan;
 
                     // Column lanes double while every compute unit still has a group; see modules/kernels/blas_seam_kernels/README.md.
-                    const int64_t row_blocks = batch_size * group_count(m, Split::K_ITEM_ROWS);
+                    const int64_t row_blocks =
+                        batch_size * Indexing::group_count(m, Split::K_ITEM_ROWS);
                     while (plan.column_lanes * 2 <= Split::K_MAX_COLUMN_LANES &&
                            plan.column_lanes * 2 <= width &&
-                           row_blocks * group_count(n, static_cast<int64_t>(plan.column_lanes * 2) *
-                                                           Split::K_ITEM_COLS) >= units)
+                           row_blocks * Indexing::group_count(
+                               n, static_cast<int64_t>(plan.column_lanes * 2) *
+                                      Split::K_ITEM_COLS) >= units)
                         plan.column_lanes *= 2;
 
                     return plan;
@@ -727,8 +722,9 @@ namespace SushiBLAS
                     const int64_t block_cols =
                         static_cast<int64_t>(column_lanes) * Configuration::K_ITEM_COLS;
 
-                    const int64_t n_blocks = group_count(n, block_cols);
-                    const int64_t blocks = group_count(m, Configuration::K_ITEM_ROWS) * n_blocks;
+                    const int64_t n_blocks = Indexing::group_count(n, block_cols);
+                    const int64_t blocks =
+                        Indexing::group_count(m, Configuration::K_ITEM_ROWS) * n_blocks;
                     const std::size_t global =
                         static_cast<std::size_t>(batch_size * blocks) * width;
 
