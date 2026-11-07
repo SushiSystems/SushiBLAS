@@ -9,7 +9,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `compile_host_device_test.cpp` | Compile check, never run: `host_device_test.hpp` stands alone |
-| `test_host_queue.cpp` | Tests that host_queue returns one in-order queue on a CPU device, or none; an empty device list is `Small_` |
+| `test_host_device_test.cpp` | Tests that `HostDeviceTest` hands a test the in-order CPU queue of the test environment |
 | `compile_shared_allocator.cpp` | Compile check, never run: `SharedAllocator` is an abstract port, not copied or moved |
 | `test_host_shared_allocator.cpp` | Tests that HostSharedAllocator keeps the SharedAllocator contract and counts, poisons and refuses on request (`Small_`) |
 | `test_usm_shared_allocator.cpp` | Tests that UsmSharedAllocator keeps the SharedAllocator contract on the queue of the shared test environment (`Medium_`) |

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* host_queue.hpp                                                         */
+/* cpu_queue.hpp                                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,8 +22,8 @@
 /**************************************************************************/
 
 /**
- * @file host_queue.hpp
- * @brief Declares host_queue, the in-order queue on the first CPU device SYCL reports.
+ * @file cpu_queue.hpp
+ * @brief Declares how the test environment picks the in-order queue on the host CPU device.
  * @author Mustafa Garip
  */
 
@@ -39,8 +39,11 @@ namespace SushiBLAS
     {
         namespace Detail
         {
-            /** @brief Returns an in-order queue on the first of @p devices, or nothing when the list is empty. */
-            [[nodiscard]] inline std::optional<sycl::queue> make_host_queue(
+            /**
+             * @brief Returns an in-order queue on the first of @p devices, or nothing when the list is empty.
+             * @see modules/foundation/test_runner/README.md
+             */
+            [[nodiscard]] inline std::optional<sycl::queue> make_cpu_queue(
                 const std::vector<sycl::device>& devices)
             {
                 if (devices.empty())
@@ -49,20 +52,10 @@ namespace SushiBLAS
             }
 
             /** @brief Returns an in-order queue on the first CPU device SYCL reports, or nothing without one. */
-            [[nodiscard]] inline std::optional<sycl::queue> make_host_queue()
+            [[nodiscard]] inline std::optional<sycl::queue> make_cpu_queue()
             {
-                return make_host_queue(sycl::device::get_devices(sycl::info::device_type::cpu));
+                return make_cpu_queue(sycl::device::get_devices(sycl::info::device_type::cpu));
             }
         } // namespace Detail
-
-        /**
-         * @brief Returns the in-order queue on the host CPU device, or nullptr when there is none.
-         * @return The same queue on every call; it lives until the program ends.
-         */
-        [[nodiscard]] inline sycl::queue* host_queue()
-        {
-            static std::optional<sycl::queue> queue = Detail::make_host_queue();
-            return queue ? &*queue : nullptr;
-        }
     } // namespace Test
 } // namespace SushiBLAS

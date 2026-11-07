@@ -31,27 +31,27 @@
 
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/host_device/host_queue.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Gives a kernel test the host CPU queue, and skips the test when there is none. */
+        /** @brief Gives a kernel test the host CPU queue of the test environment, and skips the test when there is none. */
         class HostDeviceTest : public ::testing::Test
         {
             protected:
                 /** @brief Skips the test when SYCL reports no CPU device. */
                 void SetUp() override
                 {
-                    if (host_queue() == nullptr)
+                    if (TestEnvironment::cpu_queue() == nullptr)
                         GTEST_SKIP() << "SYCL reports no CPU device.";
                 }
 
-                /** @brief Returns the host CPU queue. */
+                /** @brief Returns the host CPU queue the test environment made. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return *host_queue();
+                    return *TestEnvironment::cpu_queue();
                 }
         };
     } // namespace Test

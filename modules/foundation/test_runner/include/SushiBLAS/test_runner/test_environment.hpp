@@ -23,7 +23,7 @@
 
 /**
  * @file test_environment.hpp
- * @brief Declares the GoogleTest environment that owns the shared runtime.
+ * @brief Declares the GoogleTest environment that owns the shared runtime and the host CPU queue.
  * @author Mustafa Garip
  */
 
@@ -33,6 +33,7 @@
 #include <optional>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/test_runner/cpu_queue.hpp>
 #include <SushiBLAS/test_runner/test_runner_log_category.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
@@ -41,25 +42,27 @@ namespace SushiBLAS
     namespace Test
     {
         /**
-         * @brief Owns the one runtime every test of a binary shares.
+         * @brief Owns the one runtime and the one host CPU queue every test of a binary shares.
          * @see modules/foundation/test_runner/README.md
          */
         class TestEnvironment : public ::testing::Environment
         {
             public:
-                /** @brief Creates the runtime, or stops the process if it cannot be created. */
+                /** @brief Creates the runtime and the host CPU queue, or stops the process if the runtime cannot be created. */
                 void SetUp() override
                 {
                     SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "--- Initializing SushiBLAS Test Environment ---");
                     runtime_.emplace(SushiRuntime::Runtime::create().value());
+                    cpu_queue_ = Detail::make_cpu_queue();
 
                     SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "Test environment ready.");
                 }
 
-                /** @brief Destroys the runtime. */
+                /** @brief Destroys the host CPU queue and the runtime. */
                 void TearDown() override
                 {
                     SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "--- Tearing down SushiBLAS Test Environment ---");
+                    cpu_queue_.reset();
                     runtime_.reset();
                 }
 
@@ -96,9 +99,22 @@ namespace SushiBLAS
                     return runtime_->advanced().live_allocation_count();
                 }
 
+                /**
+                 * @brief Returns the in-order queue on the first CPU device SYCL reports.
+                 * @return nullptr when SYCL reports no CPU device, or outside SetUp() and TearDown().
+                 * @see modules/foundation/test_runner/README.md
+                 */
+                [[nodiscard]] static sycl::queue* cpu_queue()
+                {
+                    return cpu_queue_ ? &*cpu_queue_ : nullptr;
+                }
+
             private:
                 /// @brief The shared runtime; empty outside SetUp() and TearDown().
                 static inline std::optional<SushiRuntime::Runtime> runtime_;
+
+                /// @brief The host CPU queue; empty without a CPU device and outside SetUp() and TearDown().
+                static inline std::optional<sycl::queue> cpu_queue_;
         };
 
     } // namespace Test

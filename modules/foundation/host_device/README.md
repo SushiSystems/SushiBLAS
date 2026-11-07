@@ -1,17 +1,18 @@
 # host_device
 
-The SYCL queue on the host CPU device that a kernel test runs its SYCL kernel on, the fixture that
-skips a test when the machine has no such device, and the shared USM array both sides of a
+The fixture that hands a kernel test the host CPU queue its SYCL kernel runs on, and skips the test
+when the machine has no such device, and the shared USM array both sides of a
 comparison read. The module is internal and test-only: its headers are not installed, and it is
 added only when `SB_BUILD_TESTS` is on.
 
-It depends on SYCL and GoogleTest only. Its headers are included as
+It depends on `test_runner`, SYCL and GoogleTest. The edge to `test_runner` is test-only, as both
+modules are: the test environment makes the host CPU queue once per program, before the first test,
+and `HostDeviceTest` hands it out, so no test makes a queue. Its headers are included as
 `<SushiBLAS/host_device/<name>.hpp>`.
 
 | File | Declares |
 | --- | --- |
-| `host_queue.hpp` | `host_queue()`, the in-order queue on the first CPU device, or none; `Detail::make_host_queue(devices)` takes the device list |
-| `host_device_test.hpp` | `HostDeviceTest`, the fixture that skips without a CPU device |
+| `host_device_test.hpp` | `HostDeviceTest`, the fixture that hands out `TestEnvironment::cpu_queue()` and skips without a CPU device |
 | `shared_array.hpp` | `SharedArray`, one aligned array freed on destruction; shared USM unless given an allocator |
 | `shared_allocator.hpp` | `SharedAllocator`, the port through which `SharedArray` gets and frees its memory |
 | `usm_shared_allocator.hpp` | `UsmSharedAllocator`, the default adapter: shared USM on one queue |

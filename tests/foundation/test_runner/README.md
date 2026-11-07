@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_cpu_queue.cpp` | Tests that the environment makes one queue exactly when SYCL reports a CPU device; an empty device list is `Small_` |
 | `test_captured_record_count.cpp` | Tests that `count_records` counts the records of one level whose message holds a text |
 | `test_scoped_log_level.cpp` | Tests that `ScopedLogLevel` sets the level of SushiBLAS while it lives and puts back the level it found |
 | `test_test_environment.cpp` | Tests that TestEnvironment hands out one runtime, its queues and its allocation count |

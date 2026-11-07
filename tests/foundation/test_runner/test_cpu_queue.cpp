@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_host_queue.cpp                                                    */
+/* test_cpu_queue.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,58 +22,31 @@
 /**************************************************************************/
 
 /**
- * @file test_host_queue.cpp
- * @brief Tests that host_queue returns one in-order queue on a CPU device, or none.
+ * @file test_cpu_queue.cpp
+ * @brief Tests that the test environment makes one in-order queue on a CPU device, or none.
  * @author Mustafa Garip
  */
 
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/host_device/host_device_test.hpp>
-#include <SushiBLAS/host_device/host_queue.hpp>
+#include <SushiBLAS/test_runner/cpu_queue.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the host queue test under the fixture that skips a machine with no CPU device. */
-        class Medium_HostQueueOnDevice : public HostDeviceTest
+        TEST(Small_CpuQueue, NoDeviceGivesNoQueue)
         {
-
-        };
-
-        TEST(Small_HostQueue, NoDeviceGivesNoQueue)
-        {
-            EXPECT_FALSE(Detail::make_host_queue(std::vector<sycl::device>{}).has_value());
+            EXPECT_FALSE(Detail::make_cpu_queue(std::vector<sycl::device>{}).has_value());
         }
 
-        TEST(Medium_HostQueue, TheFirstDeviceOfTheListGivesAnInOrderQueue)
-        {
-            const sycl::device device = TestEnvironment::queue().get_device();
-
-            const auto queue = Detail::make_host_queue(std::vector<sycl::device>{device});
-
-            ASSERT_TRUE(queue.has_value());
-            EXPECT_EQ(queue->get_device(), device);
-            EXPECT_TRUE(queue->is_in_order());
-        }
-
-        TEST_F(Medium_HostQueueOnDevice, ReturnsTheSameInOrderQueueOnACPUDevice)
-        {
-            sycl::queue* first = host_queue();
-
-            EXPECT_EQ(first, host_queue());
-            EXPECT_TRUE(first->get_device().is_cpu());
-            EXPECT_TRUE(first->is_in_order());
-        }
-
-        TEST(Medium_HostQueue, IsNullExactlyWhenSYCLReportsNoCPUDevice)
+        TEST(Medium_CpuQueue, TheEnvironmentHasAQueueExactlyWhenSYCLReportsACPUDevice)
         {
             const bool has_cpu = !sycl::device::get_devices(sycl::info::device_type::cpu).empty();
 
-            EXPECT_EQ(host_queue() != nullptr, has_cpu);
+            EXPECT_EQ(TestEnvironment::cpu_queue() != nullptr, has_cpu);
         }
     } // namespace Test
 } // namespace SushiBLAS
