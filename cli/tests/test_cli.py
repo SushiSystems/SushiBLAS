@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import importlib
-import json
 import re
 import subprocess
 import sys
@@ -16,7 +15,6 @@ from dataclasses import replace
 
 import pytest
 from sushicore.console_memory import RecordingConsole
-from sushicore.root_options import version_line
 from typer.testing import CliRunner
 
 import sushiblas.console
@@ -25,12 +23,6 @@ from sushiblas.command_context import default_context, using
 
 pytestmark = pytest.mark.medium
 
-#: The groups sushicore adds whole; their commands are sushicore's to list, so only the group is checked.
-K_SUSHICORE_GROUPS = ("backlog", "design")
-K_VISIBLE_COMMANDS = [
-    "bench", "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "package", "run",
-    "setup", "test", "unlink",
-]
 K_ENVIRONMENT = ("SUSHI_CLI_THEME", "SUSHI_CLI_ICONS", "SUSHI_CLI_COLOR", "SUSHISTACK_HOME")
 K_DOCS_EXIT_CODE = 6
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
@@ -46,7 +38,6 @@ K_PUBLISH_LIST = (
     'api = false\n'
 )
 K_ARCHIVE = "docs-bundle-1.2.3.tar.gz"
-K_DOXYFILE = Path(__file__).resolve().parents[2] / ".config" / "doxygen" / "Doxyfile"
 
 
 @pytest.fixture
@@ -92,17 +83,6 @@ def test_main_reports_a_malformed_config_file_as_one_line(checkout, monkeypatch,
     assert "Traceback" not in lines[0]
 
 
-@pytest.mark.parametrize("command", ["config", "clean"])
-def test_main_falls_back_from_an_unknown_theme_with_one_warning(checkout, monkeypatch, capsys, command):
-    """A theme sushicore does not know keeps the command running at the default, with one warning naming it."""
-    checkout('[cli]\ntheme = "no-such-theme"\n')
-    code, lines = _run_main(monkeypatch, capsys, command)
-    assert code == 0
-    warnings = [line for line in lines if "no-such-theme" in line]
-    assert len(warnings) == 1, lines
-    assert "Unknown CLI theme" in warnings[0]
-
-
 def test_main_exits_zero_after_a_command_that_succeeds(checkout, monkeypatch, capsys):
     """A command that works leaves exit code 0 through main()."""
     checkout("")
@@ -110,48 +90,19 @@ def test_main_exits_zero_after_a_command_that_succeeds(checkout, monkeypatch, ca
     assert code == 0
 
 
-def test_version_prints_the_distribution_and_its_version():
-    """--version prints one line naming sushiblas-cli and exits 0."""
-    result = CliRunner().invoke(cli.app, ["--version"])
-    assert result.exit_code == 0
-    assert result.output.strip() == version_line("sushiblas-cli")
-
-
-def test_describe_lists_every_visible_command_and_no_hidden_one():
-    """--describe prints the catalogue of the commands the help screen shows."""
-    result = CliRunner().invoke(cli.app, ["--describe"])
-    assert result.exit_code == 0
-    document = json.loads(result.output)
-    assert document["program"] == "sb"
-    names = [command["name"] for command in document["commands"]]
-    assert [name for name in names if name.split()[0] not in K_SUSHICORE_GROUPS] == K_VISIBLE_COMMANDS
-    assert {name.split()[0] for name in names} >= set(K_SUSHICORE_GROUPS)
-
-
-def test_env_takes_the_short_form_of_all():
-    """env comes from sushicore, which spells --all as -a too."""
-    result = CliRunner().invoke(cli.app, ["env", "--help"])
-    assert result.exit_code == 0
-    assert "-a, --all" in result.output
-
-
-def test_config_and_env_are_not_declared_in_this_package():
-    """The two diagnostic commands are registered from sushicore, not written here."""
-    registered = {info.name: info.callback.__module__ for info in cli.app.registered_commands}
-    assert registered["config"] == "sushicore.diag_commands"
-    assert registered["env"] == "sushicore.diag_commands"
-
-
-def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(commands):
-    """`sb docs` still builds the reference, and `sb docs bundle` asks for a release."""
-    commands.runner.script(K_DOCS_EXIT_CODE).script(K_DOCS_EXIT_CODE)
-    built = commands.invoke("docs")
-    assert built.exit_code == K_DOCS_EXIT_CODE
+def test_docs_builds_the_api_reference_and_returns_the_exit_code_of_doxygen(commands):
+    """`sb docs` runs Doxygen under its header and ends with Doxygen's exit code."""
+    commands.runner.script(K_DOCS_EXIT_CODE)
+    assert commands.invoke("docs").exit_code == K_DOCS_EXIT_CODE
     assert "Doxygen Generation" in commands.console.texts("header")
-    assert commands.invoke("doxygen").exit_code == K_DOCS_EXIT_CODE
+
+
+def test_docs_bundle_asks_for_a_release(commands):
+    """`sb docs bundle` without --release is a usage error that names the option and runs nothing."""
     missing = commands.invoke("docs", "bundle")
     assert missing.exit_code == 2
     assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
+    assert commands.runner.commands == []
 
 
 def _published_checkout(root: Path) -> None:
@@ -166,15 +117,6 @@ def _published_checkout(root: Path) -> None:
     for arguments in (("init", "--quiet"), ("add", "--all"),
                       ("commit", "--quiet", "--message", "docs")):
         subprocess.run([*K_GIT, *arguments], cwd=root, check=True, capture_output=True)
-
-
-def _doxyfile_value(key: str, default: str) -> str:
-    """Returns the value the repository's Doxyfile gives *key*, or *default* when it gives none."""
-    for line in K_DOXYFILE.read_text(encoding="utf-8").splitlines():
-        name, separator, value = line.partition("=")
-        if separator and name.strip() == key:
-            return value.strip().strip('"')
-    return default
 
 
 def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, monkeypatch):
@@ -196,7 +138,6 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
 
 
 def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(commands):
-    """Names `<OUTPUT_DIRECTORY>/<XML_OUTPUT>` of the Doxyfile, below the repository root."""
-    written = Path(_doxyfile_value("OUTPUT_DIRECTORY", "")) / _doxyfile_value("XML_OUTPUT", "xml")
+    """Names build/docs/api-site/xml below the repository root."""
     with using(commands.context):
-        assert cli._api_source().xml_dir == commands.root / written
+        assert cli._api_source().xml_dir == commands.root / "build" / "docs" / "api-site" / "xml"

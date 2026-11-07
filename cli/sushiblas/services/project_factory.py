@@ -12,6 +12,7 @@ from sushicore.proc import Runner
 from ..config import PROFILE, find_project_root, load_config
 from ..env import create_build_env
 from .discovery import create_executable_index
+from .package_source import StorePackageSource
 from .project import ProjectService
 
 
@@ -26,4 +27,5 @@ def create_project_service(console) -> ProjectService:
         build_env=create_build_env(console),
         find_root=find_project_root,
         load_config=load_config,
+        packages=StorePackageSource(),
     )

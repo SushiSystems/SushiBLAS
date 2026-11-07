@@ -48,7 +48,7 @@ _ensure_sushicore()
 def commands(tmp_path):
     """Returns the commands over a scratch checkout that has a Debug and a Release tree, a SushiRuntime
     sibling, a Doxyfile and a doxygen executable."""
-    from command_harness import K_DEBUG_TREE, K_RELEASE_TREE, StubConfig, make_commands
+    from command_harness import K_DEBUG_TREE, K_RELEASE_TREE, make_commands, make_config
 
     root = tmp_path / "sushiblas"
     (root / K_DEBUG_TREE).mkdir(parents=True)
@@ -60,9 +60,7 @@ def commands(tmp_path):
     (tmp_path / "sushiruntime" / "CMakeLists.txt").write_text("")
     doxygen = tmp_path / "doxygen"
     doxygen.write_text("")
-    config = StubConfig()
-    config.doxygen_exe = str(doxygen)
-    return make_commands(root, config)
+    return make_commands(root, make_config(doxygen_exe=str(doxygen)))
 
 
 K_SIZE_TIMEOUTS = {"small": 60, "medium": 300, "large": 900}

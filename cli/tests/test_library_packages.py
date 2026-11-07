@@ -27,6 +27,7 @@ from sushiblas.config import Config
 from sushiblas.services import library_packages
 from sushiblas.services.build_type import BuildType
 from sushiblas.services.errors import LeanBenchmarksError
+from sushiblas.services.package_source import StorePackageSource
 from sushiblas.services.project import ProjectService
 from sushiblas.services.sanitizer import Sanitizer
 
@@ -137,6 +138,7 @@ def parts(tmp_path):
         build_env=_BuildEnv(),
         find_root=lambda: root,
         load_config=lambda: cfg,
+        packages=StorePackageSource(),
     )
     return root, cfg, driver, service
 

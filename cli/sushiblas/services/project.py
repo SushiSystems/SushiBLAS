@@ -27,7 +27,7 @@ from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
-from sushicore.provision.sushi_packages import PackageSet, configure_arguments
+from sushicore.provision.sushi_packages import configure_arguments
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
@@ -43,6 +43,7 @@ from .errors import (
     TreeNotRemovedError,
 )
 from . import library_packages
+from .package_source import PackageSource
 from .sanitizer import Sanitizer, sanitize_flags
 from .tree_choice import TreeChoice
 
@@ -131,6 +132,30 @@ def lean_flags(lean: bool) -> list[str]:
     return [*flags, f"-D{K_BENCHMARKS_VARIABLE}=OFF"] if lean else flags
 
 
+def refuse_lean_benchmarks(lean: bool, benchmarks: bool | None) -> None:
+    """Refuses a lean build that is asked for the benchmarks, which a lean build leaves out.
+
+    Raises:
+        LeanBenchmarksError: *lean* and ``benchmarks=True`` ask for opposite things.
+    """
+    if lean and benchmarks:
+        raise LeanBenchmarksError()
+
+
+def caller_flags(benchmarks: bool | None, distributed: bool | None, sanitizer: Sanitizer | None,
+                 defines: Sequence[str] | None) -> list[str]:
+    """Returns the -D flags a caller asked for, in the order that lets a -D outrank a switch.
+
+    The switches come first and the caller's own ``-D`` entries last, so a ``-D`` for the same
+    variable as a switch wins.
+
+    Raises:
+        InvalidDefineError: An entry of *defines* is not VAR=VALUE.
+    """
+    return (benchmarks_flags(benchmarks) + distributed_flags(distributed)
+            + sanitize_flags(sanitizer) + validate_defines(defines))
+
+
 @typing.final
 class ProjectService:
     """Builds, tests, runs, cleans and documents one SushiBLAS checkout.
@@ -148,6 +173,7 @@ class ProjectService:
         build_env: StackBuildEnv,
         find_root: Callable[[], Path],
         load_config: Callable[[], Config],
+        packages: PackageSource,
     ) -> None:
         self._console = console
         self._runner = runner
@@ -156,6 +182,7 @@ class ProjectService:
         self._build_env = build_env
         self._find_root = find_root
         self._load_config = load_config
+        self._packages = packages
 
     def build(
         self,
@@ -193,11 +220,9 @@ class ProjectService:
             TreeNotRemovedError: A tree that had to go is still there.
             StepFailedError: Configure or compile failed.
         """
-        if lean and benchmarks:
-            raise LeanBenchmarksError()
+        refuse_lean_benchmarks(lean, benchmarks)
         tree = TreeChoice(build_type, sanitizer)
-        define_flags = (benchmarks_flags(benchmarks) + distributed_flags(distributed)
-                        + sanitize_flags(sanitizer) + validate_defines(defines))
+        define_flags = caller_flags(benchmarks, distributed, sanitizer, defines)
         root = self._find_root()
         cfg = self._load_config()
         build_dir = tree.directory(root, tree_path)
@@ -223,9 +248,10 @@ class ProjectService:
         else:
             self._console.info("Reconfiguring in place...")
 
-        packages = library_packages.resolve(
-            cfg, root, build_type.value, compiler, _distributed(build_dir, distributed),
-            sanitizer, self._console.info, self._console.warn)
+        packages = self._packages.resolve(
+            cfg, root, library_packages.package_type(build_type.value, sanitizer),
+            library_packages.package_options(_distributed(build_dir, distributed), sanitizer),
+            self._console.info, self._console.warn, compiler)
         run_dirs = packages.run_dirs(cfg.platform)
         library_packages.prepend_run_dirs(cfg, env, run_dirs)
 
@@ -412,7 +438,7 @@ class ProjectService:
         return exe
 
     def _configure_args(self, cfg: Config, root: Path, build_dir: Path, build_type: str,
-                        packages: PackageSet) -> list[str]:
+                        packages) -> list[str]:
         """Returns the cmake configure command line for this tree, without caller -D flags."""
         args = [
             self._driver.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,

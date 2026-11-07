@@ -9,11 +9,11 @@ See cli/sushiblas/README.md.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from sushicore.build_tree import package_build_type
-from sushicore.provision.sushi_packages import PackageSet, RunDirs
+from sushicore.provision.sushi_packages import RunDirs
 
 from ..config import Config
 from .sanitizer import Sanitizer
@@ -53,37 +53,25 @@ def package_options(distributed: bool,
     return options
 
 
-def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
-            sanitizer: Sanitizer | None, report: Callable[[str], None],
-            warn: Callable[[str], None]) -> PackageSet:
-    """Return the built packages of the closure of ``depends_on``, building a missing one.
+def package_type(build_type: str, sanitizer: Sanitizer | None) -> str:
+    """Return the build type the packages of a tree are built as.
 
-    The closure is SushiLog, SushiProfiler and SushiRuntime, the three libraries
-    ``cli/sushistack.deps.toml`` names.
+    A ThreadSanitizer tree needs the symbols to name a race, so it takes
+    :data:`K_THREAD_PACKAGE_TYPE`; any other tree takes
+    :func:`sushicore.build_tree.package_build_type` of its type and whether it is sanitized.
 
     Args:
-        cfg: The resolved configuration.
-        root: The project root.
-        build_type: The build type of this configure, such as ``release``; the packages are
-            built as :func:`sushicore.build_tree.package_build_type` maps it.
-        compiler: The compiler of this build; the packages are built with it.
-        distributed: Whether the cluster module is built.
-        sanitizer: The sanitizer set of this tree; ThreadSanitizer builds instrumented packages.
-        report: Receives one ``reused`` or ``built`` line per library.
-        warn: Receives the warnings of the resolver.
-
-    Raises:
-        sushicore.provision.sushi_packages.PackageError: A package cannot be chosen.
+        build_type: The build type of this configure, such as ``release``.
+        sanitizer: The sanitizer set of this tree.
     """
-    sanitized = sanitizer not in (None, Sanitizer.NONE)
-    package_type = (K_THREAD_PACKAGE_TYPE if sanitizer is Sanitizer.THREAD
-                    else package_build_type(build_type, sanitized))
-    return cfg.sushi_packages(root, package_type, package_options(distributed, sanitizer),
-                              report=report, warn=warn, compiler=compiler)
+    if sanitizer is Sanitizer.THREAD:
+        return K_THREAD_PACKAGE_TYPE
+    return package_build_type(build_type, sanitizer not in (None, Sanitizer.NONE))
 
 
 #: The run-time folders of the packages a tree linked, kept in the tree for the commands that run it.
 _RUN_DIRS = RunDirs(K_RUN_DIRS_FILE)
+
 
 def record_run_dirs(tree: Path, dirs: Sequence[str]) -> None:
     """Write the run-time folders of the packages *tree* linked, for the commands that run it."""

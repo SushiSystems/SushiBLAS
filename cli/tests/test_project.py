@@ -16,7 +16,7 @@ from command_harness import (
     K_EXECUTABLE,
     K_RELEASE_TREE,
     StubBuildEnv,
-    StubConfig,
+    make_config,
     StubIndex,
 )
 from sushicore.build_admission import (
@@ -33,6 +33,7 @@ from sushicore.proc_memory import RecordingRunner
 from sushicore.testing import TestLabel
 
 from sushiblas.services import project
+from sushiblas.services.package_source import MemoryPackageSource
 from sushiblas.services.build_type import K_DEFAULT_BUILD_TYPE, BuildType
 from sushiblas.services.errors import (
     K_EXIT_USAGE,
@@ -112,7 +113,8 @@ def parts(checkout, console, runner):
         index=StubIndex(),
         build_env=StubBuildEnv(),
         find_root=lambda: checkout,
-        load_config=StubConfig,
+        load_config=make_config,
+        packages=MemoryPackageSource(),
     )
     return console, driver, service
 
@@ -236,7 +238,8 @@ def _compiling_service(checkout) -> tuple[RecordingConsole, _CompilingDriver, Pr
         index=StubIndex(),
         build_env=StubBuildEnv(),
         find_root=lambda: checkout,
-        load_config=StubConfig,
+        load_config=make_config,
+        packages=MemoryPackageSource(),
     )
     return console, driver, service
 

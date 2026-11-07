@@ -119,9 +119,13 @@ tree to change its type. The default is Debug; `bench` defaults to Release.
 
 ## services/library_packages.py
 
-Takes SushiRuntime and SushiLog as built packages through `cfg.sushi_packages`, and returns the
-`-D<Package>_DIR` arguments of the configure. `--distributed` becomes `--distributed` of the
-SushiRuntime package. `build` writes the run-time folders of the packages to
+Decides which packages `build` asks for: `package_type` maps the build type and sanitizer set to the
+package build type, and `package_options` maps `--distributed` and a ThreadSanitizer tree to the
+extra `build` arguments of each library. `--distributed` becomes `--distributed` of the SushiRuntime
+package. The packages themselves come through the `PackageSource` port of
+`services/package_source.py`: `StorePackageSource` resolves them through `cfg.sushi_packages` and
+returns the `-D<Package>_DIR` arguments of the configure, and `MemoryPackageSource` keeps the
+requests and answers with a fixed set, so a test of `build` runs with no package store. `build` writes the run-time folders of the packages to
 `.sushiblas_package_dirs.json` in its tree, and `test`, `bench` and `run` prepend them to the
 search path without resolving again.
 
@@ -140,7 +144,10 @@ builds the type it names in its own tree.
 
 Every `-D` is checked before `build` reads the configuration or touches the tree, so a typo
 cannot cost a removed build tree. The flags are appended after every default the configure line
-sets, so an explicit `-D` is never silently outranked by one of them.
+sets, so an explicit `-D` is never silently outranked by one of them. `caller_flags` puts the
+switches (`--benchmarks`, `--distributed`, `--sanitize`) before the caller's own `-D` entries, and
+`refuse_lean_benchmarks` is the check on `--lean` with `--benchmarks`; both are plain functions,
+tested without a service.
 
 ### _toolchain_args
 

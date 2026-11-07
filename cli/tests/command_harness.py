@@ -20,6 +20,8 @@ from typer.testing import CliRunner, Result
 
 from sushiblas import cli, command_context
 from sushiblas.command_context import CommandContext
+from sushiblas.config import Config
+from sushiblas.services.package_source import MemoryPackageSource, PackageSource
 from sushiblas.services.project import ProjectService
 
 K_EXECUTABLE = "quickstart_demo"
@@ -45,54 +47,15 @@ class StubBuildEnv:
         return {}
 
 
-class StubPackages:
-    """Stands in for a package set that holds no library."""
+def make_config(**fields) -> Config:
+    """Returns the real configuration of a Linux checkout that resolves no vcpkg tree and no package.
 
-    def names(self) -> list[str]:
-        """Returns no name."""
-        return []
-
-    def definitions(self) -> list[str]:
-        """Returns no definition."""
-        return []
-
-    def run_dirs(self, platform: str) -> list[str]:
-        """Returns no folder."""
-        return []
-
-
-class StubConfig:
-    """Holds the few settings the service and the CMake driver read."""
-
-    generator = "Ninja"
-    ccache_exe = ""
-    cmake_exe = ""
-    ctest_exe = ""
-    doxygen_exe = ""
-    is_windows = False
-    platform = "linux"
-    target_bin = K_EXECUTABLE
-
-    def expand(self, value: str) -> str:
-        """Returns *value* as it is; no variable is set."""
-        return value
-
-    def sushi_definitions(self, root: Path, packaged=None) -> list[str]:
-        """Returns no definition: every pinned library is a package."""
-        return []
-
-    def sushi_packages(self, root: Path, build_type: str, options=None, report=print,
-                       warn=print, compiler: str = ""):
-        """Returns a package set with no library."""
-        return StubPackages()
-
-    def resolved_compiler(self, root: Path) -> str:
-        """Returns a compiler name; nothing runs it."""
-        return "clang++"
-
-    def resolved_vcpkg(self, root: Path) -> str:
-        """Returns no vcpkg tree."""
-        return ""
+    Args:
+        **fields: Fields of :class:`Config` to set beside the defaults of this module.
+    """
+    settings = {"cxx": "clang++", "generator": "Ninja", "platform": "linux", "use_vcpkg": False}
+    settings.update(fields)
+    return Config(**settings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,12 +80,15 @@ class Commands:
             return CliRunner().invoke(cli.app, list(arguments))
 
 
-def make_service(root: Path, config: StubConfig | None = None
+def make_service(root: Path, config: Config | None = None, packages: PackageSource | None = None
                  ) -> tuple[RecordingRunner, RecordingConsole, ProjectService]:
-    """Returns a recording runner and console and the real service, with its real CMake driver, on them."""
+    """Returns a recording runner and console and the real service, with its real CMake driver, on them.
+
+    The packages are those of *packages*, none when it is not given.
+    """
     console = RecordingConsole()
     runner = RecordingRunner(console)
-    settings = config or StubConfig()
+    settings = config or make_config()
     service = ProjectService(
         console=console,
         runner=runner,
@@ -131,13 +97,15 @@ def make_service(root: Path, config: StubConfig | None = None
         build_env=StubBuildEnv(),
         find_root=lambda: root,
         load_config=lambda: settings,
+        packages=packages or MemoryPackageSource(),
     )
     return runner, console, service
 
 
-def make_commands(root: Path, config: StubConfig | None = None) -> Commands:
-    """Returns the commands over the checkout *root*, whose service uses *config* when given."""
-    runner, console, service = make_service(root, config)
+def make_commands(root: Path, config: Config | None = None,
+                  packages: PackageSource | None = None) -> Commands:
+    """Returns the commands over the checkout *root*, whose service uses *config* and *packages* when given."""
+    runner, console, service = make_service(root, config, packages)
     context = CommandContext(
         service_factory=lambda: service, console=console, project_root=lambda: root)
     return Commands(root, runner, console, context)
