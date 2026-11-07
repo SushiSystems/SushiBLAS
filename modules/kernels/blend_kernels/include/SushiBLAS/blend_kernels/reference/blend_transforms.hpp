@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
+#include <SushiBLAS/blend_kernels/blend_index.hpp>
 
 namespace SushiBLAS
 {
@@ -55,11 +56,11 @@ namespace SushiBLAS
 
                 for (int64_t p = 0; p < point_count; ++p)
                 {
-                    const T* point = points + p * components;
+                    const T* point = points + Indexing::point_offset(p, components);
 
                     // A position has no w, so it is the homogeneous point with w = 1.
                     const RW homogeneous[4] = {RW(point[0]), RW(point[1]), RW(point[2]),
-                                               components == 4 ? RW(point[3]) : RW(1)};
+                                               Indexing::homogeneous_w<RW>(point, components)};
 
                     for (int64_t i = 0; i < components; ++i)
                     {
@@ -68,25 +69,27 @@ namespace SushiBLAS
 
                         for (int64_t j = 0; j < influences; ++j)
                         {
-                            const int64_t slot = static_cast<int64_t>(indices[p * influences + j]);
-                            if (slot < 0 || slot >= transform_count)
+                            const int64_t slot = static_cast<int64_t>(
+                                indices[Indexing::influence_offset(p, influences, j)]);
+                            if (!Indexing::slot_live(slot, transform_count))
                                 continue;
 
-                            const T* matrix = transforms + slot * transform_rows * 4;
+                            const T* matrix =
+                                transforms + Indexing::matrix_offset(slot, transform_rows);
                             RW moved = homogeneous[3];
 
-                            if (i < transform_rows)
+                            if (Indexing::has_matrix_row(i, transform_rows))
                             {
                                 ReferenceSum<T> row;
                                 for (int64_t c = 0; c < 4; ++c)
-                                    row.add(RW(matrix[i * 4 + c]) * homogeneous[c]);
+                                    row.add(RW(matrix[Indexing::matrix_element(i, c)]) * homogeneous[c]);
                                 moved = row.value();
                             }
 
-                            blended.add(RW(weights[p * influences + j]) * moved);
+                            blended.add(RW(weights[Indexing::influence_offset(p, influences, j)]) * moved);
                         }
 
-                        out[p * components + i] = static_cast<T>(blended.value());
+                        out[Indexing::point_offset(p, components) + i] = static_cast<T>(blended.value());
                     }
                 }
             }

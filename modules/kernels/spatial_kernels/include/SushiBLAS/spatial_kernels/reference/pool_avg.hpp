@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
 
 namespace SushiBLAS
 {
@@ -47,7 +49,7 @@ namespace SushiBLAS
             void pool_avg(const Spatial::WindowSpan& span, const T* in, T* out)
             {
                 const Spatial::ConvGeometry& g = span.geometry;
-                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(Indexing::window_area(g));
 
                 for (int64_t n = 0; n < span.batch; ++n)
                 {
@@ -61,26 +63,22 @@ namespace SushiBLAS
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
-                                    const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                    if (h_in < 0 || h_in >= span.in_h)
+                                    const int64_t h_in = Indexing::gather_coord(h_o, g.stride_h, g.pad_top, r, g.dilation_h);
+                                    if (!Indexing::in_extent(h_in, span.in_h))
                                         continue;
 
                                     for (int64_t s = 0; s < g.kernel_w; ++s)
                                     {
-                                        const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                        if (w_in < 0 || w_in >= span.in_w)
+                                        const int64_t w_in = Indexing::gather_coord(w_o, g.stride_w, g.pad_left, s, g.dilation_w);
+                                        if (!Indexing::in_extent(w_in, span.in_w))
                                             continue;
 
                                         total += Accumulator<T>(
-                                            in[n * span.in_batch_stride
-                                               + h_in * span.in_row_stride
-                                               + w_in * span.in_col_stride
-                                               + c * span.in_channel_stride]);
+                                            in[Indexing::input_strides(span).offset(n, h_in, w_in, c)]);
                                     }
                                 }
 
-                                out[n * span.out_batch_stride + h_o * span.out_row_stride
-                                    + w_o * span.out_col_stride + c * span.out_channel_stride] =
+                                out[Indexing::output_strides(span).offset(n, h_o, w_o, c)] =
                                     static_cast<T>(total / area);
                             }
                         }
@@ -97,7 +95,7 @@ namespace SushiBLAS
             void pool_avg_backward(const Spatial::WindowSpan& span, const T* dy, T* dx)
             {
                 const Spatial::ConvGeometry& g = span.geometry;
-                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(Indexing::window_area(g));
 
                 for (int64_t n = 0; n < span.batch; ++n)
                 {
@@ -111,32 +109,22 @@ namespace SushiBLAS
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
-                                    const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                    if (h_num < 0 || h_num % g.stride_h != 0)
-                                        continue;
-                                    const int64_t h_o = h_num / g.stride_h;
-                                    if (h_o >= span.out_h)
+                                    const int64_t h_o = Indexing::scatter_coord(h, g.stride_h, g.pad_top, r, g.dilation_h, span.out_h);
+                                    if (h_o < 0)
                                         continue;
 
                                     for (int64_t s = 0; s < g.kernel_w; ++s)
                                     {
-                                        const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                        if (w_num < 0 || w_num % g.stride_w != 0)
-                                            continue;
-                                        const int64_t w_o = w_num / g.stride_w;
-                                        if (w_o >= span.out_w)
+                                        const int64_t w_o = Indexing::scatter_coord(w, g.stride_w, g.pad_left, s, g.dilation_w, span.out_w);
+                                        if (w_o < 0)
                                             continue;
 
                                         total += Accumulator<T>(
-                                            dy[n * span.out_batch_stride
-                                               + h_o * span.out_row_stride
-                                               + w_o * span.out_col_stride
-                                               + c * span.out_channel_stride]) / area;
+                                            dy[Indexing::output_strides(span).offset(n, h_o, w_o, c)]) / area;
                                     }
                                 }
 
-                                dx[n * span.in_batch_stride + h * span.in_row_stride
-                                   + w * span.in_col_stride + c * span.in_channel_stride] =
+                                dx[Indexing::input_strides(span).offset(n, h, w, c)] =
                                     static_cast<T>(total);
                             }
                         }

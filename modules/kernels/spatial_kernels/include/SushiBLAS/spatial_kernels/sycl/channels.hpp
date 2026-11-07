@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
 
 namespace SushiBLAS
 {
@@ -65,14 +66,8 @@ namespace SushiBLAS
                 const int64_t width = count;
                 const int64_t src_base = src_channel_offset;
                 const int64_t dst_base = dst_channel_offset;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
 
                 const Device::Grid1D grid =
                     Device::plan_1d(Device::profile_for(q), static_cast<std::size_t>(total));
@@ -89,19 +84,11 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t k = i % width;
-                            const int64_t hw = i / width;
-                            const int64_t w = hw % in_w;
-                            const int64_t nh = hw / in_w;
-                            const int64_t h = nh % in_h;
-                            const int64_t n = nh / in_h;
+                            // The channel slot of the run plays the part of the channel: width is its extent.
+                            const auto [n, h, w, k] = Indexing::pixel_coord(i, in_h, in_w, width);
 
-                            out[n * out_batch_stride + h * out_row_stride
-                                + w * out_col_stride
-                                + (dst_base + k) * out_channel_stride] =
-                                in[n * in_batch_stride + h * in_row_stride
-                                   + w * in_col_stride
-                                   + (src_base + k) * in_channel_stride];
+                            out[out_s.offset(n, h, w, dst_base + k)] =
+                                in[in_s.offset(n, h, w, src_base + k)];
                         }
                     });
                 });

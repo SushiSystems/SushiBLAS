@@ -35,6 +35,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/transpose_index.hpp>
 
 namespace SushiBLAS
 {
@@ -61,14 +63,8 @@ namespace SushiBLAS
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
                 const int64_t g_stride = gamma_stride;
                 const int64_t b_stride = beta_stride;
 
@@ -86,18 +82,11 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w = hw % in_w;
-                            const int64_t nh = hw / in_w;
-                            const int64_t h = nh % in_h;
-                            const int64_t n = nh / in_h;
+                            const auto [n, h, w, c] = Indexing::pixel_coord(i, in_h, in_w, channels);
 
-                            const T value = in[n * in_batch_stride + h * in_row_stride
-                                             + w * in_col_stride + c * in_channel_stride];
+                            const T value = in[in_s.offset(n, h, w, c)];
 
-                            out[n * out_batch_stride + h * out_row_stride
-                                + w * out_col_stride + c * out_channel_stride] =
+                            out[out_s.offset(n, h, w, c)] =
                                 value * gamma[c * g_stride] + beta[c * b_stride];
                         }
                     });
@@ -125,10 +114,7 @@ namespace SushiBLAS
                 const int64_t out_w = span.out_w;
                 const int64_t src_batch_stride = in_batch_stride;
                 const int64_t src_channel_stride = in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides out_s = Indexing::output_strides(span);
                 const T factor = scale;
 
                 const Device::Grid1D grid =
@@ -145,17 +131,11 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w = hw % out_w;
-                            const int64_t nh = hw / out_w;
-                            const int64_t h = nh % out_h;
-                            const int64_t n = nh / out_h;
+                            const auto [n, h, w, c] = Indexing::pixel_coord(i, out_h, out_w, channels);
 
-                            const T value = in[n * src_batch_stride + c * src_channel_stride];
+                            const T value = in[Indexing::batch_channel_offset(n, c, src_batch_stride, src_channel_stride)];
 
-                            out[n * out_batch_stride + h * out_row_stride
-                                + w * out_col_stride + c * out_channel_stride] = value * factor;
+                            out[out_s.offset(n, h, w, c)] = value * factor;
                         }
                     });
                 });
@@ -163,75 +143,23 @@ namespace SushiBLAS
 
             namespace Detail
             {
-                /** @brief Holds the side of one square tile of the transposing copy. */
-                inline constexpr int K_TRANSPOSE_TILE = 32;
-
-                /** @brief Holds the rows of work-items of one transposing work-group. */
-                inline constexpr int K_TRANSPOSE_ROWS = 8;
-
-                /**
-                 * @brief Holds one image as a matrix whose fast axis is adjacent in the input and
-                 *        whose slow axis is adjacent in the output.
-                 */
-                struct TransposePlan
-                {
-                    int64_t fast = 0;       /**< Extent of the axis adjacent in the input. */
-                    int64_t slow = 0;       /**< Extent of the axis adjacent in the output. */
-                    int64_t in_slow = 0;    /**< Input step along the slow axis. */
-                    int64_t out_fast = 0;   /**< Output step along the fast axis. */
-                    int64_t in_batch = 0;   /**< Input step from one image to the next. */
-                    int64_t out_batch = 0;  /**< Output step from one image to the next. */
-                };
-
-                /**
-                 * @brief Returns whether a conversion moves the adjacent axis between pixels and
-                 *        channels over linear image planes, and fills plan when it does.
-                 * @see kernels/README.md
-                 */
-                [[nodiscard]] inline bool transposes(const Spatial::WindowSpan& span,
-                                                     TransposePlan& plan) noexcept
-                {
-                    const bool planes = span.in_row_stride == span.in_w * span.in_col_stride &&
-                                        span.out_row_stride == span.in_w * span.out_col_stride;
-                    const int64_t pixels = span.in_h * span.in_w;
-                    plan.in_batch = span.in_batch_stride;
-                    plan.out_batch = span.out_batch_stride;
-                    if (planes && span.in_channel_stride == 1 && span.out_col_stride == 1)
-                    {
-                        plan.fast = span.channels;
-                        plan.slow = pixels;
-                        plan.in_slow = span.in_col_stride;
-                        plan.out_fast = span.out_channel_stride;
-                        return true;
-                    }
-                    if (planes && span.in_col_stride == 1 && span.out_channel_stride == 1)
-                    {
-                        plan.fast = pixels;
-                        plan.slow = span.channels;
-                        plan.in_slow = span.in_channel_stride;
-                        plan.out_fast = span.out_col_stride;
-                        return true;
-                    }
-                    return false;
-                }
-
                 /**
                  * @brief Copies every image through square local tiles, reading along the input's
                  *        adjacent axis and writing along the output's.
                  * @see kernels/README.md
                  */
                 template<typename T>
-                sycl::event transpose_images(sycl::queue& q, const TransposePlan& plan,
+                sycl::event transpose_images(sycl::queue& q, const Indexing::TransposePlan& plan,
                                              int64_t batch, const T* in, T* out,
                                              const std::vector<sycl::event>& deps)
                 {
-                    constexpr int K_TILE = K_TRANSPOSE_TILE;
-                    constexpr int K_ROWS = K_TRANSPOSE_ROWS;
-                    const TransposePlan p = plan;
+                    constexpr int K_TILE = Indexing::K_TRANSPOSE_TILE;
+                    constexpr int K_ROWS = Indexing::K_TRANSPOSE_ROWS;
+                    const Indexing::TransposePlan p = plan;
                     const std::size_t slow_tiles =
-                        static_cast<std::size_t>((p.slow + K_TILE - 1) / K_TILE);
+                        static_cast<std::size_t>(Indexing::tile_count(p.slow));
                     const std::size_t fast_tiles =
-                        static_cast<std::size_t>((p.fast + K_TILE - 1) / K_TILE);
+                        static_cast<std::size_t>(Indexing::tile_count(p.fast));
                     const sycl::range<3> global(static_cast<std::size_t>(batch),
                                                 slow_tiles * K_ROWS, fast_tiles * K_TILE);
                     const sycl::range<3> local(1, K_ROWS, K_TILE);
@@ -242,7 +170,7 @@ namespace SushiBLAS
 
                         // One padding column keeps a column of the tile off a single bank.
                         const std::size_t tile_elements =
-                            static_cast<std::size_t>(K_TILE * (K_TILE + 1));
+                            static_cast<std::size_t>(Indexing::tile_elements());
                         sycl::local_accessor<T, 1> tile(sycl::range<1>(tile_elements), handler);
 
                         handler.parallel_for(sycl::nd_range<3>(global, local),
@@ -260,8 +188,9 @@ namespace SushiBLAS
                             {
                                 const int64_t s = slow0 + r;
                                 const int64_t f = fast0 + tx;
-                                if (s < p.slow && f < p.fast)
-                                    tile[r * (K_TILE + 1) + tx] = image_in[s * p.in_slow + f];
+                                if (Indexing::tile_live(p, s, f))
+                                    tile[Indexing::tile_slot(r, tx)] =
+                                        image_in[Indexing::transpose_read_offset(p, s, f)];
                             }
                             sycl::group_barrier(it.get_group());
 
@@ -269,8 +198,9 @@ namespace SushiBLAS
                             {
                                 const int64_t s = slow0 + tx;
                                 const int64_t f = fast0 + r;
-                                if (s < p.slow && f < p.fast)
-                                    image_out[s + f * p.out_fast] = tile[tx * (K_TILE + 1) + r];
+                                if (Indexing::tile_live(p, s, f))
+                                    image_out[Indexing::transpose_write_offset(p, s, f)] =
+                                        tile[Indexing::tile_slot(tx, r)];
                             }
                         });
                     });
@@ -289,21 +219,15 @@ namespace SushiBLAS
                 if (total <= 0)
                     return sycl::event();
 
-                Detail::TransposePlan plan;
-                if (Detail::transposes(span, plan))
+                Indexing::TransposePlan plan;
+                if (Indexing::transposes(span, plan))
                     return Detail::transpose_images(q, plan, span.batch, in, out, deps);
 
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
 
                 const Device::Grid1D grid =
                     Device::plan_1d(Device::profile_for(q), static_cast<std::size_t>(total));
@@ -319,17 +243,10 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w = hw % in_w;
-                            const int64_t nh = hw / in_w;
-                            const int64_t h = nh % in_h;
-                            const int64_t n = nh / in_h;
+                            const auto [n, h, w, c] = Indexing::pixel_coord(i, in_h, in_w, channels);
 
-                            out[n * out_batch_stride + h * out_row_stride
-                                + w * out_col_stride + c * out_channel_stride] =
-                                in[n * in_batch_stride + h * in_row_stride
-                                   + w * in_col_stride + c * in_channel_stride];
+                            out[out_s.offset(n, h, w, c)] =
+                                in[in_s.offset(n, h, w, c)];
                         }
                     });
                 });

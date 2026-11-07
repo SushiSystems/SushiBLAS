@@ -17,6 +17,12 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE spatial_kernels
     TESTS
+        test_im2col_index.cpp
+        test_pixel_index.cpp
+        test_pool_max_index.cpp
+        test_transpose_index.cpp
+        test_upsample_index.cpp
+        test_window_index.cpp
         reference/test_broadcast.cpp
         reference/test_channels.cpp
         reference/test_col2im.cpp

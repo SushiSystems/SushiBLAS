@@ -37,6 +37,8 @@
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
 
 namespace SushiBLAS
 {
@@ -72,22 +74,21 @@ namespace SushiBLAS
                         [[nodiscard]] W operator()(std::size_t k) const
                         {
                             const int64_t i = static_cast<int64_t>(k);
-                            const int64_t w_o = i % span_.out_w;
-                            const int64_t nh = i / span_.out_w;
-                            const int64_t h_o = nh % span_.out_h;
-                            const int64_t n = nh / span_.out_h;
+                            const Indexing::WindowCoord at =
+                                Indexing::window_coord(i, span_.out_h, span_.out_w);
 
-                            const int64_t h_in = h_o * span_.geometry.stride_h + row_origin_;
-                            const int64_t w_in = w_o * span_.geometry.stride_w + col_origin_;
-                            if (h_in < 0 || h_in >= span_.in_h || w_in < 0 || w_in >= span_.in_w)
+                            const int64_t h_in = Indexing::origin_coord(
+                                at.h_o, span_.geometry.stride_h, row_origin_);
+                            const int64_t w_in = Indexing::origin_coord(
+                                at.w_o, span_.geometry.stride_w, col_origin_);
+                            if (!Indexing::in_extent(h_in, span_.in_h) ||
+                                !Indexing::in_extent(w_in, span_.in_w))
                                 return W(0);
 
-                            return W(dy_[n * span_.out_batch_stride + h_o * span_.out_row_stride
-                                         + w_o * span_.out_col_stride
-                                         + channel_ * span_.out_channel_stride])
-                                 * W(in_[n * span_.in_batch_stride + h_in * span_.in_row_stride
-                                         + w_in * span_.in_col_stride
-                                         + channel_ * span_.in_channel_stride]);
+                            const Indexing::Strides out_s = Indexing::output_strides(span_);
+                            const Indexing::Strides in_s = Indexing::input_strides(span_);
+                            return W(dy_[out_s.offset(at.n, at.h_o, at.w_o, channel_)])
+                                 * W(in_[in_s.offset(at.n, h_in, w_in, channel_)]);
                         }
 
                     private:
@@ -129,15 +130,16 @@ namespace SushiBLAS
                         [[nodiscard]] TapGradientCursor<T, W> operator()(std::size_t segment) const
                         {
                             const int64_t flat = static_cast<int64_t>(segment);
-                            const int64_t c = flat % span_.channels;
-                            const int64_t rs = flat / span_.channels;
-                            const int64_t s = rs % span_.geometry.kernel_w;
-                            const int64_t r = rs / span_.geometry.kernel_w;
+                            const Indexing::TapCoord tap = Indexing::tap_coord(
+                                flat, span_.channels, span_.geometry.kernel_w);
 
                             return TapGradientCursor<T, W>(
                                 span_, dy_, in_,
-                                r * span_.geometry.dilation_h - span_.geometry.pad_top,
-                                s * span_.geometry.dilation_w - span_.geometry.pad_left, c);
+                                Indexing::window_origin(tap.r, span_.geometry.dilation_h,
+                                                        span_.geometry.pad_top),
+                                Indexing::window_origin(tap.s, span_.geometry.dilation_w,
+                                                        span_.geometry.pad_left),
+                                tap.c);
                         }
 
                     private:
@@ -172,13 +174,10 @@ namespace SushiBLAS
                         void operator()(std::size_t segment, W value) const
                         {
                             const int64_t flat = static_cast<int64_t>(segment);
-                            const int64_t c = flat % channels_;
-                            const int64_t rs = flat / channels_;
-                            const int64_t s = rs % kernel_w_;
-                            const int64_t r = rs / kernel_w_;
+                            const Indexing::TapCoord tap =
+                                Indexing::tap_coord(flat, channels_, kernel_w_);
 
-                            dweights_[r * taps_.row_stride + s * taps_.col_stride
-                                      + c * taps_.channel_stride] = static_cast<T>(value);
+                            dweights_[Indexing::tap_offset(taps_, tap)] = static_cast<T>(value);
                         }
 
                     private:

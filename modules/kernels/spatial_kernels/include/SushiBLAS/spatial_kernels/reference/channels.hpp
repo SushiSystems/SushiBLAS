@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
 
 namespace SushiBLAS
 {
@@ -57,14 +58,8 @@ namespace SushiBLAS
                         {
                             for (int64_t k = 0; k < count; ++k)
                             {
-                                out[n * span.out_batch_stride
-                                    + h * span.out_row_stride
-                                    + w * span.out_col_stride
-                                    + (dst_channel_offset + k) * span.out_channel_stride] =
-                                    in[n * span.in_batch_stride
-                                       + h * span.in_row_stride
-                                       + w * span.in_col_stride
-                                       + (src_channel_offset + k) * span.in_channel_stride];
+                                out[Indexing::output_strides(span).offset(n, h, w, dst_channel_offset + k)] =
+                                    in[Indexing::input_strides(span).offset(n, h, w, src_channel_offset + k)];
                             }
                         }
                     }

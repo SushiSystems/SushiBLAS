@@ -73,12 +73,13 @@ writes each add. Nothing in a module job changes production code except a seam a
 | H3 | Seam: `ScratchPool` block source port with a host adapter (RW-153), `Engine` host constructor, a host `RNGStream` path, `engine_fixture` `HostEngineTest` and a host `RecordingFixture`; `EngineContract` | H2 | done |
 | H4 | Bodies onto H2 in `engine/*` and `operations/elementwise`, `logic`, `nonlinear`, `random`, `reductions` | H2 | done |
 | H5 | Bodies onto H2 in `operations/blas`, `sparse`, `spatial`, `signal`, `blend`, `index`, `io`, `experimental` and `library` | H4 | done |
-| H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | todo |
-| S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43 | todo |
-| S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40 | todo |
-| S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10 | todo |
-| S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39 | todo |
-| S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44 | todo |
+| H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | running |
+| H7 | RW-155, RW-156: `Engine` and `ScratchPool` hold no nullable runtime; `is_host()` and the throwing `runtime()` go; `RecordingGraph` and its 26 `RecordingGraph(engine)` callers take what they need, not an `Engine` | H6 | todo |
+| S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43, H7 | todo |
+| S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | todo |
+| S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10, H7 | todo |
+| S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39, H7 | todo |
+| S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44, H7 | todo |
 | S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | done |
 
 M10, M39, M40, M43 and M44 are `todo` again: each left resize records at `Medium_` for a missing seam, which the owner's order of 2026-11-07 does not accept. The S job that builds the seam applies those records, and the M job turns `done` with it: S1 closes M43, S2 closes M40, S3 closes M10, S4 closes M39, S5 and S6 close M44.

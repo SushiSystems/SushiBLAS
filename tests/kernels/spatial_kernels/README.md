@@ -26,6 +26,12 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/test_upsample.cpp` | Tests the SYCL nearest upsample and its backward against the reference ones |
 | `sycl/test_window_dot.cpp` | Tests the SYCL window product and its backward against the reference ones |
 | `sycl/test_window_dot_weights.cpp` | Tests the SYCL weight gradient in both launch shapes against the reference |
+| `test_im2col_index.cpp` | Tests the im2col element split against the loops that fill the matrix |
+| `test_pixel_index.cpp` | Tests the NHWC flat-index split, the flat index and the stride offsets |
+| `test_pool_max_index.cpp` | Tests when a tap replaces the running max-pool maximum, NaN included |
+| `test_transpose_index.cpp` | Tests the tile geometry, the transpose plan and a host run of the tiled copy in both directions |
+| `test_upsample_index.cpp` | Tests the upsample source and block coordinates |
+| `test_window_index.cpp` | Tests the gather and scatter coordinates against a search, and the window and patch splits against nested loops |
 | `compile_spatial.cpp` | Compile check, never run: `spatial.hpp` stands alone |
 
 ## Helpers

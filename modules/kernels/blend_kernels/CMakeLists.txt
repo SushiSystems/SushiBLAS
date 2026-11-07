@@ -15,6 +15,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE blend_kernels
     TESTS
+        test_blend_index.cpp
         reference/test_blend_transforms.cpp
     DEVICE_TESTS
         sycl/test_blend_transforms.cpp

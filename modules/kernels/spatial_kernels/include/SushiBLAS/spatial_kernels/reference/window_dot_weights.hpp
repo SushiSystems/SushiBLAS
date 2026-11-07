@@ -31,6 +31,8 @@
 
 #include <cstdint>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
@@ -66,30 +68,23 @@ namespace SushiBLAS
                             {
                                 for (int64_t h_o = 0; h_o < span.out_h; ++h_o)
                                 {
-                                    const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                    if (h_in < 0 || h_in >= span.in_h)
+                                    const int64_t h_in = Indexing::gather_coord(h_o, g.stride_h, g.pad_top, r, g.dilation_h);
+                                    if (!Indexing::in_extent(h_in, span.in_h))
                                         continue;
 
                                     for (int64_t w_o = 0; w_o < span.out_w; ++w_o)
                                     {
-                                        const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                        if (w_in < 0 || w_in >= span.in_w)
+                                        const int64_t w_in = Indexing::gather_coord(w_o, g.stride_w, g.pad_left, s, g.dilation_w);
+                                        if (!Indexing::in_extent(w_in, span.in_w))
                                             continue;
 
-                                        sum.add(RW(dy[n * span.out_batch_stride
-                                                      + h_o * span.out_row_stride
-                                                      + w_o * span.out_col_stride
-                                                      + c * span.out_channel_stride])
-                                                * RW(in[n * span.in_batch_stride
-                                                        + h_in * span.in_row_stride
-                                                        + w_in * span.in_col_stride
-                                                        + c * span.in_channel_stride]));
+                                        sum.add(RW(dy[Indexing::output_strides(span).offset(n, h_o, w_o, c)])
+                                                * RW(in[Indexing::input_strides(span).offset(n, h_in, w_in, c)]));
                                     }
                                 }
                             }
 
-                            dweights[r * taps.row_stride + s * taps.col_stride
-                                     + c * taps.channel_stride] = static_cast<T>(sum.value());
+                            dweights[Indexing::tap_offset(taps, {r, s, c})] = static_cast<T>(sum.value());
                         }
                     }
                 }

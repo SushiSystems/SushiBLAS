@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/upsample_index.hpp>
 
 namespace SushiBLAS
 {
@@ -52,18 +54,16 @@ namespace SushiBLAS
                 {
                     for (int64_t h_o = 0; h_o < span.out_h; ++h_o)
                     {
-                        const int64_t h_in = h_o / scale_h;
+                        const int64_t h_in = Indexing::upsample_source(h_o, scale_h);
 
                         for (int64_t w_o = 0; w_o < span.out_w; ++w_o)
                         {
-                            const int64_t w_in = w_o / scale_w;
+                            const int64_t w_in = Indexing::upsample_source(w_o, scale_w);
 
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                out[n * span.out_batch_stride + h_o * span.out_row_stride
-                                    + w_o * span.out_col_stride + c * span.out_channel_stride] =
-                                    in[n * span.in_batch_stride + h_in * span.in_row_stride
-                                       + w_in * span.in_col_stride + c * span.in_channel_stride];
+                                out[Indexing::output_strides(span).offset(n, h_o, w_o, c)] =
+                                    in[Indexing::input_strides(span).offset(n, h_in, w_in, c)];
                             }
                         }
                     }
@@ -95,15 +95,11 @@ namespace SushiBLAS
                                     for (int64_t dw = 0; dw < scale_w; ++dw)
                                     {
                                         total += Accumulator<T>(
-                                            dy[n * span.out_batch_stride
-                                               + (h * scale_h + dh) * span.out_row_stride
-                                               + (w * scale_w + dw) * span.out_col_stride
-                                               + c * span.out_channel_stride]);
+                                            dy[Indexing::output_strides(span).offset(n, (h * scale_h + dh), (w * scale_w + dw), c)]);
                                     }
                                 }
 
-                                dx[n * span.in_batch_stride + h * span.in_row_stride
-                                   + w * span.in_col_stride + c * span.in_channel_stride] =
+                                dx[Indexing::input_strides(span).offset(n, h, w, c)] =
                                     static_cast<T>(total);
                             }
                         }

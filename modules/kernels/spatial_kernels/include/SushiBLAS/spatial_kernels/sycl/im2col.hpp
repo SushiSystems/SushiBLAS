@@ -35,6 +35,9 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
+#include <SushiBLAS/spatial_kernels/im2col_index.hpp>
 
 namespace SushiBLAS
 {
@@ -63,12 +66,8 @@ namespace SushiBLAS
                 const int64_t out_w = span.out_w;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t row_stride = cols.row_stride;
-                const int64_t element_stride = cols.element_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Spatial::ColumnSpan cols_span = cols;
 
                 const Device::Grid1D grid =
                     Device::plan_1d(Device::profile_for(q), static_cast<std::size_t>(total));
@@ -84,27 +83,19 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t col = i % patch_width;
-                            const int64_t row = i / patch_width;
+                            const Indexing::Im2colCoord at = Indexing::im2col_coord(i, patch_width, channels,
+                                                                                    g.kernel_w, out_h, out_w);
 
-                            const int64_t c = col % channels;
-                            const int64_t rs = col / channels;
-                            const int64_t s = rs % g.kernel_w;
-                            const int64_t r = rs / g.kernel_w;
+                            const int64_t h_in = Indexing::gather_coord(
+                                at.window.h_o, g.stride_h, g.pad_top, at.tap.r, g.dilation_h);
+                            const int64_t w_in = Indexing::gather_coord(
+                                at.window.w_o, g.stride_w, g.pad_left, at.tap.s, g.dilation_w);
 
-                            const int64_t w_o = row % out_w;
-                            const int64_t nh = row / out_w;
-                            const int64_t h_o = nh % out_h;
-                            const int64_t n = nh / out_h;
+                            const bool ok = Indexing::in_extent(h_in, in_h) &&
+                                            Indexing::in_extent(w_in, in_w);
 
-                            const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                            const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-
-                            const bool ok = h_in >= 0 && h_in < in_h && w_in >= 0 && w_in < in_w;
-
-                            out[row * row_stride + col * element_stride] = ok
-                                ? in[n * in_batch_stride + h_in * in_row_stride
-                                     + w_in * in_col_stride + c * in_channel_stride]
+                            out[Indexing::column_offset(cols_span, at.row, at.col)] = ok
+                                ? in[in_s.offset(at.window.n, h_in, w_in, at.tap.c)]
                                 : T(0);
                         }
                     });

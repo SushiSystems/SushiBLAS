@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
 
 namespace SushiBLAS
 {
@@ -62,33 +64,26 @@ namespace SushiBLAS
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
-                                    const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                    if (h_num < 0 || h_num % g.stride_h != 0)
-                                        continue;
-                                    const int64_t h_o = h_num / g.stride_h;
-                                    if (h_o >= span.out_h)
+                                    const int64_t h_o = Indexing::scatter_coord(h, g.stride_h, g.pad_top, r, g.dilation_h, span.out_h);
+                                    if (h_o < 0)
                                         continue;
 
                                     for (int64_t s = 0; s < g.kernel_w; ++s)
                                     {
-                                        const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                        if (w_num < 0 || w_num % g.stride_w != 0)
-                                            continue;
-                                        const int64_t w_o = w_num / g.stride_w;
-                                        if (w_o >= span.out_w)
+                                        const int64_t w_o = Indexing::scatter_coord(w, g.stride_w, g.pad_left, s, g.dilation_w, span.out_w);
+                                        if (w_o < 0)
                                             continue;
 
-                                        const int64_t row = (n * span.out_h + h_o) * span.out_w + w_o;
-                                        const int64_t patch = (r * g.kernel_w + s) * span.channels + c;
+                                        const int64_t row = Indexing::window_row({n, h_o, w_o}, span.out_h, span.out_w);
+                                        const int64_t patch = Indexing::patch_column(
+                                            {r, s, c}, span.channels, g.kernel_w);
 
                                         total += Accumulator<T>(
-                                            in[row * cols.row_stride
-                                               + patch * cols.element_stride]);
+                                            in[Indexing::column_offset(cols, row, patch)]);
                                     }
                                 }
 
-                                out[n * span.in_batch_stride + h * span.in_row_stride
-                                    + w * span.in_col_stride + c * span.in_channel_stride] =
+                                out[Indexing::input_strides(span).offset(n, h, w, c)] =
                                     static_cast<T>(total);
                             }
                         }

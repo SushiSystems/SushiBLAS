@@ -37,6 +37,9 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
+#include <SushiBLAS/spatial_kernels/pool_max_index.hpp>
 
 namespace SushiBLAS
 {
@@ -64,14 +67,8 @@ namespace SushiBLAS
                 const int64_t out_w = span.out_w;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
 
                 // lowest() is not constexpr for sycl::half, so this is a const.
                 const T lowest = std::numeric_limits<T>::lowest();
@@ -90,44 +87,35 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w_o = hw % out_w;
-                            const int64_t nh = hw / out_w;
-                            const int64_t h_o = nh % out_h;
-                            const int64_t n = nh / out_h;
+                            const auto [n, h_o, w_o, c] = Indexing::pixel_coord(i, out_h, out_w, channels);
 
                             T best = lowest;
                             int64_t best_index = -1;
 
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
-                                const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                if (h_in < 0 || h_in >= in_h)
+                                const int64_t h_in = Indexing::gather_coord(h_o, g.stride_h, g.pad_top, r, g.dilation_h);
+                                if (!Indexing::in_extent(h_in, in_h))
                                     continue;
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
-                                    const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                    if (w_in < 0 || w_in >= in_w)
+                                    const int64_t w_in = Indexing::gather_coord(w_o, g.stride_w, g.pad_left, s, g.dilation_w);
+                                    if (!Indexing::in_extent(w_in, in_w))
                                         continue;
 
-                                    const T candidate = in[n * in_batch_stride
-                                                         + h_in * in_row_stride
-                                                         + w_in * in_col_stride
-                                                         + c * in_channel_stride];
+                                    const T candidate = in[in_s.offset(n, h_in, w_in, c)];
 
                                     // The first live tap is taken; a NaN tap wins and stays.
-                                    if (best_index < 0 || (!(best != best) && (candidate > best || candidate != candidate)))
+                                    if (Indexing::takes_candidate(best_index, best, candidate))
                                     {
                                         best = candidate;
-                                        best_index = ((n * in_h + h_in) * in_w + w_in) * channels + c;
+                                        best_index = Indexing::flat_pixel({n, h_in, w_in, c}, in_h, in_w, channels);
                                     }
                                 }
                             }
 
-                            const int64_t at = n * out_batch_stride + h_o * out_row_stride
-                                             + w_o * out_col_stride + c * out_channel_stride;
+                            const int64_t at = out_s.offset(n, h_o, w_o, c);
                             out[at] = best;
                             indices[at] = best_index;
                         }
@@ -155,14 +143,8 @@ namespace SushiBLAS
                 const int64_t out_w = span.out_w;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
 
                 const Device::Grid1D grid =
                     Device::plan_1d(Device::profile_for(q), static_cast<std::size_t>(total));
@@ -178,45 +160,32 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w = hw % in_w;
-                            const int64_t nh = hw / in_w;
-                            const int64_t h = nh % in_h;
-                            const int64_t n = nh / in_h;
+                            const auto [n, h, w, c] = Indexing::pixel_coord(i, in_h, in_w, channels);
 
-                            const int64_t mine = ((n * in_h + h) * in_w + w) * channels + c;
+                            const int64_t mine = Indexing::flat_pixel({n, h, w, c}, in_h, in_w, channels);
 
                             Accumulator<T> total_value = Accumulator<T>(0);
 
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
-                                const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                if (h_num < 0 || h_num % g.stride_h != 0)
-                                    continue;
-                                const int64_t h_o = h_num / g.stride_h;
-                                if (h_o >= out_h)
+                                const int64_t h_o = Indexing::scatter_coord(h, g.stride_h, g.pad_top, r, g.dilation_h, out_h);
+                                if (h_o < 0)
                                     continue;
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
-                                    const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                    if (w_num < 0 || w_num % g.stride_w != 0)
-                                        continue;
-                                    const int64_t w_o = w_num / g.stride_w;
-                                    if (w_o >= out_w)
+                                    const int64_t w_o = Indexing::scatter_coord(w, g.stride_w, g.pad_left, s, g.dilation_w, out_w);
+                                    if (w_o < 0)
                                         continue;
 
-                                    const int64_t at = n * out_batch_stride + h_o * out_row_stride
-                                                     + w_o * out_col_stride + c * out_channel_stride;
+                                    const int64_t at = out_s.offset(n, h_o, w_o, c);
 
                                     if (indices[at] == mine)
                                         total_value += Accumulator<T>(dy[at]);
                                 }
                             }
 
-                            dx[n * in_batch_stride + h * in_row_stride
-                               + w * in_col_stride + c * in_channel_stride] =
+                            dx[in_s.offset(n, h, w, c)] =
                                 static_cast<T>(total_value);
                         }
                     });

@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
 
 namespace SushiBLAS
 {
@@ -58,13 +59,9 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                const T value = in[n * span.in_batch_stride
-                                                 + h * span.in_row_stride
-                                                 + w * span.in_col_stride
-                                                 + c * span.in_channel_stride];
+                                const T value = in[Indexing::input_strides(span).offset(n, h, w, c)];
 
-                                out[n * span.out_batch_stride + h * span.out_row_stride
-                                    + w * span.out_col_stride + c * span.out_channel_stride] =
+                                out[Indexing::output_strides(span).offset(n, h, w, c)] =
                                     value * gamma[c * gamma_stride] + beta[c * beta_stride];
                             }
                         }
@@ -92,10 +89,9 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                const T value = in[n * in_batch_stride + c * in_channel_stride];
+                                const T value = in[Indexing::batch_channel_offset(n, c, in_batch_stride, in_channel_stride)];
 
-                                out[n * span.out_batch_stride + h * span.out_row_stride
-                                    + w * span.out_col_stride + c * span.out_channel_stride] =
+                                out[Indexing::output_strides(span).offset(n, h, w, c)] =
                                     value * scale;
                             }
                         }
@@ -119,10 +115,8 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                out[n * span.out_batch_stride + h * span.out_row_stride
-                                    + w * span.out_col_stride + c * span.out_channel_stride] =
-                                    in[n * span.in_batch_stride + h * span.in_row_stride
-                                       + w * span.in_col_stride + c * span.in_channel_stride];
+                                out[Indexing::output_strides(span).offset(n, h, w, c)] =
+                                    in[Indexing::input_strides(span).offset(n, h, w, c)];
                             }
                         }
                     }

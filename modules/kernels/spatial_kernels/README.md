@@ -1,7 +1,9 @@
 # spatial_kernels
 
 The reference and SYCL kernels of the window, pooling, channel and broadcast operations. The module
-is internal: its headers are not installed. `modules/kernels/README.md` holds the notes of each
+is internal: its headers are not installed. The index and tail math of each kernel sits in the
+`*_index.hpp` headers, which include no SYCL header and run on the host and in a kernel; the reference
+and the SYCL kernel call the same copy. `modules/kernels/README.md` holds the notes of each
 kernel.
 
 It depends on `core` and `support`. Its headers are included as
@@ -9,6 +11,9 @@ It depends on `core` and `support`. Its headers are included as
 
 | File | Declares |
 | --- | --- |
+| `im2col_index.hpp` | The index math of one im2col matrix element, shared by the host and the device |
+| `pixel_index.hpp` | The flat-index and stride-offset math of an NHWC tensor, shared by the host and the device |
+| `pool_max_index.hpp` | The step that decides whether a tap replaces the running max-pool maximum |
 | `reference/broadcast.hpp` | The reference kernels of the three broadcast copies |
 | `reference/channels.hpp` | The reference kernel that copies a run of channels |
 | `reference/col2im.hpp` | The reference kernel of col2im |
@@ -28,3 +33,6 @@ It depends on `core` and `support`. Its headers are included as
 | `sycl/upsample.hpp` | The SYCL kernels of nearest-neighbour upsampling and its gradient |
 | `sycl/window_dot.hpp` | The SYCL kernels of the per-channel weighted window sum and its input gradient |
 | `sycl/window_dot_weights.hpp` | The SYCL kernel of the weight gradient of the per-channel weighted window sum |
+| `transpose_index.hpp` | The tile geometry and index math of the transposing layout copy |
+| `upsample_index.hpp` | The index math of nearest-neighbour upsampling |
+| `window_index.hpp` | The sliding-window index math: gather and scatter coordinates, window and patch coordinates, column and tap offsets |

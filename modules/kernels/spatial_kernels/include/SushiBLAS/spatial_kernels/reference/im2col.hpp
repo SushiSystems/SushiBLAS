@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/window_index.hpp>
 
 namespace SushiBLAS
 {
@@ -58,13 +59,13 @@ namespace SushiBLAS
 
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
-                                const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                const bool row_ok = h_in >= 0 && h_in < span.in_h;
+                                const int64_t h_in = Indexing::gather_coord(h_o, g.stride_h, g.pad_top, r, g.dilation_h);
+                                const bool row_ok = Indexing::in_extent(h_in, span.in_h);
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
-                                    const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                    const bool ok = row_ok && w_in >= 0 && w_in < span.in_w;
+                                    const int64_t w_in = Indexing::gather_coord(w_o, g.stride_w, g.pad_left, s, g.dilation_w);
+                                    const bool ok = row_ok && Indexing::in_extent(w_in, span.in_w);
 
                                     const int64_t patch = (r * g.kernel_w + s) * span.channels;
                                     const int64_t base = n * span.in_batch_stride
@@ -73,7 +74,7 @@ namespace SushiBLAS
 
                                     for (int64_t c = 0; c < span.channels; ++c)
                                     {
-                                        out[row * cols.row_stride + (patch + c) * cols.element_stride] =
+                                        out[Indexing::column_offset(cols, row, patch + c)] =
                                             ok ? in[base + c * span.in_channel_stride] : T(0);
                                     }
                                 }

@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/blend_kernels/blend_index.hpp>
 
 namespace SushiBLAS
 {
@@ -74,33 +75,35 @@ namespace SushiBLAS
                         for (std::size_t flat = it.get_global_id(0); flat < count; flat += stride)
                         {
                             const int64_t p = static_cast<int64_t>(flat);
-                            const T* point = points + p * components;
+                            const T* point = points + Indexing::point_offset(p, components);
 
                             // A position has no w, so it is the homogeneous point with w = 1.
                             const W homogeneous[4] = {W(point[0]), W(point[1]), W(point[2]),
-                                                      components == 4 ? W(point[3]) : W(1)};
+                                                      Indexing::homogeneous_w<W>(point, components)};
                             W blended[4] = {W(0), W(0), W(0), W(0)};
 
                             // The influences are added in ascending j order on every device.
                             for (int64_t j = 0; j < influences; ++j)
                             {
-                                const int64_t slot =
-                                    static_cast<int64_t>(indices[p * influences + j]);
-                                if (slot < 0 || slot >= transform_count)
+                                const int64_t slot = static_cast<int64_t>(
+                                    indices[Indexing::influence_offset(p, influences, j)]);
+                                if (!Indexing::slot_live(slot, transform_count))
                                     continue;
 
-                                const T* matrix = transforms + slot * transform_rows * 4;
-                                const W weight = W(weights[p * influences + j]);
+                                const T* matrix =
+                                    transforms + Indexing::matrix_offset(slot, transform_rows);
+                                const W weight =
+                                    W(weights[Indexing::influence_offset(p, influences, j)]);
 
                                 for (int64_t i = 0; i < components; ++i)
                                 {
                                     W moved = homogeneous[3];
 
-                                    if (i < transform_rows)
+                                    if (Indexing::has_matrix_row(i, transform_rows))
                                     {
                                         moved = W(0);
                                         for (int64_t c = 0; c < 4; ++c)
-                                            moved += W(matrix[i * 4 + c]) * homogeneous[c];
+                                            moved += W(matrix[Indexing::matrix_element(i, c)]) * homogeneous[c];
                                     }
 
                                     blended[i] += weight * moved;
@@ -108,7 +111,7 @@ namespace SushiBLAS
                             }
 
                             for (int64_t i = 0; i < components; ++i)
-                                out[p * components + i] = static_cast<T>(blended[i]);
+                                out[Indexing::point_offset(p, components) + i] = static_cast<T>(blended[i]);
                         }
                     });
                 });

@@ -36,6 +36,8 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/spatial_kernels/pixel_index.hpp>
+#include <SushiBLAS/spatial_kernels/upsample_index.hpp>
 
 namespace SushiBLAS
 {
@@ -59,14 +61,8 @@ namespace SushiBLAS
                 const int64_t channels = span.channels;
                 const int64_t out_h = span.out_h;
                 const int64_t out_w = span.out_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
                 const int64_t sh = scale_h;
                 const int64_t sw = scale_w;
 
@@ -84,20 +80,13 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w_o = hw % out_w;
-                            const int64_t nh = hw / out_w;
-                            const int64_t h_o = nh % out_h;
-                            const int64_t n = nh / out_h;
+                            const auto [n, h_o, w_o, c] = Indexing::pixel_coord(i, out_h, out_w, channels);
 
-                            const int64_t h_in = h_o / sh;
-                            const int64_t w_in = w_o / sw;
+                            const int64_t h_in = Indexing::upsample_source(h_o, sh);
+                            const int64_t w_in = Indexing::upsample_source(w_o, sw);
 
-                            out[n * out_batch_stride + h_o * out_row_stride
-                                + w_o * out_col_stride + c * out_channel_stride] =
-                                in[n * in_batch_stride + h_in * in_row_stride
-                                   + w_in * in_col_stride + c * in_channel_stride];
+                            out[out_s.offset(n, h_o, w_o, c)] =
+                                in[in_s.offset(n, h_in, w_in, c)];
                         }
                     });
                 });
@@ -120,14 +109,8 @@ namespace SushiBLAS
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;
-                const int64_t in_batch_stride = span.in_batch_stride;
-                const int64_t in_row_stride = span.in_row_stride;
-                const int64_t in_col_stride = span.in_col_stride;
-                const int64_t in_channel_stride = span.in_channel_stride;
-                const int64_t out_batch_stride = span.out_batch_stride;
-                const int64_t out_row_stride = span.out_row_stride;
-                const int64_t out_col_stride = span.out_col_stride;
-                const int64_t out_channel_stride = span.out_channel_stride;
+                const Indexing::Strides in_s = Indexing::input_strides(span);
+                const Indexing::Strides out_s = Indexing::output_strides(span);
                 const int64_t sh = scale_h;
                 const int64_t sw = scale_w;
 
@@ -145,12 +128,7 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            const int64_t c = i % channels;
-                            const int64_t hw = i / channels;
-                            const int64_t w = hw % in_w;
-                            const int64_t nh = hw / in_w;
-                            const int64_t h = nh % in_h;
-                            const int64_t n = nh / in_h;
+                            const auto [n, h, w, c] = Indexing::pixel_coord(i, in_h, in_w, channels);
 
                             Accumulator<T> total_value = Accumulator<T>(0);
 
@@ -159,15 +137,12 @@ namespace SushiBLAS
                                 for (int64_t dw = 0; dw < sw; ++dw)
                                 {
                                     total_value += Accumulator<T>(
-                                        dy[n * out_batch_stride
-                                           + (h * sh + dh) * out_row_stride
-                                           + (w * sw + dw) * out_col_stride
-                                           + c * out_channel_stride]);
+                                        dy[out_s.offset(n, Indexing::upsample_block(h, sh, dh),
+                                                     Indexing::upsample_block(w, sw, dw), c)]);
                                 }
                             }
 
-                            dx[n * in_batch_stride + h * in_row_stride
-                               + w * in_col_stride + c * in_channel_stride] =
+                            dx[in_s.offset(n, h, w, c)] =
                                 static_cast<T>(total_value);
                         }
                     });

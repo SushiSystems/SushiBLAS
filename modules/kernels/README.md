@@ -726,7 +726,7 @@ strides and has no direction flag. The reasons for all three are under
 
 `layout_convert` has two shapes. When both sides store each image plane linearly and the axis
 adjacent in the input, the channels or the pixels, is the one not adjacent in the output,
-`Detail::transposes` fills a `Detail::TransposePlan` and `Detail::transpose_images` copies each
+`Indexing::transposes` (in `transpose_index.hpp`) fills an `Indexing::TransposePlan` and `Detail::transpose_images` copies each
 image as a matrix through 32 x 32 local tiles padded to 33 columns: a group of 8 x 32 work-items
 reads a tile along the input's adjacent axis and writes it along the output's, so both sides are
 coalesced and a column of the tile spreads over the banks. NHWC to NCHW and back both take it.
