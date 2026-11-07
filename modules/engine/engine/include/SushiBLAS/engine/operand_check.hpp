@@ -155,12 +155,18 @@ namespace SushiBLAS
         /**
          * @brief Throws unless a tensor holding elements has storage.
          * @param facts The storage of t.
-         * @throws std::invalid_argument when num_elements > 0 and the storage is absent.
+         * @throws std::invalid_argument when num_elements > 0 and the storage is absent; the
+         *         message says so when t is shape-only.
          * @see modules/engine/engine/README.md
          */
         inline void require_storage(const Tensor& t, const StorageFacts& facts, const char* op,
                                     const char* operand)
         {
+            if (t.num_elements > 0 && !facts.present && t.shape_only)
+                Detail::throw_operand_error(op, operand,
+                                            "is a shape-only tensor of {} elements; this check "
+                                            "needs memory and a shape-only tensor carries none",
+                                            t.num_elements);
             if (t.num_elements > 0 && !facts.present)
                 Detail::throw_operand_error(op, operand, "holds {} elements but has no storage",
                                             t.num_elements);

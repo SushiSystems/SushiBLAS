@@ -136,8 +136,8 @@ and the device index before they allocate. `Tensor::reshape` takes a braced list
 
 ## `tensor_factory.hpp`
 
-`TensorFactory` holds a `SushiRuntime::Runtime` and a default layout, and `create` allocates a dense
-tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
+`TensorFactory` holds a `SushiRuntime::Runtime` (or none, in its host form) and a default layout, and
+`create` allocates a dense tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
 sparse operands without an `Engine`. `allocation_bytes` is the size check alone: it returns the
 byte count a shape and dtype need, and throws `std::runtime_error` on a rank above
 `Core::K_MAX_TENSOR_RANK`, a negative dimension or an overflowing count. A shape with a zero

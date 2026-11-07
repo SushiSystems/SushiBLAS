@@ -23,7 +23,7 @@
 
 /**
  * @file tensor_factory.hpp
- * @brief Declares TensorFactory, which allocates dense tensors from one runtime.
+ * @brief Declares TensorFactory, which allocates dense tensors from one runtime or from host memory.
  * @author Mustafa Garip
  */
 
@@ -35,6 +35,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -43,12 +44,19 @@
 namespace SushiBLAS
 {
     /**
-     * @brief Allocates dense tensors of one default layout from one runtime.
+     * @brief Allocates dense tensors of one default layout from one runtime, or from host memory
+     *        when it has none.
      * @see modules/README.md
      */
     class TensorFactory final
     {
         public:
+            /** @brief Selects the constructor of a factory that needs no runtime. */
+            struct Host
+            {
+
+            };
+
             /**
              * @brief Binds the factory to the runtime that allocates.
              * @param runtime Performs every allocation; it must outlive the factory.
@@ -57,6 +65,16 @@ namespace SushiBLAS
             explicit TensorFactory(SushiRuntime::Runtime& runtime,
                                    Core::Layout layout = Core::Layout::RowMajor) noexcept
                 : runtime_(&runtime), layout_(layout)
+            {
+
+            }
+
+            /**
+             * @brief Makes a factory whose storages are host memory no runtime owns.
+             * @param layout Memory layout of every tensor the factory creates.
+             */
+            explicit TensorFactory(Host, Core::Layout layout = Core::Layout::RowMajor) noexcept
+                : runtime_(nullptr), layout_(layout)
             {
 
             }
@@ -70,9 +88,17 @@ namespace SushiBLAS
             /** @brief Returns the memory layout of every tensor the factory creates. */
             [[nodiscard]] Core::Layout layout() const noexcept { return layout_; }
 
-            /** @brief Returns the runtime that allocates. */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept
+            /** @brief Returns whether the factory makes host storages and has no runtime. */
+            [[nodiscard]] bool is_host() const noexcept { return runtime_ == nullptr; }
+
+            /**
+             * @brief Returns the runtime that allocates.
+             * @throws UnsupportedExecution on a host factory, which has none.
+             */
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const
             {
+                if (runtime_ == nullptr)
+                    throw UnsupportedExecution("A host TensorFactory has no runtime");
                 return *runtime_;
             }
 
@@ -99,7 +125,8 @@ namespace SushiBLAS
 
             /**
              * @brief Creates a dense tensor; a shape with a zero dimension gets no storage.
-             * @param device_index Device queue that owns the allocation; a device of the runtime.
+             * @param residency Where the memory lives; a host factory ignores it.
+             * @param device_index Device queue that owns the allocation; 0 on a host factory.
              * @throws std::runtime_error on a rank too high, a negative dimension, an overflowing
              *         byte count, a device index out of range or a failed allocation.
              */
@@ -110,7 +137,7 @@ namespace SushiBLAS
                 std::size_t device_index = 0) const
             {
                 const std::size_t bytes = allocation_bytes(dims, dtype);
-                const std::size_t device_count = runtime_->advanced().device_count();
+                const std::size_t device_count = runtime_ ? runtime_->advanced().device_count() : 1;
                 SB_THROW_IF(device_index >= device_count,
                             "Device index {} is out of range; the runtime has {} device queues",
                             device_index, device_count);
@@ -119,12 +146,14 @@ namespace SushiBLAS
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, dtype, 0, layout_);
 
                 SushiRuntime::sushi_ptr<Storage> storage =
-                    SushiRuntime::make_sushi<Storage>(*runtime_, bytes, residency, device_index);
+                    runtime_ ? SushiRuntime::make_sushi<Storage>(*runtime_, bytes, residency,
+                                                                 device_index)
+                             : SushiRuntime::make_sushi<Storage>(Storage::Host{}, bytes);
                 return Tensor(std::move(storage), dims, dtype, 0, layout_);
             }
 
         private:
-            /// @brief The runtime that allocates; never null.
+            /// @brief The runtime that allocates; null on a host factory.
             SushiRuntime::Runtime* runtime_;
 
             /// @brief The memory layout of every created tensor.

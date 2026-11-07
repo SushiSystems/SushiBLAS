@@ -22,7 +22,7 @@ for the operation. Three types cover the library:
 | Type | Base | Thrown when |
 | --- | --- | --- |
 | `std::invalid_argument` | `std::logic_error` | An operand, flag, scalar or parameter is wrong: missing storage, a dtype, rank, shape, layout, stride or length mismatch, a dtype outside the operation's domain, a flag outside its enumeration, a complex scalar for a real tensor, a bad window geometry |
-| `SushiBLAS::UnsupportedExecution` | `std::invalid_argument` | The operands are right and the operation cannot run under this mode or on this device: a device-only operand under `ForceReference`, FLOAT64 or COMPLEX64 storage on a device without `fp64`, HALF storage on a device without `fp16`, `poisson` on a device without `fp64` |
+| `SushiBLAS::UnsupportedExecution` | `std::invalid_argument` | The operands are right and the operation cannot run under this mode or on this device: a device-only operand under `ForceReference`, FLOAT64 or COMPLEX64 storage on a device without `fp64`, HALF storage on a device without `fp16`, `poisson` on a device without `fp64`, `Storage::queue()` on a host storage, `TensorFactory::runtime()` on a host factory |
 | `std::runtime_error` | `std::exception` | Creation: a `Tensor` or `Storage` rule (rank above 6, a negative dimension, an overflowing size, a failed allocation, an empty or misaligned borrowed buffer, a view past its storage), `TensorFactory::create`, `SparseBuilder` and `Sparse::assemble_csr`, a scratch allocation. A recording the runtime's recorder refuses |
 
 `UnsupportedExecution` (`core/errors.hpp`) derives from `std::invalid_argument`, so a handler

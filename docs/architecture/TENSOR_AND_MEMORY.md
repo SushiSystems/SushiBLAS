@@ -5,6 +5,11 @@ A `Tensor` (`tensor/tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype
 `slice()` return a new `Tensor` over the same `SushiRuntime::sushi_ptr<Storage>` and move no
 data. `K_MAX_TENSOR_RANK` is 6.
 
+`Tensor::make_shape_only(dims, dtype, layout)` builds a tensor with dims, strides, dtype and layout
+and no storage, with `shape_only` set. The record-time checks that read only shape and dtype run on
+it without a runtime; `data()` and `device()` throw on it, and `Dispatch::require_storage` refuses
+it with a message that says it is shape-only. The views taken from it stay shape-only.
+
 `Core::DataType` is `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`,
 `UInt32`, with the values 0 to 7 written out in `core/common.hpp`; `Core::K_DATA_TYPE_COUNT` is 8.
 `UInt32` is a count type: a tensor of it holds and moves values, the late count of
@@ -62,6 +67,12 @@ goes. A failed allocation throws `std::runtime_error` with the runtime's message
 size of zero and a device index the runtime does not drive. `Storage::queue()` returns the
 `sycl::queue` of the device that owns the allocation.
 
+A host `Storage`, built with the `Storage::Host` tag and a byte count, owns aligned host memory that
+no `Runtime` allocated (`tensor/host_block.hpp`). It rounds and aligns its size as a runtime
+storage does, and frees the memory with itself. `allocation_base()` and `size_bytes()` and a
+tensor's `data()` work on it, `residency()` reports `Residency::Host` and `device_index()` is 0, and `queue()` throws
+`UnsupportedExecution`, as no device owns the memory.
+
 A borrowed `Storage`, built with the `Storage::Borrowed` tag over a `Buffer<std::byte>` another
 owner keeps alive (such as one from SushiRuntime's `Interop::borrow`), owns nothing and allocates
 nothing. Its size is the buffer's, and its base is aligned to `alignof(std::max_align_t)` at
@@ -72,6 +83,10 @@ device the runtime does not drive, throws `std::runtime_error`.
 one `SushiRuntime::Runtime`, which must outlive it. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
 dimension, the byte count for overflow and the device index, and returns a tensor without storage
 when a dimension is 0. `Engine::create_tensor` forwards to it.
+
+`TensorFactory(TensorFactory::Host{}, layout)` makes a factory with no runtime. Its `create` returns
+tensors over host storages, ignores the residency, accepts only device index 0, and its `runtime()`
+throws `UnsupportedExecution`.
 
 ## Retention
 

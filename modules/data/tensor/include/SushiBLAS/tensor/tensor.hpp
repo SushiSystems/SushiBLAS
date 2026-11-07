@@ -23,7 +23,7 @@
 
 /**
  * @file tensor.hpp
- * @brief Declares Tensor, a typed, strided view over a Storage.
+ * @brief Declares Tensor, a typed, strided view over a Storage, or over none for validation.
  * @author Mustafa Garip
  */
 
@@ -100,6 +100,12 @@ namespace SushiBLAS
 
         /** @brief A pointer to the memory storage where the actual data is kept. */
         SushiRuntime::sushi_ptr<Storage> storage;
+
+        /**
+         * @brief Whether the tensor is only dims, strides, dtype and layout, built by
+         *        make_shape_only() and kept by the views taken from it.
+         */
+        bool shape_only = false;
 
         /**
          * @brief Holds where the first element sits inside the storage, in elements.
@@ -211,6 +217,38 @@ namespace SushiBLAS
                             "Storage capacity exceeded! Required: {} bytes, Available: {} bytes",
                             required_bytes, storage->size_bytes());
             }
+        }
+
+        /**
+         * @brief Makes a tensor of dims, dtype and layout with no storage, so a check that reads
+         *        shape and dtype runs on it without memory.
+         * @param l Orders the memory within one matrix; the strides derive from it.
+         * @return A tensor with shape_only set; data() and device() throw on it.
+         * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing size.
+         * @see modules/data/tensor/README.md
+         */
+        [[nodiscard]] static Tensor make_shape_only(SushiRuntime::span<const int64_t> dims,
+                                                    Core::DataType d = Core::DataType::Float32,
+                                                    Core::Layout l = Core::Layout::RowMajor)
+        {
+            return make_shape_only(dims, layout_strides(dims, l), d, l);
+        }
+
+        /**
+         * @brief Makes a tensor of dims, strides, dtype and layout that carries no storage.
+         * @param strides_in The stride of each dimension, in elements; none within the rank may be negative.
+         * @return A tensor with shape_only set; data() and device() throw on it.
+         * @throws std::runtime_error on a rank too high, a negative dimension or stride, or an overflowing size.
+         * @see modules/data/tensor/README.md
+         */
+        [[nodiscard]] static Tensor make_shape_only(
+            SushiRuntime::span<const int64_t> dims,
+            const std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK>& strides_in,
+            Core::DataType d, Core::Layout l)
+        {
+            Tensor t(SushiRuntime::sushi_ptr<Storage>(), dims, strides_in, d, 0, l);
+            t.shape_only = true;
+            return t;
         }
 
         /**
@@ -421,17 +459,20 @@ namespace SushiBLAS
             SB_LOG_TRACE(K_TENSOR_LOG_CATEGORY, "Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
                         dim, start, end, new_offset);
 
-            return Tensor(this->storage, SushiRuntime::span<const int64_t>(new_shape_arr.data(), static_cast<size_t>(rank)),
-                          this->strides, this->dtype, new_offset, this->layout);
+            Tensor view(this->storage, SushiRuntime::span<const int64_t>(new_shape_arr.data(), static_cast<size_t>(rank)),
+                        this->strides, this->dtype, new_offset, this->layout);
+            view.shape_only = shape_only;
+            return view;
         }
 
     private:
         /**
          * @brief Returns the address storage_offset elements past the allocation base.
-         * @throws std::runtime_error if the tensor has no storage or no data pointer.
+         * @throws std::runtime_error if the tensor is shape-only, has no storage or no data pointer.
          */
         inline void* first_element_address() const
         {
+            SB_THROW_IF(shape_only, "Accessing data of a shape-only tensor, which carries no storage");
             SB_THROW_IF(storage == nullptr, "Accessing data of a tensor with no storage");
             SB_THROW_IF(storage->allocation_base() == nullptr, "Accessing data of a tensor with no data pointer");
 
@@ -460,7 +501,9 @@ namespace SushiBLAS
 
             SB_LOG_TRACE(K_TENSOR_LOG_CATEGORY, "Tensor Reshaped: elements={}", new_len);
 
-            return Tensor(this->storage, new_dims, this->dtype, this->storage_offset, this->layout);
+            Tensor view(this->storage, new_dims, this->dtype, this->storage_offset, this->layout);
+            view.shape_only = shape_only;
+            return view;
         }
     };
 } // namespace SushiBLAS
