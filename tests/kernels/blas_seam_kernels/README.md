@@ -25,10 +25,13 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/level3/test_packed_product.cpp` | Tests that the packed product hands every sum of C, and only those, to its store |
 | `test_band_access.cpp` | Tests the offsets, the band test and the column ranges of BandAccess |
 | `test_conjugation.cpp` | Tests the two conjugation policies and the types they choose for a kernel |
+| `test_extent_index.cpp` | Tests the block count, the tail guard and the tile offset the kernels share, against hand values and a cover check |
+| `test_gemm_index.cpp` | Tests the group, staging, stride, fold and fragment index math of the SYCL GEMM against hand values and cover checks |
 | `test_givens.cpp` | Tests the Givens rotation brick on real and complex pairs |
 | `test_modified_givens.cpp` | Tests the modified Givens transformation brick and the store of its parameters |
 | `test_operand_access.cpp` | Tests OperandAccess: the strides of each layout and transpose, and the read it gives |
 | `test_packed_access.cpp` | Tests the offsets, the triangle test and the column ranges of PackedAccess |
+| `test_packed_product_index.cpp` | Tests the macro-block origin and the panel offsets of the packed product against hand values and a distinct-origin check |
 | `test_row_cursor.cpp` | Tests that a RowCursor steps by a growing stride and retreats along the same path |
 | `test_symmetric_access.cpp` | Tests SymmetricAccess reads of both triangles, both layouts and both conjugation policies |
 | `test_symmetric_row.cpp` | Tests that SymmetricRow visits a row of a band or packed symmetric matrix in order |

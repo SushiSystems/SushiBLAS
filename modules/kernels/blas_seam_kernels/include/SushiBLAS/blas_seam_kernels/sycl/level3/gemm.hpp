@@ -58,6 +58,8 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
+#include <SushiBLAS/blas_seam_kernels/gemm_index.hpp>
 
 namespace SushiBLAS
 {
@@ -135,18 +137,15 @@ namespace SushiBLAS
                     const T* origin = p + s.index(row0, col0);
                     if (!narrow)
                         return conjugate_if(s.conjugated, origin[s.index(r, c)]);
-                    const int32_t offset = static_cast<int32_t>(r) * static_cast<int32_t>(s.row) +
-                                           static_cast<int32_t>(c) * static_cast<int32_t>(s.col);
-                    return conjugate_if(s.conjugated, origin[offset]);
+                    return conjugate_if(s.conjugated,
+                                        origin[Indexing::narrow_offset(r, c, s.row, s.col)]);
                 }
 
                 /// @brief Returns whether every offset inside a rows x cols block fits in 32 bits.
                 [[nodiscard]] inline constexpr bool block_fits_int32(const OperandAccess& s,
                                                                      int rows, int cols) noexcept
                 {
-                    const int64_t last = static_cast<int64_t>(rows - 1) * s.row +
-                                         static_cast<int64_t>(cols - 1) * s.col;
-                    return s.row > 0 && s.col > 0 && last <= INT32_MAX;
+                    return Indexing::block_fits_int32(s.row, s.col, rows, cols);
                 }
 
                 /// @brief Holds the lanes of one 128-bit load of T; 1 marks a type read by element.
@@ -195,9 +194,8 @@ namespace SushiBLAS
                     if (K_LANES == 1 || s.conjugated)
                         return false;
 
-                    // The leading dimension is the stride of the axis that is not contiguous.
-                    const int64_t lead = s.row == 1 ? s.col : (s.col == 1 ? s.row : 0);
-                    return lead > 0 && lead % K_LANES == 0 && stride_batch % K_LANES == 0 &&
+                    const int64_t lead = Indexing::lead_stride(s.row, s.col);
+                    return Indexing::strides_are_aligned(lead, K_LANES, stride_batch, K_LANES) &&
                            reinterpret_cast<std::uintptr_t>(p) % K_LOAD_BYTES == 0;
                 }
 
@@ -265,7 +263,7 @@ namespace SushiBLAS
                                         const Access& s, const StagePlan& plan) noexcept
                 {
                     // Whether the block is whole is the same for every work-item of the group.
-                    const bool full = row0 + Rows <= rows && col0 + Cols <= cols;
+                    const bool full = Indexing::block_is_whole(row0, col0, Rows, Cols, rows, cols);
 
                     if constexpr (StagedLanes<T>::K_VALUE > 1 &&
                                   std::is_same<Access, OperandAccess>::value)
@@ -276,18 +274,18 @@ namespace SushiBLAS
                         if (full && plan.vector)
                         {
                             // One load takes K_LANES rows of a column, or K_LANES columns of a row.
-                            const int row_steps = plan.columns_contiguous ? Rows / K_LANES : Rows;
-                            const int col_steps = plan.columns_contiguous ? Cols : Cols / K_LANES;
                             for (int v = linear; v < Rows * Cols / K_LANES; v += Items)
                             {
-                                const int r = plan.columns_contiguous ? (v % row_steps) * K_LANES
-                                                                      : v / col_steps;
-                                const int c = plan.columns_contiguous ? v / row_steps
-                                                                      : (v % col_steps) * K_LANES;
+                                const Indexing::GridCoord at = Indexing::stage_vector_coord(
+                                    v, Rows, Cols, K_LANES, plan.columns_contiguous);
+                                const int r = static_cast<int>(at.row);
+                                const int c = static_cast<int>(at.col);
                                 const auto lanes = load_lanes(p + s.index(row0 + r, col0 + c));
                                 for (int l = 0; l < K_LANES; ++l)
-                                    tile[plan.columns_contiguous ? (r + l) * Ld + c
-                                                                 : r * Ld + c + l] = lanes[l];
+                                    tile[plan.columns_contiguous
+                                             ? Indexing::row_major_offset(r + l, Ld, c)
+                                             : Indexing::row_major_offset(r, Ld, c + l)] =
+                                        lanes[l];
                             }
                             return;
                         }
@@ -295,9 +293,11 @@ namespace SushiBLAS
 
                     for (int idx = linear; idx < Rows * Cols; idx += Items)
                     {
-                        const int r = plan.columns_contiguous ? idx % Rows : idx / Cols;
-                        const int c = plan.columns_contiguous ? idx / Rows : idx % Cols;
-                        tile[r * Ld + c] =
+                        const Indexing::GridCoord at =
+                            Indexing::stage_coord(idx, Rows, Cols, plan.columns_contiguous);
+                        const int r = static_cast<int>(at.row);
+                        const int c = static_cast<int>(at.col);
+                        tile[Indexing::row_major_offset(r, Ld, c)] =
                             full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
                                  : load_operand(p, row0 + r, col0 + c, rows, cols, s);
                     }
@@ -361,48 +361,14 @@ namespace SushiBLAS
                     }
                 };
 
-                /**
-                * @struct GroupShape
-                * @brief A two-dimensional work-group shape, in work-items.
-                */
-                struct GroupShape
-                {
-                    /** @brief Work-items down the row axis. */
-                    std::size_t rows = 1;
+                /** @brief Holds a two-dimensional work-group shape, in work-items. */
+                using Indexing::GroupShape;
 
-                    /** @brief Work-items across the column axis. */
-                    std::size_t cols = 1;
-                };
+                /** @brief Splits a work-item budget into the squarest power-of-two 2-D shape. */
+                using Indexing::group_shape;
 
-                /**
-                 * @brief Splits a work-item budget into the squarest power-of-two 2-D shape.
-                 * @return A shape whose product is at most budget and never zero.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                [[nodiscard]] inline GroupShape group_shape(std::size_t budget) noexcept
-                {
-                    std::size_t side = 1;
-                    while ((side * 2) * (side * 2) <= budget)
-                        side *= 2;
-
-                    // A non-square budget leaves room for a second row of sub-groups, which is taken; see modules/kernels/blas_seam_kernels/README.md.
-                    std::size_t rows = side;
-                    if (rows * 2 * side <= budget)
-                        rows *= 2;
-
-                    return GroupShape{rows, side};
-                }
-
-                /**
-                 * @brief Returns the group count covering extent in steps of block, at least one.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                [[nodiscard]] inline constexpr int64_t group_count(int64_t extent,
-                                                                   int64_t block) noexcept
-                {
-                    const int64_t count = (extent + block - 1) / block;
-                    return count > 0 ? count : int64_t{1};
-                }
+                /** @brief Returns the group count covering extent in steps of block, at least one. */
+                using Indexing::group_count;
 
                 /**
                  * @brief Computes GEMM by tiling A and B through local memory, for devices with real scratchpad memory.
@@ -468,14 +434,14 @@ namespace SushiBLAS
                         {
                             // Only global offsets and strides are 64-bit; see modules/kernels/blas_seam_kernels/README.md.
                             const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
-                            const int64_t row0 =
-                                static_cast<int64_t>(item.get_group(1)) * Configuration::K_BLOCK_M;
-                            const int64_t col0 =
-                                static_cast<int64_t>(item.get_group(2)) * Configuration::K_BLOCK_N;
+                            const int64_t row0 = Indexing::block_origin(
+                                static_cast<int64_t>(item.get_group(1)), Configuration::K_BLOCK_M, 0);
+                            const int64_t col0 = Indexing::block_origin(
+                                static_cast<int64_t>(item.get_group(2)), Configuration::K_BLOCK_N, 0);
                             const int local_row = static_cast<int>(item.get_local_id(1));
                             const int local_col = static_cast<int>(item.get_local_id(2));
-                            const int local_linear =
-                                local_row * Configuration::K_WG_COLS + local_col;
+                            const int local_linear = static_cast<int>(Indexing::row_major_offset(
+                                local_row, Configuration::K_WG_COLS, local_col));
 
                             const T* A = a + batch_id * str_a;
                             const T* B = b + batch_id * str_b;
@@ -511,13 +477,15 @@ namespace SushiBLAS
                                     T reg_b[Configuration::K_ITEM_COLS];
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
-                                        reg_a[ii] =
-                                            tile_a[(local_row + ii * Configuration::K_WG_ROWS) *
-                                                   Configuration::K_TILE_A_LD + kk];
+                                        reg_a[ii] = tile_a[Indexing::row_major_offset(
+                                            Indexing::lattice_coord(local_row, ii,
+                                                                    Configuration::K_WG_ROWS),
+                                            Configuration::K_TILE_A_LD, kk)];
                                     for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                        reg_b[jj] =
-                                            tile_b[kk * Configuration::K_TILE_B_LD +
-                                                   (local_col + jj * Configuration::K_WG_COLS)];
+                                        reg_b[jj] = tile_b[Indexing::row_major_offset(
+                                            kk, Configuration::K_TILE_B_LD,
+                                            Indexing::lattice_coord(local_col, jj,
+                                                                    Configuration::K_WG_COLS))];
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                         for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
@@ -530,15 +498,15 @@ namespace SushiBLAS
 
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
-                                const int64_t global_row =
-                                    row0 + local_row + ii * Configuration::K_WG_ROWS;
+                                const int64_t global_row = Indexing::lattice_coord(
+                                    row0 + local_row, ii, Configuration::K_WG_ROWS);
                                 if (global_row >= m)
                                     continue;
 
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
-                                    const int64_t global_col =
-                                        col0 + local_col + jj * Configuration::K_WG_COLS;
+                                    const int64_t global_col = Indexing::lattice_coord(
+                                        col0 + local_col, jj, Configuration::K_WG_COLS);
                                     if (global_col >= n)
                                         continue;
 
@@ -602,12 +570,12 @@ namespace SushiBLAS
                             const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
 
                             // Rows and columns form a strided lattice; see modules/kernels/blas_seam_kernels/README.md.
-                            const int64_t row0 =
-                                static_cast<int64_t>(item.get_group(1)) * block_m +
-                                static_cast<int64_t>(item.get_local_id(1));
-                            const int64_t col0 =
-                                static_cast<int64_t>(item.get_group(2)) * block_n +
-                                static_cast<int64_t>(item.get_local_id(2));
+                            const int64_t row0 = Indexing::block_origin(
+                                static_cast<int64_t>(item.get_group(1)), block_m,
+                                static_cast<int64_t>(item.get_local_id(1)));
+                            const int64_t col0 = Indexing::block_origin(
+                                static_cast<int64_t>(item.get_group(2)), block_n,
+                                static_cast<int64_t>(item.get_local_id(2)));
 
                             const T* A = a + batch_id * str_a;
                             const T* B = b + batch_id * str_b;
@@ -627,10 +595,10 @@ namespace SushiBLAS
 
                                 // load_operand's zero fill is the tail guard, so no remainder loop is needed; see modules/kernels/blas_seam_kernels/README.md.
                                 for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
-                                    reg_a[ii] = load_operand(A, row0 + ii * wg_rows, kk,
+                                    reg_a[ii] = load_operand(A, Indexing::lattice_coord(row0, ii, wg_rows), kk,
                                                              m, k, a_access);
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                    reg_b[jj] = load_operand(B, kk, col0 + jj * wg_cols,
+                                    reg_b[jj] = load_operand(B, kk, Indexing::lattice_coord(col0, jj, wg_cols),
                                                              k, n, b_access);
 
                                 for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
@@ -641,13 +609,13 @@ namespace SushiBLAS
 
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
-                                const int64_t global_row = row0 + ii * wg_rows;
+                                const int64_t global_row = Indexing::lattice_coord(row0, ii, wg_rows);
                                 if (global_row >= m)
                                     continue;
 
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
-                                    const int64_t global_col = col0 + jj * wg_cols;
+                                    const int64_t global_col = Indexing::lattice_coord(col0, jj, wg_cols);
                                     if (global_col >= n)
                                         continue;
 
@@ -778,17 +746,20 @@ namespace SushiBLAS
                                        [=](sycl::nd_item<1> item)
                         {
                             const int64_t group = static_cast<int64_t>(item.get_group(0));
-                            const int64_t batch_id = group / blocks;
-                            const int64_t block = group % blocks;
+                            const Indexing::SplitGroup owned = Indexing::split_group(group, blocks);
+                            const int64_t batch_id = owned.batch;
+                            const int64_t block = owned.block;
                             const std::size_t lane = item.get_local_id(0);
 
                             // Neighbouring work-items take neighbouring columns, then neighbouring K-steps; see modules/kernels/blas_seam_kernels/README.md.
-                            const std::size_t column_lane = lane % column_lanes;
-                            const std::size_t depth_lane = lane / column_lanes;
+                            const Indexing::SplitLane lanes = Indexing::split_lane(lane, column_lanes);
+                            const std::size_t depth_lane = lanes.depth;
 
-                            const int64_t row0 = (block / n_blocks) * Configuration::K_ITEM_ROWS;
-                            const int64_t col0 = (block % n_blocks) * block_cols +
-                                static_cast<int64_t>(column_lane) * Configuration::K_ITEM_COLS;
+                            const Indexing::GridCoord origin = Indexing::split_origin(
+                                block, n_blocks, Configuration::K_ITEM_ROWS, block_cols,
+                                lanes.column, Configuration::K_ITEM_COLS);
+                            const int64_t row0 = origin.row;
+                            const int64_t col0 = origin.col;
 
                             const T* A = a + batch_id * str_a;
                             const T* B = b + batch_id * str_b;
@@ -821,9 +792,10 @@ namespace SushiBLAS
                             // Element e of a work-item's block keeps its partial at tile[e * width + lane].
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                    tile[static_cast<std::size_t>(
-                                             ii * Configuration::K_ITEM_COLS + jj) * width + lane] =
-                                        acc[ii][jj];
+                                    tile[Indexing::partial_slot(
+                                        static_cast<std::size_t>(Indexing::row_major_offset(
+                                            ii, Configuration::K_ITEM_COLS, jj)),
+                                        width, lane)] = acc[ii][jj];
 
                             sycl::group_barrier(item.get_group());
 
@@ -835,9 +807,11 @@ namespace SushiBLAS
                                     for (std::size_t e = 0;
                                          e < static_cast<std::size_t>(Configuration::K_BLOCK_ITEMS);
                                          ++e)
-                                        tile[e * width + lane] =
-                                            tile[e * width + lane] +
-                                            tile[e * width + lane + off * column_lanes];
+                                        tile[Indexing::partial_slot(e, width, lane)] =
+                                            tile[Indexing::partial_slot(e, width, lane)] +
+                                            tile[Indexing::partial_slot(
+                                                e, width,
+                                                Indexing::fold_partner(lane, off, column_lanes))];
                                 }
                                 sycl::group_barrier(item.get_group());
                             }
@@ -859,8 +833,10 @@ namespace SushiBLAS
                                         continue;
 
                                     const int64_t c_idx = c_access.index(global_row, global_col);
-                                    const W sum = tile[static_cast<std::size_t>(
-                                        ii * Configuration::K_ITEM_COLS + jj) * width + lane];
+                                    const W sum = tile[Indexing::partial_slot(
+                                        static_cast<std::size_t>(Indexing::row_major_offset(
+                                            ii, Configuration::K_ITEM_COLS, jj)),
+                                        width, lane)];
 
                                     // beta == 0 must not read the prior C value, which may be uninitialised; see modules/kernels/blas_seam_kernels/README.md.
                                     const T value = (beta == T(0))

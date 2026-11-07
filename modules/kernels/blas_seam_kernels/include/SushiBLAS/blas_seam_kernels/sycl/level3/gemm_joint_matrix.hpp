@@ -37,6 +37,8 @@
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
+#include <SushiBLAS/blas_seam_kernels/gemm_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 
 namespace SushiBLAS
@@ -99,10 +101,9 @@ namespace SushiBLAS
                                                                int64_t stride_batch) noexcept
                 {
                     using Tile = GemmJointMatrixTile;
-                    const int64_t lead = s.row == 1 ? s.col : (s.col == 1 ? s.row : 0);
-                    const int64_t fragment_elements = Tile::K_FRAGMENT;
-                    return lead > 0 && lead % Tile::K_LEAD_MULTIPLE == 0 &&
-                           stride_batch % fragment_elements == 0 &&
+                    const int64_t lead = Indexing::lead_stride(s.row, s.col);
+                    return Indexing::strides_are_aligned(lead, Tile::K_LEAD_MULTIPLE, stride_batch,
+                                                         Tile::K_FRAGMENT) &&
                            reinterpret_cast<std::uintptr_t>(p) % Tile::K_ALIGNMENT == 0;
                 }
 
@@ -181,12 +182,12 @@ namespace SushiBLAS
                         const int sub = static_cast<int>(sg.get_group_linear_id());
                         const int lane = static_cast<int>(sg.get_local_linear_id());
                         const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
-                        const int64_t row0 =
-                            static_cast<int64_t>(item.get_group(1)) * Tile::K_BLOCK +
-                            (sub / Tile::K_SUB_GROUPS) * Tile::K_SUB_BLOCK;
-                        const int64_t col0 =
-                            static_cast<int64_t>(item.get_group(2)) * Tile::K_BLOCK +
-                            (sub % Tile::K_SUB_GROUPS) * Tile::K_SUB_BLOCK;
+                        const Indexing::GridCoord origin = Indexing::sub_group_origin(
+                            static_cast<int64_t>(item.get_group(1)),
+                            static_cast<int64_t>(item.get_group(2)), sub, Tile::K_BLOCK,
+                            Tile::K_SUB_BLOCK, Tile::K_SUB_GROUPS);
+                        const int64_t row0 = origin.row;
+                        const int64_t col0 = origin.col;
 
                         const sycl::half* A = a + batch_id * str_a;
                         const sycl::half* B = b + batch_id * str_b;
@@ -197,8 +198,8 @@ namespace SushiBLAS
                         bool col_inside[Tile::K_FRAGMENTS];
                         for (int f = 0; f < Tile::K_FRAGMENTS; ++f)
                         {
-                            row_inside[f] = row0 + f * Tile::K_FRAGMENT < m;
-                            col_inside[f] = col0 + f * Tile::K_FRAGMENT < n;
+                            row_inside[f] = Indexing::fragment_inside(row0, f, Tile::K_FRAGMENT, m);
+                            col_inside[f] = Indexing::fragment_inside(col0, f, Tile::K_FRAGMENT, n);
                         }
 
                         FragmentC acc[Tile::K_FRAGMENTS][Tile::K_FRAGMENTS];
@@ -258,10 +259,14 @@ namespace SushiBLAS
                                 for (int e = lane; e < K_FRAGMENT_ELEMENTS;
                                      e += Tile::K_SUB_GROUP)
                                 {
+                                    const Indexing::GridCoord inside =
+                                        Indexing::fragment_element(e, Tile::K_FRAGMENT);
                                     const int64_t row =
-                                        row0 + i * Tile::K_FRAGMENT + e / Tile::K_FRAGMENT;
+                                        Indexing::lattice_coord(row0, i, Tile::K_FRAGMENT) +
+                                        inside.row;
                                     const int64_t col =
-                                        col0 + j * Tile::K_FRAGMENT + e % Tile::K_FRAGMENT;
+                                        Indexing::lattice_coord(col0, j, Tile::K_FRAGMENT) +
+                                        inside.col;
                                     const int64_t c_idx = c_access.index(row, col);
                                     const W scaled = W(alpha) * W(slot[e]);
                                     const W value = (beta == sycl::half(0))
@@ -296,8 +301,8 @@ namespace SushiBLAS
                 {
                     using Tile = GemmJointMatrixTile;
 
-                    const int64_t m_groups = (m + Tile::K_BLOCK - 1) / Tile::K_BLOCK;
-                    const int64_t n_groups = (n + Tile::K_BLOCK - 1) / Tile::K_BLOCK;
+                    const int64_t m_groups = Indexing::ceil_div(m, Tile::K_BLOCK);
+                    const int64_t n_groups = Indexing::ceil_div(n, Tile::K_BLOCK);
                     const sycl::range<3> global(static_cast<std::size_t>(batch_size),
                                                 static_cast<std::size_t>(m_groups),
                                                 static_cast<std::size_t>(n_groups) *
@@ -305,10 +310,10 @@ namespace SushiBLAS
                     const sycl::range<3> local(1, 1, Tile::K_WG_ITEMS);
 
                     // A fragment load strides by the step of the axis that is not contiguous.
-                    const std::size_t a_stride =
-                        static_cast<std::size_t>(a_access.col == 1 ? a_access.row : a_access.col);
-                    const std::size_t b_stride =
-                        static_cast<std::size_t>(b_access.col == 1 ? b_access.row : b_access.col);
+                    const std::size_t a_stride = static_cast<std::size_t>(
+                        Indexing::fragment_stride(a_access.row, a_access.col));
+                    const std::size_t b_stride = static_cast<std::size_t>(
+                        Indexing::fragment_stride(b_access.row, b_access.col));
 
                     const JointMatrixKernel<LayoutA, LayoutB, Epilogue> kernel{
                         m, n, k, alpha, a, a_access, str_a, a_stride, b, b_access, str_b,

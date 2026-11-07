@@ -17,6 +17,9 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
 | `givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
 | `modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
+| `extent_index.hpp` | `ceil_div`, `live_count` and `row_major_offset`, the block count, the tail guard and the tile offset the kernels share, for the host and the device |
+| `gemm_index.hpp` | The group shape and count, the staging coordinates, the stride tests, the depth-split lane split, the fold positions and the joint_matrix fragment positions of the SYCL GEMM, for the host and the device |
+| `packed_product_index.hpp` | The macro-block origin and the micro-panel offsets of the packed product, for the host and the device |
 | `level3/gemm_epilogue.hpp` | `GemmIdentityEpilogue`, the default GEMM epilogue |
 | `level3/channel_bias_epilogue.hpp` | `ChannelBiasEpilogue`, the per-channel bias add |
 | `level3/gemm_tile_shape.hpp` | `GemmTileShape`, the compile-time geometry of one tiled GEMM kernel, and `register_block_dim` |
@@ -32,6 +35,12 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
 | `sycl/level3/packed_panel.hpp` | `pack_panel`, which copies a block of op(X) into unit-stride micro-panels |
 | `sycl/level3/packed_micro_kernel.hpp` | The micro-kernel, which accumulates one register block |
+
+The `*_index.hpp` headers include no SYCL header. The SYCL kernels call them, and `pack_panel` calls the
+same functions, so a host test of a function tests the arithmetic the device runs. The launch shape of a
+kernel and its public signature are unchanged. `packed_micro_kernel.hpp` holds the outer products and
+nothing else, and `gemm_accessed_packed.hpp` and `gemm_packed.hpp` only choose and forward, so nothing
+moved out of them.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -380,7 +389,7 @@ and no barrier there is nothing whose size depends on it, so it is taken from
 Comes out as 4x4 for `half` and `float` and 2x2 for the 8- and 16-byte types: see
 `K_NO_LOCAL_ACC_BYTES` for why smaller is right here.
 
-### `Detail::group_shape`
+### `Indexing::group_shape`
 
 Square-ish on purpose: a work-group covering a square-ish block of C reads the fewest operand
 elements per element of C it produces, which is the whole arithmetic-intensity argument for register
@@ -389,7 +398,7 @@ blocking applied one level up.
 `std::size_t rows = side;` in `group_shape`: a budget that is not a perfect square leaves room for a
 second row of sub-groups, and taking it beats leaving half the group idle.
 
-### `Detail::group_count`
+### `Indexing::group_count`
 
 The clamp matters for the legal degenerate cases: BLAS permits m or n of zero, and a zero-sized
 `nd_range` is a launch failure. One group that stores nothing is the cheap, correct answer.

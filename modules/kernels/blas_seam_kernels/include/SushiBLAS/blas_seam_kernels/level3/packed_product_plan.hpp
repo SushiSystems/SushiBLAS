@@ -37,6 +37,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
 
 namespace SushiBLAS
 {
@@ -123,7 +124,7 @@ namespace SushiBLAS
             [[nodiscard]] inline constexpr int64_t packed_block_count(int64_t extent,
                                                                       int64_t block) noexcept
             {
-                return (extent + block - 1) / block;
+                return Indexing::ceil_div(extent, block);
             }
         } // namespace Detail
 

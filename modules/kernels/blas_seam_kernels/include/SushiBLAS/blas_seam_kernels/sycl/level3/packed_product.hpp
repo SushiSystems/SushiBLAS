@@ -38,7 +38,9 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_seam_kernels/packed_product_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_panel.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp>
@@ -107,15 +109,14 @@ namespace SushiBLAS
                         /** @brief Computes one macro-block of C in a scratch slot and stores it. */
                         void run_block(int64_t block, R* slot) const
                         {
-                            const int64_t per_matrix = plan_.row_blocks * plan_.col_blocks;
-                            const int64_t batch_id = block / per_matrix;
-                            const int64_t in_matrix = block % per_matrix;
-                            const int64_t row0 = (in_matrix % plan_.row_blocks) * plan_.block_rows;
-                            const int64_t col0 = (in_matrix / plan_.row_blocks) * plan_.block_cols;
-                            const int64_t rows =
-                                (m_ - row0 < plan_.block_rows) ? m_ - row0 : plan_.block_rows;
-                            const int64_t cols =
-                                (n_ - col0 < plan_.block_cols) ? n_ - col0 : plan_.block_cols;
+                            const Indexing::PackedBlock at = Indexing::packed_block(
+                                block, plan_.row_blocks, plan_.col_blocks, plan_.block_rows,
+                                plan_.block_cols);
+                            const int64_t batch_id = at.batch;
+                            const int64_t row0 = at.row0;
+                            const int64_t col0 = at.col0;
+                            const int64_t rows = Indexing::live_count(m_, row0, plan_.block_rows);
+                            const int64_t cols = Indexing::live_count(n_, col0, plan_.block_cols);
 
                             if (!store_.wants(row0, rows, col0, cols))
                                 return;
@@ -124,8 +125,8 @@ namespace SushiBLAS
                             R* b_panel = slot + plan_.a_panel_bytes / sizeof(R);
                             R* tile = b_panel + plan_.b_panel_bytes / sizeof(R);
 
-                            const int64_t row_groups = (rows + Block::K_ROWS - 1) / Block::K_ROWS;
-                            const int64_t col_groups = (cols + Block::K_COLS - 1) / Block::K_COLS;
+                            const int64_t row_groups = Indexing::ceil_div(rows, Block::K_ROWS);
+                            const int64_t col_groups = Indexing::ceil_div(cols, Block::K_COLS);
                             const int64_t live_reals =
                                 row_groups * col_groups * Block::K_TILE_REALS;
                             for (int64_t i = 0; i < live_reals; ++i)
@@ -136,9 +137,8 @@ namespace SushiBLAS
 
                             for (int64_t term0 = 0; term0 < k_; term0 += plan_.block_depth)
                             {
-                                const int64_t left = k_ - term0;
                                 const int64_t depth =
-                                    (left < plan_.block_depth) ? left : plan_.block_depth;
+                                    Indexing::live_count(k_, term0, plan_.block_depth);
 
                                 pack_panel<T, Block::K_ROWS, PanelLines::Rows>(
                                     A, a_access_, row0, rows, term0, depth, a_panel);
@@ -150,8 +150,11 @@ namespace SushiBLAS
                                 for (int64_t h = 0; h < col_groups; ++h)
                                     for (int64_t g = 0; g < row_groups; ++g)
                                         packed_micro_kernel<W>(
-                                            depth, a_panel + g * a_micro, b_panel + h * b_micro,
-                                            tile + (h * row_groups + g) * Block::K_TILE_REALS);
+                                            depth,
+                                            a_panel + Indexing::micro_panel_offset(g, a_micro),
+                                            b_panel + Indexing::micro_panel_offset(h, b_micro),
+                                            tile + Indexing::micro_tile_index(g, h, row_groups) *
+                                                       Block::K_TILE_REALS);
                             }
 
                             store_block(c_ + batch_id * str_c_, tile, row0, rows, col0, cols,
@@ -166,23 +169,22 @@ namespace SushiBLAS
                             for (int64_t h = 0; h < col_groups; ++h)
                             {
                                 const int64_t col_base = h * Block::K_COLS;
-                                const int64_t cols_left = cols - col_base;
                                 const int64_t live_cols =
-                                    (cols_left < Block::K_COLS) ? cols_left : Block::K_COLS;
+                                    Indexing::live_count(cols, col_base, Block::K_COLS);
 
                                 for (int64_t g = 0; g < row_groups; ++g)
                                 {
                                     const int64_t row_base = g * Block::K_ROWS;
-                                    const int64_t rows_left = rows - row_base;
                                     const int64_t live_rows =
-                                        (rows_left < Block::K_ROWS) ? rows_left : Block::K_ROWS;
+                                        Indexing::live_count(rows, row_base, Block::K_ROWS);
                                     const R* micro =
-                                        tile + (h * row_groups + g) * Block::K_TILE_REALS;
+                                        tile + Indexing::micro_tile_index(g, h, row_groups) *
+                                                   Block::K_TILE_REALS;
 
                                     for (int64_t r = 0; r < live_rows; ++r)
                                         for (int64_t s = 0; s < live_cols; ++s)
                                             store_(C, row0 + row_base + r, col0 + col_base + s,
-                                                   sum_at(micro, r * Block::K_COLS + s));
+                                                   sum_at(micro, Indexing::row_major_offset(r, Block::K_COLS, s)));
                                 }
                             }
                         }

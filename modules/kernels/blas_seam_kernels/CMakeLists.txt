@@ -28,10 +28,13 @@ sushiblas_add_test_program(
         sycl/level3/test_packed_panel.cpp
         test_band_access.cpp
         test_conjugation.cpp
+        test_extent_index.cpp
+        test_gemm_index.cpp
         test_givens.cpp
         test_modified_givens.cpp
         test_operand_access.cpp
         test_packed_access.cpp
+        test_packed_product_index.cpp
         test_row_cursor.cpp
         test_symmetric_access.cpp
         test_symmetric_row.cpp

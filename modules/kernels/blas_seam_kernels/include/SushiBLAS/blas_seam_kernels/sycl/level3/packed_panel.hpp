@@ -33,7 +33,9 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_seam_kernels/packed_product_index.hpp>
 
 namespace SushiBLAS
 {
@@ -125,7 +127,7 @@ namespace SushiBLAS
                     constexpr int64_t slice_reals = parts * Width;
 
                     const int64_t micro_reals = depth * slice_reals;
-                    const int64_t groups = (count + Width - 1) / Width;
+                    const int64_t groups = Indexing::ceil_div(count, Width);
 
                     // The inner loop of each arm walks the axis the source stores contiguously.
                     if (has_adjacent_lines(access, Lines))
@@ -136,9 +138,9 @@ namespace SushiBLAS
                             for (int64_t g = 0; g < groups; ++g)
                             {
                                 const int64_t line0 = first + g * Width;
-                                const int64_t left = count - g * Width;
-                                const int64_t live = (left < Width) ? left : Width;
-                                R* slice = panel + g * micro_reals + l * slice_reals;
+                                const int64_t live = Indexing::live_count(count, g * Width, Width);
+                                R* slice = panel + Indexing::micro_panel_offset(g, micro_reals) +
+                                           Indexing::slice_offset(l, slice_reals);
                                 for (int64_t r = 0; r < live; ++r)
                                     store_packed<W, Width>(
                                         slice, r,
@@ -152,26 +154,26 @@ namespace SushiBLAS
                         for (int64_t g = 0; g < groups; ++g)
                         {
                             const int64_t line0 = first + g * Width;
-                            const int64_t left = count - g * Width;
-                            const int64_t live = (left < Width) ? left : Width;
-                            R* micro = panel + g * micro_reals;
+                            const int64_t live = Indexing::live_count(count, g * Width, Width);
+                            R* micro = panel + Indexing::micro_panel_offset(g, micro_reals);
                             for (int64_t r = 0; r < live; ++r)
                                 for (int64_t l = 0; l < depth; ++l)
                                     store_packed<W, Width>(
-                                        micro + l * slice_reals, r,
+                                        micro + Indexing::slice_offset(l, slice_reals), r,
                                         static_cast<W>(panel_element<Lines>(x, access, line0 + r,
                                                                             term_first + l)));
                         }
                     }
 
                     // Only the last micro-panel can be short; its missing lines are zeroed here.
-                    const int64_t tail = count - (groups - 1) * Width;
+                    const int64_t tail = Indexing::live_count(count, (groups - 1) * Width, Width);
                     if (groups > 0 && tail < Width)
                     {
-                        R* micro = panel + (groups - 1) * micro_reals;
+                        R* micro = panel + Indexing::micro_panel_offset(groups - 1, micro_reals);
                         for (int64_t l = 0; l < depth; ++l)
                             for (int64_t r = tail; r < Width; ++r)
-                                store_packed<W, Width>(micro + l * slice_reals, r, W(0));
+                                store_packed<W, Width>(micro + Indexing::slice_offset(l, slice_reals),
+                                                       r, W(0));
                     }
                 }
             } // namespace Detail
