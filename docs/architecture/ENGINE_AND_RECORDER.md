@@ -19,9 +19,8 @@ shows the four lines. The engine is not copyable or movable, and the `Runtime` o
 host storages, the scratch pool takes its blocks from a `HostScratchSource`, and the engine owns the
 `HostTaskSink` that `host_sink()` returns. Its mode is `ForceReference`, and `set_mode` with another mode
 and `runtime()` throw `UnsupportedExecution`. A test of an operation records on it through a
-`TaskRecorder` over `host_sink()` and runs the bodies on the host, with no queue. It accepts a body of
-the shape `(dispatcher, deps)`; a body of the old shape is refused at record time with
-`UnsupportedExecution`, and the message names the task.
+`TaskRecorder` over `host_sink()` and runs the bodies on the host, with no queue. Every operation
+body has the shape `(dispatcher, deps)`, so every operation runs on it.
 
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`
 
@@ -41,10 +40,8 @@ sycl::event` that must order its work behind the events it is given. It reaches 
 the dispatcher: `KernelPairDispatcher` holds the mode and the queue the task runs on, and
 `dispatcher.run(deps, reference_fn, sycl_fn)` hands that queue to `sycl_fn`. A dispatcher on a host
 sink holds no queue, and `queue()` throws `UnsupportedExecution`. On the SYCL side every command
-group calls `h.depends_on(deps)`; `check_engine_seams.py` reports a command group without it. The
-old body shape `(const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)` is
-deprecated and still accepted on the graph sink until every body has moved (H5 of the test review
-plan); a sink that provides no queue (`TaskSink::provides_queue()`) refuses it.
+group calls `h.depends_on(deps)`; `check_engine_seams.py` reports a command group without it. Every
+operation body reaches the queue through `sycl_fn` alone.
 
 One mutex in the recorder serialises record calls, so several threads may record on one recorder
 at once; the tasks reach the graph in the order the threads took the lock. A run of the graph and

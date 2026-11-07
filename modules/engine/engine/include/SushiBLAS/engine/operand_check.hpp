@@ -37,6 +37,7 @@
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/engine_log_category.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
@@ -140,7 +141,7 @@ namespace SushiBLAS
             if (!facts.present || (!needs_fp64 && !needs_fp16))
                 return facts;
 
-            const Device::Profile& profile = Device::profile_for(t.device());
+            const Device::Profile& profile = profile_of(t);
             facts.supports_fp64 = profile.supports_fp64;
             facts.supports_fp16 = profile.supports_fp16;
             return facts;

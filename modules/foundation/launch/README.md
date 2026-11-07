@@ -116,6 +116,12 @@ wave64, and on Intel the widest of {8,16,32}, which is the one that amortises a 
 best. An empty list would be a spec violation, but a zero here would divide by zero downstream, so
 it is guarded.
 
+### `host_profile`
+
+The `Profile` a host engine sizes its work for: one CPU thread, double and half precision, no
+local memory and the assumed cache. A host engine has no device to probe, and its reference kernels
+run every dtype, so `Dispatch::profile_of` in `engine` hands this one out for a host storage.
+
 ### `profile_for`
 
 Called on every task execution, so it must not re-query: a replayed graph runs the same fifty nodes

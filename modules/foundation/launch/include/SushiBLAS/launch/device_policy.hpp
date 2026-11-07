@@ -497,6 +497,27 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns the Profile of the host that runs the reference kernels of a host engine.
+         *
+         * One thread with no local memory, double and half precision, and the assumed cache.
+         * @return A reference valid for the rest of the process.
+         * @see modules/foundation/launch/README.md
+         */
+        [[nodiscard]] inline const Profile& host_profile() noexcept
+        {
+            static const Profile host = []
+            {
+                Profile p;
+                p.is_cpu = true;
+                p.supports_fp64 = true;
+                p.supports_fp16 = true;
+                p.blocking = cache_blocking_for(p.cache_bytes);
+                return p;
+            }();
+            return host;
+        }
+
+        /**
          * @brief The work-group size to launch with, in work-items.
          *
          * Clamped to what the device accepts and rounded down to a whole number

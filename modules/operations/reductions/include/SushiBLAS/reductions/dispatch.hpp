@@ -34,6 +34,7 @@
 #include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -95,7 +96,7 @@ namespace SushiBLAS
             if (t.num_elements <= 0)
                 return 0;
 
-            return Reduce::planned_partials(Device::profile_for(t.device()),
+            return Reduce::planned_partials(Dispatch::profile_of(t),
                                             static_cast<std::size_t>(t.num_elements));
         }
 
@@ -219,11 +220,10 @@ namespace SushiBLAS
 
                     /** @brief Runs the serial host fold under ForceReference, else submits the kernels. */
                     Result operator()(const KernelPairDispatcher& pair,
-                                      sycl::queue& q,
                                       const std::vector<sycl::event>& deps) const
                     {
 
-                        return pair.run(q, deps,
+                        return pair.run(deps,
                             [this] { dispatch_.reference(in_, out_, size_); },
                             [this](sycl::queue& q2,
                                    const std::vector<sycl::event>& deps2) -> Result
@@ -440,11 +440,10 @@ namespace SushiBLAS
 
                     /** @brief Runs the serial host folds under ForceReference, else submits the kernel. */
                     sycl::event operator()(const KernelPairDispatcher& pair,
-                                           sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
 
-                        return pair.run(q, deps,
+                        return pair.run(deps,
                             [this]
                             {
                                 require_finalize_keeps_width<

@@ -128,14 +128,14 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::All>(
             recorder_, description, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_src);
                 auto destination = static_cast<T*>(write_dst);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::copy_channel_range<T>(span, 0, dst_channel_offset,
@@ -177,14 +177,14 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::All>(
             recorder_, description, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_src);
                 auto destination = static_cast<T*>(write_dst);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::copy_channel_range<T>(span, src_channel_offset, 0,

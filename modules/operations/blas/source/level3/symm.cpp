@@ -119,7 +119,7 @@ namespace SushiBLAS
 
             return Internal::execute_blas_task(recorder, metadata.get(), operands, A.dtype,
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -137,7 +137,7 @@ namespace SushiBLAS
                         Kernels::operand_access(layout, Core::Transpose::NoTrans, ldc);
                     const Kernels::GemmIdentityEpilogue identity{};
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             if (left)

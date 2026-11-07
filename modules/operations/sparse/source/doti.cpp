@@ -86,7 +86,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, x.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
+                    const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -96,7 +96,7 @@ namespace SushiBLAS
                     auto py = static_cast<const T*>(read_y);
                     auto pr = static_cast<T*>(write_result);
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::doti<T, Index, Policy>(px, positions, py, incy, pr);

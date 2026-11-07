@@ -19,13 +19,13 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which routes one kernel of a reference and SYCL pair and holds the queue the SYCL half runs on |
-| `pair_body.hpp` | `Detail::call_pair_body` and `call_scalar_body`, which run a recorded body in its current or its old shape |
 | `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through |
 | `graph_task_sink.hpp` | `GraphTaskSink`, the adapter that adds each task to a `SushiRuntime::Recorder` |
 | `host_task_sink.hpp` | `HostTaskSink`, the adapter that keeps bodies in record order and runs them on the host under `ForceReference` |
 | `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
 | `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
 | `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
+| `tensor_profile.hpp` | `Dispatch::profile_of`, the device `Profile` an operation sizes its work for from a tensor: the host `Profile` for a host storage, so no record call on a host engine asks a device |
 | `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block |
 | `scratch_pool.hpp` | `ScratchPool`, the owner of the scratch blocks an `Engine` lends |
 | `scratch_shelf.hpp` | The shelf of idle scratch blocks and the block it lends |
@@ -289,11 +289,11 @@ that empties its graph does it through it. Three things are outside the lock:
 
 ### `TaskSink`, `GraphTaskSink` and `HostTaskSink`
 
-`TaskSink` is the port: `admits(mode)`, `provides_queue()`, `graph()` and `add_pair(description, operands, mode, origin,
+`TaskSink` is the port: `admits(mode)`, `graph()` and `add_pair(description, operands, mode, origin,
 body)`, where the body is a `std::function<sycl::event(const KernelPairDispatcher&, const
 std::vector<sycl::event>&)>`. `TaskRecorder` calls it with its recording mutex held.
 
-`GraphTaskSink` admits every mode and provides a queue; `HostTaskSink` provides none. `add_pair` records a node with the cost of the table plus the
+`GraphTaskSink` admits every mode and hands each body a dispatcher that holds the device's queue; `HostTaskSink` hands one that holds none. `add_pair` records a node with the cost of the table plus the
 bytes, the region access of the operands, and a `Detail::GraphPairTask` that builds
 `KernelPairDispatcher(mode, q)` with the queue the runtime gives the task and keeps one reference to
 each operand storage. `insert_node` holds what `TaskRecorder::insert_node` held: the
@@ -327,12 +327,8 @@ the host engine uses it as it is.
 A recorder on a host engine is `TaskRecorder(engine.host_sink(), &engine.scratch_pool())`;
 `HostRecordingFixture` in `engine_fixture` builds that. A host engine accepts a body of the shape
 `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`: `pair.run(deps, reference_fn,
-sycl_fn)` runs `reference_fn`, and `pair.queue()` throws. A body of the old shape `(dispatcher,
-sycl::queue&, deps)` cannot run there, since a host sink has no queue to hand it, so
-`record_pair` throws `UnsupportedExecution` at record time with a message that names the task, and records
-nothing. `TaskSink::provides_queue()` is what it asks. A dtype-dispatched body of the old shape
-`(T, dispatcher, queue, deps)` is not seen at record time; it fails at run time, and `HostTaskSink::run()`
-names the task. The old shape is removed in H5 of the test review plan.
+sycl_fn)` runs `reference_fn`, and `pair.queue()` throws. Every operation body has that shape, so
+every operation records and runs on a host engine.
 
 `EngineContract` (`tests/engine/engine/test_engine/test_engine_contract.cpp`) runs on both: `Small_` on
 the host engine, `Medium_` on the engine on a runtime. It creates a tensor and reads its bytes back,
@@ -342,11 +338,8 @@ records a reference task and runs it, leases scratch and returns it, and checks 
 
 Takes a `TaskDescription`, an `OperandSet`, the family name for diagnostics, and a body callable as
 `(const KernelPairDispatcher&, const std::vector<sycl::event>&) -> sycl::event`; the body reaches
-the queue through `dispatcher.queue()`. A body of the old shape `(const KernelPairDispatcher&,
-sycl::queue&, const std::vector<sycl::event>&)` still compiles: `Detail::call_pair_body` detects
-the shape with `std::is_invocable` and passes `dispatcher.queue()`. The old shape is deprecated and
-H5 of the test review plan removes it with `run(q, deps, ...)`, `call_pair_body`'s queue branch
-and the old `op_func` shape of `execute_typed_task`, once every body outside `engine/engine` has moved.
+the queue only through the `sycl_fn` half of `dispatcher.run(deps, reference_fn, sycl_fn)`, which
+gets the queue the dispatcher holds.
 `record_pair` first calls `require_host_reachable`. It then wraps the body in a
 `Detail::RecordedPairTask` and hands it, with the description, the operands, the mode and the
 current origin, to `TaskSink::add_pair`, and returns a `TaskHandle` of its own
@@ -410,7 +403,7 @@ reduction executors before they lease scratch.
 
 ### `Detail::RecordedPairTask`
 
-The callable handed to the sink. It holds the body and runs it through `call_pair_body`, then
+The callable handed to the sink. It holds the body and calls it with the dispatcher and the dependencies, then
 `runtime_events` on the result. The sink keeps one reference to each distinct storage the task declared
 (`GraphPairTask` in the graph adapter, `HostTaskSink` on the host), so an operand's allocation stays
 alive until the graph or the sink drops the task even if the caller's `Tensor` is destroyed first.
@@ -587,8 +580,7 @@ Calls `Dispatch::require_domain<Dom>` and then `TaskRecorder::record_pair` with 
 the element type. An unsupported dtype fails at record time (P1 corollary), never silently
 no-ops. Its arguments are the recorder, the `TaskDescription`, the `OperandSet`, the dtype, the
 family and `op_func`, which is callable as `(auto scalar_type, const KernelPairDispatcher&,
-const std::vector<sycl::event>&) -> sycl::event`; an `op_func` that also takes `sycl::queue&` after
-the dispatcher is still taken (`Detail::call_scalar_body`) until H5 removes that shape. The BLAS, sparse and spatial
+const std::vector<sycl::event>&) -> sycl::event`. The BLAS, sparse and spatial
 operations record through it, so none of them reads the execution mode: the dispatcher the body
 receives already holds it.
 
@@ -622,8 +614,8 @@ a silent no-op gets in, so it ends in a throw rather than in a default return.
 
 `Detail::TypedTaskBody::operator()` throws `std::runtime_error` from that last statement.
 
-The result type of the call is a trait (`Detail::ScalarBodyResult`, `PairBodyResult`), not a deduced
-return type: a `decltype(auto)` call inside the switch makes this clang instantiate a generic
+The result type is `std::invoke_result_t` of `op_func` on `float`, and each arm calls `op_func`
+directly rather than through a helper with a deduced return type: a `decltype(auto)` call inside the switch makes this clang instantiate a generic
 `op_func` while it parses the switch and reports "'case' statement not in switch statement".
 
 `TypedTaskBody` returns the type its function returns for every dtype: a `sycl::event`, or a `Device::SubmittedEvents`. The recorded function must return one type for all of them.

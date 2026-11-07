@@ -31,6 +31,7 @@
 
 #include <complex>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -85,7 +86,7 @@ namespace SushiBLAS
                 return;
 
             const Device::LocalTileDemand demand = local_tile_demand<Tile>(C.dtype);
-            const Device::Profile& profile = Device::profile_for(C.device());
+            const Device::Profile& profile = Dispatch::profile_of(C);
             if (Device::hosts_local_tile(profile, demand))
                 return;
 

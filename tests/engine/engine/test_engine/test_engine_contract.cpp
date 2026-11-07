@@ -165,36 +165,6 @@ namespace SushiBLAS
             EXPECT_EQ(engine.host_sink().recorded_count(), std::size_t{0});
         }
 
-        /** @brief Tests that a body of the old shape is refused at record time on a host engine, naming the task. */
-        TEST(Small_HostEngine, ABodyOfTheOldShapeIsRefusedAtRecordTimeNamingTheTask)
-        {
-            HostEngineSubject subject;
-            TaskDescription description;
-            description.name = "engine.old_shape";
-            const Tensor target = subject.engine().create_tensor({K_ENGINE_CONTRACT_ELEMENTS});
-            OperandSet operands;
-            operands.writes(target);
-            std::string message;
-
-            try
-            {
-                subject.recorder().record_pair(
-                    description, operands, "Engine contract",
-                    [](const KernelPairDispatcher&, sycl::queue&,
-                       const std::vector<sycl::event>&) -> sycl::event
-                    {
-                        return sycl::event();
-                    });
-            }
-            catch (const UnsupportedExecution& refusal)
-            {
-                message = refusal.what();
-            }
-
-            EXPECT_NE(message.find("engine.old_shape"), std::string::npos) << message;
-            EXPECT_EQ(subject.engine().host_sink().recorded_count(), std::size_t{0});
-        }
-
         /** @brief Tests that an engine on a runtime has no host sink. */
         TEST(Medium_RuntimeEngine, ItHasNoHostSink)
         {

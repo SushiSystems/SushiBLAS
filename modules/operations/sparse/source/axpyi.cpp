@@ -77,7 +77,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, x.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
                     const Kernels::IndexList<Index> positions{
@@ -86,7 +86,7 @@ namespace SushiBLAS
                     auto py = static_cast<T*>(rw_y);
                     const T alpha_t = alpha.as<T>();
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::axpyi<T, Index>(alpha_t, px, positions, py, incy);

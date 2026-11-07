@@ -80,7 +80,7 @@ namespace SushiBLAS
         return Internal::execute_blas_task<Dispatch::Domain::Real>(
             recorder_, metadata.get(), operands, d1.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pd1 = static_cast<T*>(rw_d1);
@@ -89,7 +89,7 @@ namespace SushiBLAS
                 auto py1 = static_cast<const T*>(read_y1);
                 auto pp = static_cast<T*>(rw_param);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=] { Kernels::Reference::rotmg<T>(pd1, pd2, px1, py1, pp); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <utility>
 #include <vector>
 #include <sycl/sycl.hpp>
@@ -64,22 +65,34 @@ namespace SushiBLAS
             /// @brief The copies, run in order.
             std::vector<CopyStep> steps;
 
-            /** @brief Submits each copy after the one before it and returns the last event. */
-            sycl::event operator()(const KernelPairDispatcher&, sycl::queue& queue,
+            /**
+             * @brief Copies each step in order on the host under ForceReference, else submits
+             *        each copy after the one before it and returns the last event.
+             */
+            sycl::event operator()(const KernelPairDispatcher& pair,
                                    const std::vector<sycl::event>& dependencies) const
             {
-                std::vector<sycl::event> previous = dependencies;
-                sycl::event last;
-                for (const CopyStep& step : steps)
-                {
-                    last = queue.submit([&](sycl::handler& handler)
+                return pair.run(dependencies,
+                    [this]
                     {
-                        handler.depends_on(previous);
-                        handler.memcpy(step.destination, step.source, step.size_bytes);
+                        for (const CopyStep& step : steps)
+                            std::memcpy(step.destination, step.source, step.size_bytes);
+                    },
+                    [this](sycl::queue& queue, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        std::vector<sycl::event> previous = deps;
+                        sycl::event last;
+                        for (const CopyStep& step : steps)
+                        {
+                            last = queue.submit([&](sycl::handler& handler)
+                            {
+                                handler.depends_on(previous);
+                                handler.memcpy(step.destination, step.source, step.size_bytes);
+                            });
+                            previous.assign(1, last);
+                        }
+                        return last;
                     });
-                    previous.assign(1, last);
-                }
-                return last;
             }
         };
 

@@ -101,10 +101,10 @@ namespace SushiBLAS
             const std::size_t count = table.element_count;
 
             return recorder.record_pair(description, operands, "Elementwise operation",
-                [count, element](const KernelPairDispatcher& pair, sycl::queue& q,
+                [count, element](const KernelPairDispatcher& pair,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    return pair.run(q, deps,
+                    return pair.run(deps,
                         [count, element] { Serial::indexed(count, element); },
                         [count, element](sycl::queue& q2,
                                          const std::vector<sycl::event>& deps2) -> sycl::event

@@ -79,7 +79,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, x.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
                     using R = Kernels::RealType<T>;
@@ -90,7 +90,7 @@ namespace SushiBLAS
                     const R c_t = c.as<R>();
                     const R s_t = s.as<R>();
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::roti<T, Index>(px, positions, py, incy, c_t, s_t);

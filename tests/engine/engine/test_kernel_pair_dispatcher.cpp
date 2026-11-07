@@ -42,9 +42,9 @@ namespace SushiBLAS
         static int body_run_in(ExecutionMode mode)
         {
             int ran = 0;
-            const KernelPairDispatcher dispatcher(mode);
+            const KernelPairDispatcher dispatcher(mode, TestEnvironment::queue());
 
-            dispatcher.run(TestEnvironment::queue(), {}, [&ran]() { ran = 1; },
+            dispatcher.run({}, [&ran]() { ran = 1; },
                            [&ran](sycl::queue&, const std::vector<sycl::event>&)
                            {
                                ran = 2;
@@ -73,7 +73,7 @@ namespace SushiBLAS
             int seen = -1;
 
             KernelPairDispatcher(ExecutionMode::ForceReference)
-                .run(queue, {writer}, [&]() { seen = *flag; },
+                .run({writer}, [&]() { seen = *flag; },
                      [](sycl::queue&, const std::vector<sycl::event>&) { return sycl::event(); })
                 .wait();
 

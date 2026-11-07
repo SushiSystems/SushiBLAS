@@ -84,13 +84,13 @@ namespace SushiBLAS
          * @see modules/operations/README.md
          */
         template<typename T>
-        sycl::event shuffle_dispatch(const KernelPairDispatcher& pair, sycl::queue& q,
+        sycl::event shuffle_dispatch(const KernelPairDispatcher& pair,
                                      T* p, int64_t size, uint64_t seed, uint64_t offset,
                                      const std::vector<sycl::event>& deps)
         {
             const FisherYates<T> permute{p, size, seed, offset};
 
-            return pair.run(q, deps, permute,
+            return pair.run(deps, permute,
                 [permute](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                 {
                     return q2.submit([&](sycl::handler& h)
@@ -130,14 +130,14 @@ namespace SushiBLAS
 
         return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, size, seed, offset, ptr, name]
-            (const KernelPairDispatcher& pair, sycl::queue& q,
+            (const KernelPairDispatcher& pair,
              const std::vector<sycl::event>& deps) -> sycl::event
             {
                 sycl::event done;
                 Dispatch::with_element_type<Dispatch::Domain::RealAndComplex>(dtype, "RNG operation", name, [&](auto tag)
                 {
                     using T = typename decltype(tag)::type;
-                    done = shuffle_dispatch(pair, q, static_cast<T*>(ptr), size, seed, offset, deps);
+                    done = shuffle_dispatch(pair, static_cast<T*>(ptr), size, seed, offset, deps);
                 });
                 return done;
             });

@@ -55,7 +55,6 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiBLAS/engine/pair_body.hpp>
 #include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/engine/graph_task_sink.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
@@ -101,9 +100,7 @@ namespace SushiBLAS
              * @brief Wraps a kernel-pair body in the shape a TaskSink keeps.
              * @tparam Body Callable `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`
              *         returning a `sycl::event`, or a Device::SubmittedEvents when it submits
-             *         several kernels. A body of the old shape `(const KernelPairDispatcher&,
-             *         sycl::queue&, const std::vector<sycl::event>&)` is also taken.
-             * @deprecated The old body shape is removed in H5 of the test review plan.
+             *         several kernels.
              */
             template<typename Body>
             class RecordedPairTask
@@ -122,7 +119,7 @@ namespace SushiBLAS
                     sycl::event operator()(const KernelPairDispatcher& dispatcher,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        return runtime_events(call_pair_body(*body_, dispatcher, deps));
+                        return runtime_events((*body_)(dispatcher, deps));
                     }
 
                 private:
@@ -317,18 +314,15 @@ namespace SushiBLAS
 
             /**
              * @brief Records a task whose body runs a reference and SYCL kernel pair.
-             * @param body Callable `(const KernelPairDispatcher&, deps)` returning an event; the
-             *        old shape with a queue is deprecated and H5 removes it.
-             * @throws UnsupportedExecution for a device-only tensor under ForceReference or an
-             *         old-shape body on a sink with no queue, and std::runtime_error when the
-             *         runtime refuses; no task is recorded.
+             * @param body Callable `(const KernelPairDispatcher&, deps)` returning an event, or
+             *        Device::SubmittedEvents when it submits several kernels.
+             * @throws UnsupportedExecution for a device-only tensor under ForceReference, and
+             *         std::runtime_error when the runtime refuses; no task is recorded.
              */
             template<typename Body>
             TaskHandle record_pair(const TaskDescription& description,
                                    const OperandSet& operands, const char* family, Body&& body)
             {
-                if constexpr (!Internal::Detail::K_TAKES_HELD_QUEUE<std::decay_t<Body>>)
-                    require_queue_for_old_shape(description.name);
                 require_host_reachable(operands, family, description.name);
                 return commit(
                     [&]
@@ -423,22 +417,6 @@ namespace SushiBLAS
                 });
 
                 return TaskHandle(identity_, sequence);
-            }
-
-            /**
-             * @brief Checks that the sink gives a body the queue an old-shape body takes.
-             * @throws UnsupportedExecution naming the task otherwise.
-             */
-            void require_queue_for_old_shape(const char* name) const
-            {
-                if (!sink_->provides_queue())
-                {
-                    throw UnsupportedExecution(
-                        std::string(name) +
-                        ": the body takes a sycl::queue&, and the sink of this recorder gives "
-                        "no queue; record a body of the shape (dispatcher, deps) and reach the "
-                        "queue through dispatcher.queue() in the SYCL half.");
-                }
             }
 
             /**

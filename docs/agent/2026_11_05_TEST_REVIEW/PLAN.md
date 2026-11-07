@@ -71,8 +71,8 @@ writes each add. Nothing in a module job changes production code except a seam a
 | H1 | Seam: `data/tensor` host storage and a host `TensorFactory` (no runtime), and the shape-only tensor for validation; `TensorFactoryContract` and `StorageContract` suites, small on host, medium on the runtime | M46 | done |
 | H2 | Seam: `engine/engine` `KernelPairDispatcher` holds the queue (`pair.queue()`, `pair.run(deps, reference, sycl)`), the body drops its queue parameter; `TaskSink` port in `TaskRecorder` with the graph adapter and a host adapter that runs bodies in record order under `ForceReference`; `TaskSinkContract` | H1 | done |
 | H3 | Seam: `ScratchPool` block source port with a host adapter (RW-153), `Engine` host constructor, a host `RNGStream` path, `engine_fixture` `HostEngineTest` and a host `RecordingFixture`; `EngineContract` | H2 | done |
-| H4 | Bodies onto H2 in `engine/*` and `operations/elementwise`, `logic`, `nonlinear`, `random`, `reductions` | H2 | todo |
-| H5 | Bodies onto H2 in `operations/blas`, `sparse`, `spatial`, `signal`, `blend`, `index`, `io`, `experimental` and `library` | H4 | todo |
+| H4 | Bodies onto H2 in `engine/*` and `operations/elementwise`, `logic`, `nonlinear`, `random`, `reductions` | H2 | done |
+| H5 | Bodies onto H2 in `operations/blas`, `sparse`, `spatial`, `signal`, `blend`, `index`, `io`, `experimental` and `library` | H4 | done |
 | H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | todo |
 | S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43 | todo |
 | S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40 | todo |

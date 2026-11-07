@@ -47,10 +47,10 @@ namespace SushiBLAS
         {
             /** @brief Returns a completed event for any element type. */
             template<typename T>
-            sycl::event operator()(T, const KernelPairDispatcher& dispatcher, sycl::queue& q,
+            sycl::event operator()(T, const KernelPairDispatcher& dispatcher,
                                    const std::vector<sycl::event>& deps) const
             {
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                                       []()
                                       {
 

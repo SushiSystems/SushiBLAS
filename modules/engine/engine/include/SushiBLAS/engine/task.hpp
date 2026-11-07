@@ -39,7 +39,6 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/engine/pair_body.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -56,8 +55,6 @@ namespace SushiBLAS
              * @brief Calls a task body with a value of the element type its dtype names.
              * @tparam Func Callable `(T, const KernelPairDispatcher&, deps)` for each T in Dom,
              *         returning one type for all: a `sycl::event`, or Device::SubmittedEvents.
-             * @deprecated The old shape `(T, dispatcher, sycl::queue&, deps)` is still taken;
-             *             H5 of the test review plan removes it.
              * @see modules/engine/engine/README.md
              */
             template<Dispatch::Domain Dom, typename Func>
@@ -65,10 +62,9 @@ namespace SushiBLAS
             {
                 public:
                     /// @brief What the body returns: the event of its kernel, or the events of all of them.
-                    using Result = std::decay_t<decltype(call_scalar_body(
-                        std::declval<const Func&>(), float{},
-                        std::declval<const KernelPairDispatcher&>(),
-                        std::declval<const std::vector<sycl::event>&>()))>;
+                    using Result = std::decay_t<std::invoke_result_t<
+                        const Func&, float, const KernelPairDispatcher&,
+                        const std::vector<sycl::event>&>>;
 
                     /**
                      * @brief Holds everything the body needs at execute time.
@@ -93,26 +89,26 @@ namespace SushiBLAS
                         switch (dtype_)
                         {
                             case Core::DataType::Half:
-                                return call_scalar_body(op_func_, sycl::half{}, dispatcher, deps);
+                                return op_func_(sycl::half{}, dispatcher, deps);
                             case Core::DataType::Float32:
-                                return call_scalar_body(op_func_, float{}, dispatcher, deps);
+                                return op_func_(float{}, dispatcher, deps);
                             case Core::DataType::Float64:
-                                return call_scalar_body(op_func_, double{}, dispatcher, deps);
+                                return op_func_(double{}, dispatcher, deps);
                             case Core::DataType::Complex32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return call_scalar_body(op_func_, std::complex<float>{}, dispatcher, deps);
+                                    return op_func_(std::complex<float>{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Complex64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return call_scalar_body(op_func_, std::complex<double>{}, dispatcher, deps);
+                                    return op_func_(std::complex<double>{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Int32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return call_scalar_body(op_func_, int32_t{}, dispatcher, deps);
+                                    return op_func_(int32_t{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Int64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return call_scalar_body(op_func_, int64_t{}, dispatcher, deps);
+                                    return op_func_(int64_t{}, dispatcher, deps);
                                 break;
                             case Core::DataType::UInt32:
                                 break;

@@ -29,6 +29,7 @@
 
 #include <SushiBLAS/sparse_storage/sparse_builder.hpp>
 
+#include <cstring>
 #include <vector>
 #include <complex>
 #include <cstddef>
@@ -80,14 +81,19 @@ namespace SushiBLAS
             std::vector<T> chunk(
                 static_cast<std::size_t>(std::min(lines, lines_per_chunk) * line_length));
 
-            sycl::queue& source_queue = dense.storage->queue();
+            const bool host = dense.storage->is_host();
             const T* source = static_cast<const T*>(dense.data());
 
             for (int64_t first = 0; first < lines; first += lines_per_chunk)
             {
                 const int64_t count = std::min(lines_per_chunk, lines - first);
-                source_queue.memcpy(chunk.data(), source + first * line_length,
-                                    static_cast<std::size_t>(count * line_bytes)).wait();
+                const std::size_t bytes = static_cast<std::size_t>(count * line_bytes);
+                // A host storage has no queue; its bytes are read in place.
+                if (host)
+                    std::memcpy(chunk.data(), source + first * line_length, bytes);
+                else
+                    dense.storage->queue().memcpy(chunk.data(), source + first * line_length,
+                                                  bytes).wait();
 
                 for (int64_t line = 0; line < count; ++line)
                 {

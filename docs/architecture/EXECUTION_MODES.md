@@ -38,9 +38,10 @@ Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 two tensors, then a comparison of the tensors. The test runs the graph between the two calls; the
 two tasks could also wait in one graph.
 
-`KernelPairDispatcher::run(q, deps, reference_fn, sycl_fn)` is the single mode switch. Under
+`KernelPairDispatcher::run(deps, reference_fn, sycl_fn)` is the single mode switch. Under
 `ForceReference` it waits on the dependency events, calls `reference_fn` on the calling thread
-and returns an empty event. Otherwise it returns `sycl_fn(q, deps)`.
+and returns an empty event. Otherwise it returns `sycl_fn(q, deps)` on the queue the dispatcher
+holds.
 
 **Every family has a reference path**, and what that path is differs by family:
 

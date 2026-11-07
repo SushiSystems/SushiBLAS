@@ -85,7 +85,7 @@ namespace SushiBLAS
 
             return Internal::execute_blas_task(recorder, metadata.get(), operands, A.dtype,
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -94,7 +94,7 @@ namespace SushiBLAS
                     auto pA = static_cast<T*>(rw_A);
                     const T alpha_t = alpha.as<T>();
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::ger<T, Policy>(layout, m, n, alpha_t, px, incx,

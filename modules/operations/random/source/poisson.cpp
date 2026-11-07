@@ -29,6 +29,7 @@
 
 #include <array>
 #include <cmath>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/random/random.hpp>
@@ -47,7 +48,7 @@ namespace SushiBLAS
                                                   "is {}, outside [0, {}]", lambda,
                                                   K_MAX_POISSON_LAMBDA);
 
-        if (t.storage && t.num_elements > 0 && !Device::profile_for(t.device()).supports_fp64)
+        if (t.storage && t.num_elements > 0 && !Dispatch::profile_of(t).supports_fp64)
             Dispatch::Detail::throw_execution_error("random.poisson",
                                                     "operand 't' lives on a device without fp64; "
                                                     "random.poisson draws in double precision "

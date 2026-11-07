@@ -190,29 +190,5 @@ namespace SushiBLAS
 
             EXPECT_THROW((void)recorder.scratch_pool(), UnsupportedExecution);
         }
-
-        /** @brief Tests that a body of the old shape gets the queue of the graph adapter. */
-        TEST(Medium_GraphTaskRecorder, ABodyOfTheOldShapeGetsTheDispatchersQueue)
-        {
-            GraphSinkSubject subject;
-            bool matched = false;
-            bool* matched_out = &matched;
-            TaskDescription description;
-            description.name = "sink.old_shape";
-            OperandSet operands;
-            operands.writes(subject.target());
-
-            subject.recorder().record_pair(
-                description, operands, "TaskSink contract",
-                [matched_out](const KernelPairDispatcher& pair, sycl::queue& q,
-                              const std::vector<sycl::event>&) -> sycl::event
-                {
-                    *matched_out = (&q == &pair.queue());
-                    return sycl::event();
-                });
-
-            EXPECT_EQ(subject.run(), std::string());
-            EXPECT_TRUE(matched);
-        }
     } // namespace Test
 } // namespace SushiBLAS

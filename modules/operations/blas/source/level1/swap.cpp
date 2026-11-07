@@ -67,13 +67,13 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<T*>(rw_x);
                 auto pY = static_cast<T*>(rw_y);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::swap<T>(n, pX, incx, pY, incy);

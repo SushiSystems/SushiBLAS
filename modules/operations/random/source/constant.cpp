@@ -57,11 +57,11 @@ namespace SushiBLAS
                                const OperandSet& operands, T* out, T value, int64_t size)
         {
             return recorder.record_pair(description, operands, "RNG operation",
-                [out, value, size](const KernelPairDispatcher& pair, sycl::queue& q,
+                [out, value, size](const KernelPairDispatcher& pair,
                                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     const std::size_t count = static_cast<std::size_t>(size);
-                    return pair.run(q, deps,
+                    return pair.run(deps,
                         [out, value, count] { std::fill_n(out, count, value); },
                         [out, value, count](sycl::queue& q2,
                                             const std::vector<sycl::event>& deps2) -> sycl::event

@@ -80,7 +80,7 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, signal.dtype, "Signal operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -88,7 +88,7 @@ namespace SushiBLAS
                 auto tap_values = static_cast<const T*>(read_taps);
                 auto destination = static_cast<T*>(write_out);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::convolve_1d<T>(rows, signal_length, tap_count, source,

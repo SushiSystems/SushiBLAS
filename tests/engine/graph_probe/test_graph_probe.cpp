@@ -50,10 +50,9 @@ namespace SushiBLAS
             description.name = name;
             probe.recorder().record_pair(description, operands, "test",
                                          [](const KernelPairDispatcher& dispatcher,
-                                            sycl::queue& q, const std::vector<sycl::event>& deps)
+                                            const std::vector<sycl::event>& deps)
                                          {
-                                             return dispatcher.run(
-                                                 q, deps,
+                                             return dispatcher.run(deps,
                                                  []()
                                                  {
 

@@ -32,6 +32,7 @@
 #include <complex>
 #include <cstddef>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
@@ -113,7 +114,7 @@ namespace SushiBLAS
                 return ScratchBuffer();
 
             const std::size_t partials =
-                Reduce::planned_partials(Device::profile_for(x.device()), elements);
+                Reduce::planned_partials(Dispatch::profile_of(x), elements);
             return allocate_blas_scratch(recorder, x, partials * partial_bytes, operands);
         }
     } // namespace Internal

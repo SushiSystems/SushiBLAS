@@ -195,6 +195,18 @@ namespace SushiBLAS
             EXPECT_EQ(blocking.inner_bytes, Device::CacheBlocking{}.inner_bytes);
         }
 
+        /** @brief Tests that the host Profile runs double and half precision on one CPU thread with the assumed cache. */
+        TEST(Small_DevicePolicy, TheHostProfileRunsDoubleAndHalfPrecisionOnOneThread)
+        {
+            const Device::Profile& host = Device::host_profile();
+
+            EXPECT_TRUE(host.is_cpu);
+            EXPECT_TRUE(host.supports_fp64);
+            EXPECT_TRUE(host.supports_fp16);
+            EXPECT_EQ(host.compute_units, std::size_t{1});
+            EXPECT_EQ(host.cache_bytes, Device::K_ASSUMED_CACHE_BYTES);
+        }
+
         /** @brief Tests that a default blocking is the blocking of the assumed cache. */
         TEST(Small_DevicePolicy, TheDefaultBlockingIsTheBlockingOfTheAssumedCache)
         {

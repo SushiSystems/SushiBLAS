@@ -72,13 +72,13 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
+                const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<const T*>(read_x);
                 auto pR = static_cast<int64_t*>(write_r);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::iamax<T>(n, pX, incx, pR);

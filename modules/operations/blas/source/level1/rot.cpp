@@ -68,7 +68,7 @@ namespace SushiBLAS
 
         return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 using Real = Kernels::RealType<T>;
@@ -77,7 +77,7 @@ namespace SushiBLAS
                 const Real c_t = BLASScalar(c).as<Real>();
                 const Real s_t = BLASScalar(s).as<Real>();
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::rot<T>(n, pX, incx, pY, incy, c_t, s_t);

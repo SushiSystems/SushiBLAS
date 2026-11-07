@@ -37,6 +37,7 @@
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
@@ -78,7 +79,7 @@ namespace SushiBLAS
 
             // Every stored entry scatters to its mirror, so the product keeps partial sums.
             const std::size_t blocks = Kernels::SYCL::scatter_blocks(
-                Device::profile_for(A.row_offsets.device()), a.rows, a.nnz);
+                Dispatch::profile_of(A.row_offsets), a.rows, a.nnz);
             const std::size_t partial_bytes = blocks * static_cast<std::size_t>(a.rows) *
                                               Internal::accumulator_bytes(A.values.dtype);
             const ScratchBuffer scratch =
@@ -100,7 +101,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
+                    const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -114,7 +115,7 @@ namespace SushiBLAS
                     const T beta_t = beta.as<T>();
                     auto partials = static_cast<Kernels::Accumulator<T>*>(scratch.data());
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::spsymv<T, Index, Policy>(uplo, pattern, pv, alpha_t,

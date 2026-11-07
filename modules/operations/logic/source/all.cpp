@@ -119,10 +119,10 @@ namespace SushiBLAS
 
             handle = recorder_.record_pair(description, operands, "Logic operation",
                 [size, pT = static_cast<const T*>(read_T), pR = result.data_as<T>()]
-                (const KernelPairDispatcher& pair, sycl::queue& q,
+                (const KernelPairDispatcher& pair,
                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    return pair.run(q, deps,
+                    return pair.run(deps,
                         [size, pT, pR] { all_reference<T>(pT, pR, size); },
                         [size, pT, pR](sycl::queue& q2,
                                        const std::vector<sycl::event>& deps2) -> sycl::event

@@ -80,7 +80,7 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -88,7 +88,7 @@ namespace SushiBLAS
                 auto tap_weights = static_cast<const T*>(read_weights);
                 auto destination = static_cast<T*>(write_out);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::window_dot<T>(span, taps, source, tap_weights,
@@ -143,7 +143,7 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -151,7 +151,7 @@ namespace SushiBLAS
                 auto tap_weights = static_cast<const T*>(read_weights);
                 auto destination = static_cast<T*>(write_dx);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=]
                     {
                         Kernels::Reference::window_dot_backward<T>(span, taps, source, tap_weights,

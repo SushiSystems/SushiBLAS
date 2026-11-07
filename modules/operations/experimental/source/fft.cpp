@@ -173,7 +173,7 @@ namespace SushiBLAS
 
             return Internal::execute_typed_task<Dispatch::Domain::Real>(
                 recorder, description, operands, scalar, "Signal operation",
-                [=](auto scalar_type, const KernelPairDispatcher& dispatcher, sycl::queue& q,
+                [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
                     const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
@@ -187,7 +187,7 @@ namespace SushiBLAS
                         auto source = static_cast<const T*>(read_input);
                         auto destination = static_cast<T*>(write_output);
 
-                        return dispatcher.run(q, deps,
+                        return dispatcher.run(deps,
                             [=]
                             {
                                 if (forward)

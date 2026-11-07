@@ -36,6 +36,7 @@
 #include <SushiBLAS/blas/local_tile.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
@@ -87,7 +88,7 @@ namespace SushiBLAS
 
             // The tiled kernel runs only where the profile does not select the packed one.
             if (C.storage && Internal::packed_product_scratch_bytes(
-                                 C.dtype, Device::profile_for(C.device()), n, n, k,
+                                 C.dtype, Dispatch::profile_of(C), n, n, k,
                                  batch_size) == 0)
                 Internal::require_local_tile<Kernels::SYCL::SyrkTile>(recorder, C, op);
 
@@ -106,7 +107,7 @@ namespace SushiBLAS
 
             return Internal::execute_blas_task(recorder, metadata.get(), operands, A.dtype,
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
                     using Policy = Kernels::ConjugationFor<T, Conj>;
@@ -116,7 +117,7 @@ namespace SushiBLAS
                     const Scalar alpha_s = alpha.as<Scalar>();
                     const Scalar beta_s = beta.as<Scalar>();
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::syrk<T, Policy>(layout, uplo, trans, n, k, alpha_s,

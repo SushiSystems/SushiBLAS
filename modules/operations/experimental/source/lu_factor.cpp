@@ -86,14 +86,14 @@ namespace SushiBLAS
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, matrices.dtype, "Linear algebra operation",
-            [=](auto scalar_type, const KernelPairDispatcher& dispatcher, sycl::queue& q,
+            [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
                 const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>)
                 {
                     auto a = static_cast<T*>(rw_matrices);
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::lu_factor<T>(a, write_pivots, write_singular, n,

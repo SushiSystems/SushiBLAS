@@ -71,7 +71,7 @@ namespace SushiBLAS
          * @return The event of the SYCL kernel; the reference path returns a completed event.
          */
         template<typename T, typename Index>
-        sycl::event run_blend(const KernelPairDispatcher& dispatcher, sycl::queue& q,
+        sycl::event run_blend(const KernelPairDispatcher& dispatcher,
                               const std::vector<sycl::event>& deps, const BlendShape& shape,
                               const BlendPointers& data)
         {
@@ -81,7 +81,7 @@ namespace SushiBLAS
             auto weights = static_cast<const T*>(data.weights);
             auto out = static_cast<T*>(data.out);
 
-            return dispatcher.run(q, deps,
+            return dispatcher.run(deps,
                 [=]
                 {
                     Kernels::Reference::blend_transforms<T, Index>(
@@ -138,18 +138,18 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, points.dtype, "Blend operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 switch (index_dtype)
                 {
                     case Core::DataType::Int64:
-                        return run_blend<T, int64_t>(dispatcher, q, deps, shape, data);
+                        return run_blend<T, int64_t>(dispatcher, deps, shape, data);
                     case Core::DataType::UInt32:
-                        return run_blend<T, uint32_t>(dispatcher, q, deps, shape, data);
+                        return run_blend<T, uint32_t>(dispatcher, deps, shape, data);
                     default:
-                        return run_blend<T, int32_t>(dispatcher, q, deps, shape, data);
+                        return run_blend<T, int32_t>(dispatcher, deps, shape, data);
                 }
             });
     }

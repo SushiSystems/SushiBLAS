@@ -473,7 +473,7 @@ every site.
   real-only GEMM epilogue is a compile error in the two arms that will never run.
 - `operands`: The `OperandSet` the operation declared: every tensor the task reads or writes, and
   its scratch.
-- `op_func`: A callable `(auto scalar_type, const KernelPairDispatcher&, sycl::queue&,
+- `op_func`: A callable `(auto scalar_type, const KernelPairDispatcher&,
   const std::vector<sycl::event>&) -> sycl::event`, generic over the runtime dtype via
   `decltype(scalar_type)`.
 

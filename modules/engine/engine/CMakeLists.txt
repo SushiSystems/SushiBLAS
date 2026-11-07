@@ -36,8 +36,8 @@ sushiblas_add_test_program(
         test_task_cost.cpp
         test_graph_task_sink.cpp
         test_host_task_sink.cpp
-        test_pair_body.cpp
         test_task_description.cpp
+        test_tensor_profile.cpp
     DEVICE_TESTS
         test_engine/test_engine_contract.cpp
         test_engine/test_reduce_plans.cpp

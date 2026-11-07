@@ -74,7 +74,7 @@ namespace SushiBLAS
             std::atomic<int>* runs; /**< Receives one per run of the task. */
 
             /** @brief Adds one to the count and returns an event that is already complete. */
-            sycl::event operator()(const KernelPairDispatcher&, sycl::queue&,
+            sycl::event operator()(const KernelPairDispatcher&,
                                    const std::vector<sycl::event>&) const
             {
                 runs->fetch_add(1);

@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
@@ -97,7 +98,7 @@ namespace SushiBLAS
                 return ScratchBuffer();
 
             const std::size_t bytes = packed_product_scratch_bytes(
-                C.dtype, Device::profile_for(C.device()), m, n, k, batch_size);
+                C.dtype, Dispatch::profile_of(C), m, n, k, batch_size);
             return allocate_blas_scratch(recorder, C, bytes, operands);
         }
     } // namespace Internal

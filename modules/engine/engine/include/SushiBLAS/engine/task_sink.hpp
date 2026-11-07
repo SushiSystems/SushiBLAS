@@ -67,14 +67,6 @@ namespace SushiBLAS
             [[nodiscard]] virtual bool admits(ExecutionMode mode) const noexcept = 0;
 
             /**
-             * @brief Reports whether the dispatcher this sink hands a body holds a queue.
-             *
-             * A body of the old shape `(dispatcher, sycl::queue&, deps)` needs one; TaskRecorder
-             * refuses it at record time on a sink that provides none.
-             */
-            [[nodiscard]] virtual bool provides_queue() const noexcept = 0;
-
-            /**
              * @brief Returns the graph adapter behind this sink, or null when none is.
              *
              * A late-count kernel is a graph node with no host form, so TaskRecorder reaches it

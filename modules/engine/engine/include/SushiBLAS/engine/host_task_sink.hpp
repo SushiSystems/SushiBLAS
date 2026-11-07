@@ -77,9 +77,6 @@ namespace SushiBLAS
                 return mode == ExecutionMode::ForceReference;
             }
 
-            /** @brief Reports false: the dispatcher of a host body holds no queue. */
-            [[nodiscard]] bool provides_queue() const noexcept override { return false; }
-
             /** @brief Returns null: the host form has no graph. */
             [[nodiscard]] GraphTaskSink* graph() noexcept override { return nullptr; }
 

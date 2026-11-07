@@ -79,7 +79,7 @@ namespace SushiBLAS
                 description.name = name;
                 return recorder.record_pair(
                     description, operands, K_OPERATION,
-                    [](const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)
+                    [](const KernelPairDispatcher&, const std::vector<sycl::event>&)
                     {
                         return sycl::event{};
                     });

@@ -91,10 +91,10 @@ namespace SushiBLAS
             const std::size_t count = static_cast<std::size_t>(n);
 
             return recorder.record_pair(description, operands, "Elementwise operation",
-                [count, convert](const KernelPairDispatcher& pair, sycl::queue& q,
+                [count, convert](const KernelPairDispatcher& pair,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    return pair.run(q, deps,
+                    return pair.run(deps,
                         [count, convert] { Serial::indexed(count, convert); },
                         [count, convert](sycl::queue& q2,
                                          const std::vector<sycl::event>& deps2) -> sycl::event

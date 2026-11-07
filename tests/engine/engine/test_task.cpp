@@ -51,11 +51,11 @@ namespace SushiBLAS
 
             /** @brief Runs on the host and records sizeof T. */
             template<typename T>
-            sycl::event operator()(T, const KernelPairDispatcher& dispatcher, sycl::queue& q,
+            sycl::event operator()(T, const KernelPairDispatcher& dispatcher,
                                    const std::vector<sycl::event>& deps) const
             {
                 int* out = bytes;
-                return dispatcher.run(q, deps, [out]() { *out = static_cast<int>(sizeof(T)); },
+                return dispatcher.run(deps, [out]() { *out = static_cast<int>(sizeof(T)); },
                                       [](sycl::queue&, const std::vector<sycl::event>&)
                                       {
                                           return sycl::event();

@@ -113,29 +113,6 @@ namespace SushiBLAS
                 return std::forward<SYCLFn>(sycl_fn)(queue(), deps);
             }
 
-            /**
-             * @brief Runs reference_fn on the host under ForceReference, else sycl_fn on @p q.
-             * @deprecated Takes the queue as an argument; use run(deps, reference_fn, sycl_fn),
-             *             which uses the held queue. Removed in H5 of the test review plan, when
-             *             the last body outside modules/engine/engine has moved.
-             */
-            template<typename ReferenceFn, typename SYCLFn>
-            auto run(sycl::queue& q, const std::vector<sycl::event>& deps,
-                     ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
-            {
-                using Result = std::decay_t<
-                    std::invoke_result_t<SYCLFn&&, sycl::queue&, const std::vector<sycl::event>&>>;
-
-                if (mode_ == ExecutionMode::ForceReference)
-                {
-                    sycl::event::wait(deps);
-                    std::forward<ReferenceFn>(reference_fn)();
-                    return Result();
-                }
-
-                return std::forward<SYCLFn>(sycl_fn)(q, deps);
-            }
-
         private:
             /// @brief The recorder's execution mode when the task was recorded.
             ExecutionMode mode_;

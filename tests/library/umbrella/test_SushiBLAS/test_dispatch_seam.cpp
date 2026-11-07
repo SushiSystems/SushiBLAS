@@ -718,7 +718,7 @@ TEST_F(Medium_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
             recorder(), description, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
-            [](auto, const sb::KernelPairDispatcher&, sycl::queue&,
+            [](auto, const sb::KernelPairDispatcher&,
                const std::vector<sycl::event>&) -> sycl::event
             {
                 return sycl::event();

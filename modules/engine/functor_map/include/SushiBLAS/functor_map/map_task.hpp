@@ -150,10 +150,9 @@ namespace SushiBLAS
 
                     /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
                     sycl::event operator()(const KernelPairDispatcher& pair,
-                                           sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        return pair.run(q, deps,
+                        return pair.run(deps,
                             [this]
                             {
                                 with_element_type<Dom>(dtype_, family_, name_,
@@ -292,10 +291,9 @@ namespace SushiBLAS
 
                     /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
                     sycl::event operator()(const KernelPairDispatcher& pair,
-                                           sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        return pair.run(q, deps,
+                        return pair.run(deps,
                             [this]
                             {
                                 with_element_type<Dom>(dtype_, family_, name_,

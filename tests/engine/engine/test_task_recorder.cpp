@@ -139,7 +139,7 @@ namespace SushiBLAS
 
             fixture.recorder().record_pair(
                 description, operands, "test",
-                [](const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)
+                [](const KernelPairDispatcher&, const std::vector<sycl::event>&)
                 {
                     return sycl::event();
                 });
@@ -501,7 +501,7 @@ namespace SushiBLAS
 
             probe.recorder().record_pair(
                 TaskDescription(), operands, "test",
-                [](const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)
+                [](const KernelPairDispatcher&, const std::vector<sycl::event>&)
                 {
                     return sycl::event();
                 });

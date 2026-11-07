@@ -84,7 +84,7 @@ namespace SushiBLAS
 
         return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, ptr, set, gain, name]
-            (const KernelPairDispatcher& pair, sycl::queue& q,
+            (const KernelPairDispatcher& pair,
              const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
             {
                 Device::SubmittedEvents done;
@@ -100,7 +100,7 @@ namespace SushiBLAS
                         T* vectors = static_cast<T*>(ptr);
                         const T scale = static_cast<T>(gain);
 
-                        done = pair.run(q, deps,
+                        done = pair.run(deps,
                             [vectors, set, scale]
                             {
                                 Kernels::Reference::Random::orthonormalize(vectors, set, scale);

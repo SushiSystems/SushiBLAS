@@ -108,7 +108,7 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -117,7 +117,7 @@ namespace SushiBLAS
                 auto shift = static_cast<const T*>(read_beta);
                 auto destination = static_cast<T*>(write_out);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=] { Kernels::Reference::channel_affine<T>(span, source, scale, shift,
                                                                 gamma_stride, beta_stride,
                                                                 destination); },
@@ -175,7 +175,7 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -185,7 +185,7 @@ namespace SushiBLAS
                 // T is known only in this closure, so scale is narrowed here; see modules/operations/README.md.
                 const T factor = static_cast<T>(scale);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=] { Kernels::Reference::broadcast_spatial<T>(span, source, in_batch_stride,
                                                                    in_channel_stride, destination,
                                                                    factor); },
@@ -250,14 +250,14 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_out);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=] { Kernels::Reference::layout_convert<T>(span, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

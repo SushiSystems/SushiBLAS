@@ -68,14 +68,14 @@ namespace SushiBLAS
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, image.dtype, "Spatial operation",
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_cols);
                 auto destination = static_cast<T*>(write_image);
 
-                return dispatcher.run(q, deps,
+                return dispatcher.run(deps,
                     [=] { Kernels::Reference::col2im<T>(span, column, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

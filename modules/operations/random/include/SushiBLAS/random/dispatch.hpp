@@ -193,10 +193,10 @@ namespace SushiBLAS
         class RandomFill final
         {
             public:
-                /** @brief Binds the fill to one execution of a task; all three must outlive it. */
-                RandomFill(const KernelPairDispatcher& pair, sycl::queue& q,
+                /** @brief Binds the fill to one execution of a task; both must outlive it. */
+                RandomFill(const KernelPairDispatcher& pair,
                            const std::vector<sycl::event>& deps) noexcept
-                    : pair_(pair), q_(q), deps_(deps)
+                    : pair_(pair), deps_(deps)
                 {
 
                 }
@@ -209,7 +209,7 @@ namespace SushiBLAS
                 template<typename T, typename DrawBlock>
                 [[nodiscard]] sycl::event operator()(int64_t n, T* out, DrawBlock draw_block) const
                 {
-                    return pair_.run(q_, deps_,
+                    return pair_.run(deps_,
                         [n, out, draw_block] { serial_random_fill(n, out, draw_block); },
                         [n, out, draw_block](sycl::queue& q2,
                                              const std::vector<sycl::event>& deps2) -> sycl::event
@@ -221,9 +221,6 @@ namespace SushiBLAS
             private:
                 /// @brief The mode router of the task being run.
                 const KernelPairDispatcher& pair_;
-
-                /// @brief The queue the SYCL fill is submitted to.
-                sycl::queue& q_;
 
                 /// @brief The events the fill is ordered behind.
                 const std::vector<sycl::event>& deps_;
@@ -309,12 +306,12 @@ namespace SushiBLAS
 
             return recorder.record_pair(description, operands, "RNG operation",
                 [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name]
-                (const KernelPairDispatcher& pair, sycl::queue& q,
+                (const KernelPairDispatcher& pair,
                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
 
                     sycl::event done;
-                    const RandomFill fill(pair, q, deps);
+                    const RandomFill fill(pair, deps);
                     const Detail::RandomArm<std::remove_reference_t<Func>> arm{
                         task_func, fill, seed, offset, size, pT, name, done};
                     with_element_type<Dom>(dtype, "RNG operation", name, arm);

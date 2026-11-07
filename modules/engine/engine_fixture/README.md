@@ -36,9 +36,7 @@ engine runs `ForceReference` only. The fixture makes no queue and reaches no `Te
 host tensor by `memcpy`.
 
 A host engine accepts a recorded body of the shape `(const KernelPairDispatcher&, const
-std::vector<sycl::event>&)`. A body of the old shape `(dispatcher, sycl::queue&, deps)` is refused by
-`record_pair` at record time with `UnsupportedExecution` naming the task, since a host sink has no queue to
-hand it; H4 and H5 of the test review plan move those bodies.
+std::vector<sycl::event>&)`, the one shape every operation body has, so every operation runs on it.
 
 ## host_recording_fixture.hpp
 

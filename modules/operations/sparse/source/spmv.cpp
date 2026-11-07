@@ -37,6 +37,7 @@
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
+#include <SushiBLAS/engine/tensor_profile.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
@@ -78,7 +79,7 @@ namespace SushiBLAS
 
             // Only a transposed product keeps partial sums: blocks of them, each as long as y.
             const std::size_t blocks = Core::is_transposed(trans)
-                ? Kernels::SYCL::scatter_blocks(Device::profile_for(A.row_offsets.device()),
+                ? Kernels::SYCL::scatter_blocks(Dispatch::profile_of(A.row_offsets),
                                                 a.cols, a.nnz)
                 : std::size_t{0};
             const std::size_t partial_bytes = blocks * static_cast<std::size_t>(a.cols) *
@@ -102,7 +103,7 @@ namespace SushiBLAS
             return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    sycl::queue& q, const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
+                    const std::vector<sycl::event>& deps) -> Device::SubmittedEvents
                 {
                     using T = decltype(scalar_type);
                     const Kernels::CsrPattern<Index> pattern{
@@ -115,7 +116,7 @@ namespace SushiBLAS
                     const T beta_t = beta.as<T>();
                     auto partials = static_cast<Kernels::Accumulator<T>*>(scratch.data());
 
-                    return dispatcher.run(q, deps,
+                    return dispatcher.run(deps,
                         [=]
                         {
                             Kernels::Reference::spmv<T, Index>(trans, pattern, pv, alpha_t, px,
