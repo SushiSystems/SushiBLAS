@@ -49,14 +49,16 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
-#include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
 
+#include "../host_nodes.hpp"
 #include "../plan_labels.hpp"
 #include "../window_probe.hpp"
+#include "../runtime_port_calls.hpp"
 
 namespace SushiBLAS
 {
@@ -69,11 +71,10 @@ namespace SushiBLAS
             using GraphPrimitives::PrimitiveOptions;
             using GraphPrimitives::ReduceWindow;
             using GraphPrimitives::Sum;
-            using GraphPrimitives::reduce;
+            using RuntimePort::reduce;
             using SushiRuntime::Buffer;
             using SushiRuntime::Determinism;
             using SushiRuntime::LateCount;
-            using SushiRuntime::NodeEventRecord;
             using SushiRuntime::Reads;
             using SushiRuntime::Runtime;
             using SushiRuntime::Writes;
@@ -295,24 +296,6 @@ namespace SushiBLAS
                 return matching;
             }
 
-            /** @brief Returns the width each record launched over, in arrival order. */
-            std::vector<std::uint32_t> launched_widths_of(const std::vector<NodeEventRecord>& records)
-            {
-                std::vector<std::uint32_t> widths;
-                for (const NodeEventRecord& record : records)
-                    widths.push_back(record.launched_width);
-                return widths;
-            }
-
-            /** @brief Returns the width each record did work over, in arrival order. */
-            std::vector<std::uint32_t> live_widths_of(const std::vector<NodeEventRecord>& records)
-            {
-                std::vector<std::uint32_t> widths;
-                for (const NodeEventRecord& record : records)
-                    widths.push_back(record.live_width);
-                return widths;
-            }
-
             /** @brief Records a Sum reduce of count values, passing the count in form. */
             template <typename T>
             SushiRuntime::Result<void>
@@ -324,6 +307,20 @@ namespace SushiBLAS
                     return reduce(graph.recorder(), in, out, LateCount::fixed(count), Sum<T>{},
                                   window, options);
                 return reduce(graph.recorder(), in, out, count, Sum<T>{}, window, options);
+            }
+
+            /** @brief Records a Sum reduce of count values on a host recorder, passing the count in form. */
+            template <typename T>
+            SushiRuntime::Result<void>
+            record_sum(GraphPrimitives::HostPrimitiveRecorder& recorder, const Buffer<T>& in,
+                       const Buffer<T>& out, CountForm form, std::size_t count,
+                       ReduceWindow window = {},
+                       const std::optional<PrimitiveOptions>& options = std::nullopt)
+            {
+                if (form == CountForm::Late)
+                    return GraphPrimitives::reduce(recorder, in, out, LateCount::fixed(count),
+                                                   Sum<T>{}, window, options);
+                return GraphPrimitives::reduce(recorder, in, out, count, Sum<T>{}, window, options);
             }
 
             /** @brief Returns the part of in or out that row names, as a region. */
@@ -700,35 +697,33 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each level node launches at the out_count of its level. */
-        TEST(Medium_GraphPrimitivesReduce, LevelWidthsMatchTheLevelPlan)
+        TEST(Small_GraphPrimitivesReduce, LevelWidthsMatchTheLevelPlan)
         {
-            const std::vector<std::uint32_t> expected_widths = {3u, 1u};
+            const std::vector<std::size_t> expected_widths = {3u, 1u};
 
             auto runtime = Runtime::create().value();
-            auto values = buffer_holding(runtime, std::vector<float>(K_TWO_LEVEL_COUNT, 1.0f));
+            auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            reduce(graph.recorder(), values, total, K_TWO_LEVEL_COUNT, Sum<float>{}).value();
-            graph.run().value();
-            const std::vector<NodeEventRecord> events = capture.records();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            GraphPrimitives::reduce(recorder, values, total, K_TWO_LEVEL_COUNT, Sum<float>{})
+                .value();
 
-            EXPECT_EQ(launched_widths_of(events), expected_widths);
-            EXPECT_EQ(live_widths_of(events), expected_widths);
+            EXPECT_EQ(HostNodes::widths_of(recorder), expected_widths);
         }
 
         /** @brief Tests that the levels of one call record as one rule. */
-        TEST(Medium_GraphPrimitivesReduce, TheLevelsOfOneCallAreOneRule)
+        TEST(Small_GraphPrimitivesReduce, TheLevelsOfOneCallAreOneRule)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            reduce(graph.recorder(), values, total, K_TWO_LEVEL_COUNT, Sum<float>{}).value();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            GraphPrimitives::reduce(recorder, values, total, K_TWO_LEVEL_COUNT, Sum<float>{})
+                .value();
 
-            EXPECT_EQ(graph.recorder().rule_count(), 1u);
+            EXPECT_EQ(recorder.rule_count(), 1u);
         }
 
         /** @brief Tests that a two-level chain totals every value of its input. */
@@ -746,20 +741,17 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a fixed count of zero records one node of width one. */
-        TEST(Medium_GraphPrimitivesReduce, ZeroCountStampsWidthOne)
+        TEST(Small_GraphPrimitivesReduce, ZeroCountStampsWidthOne)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(1).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            reduce(graph.recorder(), values, total, std::size_t{0}, Sum<float>{}).value();
-            graph.run().value();
-            const std::vector<NodeEventRecord> events = capture.records();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            GraphPrimitives::reduce(recorder, values, total, std::size_t{0}, Sum<float>{})
+                .value();
 
-            EXPECT_EQ(launched_widths_of(events), std::vector<std::uint32_t>{1u});
-            EXPECT_EQ(live_widths_of(events), std::vector<std::uint32_t>{1u});
+            EXPECT_EQ(HostNodes::widths_of(recorder), std::vector<std::size_t>{1u});
         }
 
         /// @brief Gives a reduce test one count form to record with.
@@ -818,13 +810,13 @@ namespace SushiBLAS
                                  form_param_name);
 
         /// @brief Runs one probe of a part of an operand in one count form.
-        class Medium_GraphPrimitivesReduceWindowOrder
+        class Small_GraphPrimitivesReduceWindowOrder
             : public ::testing::TestWithParam<std::tuple<ProbeRow, CountForm>>
         {
         };
 
         /** @brief Tests that a writer of an operand waits only when it hits the window. */
-        TEST_P(Medium_GraphPrimitivesReduceWindowOrder, WindowOrdersOnlyOverlappingWriters)
+        TEST_P(Small_GraphPrimitivesReduceWindowOrder, WindowOrdersOnlyOverlappingWriters)
         {
             const ProbeRow& row = std::get<0>(GetParam());
 
@@ -833,28 +825,27 @@ namespace SushiBLAS
                           .value();
             auto out = runtime.buffer<float>(4).value();
 
-            auto graph = runtime.graph();
-            record_sum(graph, in, out, std::get<1>(GetParam()), K_PROBED_COUNT,
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sum(recorder, in, out, std::get<1>(GetParam()), K_PROBED_COUNT,
                        ReduceWindow{K_PROBED_OFFSET, 1}).value();
-            const std::size_t waits =
-                WindowProbe::predecessors_of_write(graph, probed_region(row, in, out));
+            const std::size_t waits = recorder.nodes_touching(probed_region(row, in, out));
 
             EXPECT_EQ(waits > 0u, row.ordered) << "the probe waits for " << waits << " nodes";
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceWindowOrder,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesReduceWindowOrder,
                                  ::testing::Combine(::testing::ValuesIn(probe_rows()),
                                                     ::testing::Values(CountForm::Fixed,
                                                                       CountForm::Late)),
                                  row_form_name<ProbeRow>);
 
         /// @brief Runs one shape of a reduce named "sum" with the Bitwise class.
-        class Medium_GraphPrimitivesReduceNamedCall : public ::testing::TestWithParam<NamedShapeRow>
+        class Small_GraphPrimitivesReduceNamedCall : public ::testing::TestWithParam<NamedShapeRow>
         {
         };
 
         /** @brief Tests that a named reduce names every node by its stage. */
-        TEST_P(Medium_GraphPrimitivesReduceNamedCall, NamedCallNamesItsNodesByStage)
+        TEST_P(Small_GraphPrimitivesReduceNamedCall, NamedCallNamesItsNodesByStage)
         {
             const NamedShapeRow& row = GetParam();
 
@@ -862,15 +853,16 @@ namespace SushiBLAS
             auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            record_sum(graph, values, total, row.form, row.count, ReduceWindow{}, sum_options())
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sum(recorder, values, total, row.form, row.count, ReduceWindow{},
+                       sum_options())
                 .value();
 
-            EXPECT_EQ(PlanLabels::names_of(graph), row.names);
+            EXPECT_EQ(HostNodes::names_of(recorder), row.names);
         }
 
         /** @brief Tests that a named reduce states its class on every node. */
-        TEST_P(Medium_GraphPrimitivesReduceNamedCall, NamedCallStatesTheClassOfEveryNode)
+        TEST_P(Small_GraphPrimitivesReduceNamedCall, NamedCallStatesTheClassOfEveryNode)
         {
             const NamedShapeRow& row = GetParam();
 
@@ -878,55 +870,55 @@ namespace SushiBLAS
             auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            record_sum(graph, values, total, row.form, row.count, ReduceWindow{}, sum_options())
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sum(recorder, values, total, row.form, row.count, ReduceWindow{},
+                       sum_options())
                 .value();
-            const std::vector<Determinism> classes = PlanLabels::determinisms_of(graph);
+            const std::vector<Determinism> classes = HostNodes::determinisms_of(recorder);
 
             ASSERT_FALSE(classes.empty());
             EXPECT_EQ(classes, std::vector<Determinism>(classes.size(), Determinism::Bitwise));
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceNamedCall,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesReduceNamedCall,
                                  ::testing::ValuesIn(named_shape_rows()), row_name<NamedShapeRow>);
 
         /// @brief Runs a reduce with no options in one count form.
-        class Medium_GraphPrimitivesReduceUnnamedCall : public ReduceAtForm
+        class Small_GraphPrimitivesReduceUnnamedCall : public ReduceAtForm
         {
         };
 
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
-        TEST_P(Medium_GraphPrimitivesReduceUnnamedCall, UnnamedCallKeepsItsNodesUnnamed)
+        TEST_P(Small_GraphPrimitivesReduceUnnamedCall, UnnamedCallKeepsItsNodesUnnamed)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
-            const std::string unnamed = PlanLabels::unnamed_name(runtime);
 
-            auto graph = runtime.graph();
-            record_sum(graph, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();
-            const std::vector<std::string> names = PlanLabels::names_of(graph);
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sum(recorder, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();
+            const std::vector<std::string> names = HostNodes::names_of(recorder);
 
             ASSERT_FALSE(names.empty());
-            EXPECT_EQ(names, std::vector<std::string>(names.size(), unnamed));
+            EXPECT_EQ(names, std::vector<std::string>(names.size(), std::string()));
         }
 
         /** @brief Tests that a call with no options leaves the class of every node Unstated. */
-        TEST_P(Medium_GraphPrimitivesReduceUnnamedCall, UnnamedCallLeavesItsClassUnstated)
+        TEST_P(Small_GraphPrimitivesReduceUnnamedCall, UnnamedCallLeavesItsClassUnstated)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(K_TWO_LEVEL_COUNT).value();
             auto total = runtime.buffer<float>(1).value();
 
-            auto graph = runtime.graph();
-            record_sum(graph, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();
-            const std::vector<Determinism> classes = PlanLabels::determinisms_of(graph);
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sum(recorder, values, total, GetParam(), K_TWO_LEVEL_COUNT).value();
+            const std::vector<Determinism> classes = HostNodes::determinisms_of(recorder);
 
             ASSERT_FALSE(classes.empty());
             EXPECT_EQ(classes, std::vector<Determinism>(classes.size(), Determinism::Unstated));
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesReduceUnnamedCall,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesReduceUnnamedCall,
                                  ::testing::Values(CountForm::Fixed, CountForm::Late),
                                  form_param_name);
 

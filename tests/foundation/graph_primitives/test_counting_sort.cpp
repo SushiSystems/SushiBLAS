@@ -54,13 +54,16 @@
 #include <SushiRuntime/report/node_event_record.hpp>
 
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
 #include "device_sized_harness.hpp"
+#include "host_nodes.hpp"
 #include "plan_labels.hpp"
 #include "window_probe.hpp"
+#include "runtime_port_calls.hpp"
 
 namespace SushiBLAS
 {
@@ -68,8 +71,8 @@ namespace SushiBLAS
     {
         namespace
         {
-            using GraphPrimitives::counting_sort;
-            using GraphPrimitives::prefix_scan;
+            using RuntimePort::counting_sort;
+            using RuntimePort::prefix_scan;
             using SushiRuntime::Determinism;
             using SushiRuntime::LateCount;
             using SushiRuntime::NodeEventRecord;
@@ -309,6 +312,20 @@ namespace SushiBLAS
             {
                 counting_sort(recorder, operands.keys, operands.indices, operands.offsets,
                               operands.total, count, key_range, counts, window, options)
+                    .value();
+            }
+
+            /** @brief Records counting_sort() over operands on a host recorder; it must be accepted. */
+            void record_sort(GraphPrimitives::HostPrimitiveRecorder& recorder,
+                             const SortOperands& operands, const LateCount& count,
+                             const LateCount& key_range, const Words* counts = nullptr,
+                             const Window& window = Window{},
+                             const std::optional<GraphPrimitives::PrimitiveOptions>& options =
+                                 std::nullopt)
+            {
+                GraphPrimitives::counting_sort(recorder, operands.keys, operands.indices,
+                                               operands.offsets, operands.total, count, key_range,
+                                               counts, window, options)
                     .value();
             }
 
@@ -635,16 +652,16 @@ namespace SushiBLAS
                 return stages;
             }
 
-            /** @brief Returns a graph holding one sort of 8 keys over 4 buckets with options. */
-            SushiRuntime::Graph labelled_sort(
-                Runtime& runtime, const SortOperands& operands, bool with_counts,
+            /** @brief Returns a host recorder holding one sort of 8 keys over 4 buckets with options. */
+            GraphPrimitives::HostPrimitiveRecorder labelled_sort(
+                const SortOperands& operands, bool with_counts,
                 const std::optional<GraphPrimitives::PrimitiveOptions>& options)
             {
-                auto graph = runtime.graph();
-                record_sort(graph.recorder(), operands, LateCount::fixed(8),
+                GraphPrimitives::HostPrimitiveRecorder recorder;
+                record_sort(recorder, operands, LateCount::fixed(8),
                             LateCount::fixed(K_LABEL_KEY_RANGE),
                             with_counts ? &operands.counts : nullptr, Window{}, options);
-                return graph;
+                return recorder;
             }
 
             /** @brief Adds a node that packs the outputs of the device-sized sort. */
@@ -855,28 +872,28 @@ namespace SushiBLAS
         }
 
         /// @brief Records a sort over one key range capacity.
-        class Medium_GraphPrimitivesCountingSortCapacity
+        class Small_GraphPrimitivesCountingSortCapacity
             : public ::testing::TestWithParam<NodeCountRow>
         {
         };
 
         /** @brief Tests that each extra digit the key capacity needs records four more nodes. */
-        TEST_P(Medium_GraphPrimitivesCountingSortCapacity, DigitCountFollowsKeyRangeCapacity)
+        TEST_P(Small_GraphPrimitivesCountingSortCapacity, DigitCountFollowsKeyRangeCapacity)
         {
             constexpr std::size_t K_COUNT = 10;
             const NodeCountRow& row = GetParam();
 
             auto runtime = Runtime::create().value();
             const SortOperands operands = operands_for(runtime, K_COUNT, row.key_capacity, 0);
-            auto graph = runtime.graph();
-            record_sort(graph.recorder(), operands, LateCount::fixed(K_COUNT),
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sort(recorder, operands, LateCount::fixed(K_COUNT),
                         LateCount::fixed(row.key_capacity));
 
-            EXPECT_EQ(graph.recorder().node_count(), row.nodes);
+            EXPECT_EQ(recorder.nodes().size(), row.nodes);
         }
 
         INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesCountingSortCapacity,
+            , Small_GraphPrimitivesCountingSortCapacity,
             ::testing::Values(NodeCountRow{std::size_t{1} << 8, 1 * K_NODES_PER_DIGIT + 2},
                               NodeCountRow{std::size_t{1} << 16, 2 * K_NODES_PER_DIGIT + 2},
                               NodeCountRow{std::size_t{1} << 20, 3 * K_NODES_PER_DIGIT + 2}));
@@ -1022,28 +1039,31 @@ namespace SushiBLAS
                       std::vector<std::size_t>(K_STEPS, K_EXPECTED_PASSES));
         }
 
-        /// @brief Reads one pass of a captured sort.
-        class Medium_GraphPrimitivesCountingSortNodeWidth
+        /// @brief Reads the width one pass of a recorded sort launches at.
+        class Small_GraphPrimitivesCountingSortNodeWidth
             : public ::testing::TestWithParam<WidthRow>
         {
         };
 
         /** @brief Tests that each node launches at the width its pass has in the plan. */
-        TEST_P(Medium_GraphPrimitivesCountingSortNodeWidth, NodeWidthsMatchThePlan)
+        TEST_P(Small_GraphPrimitivesCountingSortNodeWidth, NodeWidthsMatchThePlan)
         {
             const WidthRow& row = GetParam();
 
             auto runtime = Runtime::create().value();
-            const CapturedSort captured = capture_sort(runtime, 1);
+            const SortOperands operands =
+                operands_for(runtime, K_CAPTURED_COUNT, K_CAPTURED_KEY_RANGE, 0);
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sort(recorder, operands, LateCount::fixed(K_CAPTURED_COUNT),
+                        LateCount::fixed(K_CAPTURED_KEY_RANGE), &operands.counts);
 
-            ASSERT_EQ(captured.events.size(), 7u);
-            EXPECT_EQ(captured.events[row.pass].launched_width, row.width);
-            EXPECT_EQ(captured.events[row.pass].live_width, row.width);
+            ASSERT_EQ(recorder.nodes().size(), 7u);
+            EXPECT_EQ(recorder.nodes()[row.pass].width, std::size_t{row.width});
         }
 
         // Resolver, histogram, column scan, bin base, placement, offsets, counts.
         INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesCountingSortNodeWidth,
+            , Small_GraphPrimitivesCountingSortNodeWidth,
             ::testing::Values(
                 WidthRow{0, 1u}, WidthRow{1, 2u},
                 WidthRow{2,
@@ -1135,30 +1155,30 @@ namespace SushiBLAS
         }
 
         /// @brief Probes one region of one operand of a sort at K_WINDOW.
-        class Medium_GraphPrimitivesCountingSortWindowProbe
+        class Small_GraphPrimitivesCountingSortWindowProbe
             : public ::testing::TestWithParam<ProbeRow>
         {
         };
 
         /** @brief Tests that a writer of an operand waits only when it hits the window. */
-        TEST_P(Medium_GraphPrimitivesCountingSortWindowProbe, WindowOrdersOnlyOverlappingWriters)
+        TEST_P(Small_GraphPrimitivesCountingSortWindowProbe, WindowOrdersOnlyOverlappingWriters)
         {
             const ProbeRow& row = GetParam();
 
             auto runtime = Runtime::create().value();
             const SortOperands operands =
                 operands_for(runtime, K_PROBE_COUNT, K_PROBE_KEY_RANGE, K_WINDOW_TAIL, K_WINDOW);
-            auto graph = runtime.graph();
-            record_sort(graph.recorder(), operands, LateCount::fixed(K_PROBE_COUNT),
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_sort(recorder, operands, LateCount::fixed(K_PROBE_COUNT),
                         LateCount::fixed(K_PROBE_KEY_RANGE), &operands.counts, K_WINDOW);
-            const std::size_t waits = WindowProbe::predecessors_of_write(
-                graph, WindowProbe::region_of(operands.*row.operand, row.offset, row.count));
+            const std::size_t waits = recorder.nodes_touching(
+                WindowProbe::region_of(operands.*row.operand, row.offset, row.count));
 
             EXPECT_EQ(waits > 0, row.ordered) << "the writer waits for " << waits << " nodes";
         }
 
         INSTANTIATE_TEST_SUITE_P(
-            , Medium_GraphPrimitivesCountingSortWindowProbe,
+            , Small_GraphPrimitivesCountingSortWindowProbe,
             ::testing::Values(
                 ProbeRow{&SortOperands::keys, 0, K_WINDOW.keys_offset, false},
                 ProbeRow{&SortOperands::keys, K_WINDOW.keys_offset + K_PROBE_COUNT, K_WINDOW_TAIL,
@@ -1178,62 +1198,65 @@ namespace SushiBLAS
                 ProbeRow{&SortOperands::counts, K_WINDOW.counts_offset, 1, true}));
 
         /// @brief Records a named sort with or without counts.
-        class Medium_GraphPrimitivesCountingSortNamedCall : public ::testing::TestWithParam<bool>
+        class Small_GraphPrimitivesCountingSortNamedCall : public ::testing::TestWithParam<bool>
         {
         };
 
         /** @brief Tests that a named call names its nodes "sort.<stage>" in recording order. */
-        TEST_P(Medium_GraphPrimitivesCountingSortNamedCall, NamedCallNamesItsNodesByStage)
+        TEST_P(Small_GraphPrimitivesCountingSortNamedCall, NamedCallNamesItsNodesByStage)
         {
             const bool with_counts = GetParam();
             const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
 
             auto runtime = Runtime::create().value();
             const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
-            auto graph = labelled_sort(runtime, operands, with_counts, options);
+            const GraphPrimitives::HostPrimitiveRecorder recorded =
+                labelled_sort(operands, with_counts, options);
 
-            EXPECT_EQ(PlanLabels::names_of(graph),
+            EXPECT_EQ(HostNodes::names_of(recorded),
                       PlanLabels::staged("sort", stages_for(K_LABEL_KEY_RANGE, with_counts)));
         }
 
         /** @brief Tests that a named call gives every node the class its options state. */
-        TEST_P(Medium_GraphPrimitivesCountingSortNamedCall, NamedCallStatesTheClassOfEveryNode)
+        TEST_P(Small_GraphPrimitivesCountingSortNamedCall, NamedCallStatesTheClassOfEveryNode)
         {
             const bool with_counts = GetParam();
             const GraphPrimitives::PrimitiveOptions options{"sort", Determinism::Bitwise};
 
             auto runtime = Runtime::create().value();
             const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
-            auto graph = labelled_sort(runtime, operands, with_counts, options);
+            const GraphPrimitives::HostPrimitiveRecorder recorded =
+                labelled_sort(operands, with_counts, options);
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorded),
                       std::vector<Determinism>(stages_for(K_LABEL_KEY_RANGE, with_counts).size(),
                                                Determinism::Bitwise));
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesCountingSortNamedCall, ::testing::Bool());
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesCountingSortNamedCall, ::testing::Bool());
 
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
-        TEST(Medium_GraphPrimitivesCountingSort, UnnamedCallKeepsItsNodesUnnamed)
+        TEST(Small_GraphPrimitivesCountingSort, UnnamedCallKeepsItsNodesUnnamed)
         {
             auto runtime = Runtime::create().value();
             const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
-            const std::string unnamed = PlanLabels::unnamed_name(runtime);
-            auto graph = labelled_sort(runtime, operands, false, std::nullopt);
+            const GraphPrimitives::HostPrimitiveRecorder recorded =
+                labelled_sort(operands, false, std::nullopt);
 
-            EXPECT_EQ(PlanLabels::names_of(graph),
+            EXPECT_EQ(HostNodes::names_of(recorded),
                       std::vector<std::string>(stages_for(K_LABEL_KEY_RANGE, false).size(),
-                                               unnamed));
+                                               std::string()));
         }
 
         /** @brief Tests that a call with no options leaves the class of every node Unstated. */
-        TEST(Medium_GraphPrimitivesCountingSort, UnnamedCallLeavesEveryClassUnstated)
+        TEST(Small_GraphPrimitivesCountingSort, UnnamedCallLeavesEveryClassUnstated)
         {
             auto runtime = Runtime::create().value();
             const SortOperands operands = operands_for(runtime, 8, K_LABEL_KEY_RANGE, 0);
-            auto graph = labelled_sort(runtime, operands, false, std::nullopt);
+            const GraphPrimitives::HostPrimitiveRecorder recorded =
+                labelled_sort(operands, false, std::nullopt);
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorded),
                       std::vector<Determinism>(stages_for(K_LABEL_KEY_RANGE, false).size(),
                                                Determinism::Unstated));
         }

@@ -2,8 +2,9 @@
 
 Four numeric primitives that record their work on a SushiRuntime task graph: a fixed-order
 reduction, a segmented reduction, an exclusive prefix scan and a stable counting sort. Each is a
-free function whose first parameter is a `SushiRuntime::Recorder&`, so it records on anything
-that has a `recorder()`: a `Graph`, a `Region` of a `DynamicGraph`. They work on
+free function whose first parameter is a `PrimitiveRecorder`, the port described below, so it
+records on a `Graph` or a `Region` of a `DynamicGraph` through `RuntimePrimitiveRecorder`, and
+in memory through `HostPrimitiveRecorder`. They work on
 `SushiRuntime::Buffer<T>`, not on tensors.
 
 `reduce` and `segmented_reduce` are templates defined in their headers. `prefix_scan` and
@@ -15,8 +16,9 @@ name is in `SushiBLAS::GraphPrimitives::Detail`.
 
 ```cpp
 auto graph = runtime.graph();
+SushiBLAS::GraphPrimitives::RuntimePrimitiveRecorder port(graph.recorder());
 const SushiRuntime::Result<void> recorded = SushiBLAS::GraphPrimitives::reduce(
-    graph.recorder(), values, total, count, SushiBLAS::GraphPrimitives::Sum<float>{});
+    port, values, total, count, SushiBLAS::GraphPrimitives::Sum<float>{});
 if (!recorded)
     return SushiRuntime::make_error(recorded.error());
 
@@ -30,13 +32,16 @@ if (!report)
 | Header | Includes |
 | --- | --- |
 | `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp`, `scan_passes.hpp`, `sort_resolution.hpp`, `reduce_close.hpp`, `segment_fold.hpp` | The standard library and each other |
-| `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
+| `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>` and `<SushiRuntime/core/result.hpp>` |
+| `primitive_recorder.hpp` | `PrimitiveNodeKind`, `PrimitiveNodeRecord`, `K_IS_PRIMITIVE_RECORDER`; SushiRuntime's `Determinism`, `OperationID` and `BufferRegion` |
+| `runtime_primitive_recorder.hpp` | `primitive_recorder.hpp` and SushiRuntime's `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `LateCount`, `Buffer` and `Result` |
+| `host_primitive_recorder.hpp` | `primitive_recorder.hpp` and SushiRuntime's `Access`, `DeviceSized`, `NodeOptions`, `LateCount`, `Buffer` and `Result` |
 | `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
 | `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
 | `argument_checks.hpp` | `Detail::validate_counting_sort`, `validate_prefix_scan`, `validate_reduce` and `validate_segmented_reduce`: each takes the sizes, windows, devices and options of one call as plain values and returns nothing or the `InvalidGraph` error; every recording function calls its check before it records |
 | `element_window.hpp` | `invalid_graph.hpp` and SushiRuntime's `Buffer`, `Reads`, `Writes`, `BufferRegion` and `Result` |
-| `reduce.hpp`, `segmented_reduce.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
-| `prefix_scan.hpp`, `counting_sort.hpp` | `primitive_options.hpp` and SushiRuntime's `Recorder`, `Buffer`, `LateCount` and `Result`; their sources include the rest |
+| `reduce.hpp`, `segmented_reduce.hpp` | The headers above and SushiRuntime's public graph headers: `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
+| `prefix_scan.hpp`, `counting_sort.hpp` | `primitive_options.hpp`, both adapter headers and SushiRuntime's `Buffer`, `LateCount` and `Result`; their sources include the rest |
 
 No header includes another SushiBLAS module, and none names `SushiRuntime::Detail`.
 
@@ -65,8 +70,26 @@ place the tile size is written.
 | `reduce_close.hpp` | `Detail::store_identity`, `Detail::close_empty_reduction` |
 | `segment_fold.hpp` | `Detail::fold_segment` |
 | `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
+| `primitive_recorder.hpp` | `PrimitiveNodeKind`, `PrimitiveNodeRecord`, `K_IS_PRIMITIVE_RECORDER` |
+| `runtime_primitive_recorder.hpp` | `RuntimePrimitiveRecorder`: the adapter over a `SushiRuntime::Recorder` |
+| `host_primitive_recorder.hpp` | `HostPrimitiveRecorder`: the in-memory adapter that keeps a `PrimitiveNodeRecord` per node and runs the host forms |
 | `primitive_options.hpp` | `PrimitiveOptions`, `Detail::require_options` |
 | `node_stamper.hpp` | `Detail::NodeStamper` |
+
+## The PrimitiveRecorder port
+
+The four primitives record through `PrimitiveRecorder`, a compile-time port, not a base class: a
+kernel body has to stay a device-copyable type, which a virtual call would erase. An adapter
+declares `static constexpr bool K_PRIMITIVE_RECORDER = true` and provides what the primitives use
+and nothing more: `rule()`, which returns a guard; `scratch<T>(count, device, residency)`;
+`resolve(counts, device, access, fill, options)`; `kernel(count, access, body, options)` and
+`kernel(DeviceSized, access, body, options)`; and `refusal()`.
+
+`RuntimePrimitiveRecorder` forwards each call to one `SushiRuntime::Recorder`. `HostPrimitiveRecorder`
+owns its scratch, keeps a `PrimitiveNodeRecord` of every call (kind, rule, name, class, width,
+capacity, late-count capacities, read and write regions), answers `nodes_touching(region)`, and
+`run()` executes the recorded host forms in record order. Both pass one `PrimitiveRecorderContract`
+suite, small on the host adapter and medium on the runtime adapter.
 
 A `LateCount` carries a capacity, which the primitive plans for when it records, and the source
 of the live count, which the runtime resolves once per run: `LateCount::fixed`,

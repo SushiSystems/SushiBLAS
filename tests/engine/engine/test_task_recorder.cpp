@@ -841,9 +841,10 @@ namespace SushiBLAS
             auto sum = runtime.buffer<float>(1).value();
             auto graph = runtime.graph();
 
-            GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
+            GraphPrimitives::RuntimePrimitiveRecorder port(graph.recorder());
+            GraphPrimitives::prefix_scan(port, counts, offsets, total,
                                          SushiRuntime::LateCount::fixed(64)).value();
-            GraphPrimitives::reduce(graph.recorder(), values, sum, std::size_t{64},
+            GraphPrimitives::reduce(port, values, sum, std::size_t{64},
                                     GraphPrimitives::Sum<float>{}).value();
 
             const SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();

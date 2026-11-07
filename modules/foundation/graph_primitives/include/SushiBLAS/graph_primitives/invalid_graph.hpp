@@ -32,7 +32,6 @@
 #include <string>
 #include <utility>
 
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/core/error.hpp>
 #include <SushiRuntime/core/result.hpp>
 
@@ -59,8 +58,9 @@ namespace SushiBLAS
              * @return Nothing, or the first recording the recorder refused since it was cleared.
              * @see modules/foundation/graph_primitives/README.md
              */
-            [[nodiscard]] inline SushiRuntime::Result<void>
-            recording_outcome(const SushiRuntime::Recorder& recorder)
+            template <class Port>
+            [[nodiscard]] SushiRuntime::Result<void>
+            recording_outcome(const Port& recorder)
             {
                 if (const SushiRuntime::Error* refused = recorder.refusal())
                     return SushiRuntime::make_error(*refused);

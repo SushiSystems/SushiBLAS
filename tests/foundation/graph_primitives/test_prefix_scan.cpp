@@ -48,12 +48,15 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include "device_sized_harness.hpp"
+#include "host_nodes.hpp"
 #include "plan_labels.hpp"
 #include "window_probe.hpp"
+#include "runtime_port_calls.hpp"
 
 namespace SushiBLAS
 {
@@ -61,7 +64,7 @@ namespace SushiBLAS
     {
         namespace
         {
-            using GraphPrimitives::prefix_scan;
+            using RuntimePort::prefix_scan;
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
 
@@ -248,6 +251,19 @@ namespace SushiBLAS
                 copy_into(buffers.counts, counts_of(K_TWO_LEVEL_CAPACITY,
                                                     [](std::size_t i) { return (i % 7) + 1; }));
                 return buffers;
+            }
+
+            /** @brief Returns a host recorder holding a two-level scan over buffers, with options if any. */
+            GraphPrimitives::HostPrimitiveRecorder
+            host_two_level(const ScanBuffers& buffers,
+                           const std::optional<GraphPrimitives::PrimitiveOptions>& options)
+            {
+                GraphPrimitives::HostPrimitiveRecorder recorder;
+                GraphPrimitives::prefix_scan(recorder, buffers.counts, buffers.offsets,
+                                             buffers.total, LateCount::fixed(K_TWO_LEVEL_CAPACITY),
+                                             GraphPrimitives::PrefixScanWindow{}, options)
+                    .value();
+                return recorder;
             }
 
             /** @brief Records a two-level scan over buffers into graph, with options if any. */
@@ -522,15 +538,15 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a two-level call records five passes under one rule. */
-        TEST(Medium_GraphPrimitivesPrefixScan, TwoLevelCallRecordsFivePassesUnderOneRule)
+        TEST(Small_GraphPrimitivesPrefixScan, TwoLevelCallRecordsFivePassesUnderOneRule)
         {
             auto runtime = Runtime::create().value();
             const ScanBuffers buffers = two_level_buffers(runtime);
-            auto graph = runtime.graph();
-            record_two_level(graph, buffers, std::nullopt);
+            const GraphPrimitives::HostPrimitiveRecorder recorder =
+                host_two_level(buffers, std::nullopt);
 
-            EXPECT_EQ(graph.recorder().node_count(), K_TWO_LEVEL_PASSES);
-            EXPECT_EQ(graph.recorder().rule_count(), 1u);
+            EXPECT_EQ(recorder.nodes().size(), K_TWO_LEVEL_PASSES);
+            EXPECT_EQ(recorder.rule_count(), 1u);
         }
 
         /** @brief Tests that every node of one call shares one node_index on every step. */
@@ -555,24 +571,25 @@ namespace SushiBLAS
         }
 
         /// @brief Runs one pass of a two-level scan against its width in the level plan.
-        class Medium_GraphPrimitivesPrefixScanNodeWidth
+        class Small_GraphPrimitivesPrefixScanNodeWidth
             : public ::testing::TestWithParam<NodeWidthRow>
         {
         };
 
         /** @brief Tests that each node launches at the width its pass has in the level plan. */
-        TEST_P(Medium_GraphPrimitivesPrefixScanNodeWidth, NodeWidthsMatchTheLevelPlan)
+        TEST_P(Small_GraphPrimitivesPrefixScanNodeWidth, NodeWidthsMatchTheLevelPlan)
         {
             const NodeWidthRow& row = GetParam();
             auto runtime = Runtime::create().value();
-            const auto events = two_level_events(runtime, 1);
+            const ScanBuffers buffers = two_level_buffers(runtime);
+            const GraphPrimitives::HostPrimitiveRecorder recorder =
+                host_two_level(buffers, std::nullopt);
 
-            ASSERT_EQ(events.size(), K_TWO_LEVEL_PASSES);
-            EXPECT_EQ(events[row.pass].launched_width, row.width);
-            EXPECT_EQ(events[row.pass].live_width, row.width);
+            ASSERT_EQ(recorder.nodes().size(), K_TWO_LEVEL_PASSES);
+            EXPECT_EQ(recorder.nodes()[row.pass].width, std::size_t{row.width});
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesPrefixScanNodeWidth,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesPrefixScanNodeWidth,
                                  ::testing::Values(NodeWidthRow{"Resolver", 0, 1u},
                                                    NodeWidthRow{"UpLevel0", 1, 3u},
                                                    NodeWidthRow{"DownTop", 2, 1u},
@@ -610,7 +627,7 @@ namespace SushiBLAS
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
-                GraphPrimitives::prefix_scan(graph.recorder(), buffers.counts, buffers.offsets,
+                RuntimePort::prefix_scan(graph.recorder(), buffers.counts, buffers.offsets,
                                              buffers.total,
                                              harness.device_count(K_CAPACITY)).value();
                 harness.add_live_digest(graph, buffers.offsets, 1);
@@ -684,7 +701,7 @@ namespace SushiBLAS
                                                    K_TWO_LEVEL_CAPACITY));
 
         /** @brief Tests that a writer of an operand waits only when it hits the window. */
-        TEST(Medium_GraphPrimitivesPrefixScan, WindowOrdersOnlyOverlappingWriters)
+        TEST(Small_GraphPrimitivesPrefixScan, WindowOrdersOnlyOverlappingWriters)
         {
             using WindowProbe::region_of;
             constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
@@ -699,10 +716,11 @@ namespace SushiBLAS
 
             const auto predecessors = [&](const SushiRuntime::BufferRegion& written)
             {
-                auto graph = runtime.graph();
-                prefix_scan(graph.recorder(), counts, offsets, total,
-                            LateCount::fixed(K_CAPACITY), window).value();
-                return WindowProbe::predecessors_of_write(graph, written);
+                GraphPrimitives::HostPrimitiveRecorder recorder;
+                GraphPrimitives::prefix_scan(recorder, counts, offsets, total,
+                                             LateCount::fixed(K_CAPACITY), window)
+                    .value();
+                return recorder.nodes_touching(written);
             };
 
             EXPECT_EQ(predecessors(region_of(counts, 0, window.counts_offset)), 0u);
@@ -717,57 +735,54 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a named call names its nodes by stage. */
-        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesByStage)
+        TEST(Small_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesByStage)
         {
             auto runtime = Runtime::create().value();
             const ScanBuffers buffers = two_level_buffers(runtime);
-            auto graph = runtime.graph();
-            record_two_level(graph, buffers,
-                             GraphPrimitives::PrimitiveOptions{
-                                 "offsets", SushiRuntime::Determinism::Bitwise});
+            const GraphPrimitives::HostPrimitiveRecorder recorder = host_two_level(
+                buffers, GraphPrimitives::PrimitiveOptions{
+                             "offsets", SushiRuntime::Determinism::Bitwise});
 
-            EXPECT_EQ(PlanLabels::names_of(graph),
+            EXPECT_EQ(HostNodes::names_of(recorder),
                       PlanLabels::staged("offsets", {"resolve", "up_sweep", "down_sweep",
                                                      "down_sweep", "close"}));
         }
 
         /** @brief Tests that a named call states its class on every node. */
-        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallStatesTheClassOfEveryNode)
+        TEST(Small_GraphPrimitivesPrefixScan, NamedCallStatesTheClassOfEveryNode)
         {
             auto runtime = Runtime::create().value();
             const ScanBuffers buffers = two_level_buffers(runtime);
-            auto graph = runtime.graph();
-            record_two_level(graph, buffers,
-                             GraphPrimitives::PrimitiveOptions{
-                                 "offsets", SushiRuntime::Determinism::Bitwise});
+            const GraphPrimitives::HostPrimitiveRecorder recorder = host_two_level(
+                buffers, GraphPrimitives::PrimitiveOptions{
+                             "offsets", SushiRuntime::Determinism::Bitwise});
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorder),
                       std::vector<SushiRuntime::Determinism>(
                           K_TWO_LEVEL_PASSES, SushiRuntime::Determinism::Bitwise));
         }
 
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
-        TEST(Medium_GraphPrimitivesPrefixScan, UnnamedCallKeepsItsNodesUnnamed)
+        TEST(Small_GraphPrimitivesPrefixScan, UnnamedCallKeepsItsNodesUnnamed)
         {
             auto runtime = Runtime::create().value();
             const ScanBuffers buffers = two_level_buffers(runtime);
-            const std::string unnamed = PlanLabels::unnamed_name(runtime);
-            auto graph = runtime.graph();
-            record_two_level(graph, buffers, std::nullopt);
+            const GraphPrimitives::HostPrimitiveRecorder recorder =
+                host_two_level(buffers, std::nullopt);
 
-            EXPECT_EQ(PlanLabels::names_of(graph),
-                      std::vector<std::string>(K_TWO_LEVEL_PASSES, unnamed));
+            EXPECT_EQ(HostNodes::names_of(recorder),
+                      std::vector<std::string>(K_TWO_LEVEL_PASSES, std::string()));
         }
 
         /** @brief Tests that a call with no options leaves every node Unstated. */
-        TEST(Medium_GraphPrimitivesPrefixScan, UnnamedCallLeavesEveryNodeUnstated)
+        TEST(Small_GraphPrimitivesPrefixScan, UnnamedCallLeavesEveryNodeUnstated)
         {
             auto runtime = Runtime::create().value();
             const ScanBuffers buffers = two_level_buffers(runtime);
-            auto graph = runtime.graph();
-            record_two_level(graph, buffers, std::nullopt);
+            const GraphPrimitives::HostPrimitiveRecorder recorder =
+                host_two_level(buffers, std::nullopt);
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorder),
                       std::vector<SushiRuntime::Determinism>(
                           K_TWO_LEVEL_PASSES, SushiRuntime::Determinism::Unstated));
         }

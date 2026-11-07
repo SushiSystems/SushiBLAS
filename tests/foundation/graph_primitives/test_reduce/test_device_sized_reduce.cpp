@@ -36,6 +36,7 @@
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
 #include "../device_sized_harness.hpp"
+#include "../runtime_port_calls.hpp"
 
 namespace SushiBLAS
 {
@@ -79,7 +80,7 @@ namespace SushiBLAS
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
-                GraphPrimitives::reduce(graph.recorder(), values, result,
+                RuntimePort::reduce(graph.recorder(), values, result,
                                         harness.device_count(K_CAPACITY), Sum<float>{}).value();
                 const float* r = result.data();
                 std::uint32_t* b = bits.data();

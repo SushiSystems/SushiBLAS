@@ -34,11 +34,12 @@
 #include <optional>
 
 #include <SushiRuntime/api/data/buffer.hpp>
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 #include <SushiRuntime/core/result.hpp>
 
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
 
 namespace SushiBLAS
 {
@@ -66,7 +67,20 @@ namespace SushiBLAS
          * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
          */
         [[nodiscard]] SushiRuntime::Result<void>
-        counting_sort(SushiRuntime::Recorder& recorder,
+        counting_sort(RuntimePrimitiveRecorder& recorder,
+                      const SushiRuntime::Buffer<std::uint32_t>& keys,
+                      const SushiRuntime::Buffer<std::uint32_t>& indices,
+                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                      const SushiRuntime::Buffer<std::uint32_t>& total,
+                      SushiRuntime::LateCount n,
+                      SushiRuntime::LateCount key_range,
+                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr,
+                      CountingSortWindow window = {},
+                      const std::optional<PrimitiveOptions>& options = std::nullopt);
+
+        /** @brief Records counting_sort() through a HostPrimitiveRecorder. */
+        [[nodiscard]] SushiRuntime::Result<void>
+        counting_sort(HostPrimitiveRecorder& recorder,
                       const SushiRuntime::Buffer<std::uint32_t>& keys,
                       const SushiRuntime::Buffer<std::uint32_t>& indices,
                       const SushiRuntime::Buffer<std::uint32_t>& offsets,

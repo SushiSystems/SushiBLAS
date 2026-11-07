@@ -40,7 +40,6 @@
 #include <SushiRuntime/api/graph/access.hpp>
 #include <SushiRuntime/api/graph/device_sized.hpp>
 #include <SushiRuntime/api/graph/node_options.hpp>
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
@@ -49,23 +48,31 @@
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
+#include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/scan_passes.hpp>
 
 namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
-        SushiRuntime::Result<void>
-        prefix_scan(SushiRuntime::Recorder& recorder,
-                    const SushiRuntime::Buffer<std::uint32_t>& counts,
-                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                    const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n, PrefixScanWindow window,
-                    const std::optional<PrimitiveOptions>& options)
+        namespace
         {
+        /** @brief Records prefix_scan() through any PrimitiveRecorder. */
+        template <class Port>
+        SushiRuntime::Result<void>
+        prefix_scan_through(Port& recorder,
+                            const SushiRuntime::Buffer<std::uint32_t>& counts,
+                            const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                            const SushiRuntime::Buffer<std::uint32_t>& total,
+                            SushiRuntime::LateCount n, PrefixScanWindow window,
+                            const std::optional<PrimitiveOptions>& options)
+        {
+            static_assert(K_IS_PRIMITIVE_RECORDER<Port>, "Port must be a PrimitiveRecorder.");
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
@@ -120,13 +127,13 @@ namespace SushiBLAS
             std::uint32_t* down_scratch = nullptr;
             if (sweep_scratch_count != 0)
             {
-                auto up_block = recorder.scratch<std::uint32_t>(
+                auto up_block = recorder.template scratch<std::uint32_t>(
                     sweep_scratch_count, counts.device_index(), counts.residency());
                 if (!up_block)
                     return SushiRuntime::make_error(std::move(up_block.error()));
                 up_scratch = *up_block;
 
-                auto down_block = recorder.scratch<std::uint32_t>(
+                auto down_block = recorder.template scratch<std::uint32_t>(
                     sweep_scratch_count, counts.device_index(), counts.residency());
                 if (!down_block)
                     return SushiRuntime::make_error(std::move(down_block.error()));
@@ -135,7 +142,7 @@ namespace SushiBLAS
 
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t state_words = 2 * level_count;
-            auto state_block = recorder.scratch<std::uint32_t>(
+            auto state_block = recorder.template scratch<std::uint32_t>(
                 state_words, counts.device_index(), counts.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
@@ -257,6 +264,29 @@ namespace SushiBLAS
                 stamper.stage("close", std::size_t{1}));
 
             return Detail::recording_outcome(recorder);
+        }
+        } // namespace
+
+        SushiRuntime::Result<void>
+        prefix_scan(RuntimePrimitiveRecorder& recorder,
+                    const SushiRuntime::Buffer<std::uint32_t>& counts,
+                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                    const SushiRuntime::Buffer<std::uint32_t>& total,
+                    SushiRuntime::LateCount n, PrefixScanWindow window,
+                    const std::optional<PrimitiveOptions>& options)
+        {
+            return prefix_scan_through(recorder, counts, offsets, total, n, window, options);
+        }
+
+        SushiRuntime::Result<void>
+        prefix_scan(HostPrimitiveRecorder& recorder,
+                    const SushiRuntime::Buffer<std::uint32_t>& counts,
+                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                    const SushiRuntime::Buffer<std::uint32_t>& total,
+                    SushiRuntime::LateCount n, PrefixScanWindow window,
+                    const std::optional<PrimitiveOptions>& options)
+        {
+            return prefix_scan_through(recorder, counts, offsets, total, n, window, options);
         }
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

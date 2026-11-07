@@ -99,8 +99,9 @@ int main()
 
     // A primitive that is asked for more segments than the offsets describe records nothing.
     SushiRuntime::Graph refused_graph = runtime.graph();
+    Primitives::RuntimePrimitiveRecorder refused_port(refused_graph.recorder());
     const SushiRuntime::Result<void> refused = Primitives::segmented_reduce(
-        refused_graph.recorder(), values, segment_offsets, segment_sums, K_SEGMENT_COUNT + 2,
+        refused_port, values, segment_offsets, segment_sums, K_SEGMENT_COUNT + 2,
         Primitives::Sum<std::uint32_t>{});
     const bool refused_as_invalid_graph =
         !refused && refused.error().code == SushiRuntime::ErrorCode::InvalidGraph;
@@ -109,13 +110,14 @@ int main()
                   << refused.error().message << "\n";
 
     SushiRuntime::Graph graph = runtime.graph();
-    Primitives::reduce(graph.recorder(), values, sum, K_VALUE_COUNT,
+    Primitives::RuntimePrimitiveRecorder port(graph.recorder());
+    Primitives::reduce(port, values, sum, K_VALUE_COUNT,
                        Primitives::Sum<std::uint32_t>{}).value();
-    Primitives::segmented_reduce(graph.recorder(), values, segment_offsets, segment_sums,
+    Primitives::segmented_reduce(port, values, segment_offsets, segment_sums,
                                  K_SEGMENT_COUNT, Primitives::Sum<std::uint32_t>{}).value();
-    Primitives::prefix_scan(graph.recorder(), bucket_sizes, bucket_starts, bucket_total,
+    Primitives::prefix_scan(port, bucket_sizes, bucket_starts, bucket_total,
                             LateCount::fixed(4)).value();
-    Primitives::counting_sort(graph.recorder(), keys, order, key_starts, key_total,
+    Primitives::counting_sort(port, keys, order, key_starts, key_total,
                               LateCount::fixed(K_KEY_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
 
     graph.run().value();

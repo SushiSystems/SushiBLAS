@@ -39,26 +39,32 @@
 #include <SushiRuntime/api/graph/access.hpp>
 #include <SushiRuntime/api/graph/device_sized.hpp>
 #include <SushiRuntime/api/graph/node_options.hpp>
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
 #include <SushiBLAS/graph_primitives/argument_checks.hpp>
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
+#include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/sort_resolution.hpp>
 
 namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
+        namespace
+        {
+        /** @brief Records counting_sort() through any PrimitiveRecorder. */
+        template <class Port>
         SushiRuntime::Result<void>
-        counting_sort(SushiRuntime::Recorder& recorder,
+        counting_sort_through(Port& recorder,
                       const SushiRuntime::Buffer<std::uint32_t>& keys,
                       const SushiRuntime::Buffer<std::uint32_t>& indices,
                       const SushiRuntime::Buffer<std::uint32_t>& offsets,
@@ -69,6 +75,7 @@ namespace SushiBLAS
                       CountingSortWindow window,
                       const std::optional<PrimitiveOptions>& options)
         {
+            static_assert(K_IS_PRIMITIVE_RECORDER<Port>, "Port must be a PrimitiveRecorder.");
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
@@ -117,7 +124,7 @@ namespace SushiBLAS
             auto rule = recorder.rule();
 
             // n_state[0] is the live element count, n_state[1] its live tile count.
-            auto n_state_block = recorder.scratch<std::uint32_t>(
+            auto n_state_block = recorder.template scratch<std::uint32_t>(
                 2, keys.device_index(), keys.residency());
             if (!n_state_block)
                 return SushiRuntime::make_error(std::move(n_state_block.error()));
@@ -128,7 +135,7 @@ namespace SushiBLAS
             std::uint32_t* plan = nullptr;
             if (n_capacity != 0)
             {
-                auto plan_block = recorder.scratch<std::uint32_t>(
+                auto plan_block = recorder.template scratch<std::uint32_t>(
                     plan_words, keys.device_index(), keys.residency());
                 if (!plan_block)
                     return SushiRuntime::make_error(std::move(plan_block.error()));
@@ -172,17 +179,17 @@ namespace SushiBLAS
             const std::size_t tile_capacity = Detail::next_live_tile_count(n_capacity);
 
             // hist holds raw counts until the column scan overwrites it in place with prefixes.
-            auto hist_block = recorder.scratch<std::uint32_t>(
+            auto hist_block = recorder.template scratch<std::uint32_t>(
                 Detail::K_RADIX_DIGIT_BINS * tile_capacity, keys.device_index(), keys.residency());
             if (!hist_block)
                 return SushiRuntime::make_error(std::move(hist_block.error()));
             std::uint32_t* hist = *hist_block;
-            auto column_total_block = recorder.scratch<std::uint32_t>(
+            auto column_total_block = recorder.template scratch<std::uint32_t>(
                 Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
             if (!column_total_block)
                 return SushiRuntime::make_error(std::move(column_total_block.error()));
             std::uint32_t* column_total = *column_total_block;
-            auto bin_base_block = recorder.scratch<std::uint32_t>(
+            auto bin_base_block = recorder.template scratch<std::uint32_t>(
                 Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
             if (!bin_base_block)
                 return SushiRuntime::make_error(std::move(bin_base_block.error()));
@@ -192,7 +199,7 @@ namespace SushiBLAS
             std::uint32_t* alternate = nullptr;
             if (digit_count >= 2)
             {
-                auto alternate_block = recorder.scratch<std::uint32_t>(
+                auto alternate_block = recorder.template scratch<std::uint32_t>(
                     n_capacity, keys.device_index(), keys.residency());
                 if (!alternate_block)
                     return SushiRuntime::make_error(std::move(alternate_block.error()));
@@ -354,6 +361,39 @@ namespace SushiBLAS
                 stamper.stage("counts", key_capacity));
 
             return Detail::recording_outcome(recorder);
+        }
+        } // namespace
+
+        SushiRuntime::Result<void>
+        counting_sort(RuntimePrimitiveRecorder& recorder,
+                      const SushiRuntime::Buffer<std::uint32_t>& keys,
+                      const SushiRuntime::Buffer<std::uint32_t>& indices,
+                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                      const SushiRuntime::Buffer<std::uint32_t>& total,
+                      SushiRuntime::LateCount n,
+                      SushiRuntime::LateCount key_range,
+                      const SushiRuntime::Buffer<std::uint32_t>* counts,
+                      CountingSortWindow window,
+                      const std::optional<PrimitiveOptions>& options)
+        {
+            return counting_sort_through(recorder, keys, indices, offsets, total, n, key_range,
+                                         counts, window, options);
+        }
+
+        SushiRuntime::Result<void>
+        counting_sort(HostPrimitiveRecorder& recorder,
+                      const SushiRuntime::Buffer<std::uint32_t>& keys,
+                      const SushiRuntime::Buffer<std::uint32_t>& indices,
+                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                      const SushiRuntime::Buffer<std::uint32_t>& total,
+                      SushiRuntime::LateCount n,
+                      SushiRuntime::LateCount key_range,
+                      const SushiRuntime::Buffer<std::uint32_t>* counts,
+                      CountingSortWindow window,
+                      const std::optional<PrimitiveOptions>& options)
+        {
+            return counting_sort_through(recorder, keys, indices, offsets, total, n, key_range,
+                                         counts, window, options);
         }
     } // namespace GraphPrimitives
 } // namespace SushiBLAS

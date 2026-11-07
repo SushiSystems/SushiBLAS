@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -40,7 +41,6 @@
 #include <SushiRuntime/api/graph/access.hpp>
 #include <SushiRuntime/api/graph/device_sized.hpp>
 #include <SushiRuntime/api/graph/node_options.hpp>
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
@@ -51,6 +51,7 @@
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/reduce_close.hpp>
 
 namespace SushiBLAS
@@ -75,9 +76,10 @@ namespace SushiBLAS
          * @return Nothing, InvalidGraph, AllocationFailed or the recorder's refusal.
          * @see modules/foundation/graph_primitives/README.md
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        reduce(SushiRuntime::Recorder& recorder,
+        reduce(Port& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
                T identity, ReduceWindow window = {},
@@ -123,7 +125,7 @@ namespace SushiBLAS
             T* scratch = nullptr;
             if (scratch_count != 0)
             {
-                auto scratch_block = recorder.scratch<T>(
+                auto scratch_block = recorder.template scratch<T>(
                     scratch_count, input.device_index(), input.residency());
                 if (!scratch_block)
                     return SushiRuntime::make_error(std::move(scratch_block.error()));
@@ -174,9 +176,10 @@ namespace SushiBLAS
          * @return Nothing, or an error as the fixed-count overload returns, for n.capacity();
          *         a run returns an error if the live count exceeds n.capacity().
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        reduce(SushiRuntime::Recorder& recorder,
+        reduce(Port& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
                Combine op, T identity, ReduceWindow window = {},
@@ -225,7 +228,7 @@ namespace SushiBLAS
             T* scratch = nullptr;
             if (scratch_count != 0)
             {
-                auto scratch_block = recorder.scratch<T>(
+                auto scratch_block = recorder.template scratch<T>(
                     scratch_count, input.device_index(), input.residency());
                 if (!scratch_block)
                     return SushiRuntime::make_error(std::move(scratch_block.error()));
@@ -234,7 +237,7 @@ namespace SushiBLAS
 
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t level_count = levels.size();
-            auto state_block = recorder.scratch<std::uint32_t>(
+            auto state_block = recorder.template scratch<std::uint32_t>(
                 2 * level_count, input.device_index(), input.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
@@ -302,9 +305,10 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        reduce(SushiRuntime::Recorder& recorder,
+        reduce(Port& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
                ReduceWindow window = {},
@@ -319,9 +323,10 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        reduce(SushiRuntime::Recorder& recorder,
+        reduce(Port& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
                Combine op, ReduceWindow window = {},

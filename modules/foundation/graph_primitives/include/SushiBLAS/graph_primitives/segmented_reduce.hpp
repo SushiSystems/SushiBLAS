@@ -33,13 +33,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/api/graph/access.hpp>
 #include <SushiRuntime/api/graph/device_sized.hpp>
 #include <SushiRuntime/api/graph/node_options.hpp>
-#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
@@ -49,6 +49,7 @@
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/segment_fold.hpp>
 
 namespace SushiBLAS
@@ -121,9 +122,10 @@ namespace SushiBLAS
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, InvalidGraph (a window or options), or the recorder's refusal.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        segmented_reduce(SushiRuntime::Recorder& recorder,
+        segmented_reduce(Port& recorder,
                          const SushiRuntime::Buffer<T>& values,
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
@@ -170,9 +172,10 @@ namespace SushiBLAS
          * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return As the fixed-count overload, or AllocationFailed; a run fails past the capacity.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        segmented_reduce(SushiRuntime::Recorder& recorder,
+        segmented_reduce(Port& recorder,
                          const SushiRuntime::Buffer<T>& values,
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
@@ -204,7 +207,7 @@ namespace SushiBLAS
             T* out_base = output_span.data();
 
             // state[0] is the live segment count the launch reads on the device.
-            auto state_block = recorder.scratch<std::uint32_t>(
+            auto state_block = recorder.template scratch<std::uint32_t>(
                 1, values.device_index(), values.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
@@ -240,9 +243,10 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        segmented_reduce(SushiRuntime::Recorder& recorder,
+        segmented_reduce(Port& recorder,
                          const SushiRuntime::Buffer<T>& values,
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
@@ -260,9 +264,10 @@ namespace SushiBLAS
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
          * @return As the overload that takes an identity.
          */
-        template <typename T, class Combine>
+        template <class Port, typename T, class Combine,
+                  std::enable_if_t<K_IS_PRIMITIVE_RECORDER<Port>, int> = 0>
         [[nodiscard]] SushiRuntime::Result<void>
-        segmented_reduce(SushiRuntime::Recorder& recorder,
+        segmented_reduce(Port& recorder,
                          const SushiRuntime::Buffer<T>& values,
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,

@@ -56,10 +56,13 @@
 #include <SushiBLAS/graph_primitives/fixed_order_fold.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
+#include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
+#include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>

@@ -47,12 +47,13 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
-#include <SushiBLAS/test_runner/run_observer_capture.hpp>
+#include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include "device_sized_harness.hpp"
-#include "plan_labels.hpp"
+#include "host_nodes.hpp"
 #include "window_probe.hpp"
+#include "runtime_port_calls.hpp"
 
 namespace SushiBLAS
 {
@@ -63,7 +64,7 @@ namespace SushiBLAS
             using GraphPrimitives::PrimitiveOptions;
             using GraphPrimitives::SegmentedReduceWindow;
             using GraphPrimitives::Sum;
-            using GraphPrimitives::segmented_reduce;
+            using RuntimePort::segmented_reduce;
             using SushiRuntime::Buffer;
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
@@ -231,26 +232,6 @@ namespace SushiBLAS
                 }
             };
 
-            /** @brief Returns the launched width of each record, in order. */
-            template <typename Records>
-            std::vector<std::uint32_t> launched_widths(const Records& records)
-            {
-                std::vector<std::uint32_t> widths;
-                for (const auto& record : records)
-                    widths.push_back(record.launched_width);
-                return widths;
-            }
-
-            /** @brief Returns the live width of each record, in order. */
-            template <typename Records>
-            std::vector<std::uint32_t> live_widths(const Records& records)
-            {
-                std::vector<std::uint32_t> widths;
-                for (const auto& record : records)
-                    widths.push_back(record.live_width);
-                return widths;
-            }
-
             /** @brief Writes bounds whose segment lengths cycle through 0 to 4; returns the end. */
             std::uint32_t fill_cycling_offsets(Buffer<std::uint32_t>& offsets)
             {
@@ -286,6 +267,24 @@ namespace SushiBLAS
 
                 return segmented_reduce(recorder, values, bounds, out, segments, Sum<T>{},
                                         window, options);
+            }
+
+            /** @brief Records a segmented sum on a host recorder in the given count form. */
+            template <typename T>
+            SushiRuntime::Result<void>
+            record_reduce(GraphPrimitives::HostPrimitiveRecorder& recorder,
+                          const Buffer<T>& values, const Buffer<std::uint32_t>& bounds,
+                          const Buffer<T>& out, CountForm form, std::size_t segments,
+                          const SegmentedReduceWindow& window = SegmentedReduceWindow{},
+                          const std::optional<PrimitiveOptions>& options = std::nullopt)
+            {
+                if (form == CountForm::LateBound)
+                    return GraphPrimitives::segmented_reduce(recorder, values, bounds, out,
+                                                             LateCount::fixed(segments),
+                                                             Sum<T>{}, window, options);
+
+                return GraphPrimitives::segmented_reduce(recorder, values, bounds, out, segments,
+                                                         Sum<T>{}, window, options);
             }
 
             /** @brief Holds the ragged case inside wide buffers and alone. */
@@ -348,6 +347,16 @@ namespace SushiBLAS
                                                  K_OUTPUT_OFFSET};
                 }
             };
+
+            /** @brief Records a segmented reduction of the wide buffers on a host recorder. */
+            SushiRuntime::Result<void>
+            record_windowed(GraphPrimitives::HostPrimitiveRecorder& recorder,
+                            const WindowedSegments& buffers, CountForm form,
+                            const SegmentedReduceWindow& window)
+            {
+                return record_reduce(recorder, buffers.wide_values, buffers.wide_bounds,
+                                     buffers.wide_out, form, WindowedSegments::segments(), window);
+            }
 
             /** @brief Records a segmented reduction of the wide buffers through window. */
             SushiRuntime::Result<void>
@@ -433,6 +442,15 @@ namespace SushiBLAS
                 Buffer<float> values = runtime.buffer<float>(8).value();           /**< Values. */
                 Buffer<std::uint32_t> bounds = runtime.buffer<std::uint32_t>(3).value(); /**< Offsets. */
                 Buffer<float> out = runtime.buffer<float>(2).value();              /**< Output. */
+
+                /** @brief Records a two-segment sum on a host recorder in the given form. */
+                SushiRuntime::Result<void>
+                record_host(GraphPrimitives::HostPrimitiveRecorder& recorder, CountForm form,
+                            const std::optional<PrimitiveOptions>& options = std::nullopt) const
+                {
+                    return record_reduce(recorder, values, bounds, out, form, std::size_t{2},
+                                         SegmentedReduceWindow{}, options);
+                }
 
                 /** @brief Records a two-segment sum into graph in the given form. */
                 SushiRuntime::Result<void>
@@ -520,44 +538,41 @@ namespace SushiBLAS
                                  { return "Live" + std::to_string(info.param); });
 
         /** @brief Tests that the fixed-count node launches at segment_count, not a buffer size. */
-        TEST(Medium_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
+        TEST(Small_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
         {
             constexpr std::size_t K_SEGMENTS = 64;
             auto runtime = Runtime::create().value();
             UnitSegments segments(runtime, K_SEGMENTS);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            segmented_reduce(graph.recorder(), segments.values, segments.offsets, segments.out,
-                             K_SEGMENTS, Sum<std::uint32_t>{}).value();
-            graph.run().value();
-            const auto events = capture.records();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            GraphPrimitives::segmented_reduce(recorder, segments.values, segments.offsets,
+                                              segments.out, K_SEGMENTS, Sum<std::uint32_t>{})
+                .value();
+            recorder.run().value();
 
-            const std::vector<std::uint32_t> expected_widths = {K_SEGMENTS};
-            EXPECT_EQ(launched_widths(events), expected_widths);
-            EXPECT_EQ(live_widths(events), expected_widths);
+            const std::vector<std::size_t> expected_widths = {K_SEGMENTS};
+            EXPECT_EQ(HostNodes::widths_of(recorder), expected_widths);
             EXPECT_EQ(read_buffer(segments.out, 0, K_SEGMENTS),
                       std::vector<std::uint32_t>(K_SEGMENTS, 1u));
         }
 
         /** @brief Tests that the late-bound form records a resolver and a node of capacity. */
-        TEST(Medium_GraphPrimitivesSegmentedReduce, LateBoundWidthsAreOneAndTheCapacity)
+        TEST(Small_GraphPrimitivesSegmentedReduce, LateBoundWidthsAreOneAndTheCapacity)
         {
             constexpr std::size_t K_SEGMENTS = 128;
             auto runtime = Runtime::create().value();
             UnitSegments segments(runtime, K_SEGMENTS);
 
-            auto graph = runtime.graph();
-            const RunObserverCapture capture(runtime);
-            segmented_reduce(graph.recorder(), segments.values, segments.offsets, segments.out,
-                             LateCount::fixed(K_SEGMENTS), Sum<std::uint32_t>{}).value();
-            EXPECT_EQ(graph.recorder().rule_count(), 1u) << "both nodes of one call are one rule";
-            graph.run().value();
-            const auto events = capture.records();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            GraphPrimitives::segmented_reduce(recorder, segments.values, segments.offsets,
+                                              segments.out, LateCount::fixed(K_SEGMENTS),
+                                              Sum<std::uint32_t>{})
+                .value();
+            EXPECT_EQ(recorder.rule_count(), 1u) << "both nodes of one call are one rule";
+            recorder.run().value();
 
-            const std::vector<std::uint32_t> expected_widths = {1u, K_SEGMENTS};
-            EXPECT_EQ(launched_widths(events), expected_widths);
-            EXPECT_EQ(live_widths(events), expected_widths);
+            const std::vector<std::size_t> expected_widths = {1u, K_SEGMENTS};
+            EXPECT_EQ(HostNodes::widths_of(recorder), expected_widths);
             EXPECT_EQ(read_buffer(segments.out, 0, K_SEGMENTS),
                       std::vector<std::uint32_t>(K_SEGMENTS, 1u));
         }
@@ -579,7 +594,7 @@ namespace SushiBLAS
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
-                GraphPrimitives::segmented_reduce(graph.recorder(), values, offsets, out,
+                RuntimePort::segmented_reduce(graph.recorder(), values, offsets, out,
                                                   harness.device_count(K_SEGMENTS),
                                                   Sum<std::uint32_t>{}).value();
                 // A segment past the live count keeps an earlier fold, so later steps differ.
@@ -636,85 +651,83 @@ namespace SushiBLAS
                                  form_param_name);
 
         /// @brief Probes one region near a window in one count form.
-        class Medium_GraphPrimitivesSegmentedReduceWindowOrder
+        class Small_GraphPrimitivesSegmentedReduceWindowOrder
             : public ::testing::TestWithParam<std::tuple<CountForm, ProbeRow>>
         {
         };
 
         /** @brief Tests that a writer of an operand's buffer waits only when it hits the window. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceWindowOrder, WindowOrdersOnlyOverlappingWriters)
+        TEST_P(Small_GraphPrimitivesSegmentedReduceWindowOrder, WindowOrdersOnlyOverlappingWriters)
         {
             const CountForm form = std::get<0>(GetParam());
             const ProbeRow& row = std::get<1>(GetParam());
             auto runtime = Runtime::create().value();
             const WindowedSegments buffers(runtime);
 
-            auto graph = runtime.graph();
-            record_windowed(graph.recorder(), buffers, form, WindowedSegments::window()).value();
-            const std::size_t waits =
-                WindowProbe::predecessors_of_write(graph, probed_region(buffers, row));
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            record_windowed(recorder, buffers, form, WindowedSegments::window()).value();
+            const std::size_t waits = recorder.nodes_touching(probed_region(buffers, row));
 
             EXPECT_EQ(waits > 0u, row.ordered) << "the writer waits for " << waits << " nodes";
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesSegmentedReduceWindowOrder,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesSegmentedReduceWindowOrder,
                                  ::testing::Combine(both_forms(),
                                                     ::testing::ValuesIn(probe_rows())),
                                  formed_name<ProbeRow>);
 
         /// @brief Records one small call in one count form and reads its node labels.
-        class Medium_GraphPrimitivesSegmentedReduceLabels
+        class Small_GraphPrimitivesSegmentedReduceLabels
             : public ::testing::TestWithParam<LabelRow>
         {
         };
 
         /** @brief Tests that a named call names each of its nodes by stage. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceLabels, NamedCallNamesItsNodesByStage)
+        TEST_P(Small_GraphPrimitivesSegmentedReduceLabels, NamedCallNamesItsNodesByStage)
         {
             SmallCall call;
-            auto graph = call.runtime.graph();
-            call.record(graph, GetParam().form, K_NAMED).value();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            call.record_host(recorder, GetParam().form, K_NAMED).value();
 
-            EXPECT_EQ(PlanLabels::names_of(graph), GetParam().stage_names);
+            EXPECT_EQ(HostNodes::names_of(recorder), GetParam().stage_names);
         }
 
         /** @brief Tests that a named call states its class on every node it records. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceLabels, NamedCallStatesTheClassOfEveryNode)
+        TEST_P(Small_GraphPrimitivesSegmentedReduceLabels, NamedCallStatesTheClassOfEveryNode)
         {
             SmallCall call;
-            auto graph = call.runtime.graph();
-            call.record(graph, GetParam().form, K_NAMED).value();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            call.record_host(recorder, GetParam().form, K_NAMED).value();
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorder),
                       std::vector<SushiRuntime::Determinism>(GetParam().stage_names.size(),
                                                              SushiRuntime::Determinism::Bitwise));
         }
 
         /** @brief Tests that a call with no options keeps its nodes unnamed. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceLabels, UnnamedCallKeepsItsNodesUnnamed)
+        TEST_P(Small_GraphPrimitivesSegmentedReduceLabels, UnnamedCallKeepsItsNodesUnnamed)
         {
             SmallCall call;
-            const std::string unnamed = PlanLabels::unnamed_name(call.runtime);
-            auto graph = call.runtime.graph();
-            call.record(graph, GetParam().form).value();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            call.record_host(recorder, GetParam().form).value();
 
-            EXPECT_EQ(PlanLabels::names_of(graph),
-                      std::vector<std::string>(GetParam().stage_names.size(), unnamed));
+            EXPECT_EQ(HostNodes::names_of(recorder),
+                      std::vector<std::string>(GetParam().stage_names.size(), std::string()));
         }
 
         /** @brief Tests that a call with no options leaves the class of its nodes Unstated. */
-        TEST_P(Medium_GraphPrimitivesSegmentedReduceLabels, UnnamedCallLeavesItsNodesUnstated)
+        TEST_P(Small_GraphPrimitivesSegmentedReduceLabels, UnnamedCallLeavesItsNodesUnstated)
         {
             SmallCall call;
-            auto graph = call.runtime.graph();
-            call.record(graph, GetParam().form).value();
+            GraphPrimitives::HostPrimitiveRecorder recorder;
+            call.record_host(recorder, GetParam().form).value();
 
-            EXPECT_EQ(PlanLabels::determinisms_of(graph),
+            EXPECT_EQ(HostNodes::determinisms_of(recorder),
                       std::vector<SushiRuntime::Determinism>(GetParam().stage_names.size(),
                                                              SushiRuntime::Determinism::Unstated));
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_GraphPrimitivesSegmentedReduceLabels,
+        INSTANTIATE_TEST_SUITE_P(, Small_GraphPrimitivesSegmentedReduceLabels,
                                  ::testing::ValuesIn(label_rows()), row_name<LabelRow>);
 
     } // namespace Test

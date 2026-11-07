@@ -29,6 +29,9 @@ sushiblas_add_test_program(
         test_sort_resolution.cpp
     DEVICE_TESTS
         test_counting_sort.cpp
+        test_host_primitive_recorder.cpp
+        test_primitive_recorder.cpp
+        test_runtime_primitive_recorder.cpp
         test_prefix_scan.cpp
         test_reduce/test_device_sized_reduce.cpp
         test_reduce/test_reduce.cpp

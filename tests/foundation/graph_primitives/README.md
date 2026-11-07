@@ -14,6 +14,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_fixed_order_fold.cpp` | Tests the two host folds against the fixed tile order, without a device |
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
 | `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
+| `test_host_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite small on `HostPrimitiveRecorder` and tests the record it keeps of each node |
+| `test_primitive_recorder.cpp` | Tests which types declare themselves an adapter of the `PrimitiveRecorder` port |
+| `test_runtime_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite medium on `RuntimePrimitiveRecorder` |
 | `test_invalid_graph.cpp` | Tests the InvalidGraph error a primitive returns and the outcome of a recording |
 | `test_argument_checks.cpp` | Tests the four argument checks of the recording primitives on plain sizes, windows, devices and options, without a device |
 | `test_node_stamper.cpp` | Tests the options a node stamper builds for a named and an unnamed call, without a device |
@@ -27,8 +30,19 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_segment_fold.cpp` | Tests the fold of one segment of a ragged array, without a device |
 | `test_sort_resolution.cpp` | Tests what a counting sort decides from its live sizes, without a device |
 | `test_segmented_reduce.cpp` | Tests segmented_reduce(): its per-segment fold, its late-bound count and its widths |
+| `host_nodes.hpp` | Declares the readers the naming, width and window tests use on a `HostPrimitiveRecorder` |
+| `runtime_port_calls.hpp` | Declares the four primitives called with a `Recorder`, each through a `RuntimePrimitiveRecorder` built around it |
 | `plan_labels.hpp` | Declares the probe the naming tests use to read the names and determinism classes of a graph's nodes |
 | `window_probe.hpp` | Declares the probe the window tests use to read whether a node over a buffer window is ordered |
+
+## The recorder a test uses
+
+A primitive records through the `PrimitiveRecorder` port. The rows that only record a call and read
+its nodes (names, classes, widths, rules and the window dependencies) run `Small_` on a
+`HostPrimitiveRecorder` and read `nodes()`; the rows that run a graph, replay it or provoke a
+runtime refusal keep `Medium_` and call the primitive through `runtime_port_calls.hpp`. The
+operands are still `SushiRuntime::Buffer`s, so a host row allocates them from a runtime it
+creates; no node of a host row is submitted to a device.
 
 ## The runtime a test builds
 
