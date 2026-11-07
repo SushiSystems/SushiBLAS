@@ -37,11 +37,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(sizeof(Core::Transpose) == 1, "Transpose is one byte.");
-        static_assert(sizeof(Core::Uplo) == 1, "Uplo is one byte.");
-        static_assert(sizeof(Core::Diag) == 1, "Diag is one byte.");
-        static_assert(sizeof(Core::Side) == 1, "Side is one byte.");
-
         /// @brief The number a value-initialised flag has, below every enumerator.
         constexpr int K_BELOW_EVERY_FLAG = 0;
 

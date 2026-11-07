@@ -16,4 +16,5 @@ sushiblas_add_test_program(
         test_device_math.cpp
         test_safe_math.cpp
     COMPILE_CHECKS
-        compile_multiply_add.cpp)
+        compile_multiply_add.cpp
+        compile_accumulator.cpp)

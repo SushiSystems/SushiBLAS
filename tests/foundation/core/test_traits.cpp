@@ -36,16 +36,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(Core::is_complex_v<std::complex<float>>, "complex<float> is complex.");
-        static_assert(Core::is_complex_v<std::complex<double>>, "complex<double> is complex.");
-        static_assert(Core::is_complex<std::complex<float>>::value, "The trait agrees.");
-        static_assert(!Core::is_complex_v<float>, "float is real.");
-        static_assert(!Core::is_complex_v<double>, "double is real.");
-        static_assert(!Core::is_complex_v<int32_t>, "int32_t is an integer.");
-        static_assert(!Core::is_complex_v<int64_t>, "int64_t is an integer.");
-        static_assert(!Core::is_complex_v<const std::complex<float>>,
-                      "A qualified complex is not matched.");
-
         TEST(Small_Traits, IsComplexHoldsForEveryStdComplex)
         {
             EXPECT_TRUE(Core::is_complex_v<std::complex<float>>);

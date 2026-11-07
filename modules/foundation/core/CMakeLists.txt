@@ -21,4 +21,11 @@ sushiblas_add_test_program(
         test_logger.cpp
         test_sparse_types.cpp
         test_traits.cpp
-        test_version.cpp)
+        test_version.cpp
+    COMPILE_CHECKS
+        compile_blas_types.cpp
+        compile_common.cpp
+        compile_errors.cpp
+        compile_sparse_types.cpp
+        compile_sushiblas_log_project.cpp
+        compile_traits.cpp)

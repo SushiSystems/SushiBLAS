@@ -36,18 +36,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(static_cast<int>(Core::DataType::Half) == 0, "HALF is 0.");
-        static_assert(static_cast<int>(Core::DataType::Float32) == 1, "FLOAT32 is 1.");
-        static_assert(static_cast<int>(Core::DataType::Float64) == 2, "FLOAT64 is 2.");
-        static_assert(static_cast<int>(Core::DataType::Complex32) == 3, "COMPLEX32 is 3.");
-        static_assert(static_cast<int>(Core::DataType::Complex64) == 4, "COMPLEX64 is 4.");
-        static_assert(static_cast<int>(Core::DataType::Int32) == 5, "INT32 is 5.");
-        static_assert(static_cast<int>(Core::DataType::Int64) == 6, "INT64 is 6.");
-        static_assert(static_cast<int>(Core::DataType::UInt32) == 7, "UINT32 is 7.");
-        static_assert(Core::K_DATA_TYPE_COUNT == 8, "DataType has eight enumerators.");
-        static_assert(sizeof(Core::DataType) == 1, "DataType is one byte.");
-        static_assert(sizeof(Core::Layout) == 1, "Layout is one byte.");
-
         /// @brief A value outside every DataType enumerator.
         constexpr int K_UNKNOWN_DTYPE = 200;
 

@@ -37,9 +37,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(transpose_of(true) == Core::Transpose::Trans, "Usable in a constant.");
-        static_assert(side_of(false) == Core::Side::Right, "Usable in a constant.");
-
         /// @brief One helper, one truth value and the enumerator number it must give.
         struct FlagRow
         {

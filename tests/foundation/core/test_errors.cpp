@@ -29,7 +29,6 @@
 
 #include <stdexcept>
 #include <string>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/errors.hpp>
 
@@ -37,11 +36,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(std::is_base_of<std::invalid_argument, UnsupportedExecution>::value,
-                      "UnsupportedExecution derives from std::invalid_argument.");
-        static_assert(std::is_final<UnsupportedExecution>::value,
-                      "UnsupportedExecution is final.");
-
         /**
          * @brief Calls thrower and swallows an UnsupportedExecution; any other exception passes.
          */

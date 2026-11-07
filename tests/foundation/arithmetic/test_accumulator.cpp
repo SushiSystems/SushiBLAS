@@ -29,7 +29,6 @@
 
 #include <complex>
 #include <cstdint>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
@@ -38,18 +37,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(std::is_same<Kernels::Accumulator<sycl::half>, float>::value,
-                      "HALF accumulates in FLOAT32.");
-        static_assert(std::is_same<Kernels::AccumulatorOf<sycl::half>::type, float>::value,
-                      "AccumulatorOf names the same type as Accumulator.");
-        static_assert(std::is_same<Kernels::Accumulator<float>, float>::value, "float.");
-        static_assert(std::is_same<Kernels::Accumulator<double>, double>::value, "double.");
-        static_assert(std::is_same<Kernels::Accumulator<int32_t>, int32_t>::value, "int32.");
-        static_assert(std::is_same<Kernels::Accumulator<int64_t>, int64_t>::value, "int64.");
-        static_assert(std::is_same<Kernels::Accumulator<std::complex<float>>,
-                                   std::complex<float>>::value,
-                      "complex<float>.");
-
         TEST(Small_Accumulator, AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses)
         {
             // 2048 is where HALF's step grows to 2; the float accumulator keeps the 1.

@@ -36,10 +36,6 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(sizeof(Core::IndexBase) == 1, "IndexBase is one byte.");
-        static_assert(Core::first_index(Core::IndexBase::Zero) == 0, "Zero starts at 0.");
-        static_assert(Core::first_index(Core::IndexBase::One) == 1, "One starts at 1.");
-
         /// @brief The number after the last IndexBase enumerator.
         constexpr int K_PAST_LAST_BASE = 223;
 
