@@ -10,6 +10,7 @@ original text is frozen in the changelog document in the version history.
 - 2026-11-07 — verification: Give the engine fixture a host tensor and host run, so the LogicOps tests run small (RW-150, `d735f640`).
 - 2026-11-07 — verification: Let RandomOps record on an in-memory task recorder, so its refusal tests run small (RW-151, `d735f640`).
 - 2026-11-07 — io: Give io a header parser over bytes so the npy and sushi header refusals run small (RW-148, `9eb150e7`).
+- 2026-11-07 — verification: Run the reduction refusals, dtype, empty-input and lease rules small on a host engine (RW-152, `b79973ee`).
 - 2026-11-07 — verification: Make Engine hold no nullable runtime: is_host() and runtime() stop differing by kind (RW-155, `e64552f6`).
 - 2026-11-07 — verification: Give ScratchPool no nullable runtime: it lends from its ScratchBlockSource alone (RW-156, `e64552f6`).
 - 2026-11-07 — verification: Gave ScratchPool a block source port with a host adapter, so the lease tests run small (RW-153, `c986a77f`).
