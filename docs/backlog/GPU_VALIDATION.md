@@ -12,7 +12,6 @@
 | RW-28 | P2 | unmeasured | Run the group-per-row GEMV and SYMV paths | both paths have run on a device that chooses them; on the CPU only a 4 x 16384 GEMV reaches them and SYMV never does |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
 | RW-29 | P2 | unmeasured | Confirm the device memory alignment on a run | `Storage` is seen to receive 128-byte aligned memory on CUDA, and on Level Zero when a machine with it is at hand |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
 | RW-30 | P2 | unmeasured | Measure the weight gradient of `window_dot` | the cost of its two 64-bit divisions per term is measured |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
-| RW-141 | P2 | decision | Give make_host_queue a device-list seam and SharedArray an allocator port | Medium_HostQueue and the SharedArray value tests run Small_ on in-memory adapters |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 

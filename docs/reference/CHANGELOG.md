@@ -5,6 +5,11 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-07 — profiling_logging: Gave the logger a port with an in-memory sink so its tests run small (RW-142, `5a1ffa4a`).
+- 2026-11-07 — general: Replaced the test_runner LogCapture stand-in with SushiLog::LogCapture (RW-143, `5a1ffa4a`).
+- 2026-11-07 — gpu_validation: Gave make_host_queue a device-list seam and SharedArray an allocator port (RW-141, `4529f987`).
+- 2026-11-07 — general: Gave the operations refusal checks host-callable seams so their tests run small (RW-144, `3476a105`).
+- 2026-11-07 — general: Moved the forced-mode and refusal test helpers into tests/support (RW-145, `3476a105`).
 - 2026-11-07 — benchmarks_tuning: Ruled that micro benchmarks stay beside their tests and build into benchmark programs, never into a test program (RW-135, `20928ee7`).
 - 2026-11-07 — verification: Ruled that HostDeviceTest takes the program-wide CPU queue from the test program's Environment (RW-137, `20928ee7`).
 
