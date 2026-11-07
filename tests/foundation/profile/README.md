@@ -8,7 +8,11 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `compile_profile.cpp` | Compile check, never run: every `SB_` macro is usable in one scope and a value only a macro reads is not unused |
+| `test_collector_event_reader.cpp` | `Medium_` tests that the collector adapter returns what the calling thread wrote and nothing for another thread |
+| `test_profile_event_reader.cpp` | `Small_` tests that the in-memory adapter counts and discards the events of one thread |
 | `test_profile_gate.cpp` | Tests that a zone is compiled in or out by the level of its translation unit, and that a unit with the profiler off compiles every macro |
 | `test_profile_keys.cpp` | Tests that each name the library writes into a record is listed once |
 
 `profile_level_one.cpp` sets level 1 and `profile_off.cpp` turns the profiler off, each by undefining the generated setting before it includes `profile.hpp`, so the gate is tested across translation units of different levels. Neither is a test.
+
+A zone writes into the process-wide collector, so the gate tests that write one stay `Medium_` and read what they wrote through the collector adapter. The reading logic is tested `Small_` on the in-memory adapter; `Small_ProfileGate` holds the gate checks that need no collector. The collector is opened by `tests/support/open_collector_fixture.hpp`.

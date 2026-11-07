@@ -35,9 +35,8 @@
 #include <SushiBLAS/profile/profile.hpp>
 
 #if SB_ENABLE_PROFILER
-#include <vector>
-#include <SushiProfiler/collector/collector.hpp>
-#include <SushiProfiler/events/trace_event.hpp>
+#include <SushiBLAS/profile/collector_event_reader.hpp>
+#include "support/open_collector_fixture.hpp"
 #endif
 
 namespace SushiBLAS
@@ -54,45 +53,28 @@ namespace SushiBLAS
         }
 
 #if SB_ENABLE_PROFILER
+        TEST(Small_ProfileGate, TheDefaultLevelOfATranslationUnitIsTwo)
+        {
+            static_assert(Internal::Profile::K_COMPILED_LEVEL == 2,
+                          "the default level of this translation unit");
+            EXPECT_EQ(Internal::Profile::K_COMPILED_LEVEL, 2);
+        }
+
         namespace
         {
-            /// @brief Opens the collector for a test and empties it afterwards.
-            class Medium_ProfileGate : public ::testing::Test
+            /// @brief Opens the collector and reads what a zone wrote through the reader port.
+            class Medium_ProfileGate : public OpenCollectorFixture
             {
                 protected:
-                    void SetUp() override
+                    /// @brief Returns how many events the calling thread wrote since the last read.
+                    std::size_t events_written_by_this_thread()
                     {
-                        close_and_empty();
-                        ASSERT_TRUE(SushiProfiler::Collector::instance().open(
-                            SushiProfiler::CollectorSettings{}));
-                    }
-
-                    void TearDown() override
-                    {
-                        close_and_empty();
-                    }
-
-                    /// @brief Returns how many events the calling thread wrote since the last drain.
-                    static std::size_t events_written_by_this_thread()
-                    {
-                        SushiProfiler::DrainBatch batch;
-                        SushiProfiler::Collector::instance().drain(batch);
-                        for (const SushiProfiler::ThreadDrain& thread : batch.threads)
-                        {
-                            if (thread.thread_index == SushiProfiler::Collector::thread_index())
-                                return thread.events.size();
-                        }
-                        return 0;
+                        return m_reader.drain_events_of_thread(
+                            Internal::Profile::CollectorEventReader::calling_thread());
                     }
 
                 private:
-                    /// @brief Closes the collector and discards what its rings hold.
-                    static void close_and_empty()
-                    {
-                        SushiProfiler::Collector::instance().close();
-                        SushiProfiler::DrainBatch discarded;
-                        SushiProfiler::Collector::instance().drain(discarded);
-                    }
+                    Internal::Profile::CollectorEventReader m_reader;
             };
         } // namespace
 
@@ -110,8 +92,6 @@ namespace SushiBLAS
 
         TEST_F(Medium_ProfileGate, TheDefaultLevelCompilesFineZonesIn)
         {
-            static_assert(Internal::Profile::K_COMPILED_LEVEL == 2,
-                          "the default level of this translation unit");
             {
                 SB_ZONE_FINE("test_profile_gate.fine");
             }
