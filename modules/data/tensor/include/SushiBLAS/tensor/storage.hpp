@@ -30,115 +30,34 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
-#include <optional>
+#include <memory>
 #include <utility>
-#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/tensor/host_block.hpp>
-#include <SushiBLAS/tensor/tensor_log_category.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiRuntime/core/ref_counted.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Holds the byte alignment of every owned Storage allocation base, which its size is
-     *        a multiple of.
-     * @see modules/README.md
-     */
-    inline constexpr std::size_t K_STORAGE_ALIGNMENT = 128;
-
-    /**
      * @class Storage
-     * @brief Holds one reference-counted allocation a tensor's elements live in: USM a runtime
-     *        allocated, USM borrowed from another owner, or host memory no runtime owns.
+     * @brief Holds one reference-counted allocation a tensor's elements live in, as a
+     *        StorageBlock it forwards to: host memory, USM a runtime allocated or USM borrowed
+     *        from another owner.
      * @see modules/README.md
      */
     class alignas(64) Storage : public SushiRuntime::RefCounted
     {
         public:
-            /** @brief Selects the constructor that borrows a buffer instead of allocating one. */
-            struct Borrowed
-            {
-
-            };
-
-            /** @brief Selects the constructor that allocates host memory no runtime owns. */
-            struct Host
-            {
-
-            };
-
             /**
-             * @brief Allocates n_bytes, rounded up to K_STORAGE_ALIGNMENT, at an address aligned to it.
-             * @param runtime Allocates the buffer this Storage owns.
-             * @param n_bytes Number of bytes requested; above zero.
-             * @param device_index Device queue that owns the allocation; a device of runtime.
-             * @throws std::runtime_error if the size is zero or overflows, the device index is out
-             *         of range, or the allocation fails.
+             * @brief Takes the block this storage forwards to.
+             * @param block The bytes of the allocation, such as HostBlock or RuntimeBlock.
+             * @throws std::runtime_error if block is null.
              */
-            Storage(SushiRuntime::Runtime& runtime,
-                    std::size_t n_bytes,
-                    SushiRuntime::Residency residency = SushiRuntime::Residency::Shared,
-                    std::size_t device_index = 0)
-                : controls_(runtime.advanced())
+            explicit Storage(std::unique_ptr<StorageBlock> block)
+                : block_(std::move(block))
             {
-                const std::size_t size_bytes = rounded_size(n_bytes);
-
-                SB_THROW_IF(device_index >= controls_->device_count(),
-                            "Device index {} is out of range; the runtime drives {} devices",
-                            device_index, controls_->device_count());
-
-                SushiRuntime::Result<SushiRuntime::Buffer<std::byte>> allocated =
-                    runtime.buffer<std::byte>(size_bytes, SushiRuntime::DeviceIndex{device_index},
-                                              residency, K_STORAGE_ALIGNMENT);
-                SB_THROW_IF(!allocated, "Allocation failed for {} bytes: {}", size_bytes,
-                            allocated.error().message);
-
-                SB_ASSERT(K_TENSOR_LOG_CATEGORY, reinterpret_cast<std::uintptr_t>(allocated->data()) %
-                                  K_STORAGE_ALIGNMENT == 0,
-                          "The runtime returned an allocation that is not aligned to "
-                          "K_STORAGE_ALIGNMENT");
-
-                buffer_ = std::move(*allocated);
-            }
-
-            /**
-             * @brief Allocates host memory no runtime owns, n_bytes rounded up to
-             *        K_STORAGE_ALIGNMENT, at an address aligned to it; it is freed with the storage.
-             * @param n_bytes Number of bytes requested; above zero.
-             * @throws std::runtime_error if the size is zero or overflows.
-             * @throws std::bad_alloc if the allocation fails.
-             */
-            Storage(Host, std::size_t n_bytes)
-                : host_block_(rounded_size(n_bytes), K_STORAGE_ALIGNMENT), is_host_(true)
-            {
-
-            }
-
-            /**
-             * @brief Views a buffer another owner keeps alive, allocating and copying nothing.
-             * @param runtime The runtime the buffer belongs to.
-             * @param buffer Memory that outlives every run naming it, such as the result of
-             *        Interop::borrow; its size is the size of this Storage.
-             * @throws std::runtime_error if the buffer is empty, not aligned to
-             *         alignof(std::max_align_t), or on a device runtime does not drive.
-             */
-            Storage(Borrowed, SushiRuntime::Runtime& runtime,
-                    SushiRuntime::Buffer<std::byte>&& buffer)
-                : controls_(runtime.advanced()), buffer_(std::move(buffer)), is_borrowed_(true)
-            {
-                SB_THROW_IF(buffer_.data() == nullptr || buffer_.size() == 0,
-                            "A borrowed buffer cannot be empty");
-                SB_THROW_IF(reinterpret_cast<std::uintptr_t>(buffer_.data()) %
-                                    alignof(std::max_align_t) != 0,
-                            "A borrowed buffer must be aligned to {} bytes",
-                            alignof(std::max_align_t));
-                SB_THROW_IF(buffer_.device_index().value() >= controls_->device_count(),
-                            "Device index {} is out of range; the runtime drives {} devices",
-                            buffer_.device_index().value(), controls_->device_count());
+                SB_THROW_IF(block_ == nullptr, "A storage needs a block");
             }
 
             Storage(const Storage&) = delete;
@@ -147,101 +66,77 @@ namespace SushiBLAS
             /**
              * @brief Returns the base address of the whole allocation, ignoring every view's offset.
              * @return An address that is a multiple of K_STORAGE_ALIGNMENT, or of
-             *         alignof(std::max_align_t) for a borrowed Storage.
+             *         alignof(std::max_align_t) for a borrowed block.
              * @warning Never a tensor's data; use Tensor::data() to address elements.
              * @see modules/README.md
              */
-            void* allocation_base() const noexcept
-            {
-                return is_host_ ? host_block_.data() : buffer_.data();
-            }
+            void* allocation_base() const noexcept { return block_->data(); }
 
             /**
              * @brief Returns the bytes allocated: the requested size rounded up to
              *        K_STORAGE_ALIGNMENT, or the size of the borrowed buffer.
              */
-            [[nodiscard]] std::size_t size_bytes() const noexcept
-            {
-                return is_host_ ? host_block_.size_bytes() : buffer_.size();
-            }
+            [[nodiscard]] std::size_t size_bytes() const noexcept { return block_->size_bytes(); }
 
             /**
              * @brief Returns the queue of the device that owns the allocation.
-             * @throws UnsupportedExecution on a host storage, which no device owns.
+             * @throws UnsupportedExecution when no device owns the allocation.
              */
             [[nodiscard]] sycl::queue& queue() const
             {
-                if (is_host_)
-                    throw UnsupportedExecution("A host storage has no device queue");
-                return controls_->queue(buffer_.device_index());
+                sycl::queue* owner = block_->queue();
+                if (owner == nullptr)
+                    throw UnsupportedExecution("A storage with no device owner has no queue");
+                return *owner;
             }
 
-            /**
-             * @brief Returns the kind of memory the allocation lives in (Shared, Device, or Host).
-             * @return Residency::Host for a host storage.
-             */
+            /** @brief Returns the kind of memory the allocation lives in (Shared, Device or Host). */
             [[nodiscard]] SushiRuntime::Residency residency() const noexcept
             {
-                return is_host_ ? SushiRuntime::Residency::Host : buffer_.residency();
+                return block_->residency();
             }
 
-            /** @brief Returns the device queue that owns the allocation; 0 for a host storage. */
+            /** @brief Returns the device queue that owns the allocation; 0 when no device does. */
             [[nodiscard]] std::size_t device_index() const noexcept
             {
-                return is_host_ ? 0 : buffer_.device_index().value();
+                return block_->device_index();
             }
 
-            /** @brief Returns whether the memory is host memory no runtime owns. */
-            [[nodiscard]] bool is_host() const noexcept { return is_host_; }
-
-            /** @brief Returns whether the memory belongs to another owner. */
-            [[nodiscard]] bool is_borrowed() const noexcept { return is_borrowed_; }
-
-            /**
-             * @brief Returns the observer a run checks first: it expires when the owner of
-             *        borrowed memory lets go.
-             * @return An empty observer for a Storage that owns its allocation.
-             */
+            /** @brief Returns the observer a run checks first; empty for memory the storage owns. */
             [[nodiscard]] SushiRuntime::LivenessObserver owner_liveness() const noexcept
             {
-                if (!is_borrowed_)
-                    return {};
-                return SushiRuntime::On(buffer_).life;
+                return block_->owner_liveness();
+            }
+
+            /** @brief Returns the block this storage forwards to. */
+            [[nodiscard]] const StorageBlock& block() const noexcept { return *block_; }
+
+            /**
+             * @brief Copies bytes out of the allocation into host memory and waits.
+             * @param offset First byte of the allocation to copy.
+             * @throws std::runtime_error if the range lies outside the allocation.
+             */
+            void copy_to_host(void* destination, std::size_t offset, std::size_t bytes) const
+            {
+                block_->copy_to_host(destination, offset, bytes);
+            }
+
+            /**
+             * @brief Copies bytes from host memory into the allocation and waits.
+             * @param offset First byte of the allocation to write.
+             * @throws std::runtime_error if the range lies outside the allocation.
+             */
+            void copy_from_host(const void* source, std::size_t offset, std::size_t bytes) const
+            {
+                block_->copy_from_host(source, offset, bytes);
             }
 
         protected:
-            /** @brief Frees the allocation with the buffer that owns it. */
+            /** @brief Frees the allocation with the block that owns it. */
             ~Storage() override = default;
 
         private:
-            /**
-             * @brief Returns n_bytes rounded up to K_STORAGE_ALIGNMENT.
-             * @throws std::runtime_error if n_bytes is zero or the rounded size overflows.
-             */
-            static std::size_t rounded_size(std::size_t n_bytes)
-            {
-                SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
-                SB_THROW_IF(n_bytes > SIZE_MAX - (K_STORAGE_ALIGNMENT - 1),
-                            "Requested size {} overflows when rounded up to {} bytes",
-                            n_bytes, K_STORAGE_ALIGNMENT);
-
-                return (n_bytes + K_STORAGE_ALIGNMENT - 1) / K_STORAGE_ALIGNMENT *
-                       K_STORAGE_ALIGNMENT;
-            }
-
-            /** @brief The runtime's device view, which hands out the queue of the allocation; empty on a host storage. */
-            std::optional<SushiRuntime::AdvancedControls> controls_;
-
-            /** @brief The buffer the runtime allocated, which frees the memory with itself; empty on a host storage. */
-            SushiRuntime::Buffer<std::byte> buffer_;
-
-            /** @brief The host memory of a host storage, which frees it with itself; empty otherwise. */
-            HostBlock host_block_;
-
-            /** @brief Whether the memory is host_block_ and no runtime owns it. */
-            bool is_host_ = false;
-
-            /** @brief Whether buffer_ views memory another owner keeps alive. */
-            bool is_borrowed_ = false;
+            /// @brief Holds the bytes of the allocation, which free the memory with themselves.
+            std::unique_ptr<StorageBlock> block_;
     };
 } // namespace SushiBLAS

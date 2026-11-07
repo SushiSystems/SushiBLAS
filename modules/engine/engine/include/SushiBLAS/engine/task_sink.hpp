@@ -30,32 +30,28 @@
 #pragma once
 
 #include <string>
-#include <vector>
 #include <functional>
-#include <sycl/sycl.hpp>
-#include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiBLAS/engine/task_description.hpp>
-#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 
 namespace SushiBLAS
 {
-    class GraphTaskSink;
+    class OperandSet;
+    class PairRun;
+    struct TaskDescription;
 
     /**
-     * @brief Receives the kernel-pair tasks a TaskRecorder records.
+     * @brief Receives the kernel-pair tasks a TaskRecorder records, one call at a time under
+     *        the recorder's mutex.
      *
-     * GraphTaskSink adds each task as a node of a SushiRuntime graph. HostTaskSink keeps the
-     * bodies in record order and runs them on the host under ForceReference. TaskRecorder calls a
-     * sink with its recording mutex held, one call at a time.
+     * It names no SYCL type, so a host consumer includes it without SYCL; PairRun carries the
+     * dispatcher and the events. GraphTaskSink and HostTaskSink are its adapters.
      * @see modules/engine/engine/README.md
      */
     class TaskSink
     {
         public:
-            /// @brief A recorded body: gets its dispatcher and dependencies, returns the event that ends its work.
-            using PairBody = std::function<sycl::event(const KernelPairDispatcher&,
-                                                       const std::vector<sycl::event>&)>;
+            /// @brief A recorded body: reads its dispatcher and dependencies from the run and finishes it with the event that ends its work.
+            using PairBody = std::function<void(PairRun&)>;
 
             TaskSink(const TaskSink&) = delete;
             TaskSink& operator=(const TaskSink&) = delete;
@@ -65,14 +61,6 @@ namespace SushiBLAS
 
             /** @brief Reports whether tasks recorded under @p mode can run through this sink. */
             [[nodiscard]] virtual bool admits(ExecutionMode mode) const noexcept = 0;
-
-            /**
-             * @brief Returns the graph adapter behind this sink, or null when none is.
-             *
-             * A late-count kernel is a graph node with no host form, so TaskRecorder reaches it
-             * only through this.
-             */
-            [[nodiscard]] virtual GraphTaskSink* graph() noexcept = 0;
 
             /**
              * @brief Adds one task whose body runs a kernel pair.

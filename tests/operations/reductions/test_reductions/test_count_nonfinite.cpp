@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -370,8 +371,7 @@ namespace SushiBLAS
             GraphProbe probe;
 
             constexpr int64_t kN = 8;
-            auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
 

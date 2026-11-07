@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/cost/cost.hpp>
 #include <SushiBLAS/cost/cost_shape.hpp>
@@ -157,8 +158,7 @@ namespace SushiBLAS
         TEST_F(Medium_TaskAccess, ABorrowedStorageNamesItsLiveOwner)
         {
             const OwnedMemory memory(128);
-            const Tensor borrowed(SushiRuntime::make_sushi<Storage>(
-                Storage::Borrowed{}, TestEnvironment::runtime(), memory.borrow(0, 128)), {4});
+            const Tensor borrowed(borrow_runtime_storage(TestEnvironment::runtime(), memory.borrow(0, 128)), {4});
             OperandSet operands;
             operands.writes(borrowed);
 

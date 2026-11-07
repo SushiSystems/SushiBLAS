@@ -37,6 +37,7 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -113,8 +114,7 @@ namespace SushiBLAS
                 [[nodiscard]] static SushiRuntime::sushi_ptr<Storage>
                 make_storage(int64_t elements, Core::DataType dtype)
                 {
-                    return SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::runtime(),
+                    return make_runtime_storage(TestEnvironment::runtime(),
                         static_cast<std::size_t>(elements) * Core::bytes_per_element(dtype),
                         SushiRuntime::Residency::Shared);
                 }

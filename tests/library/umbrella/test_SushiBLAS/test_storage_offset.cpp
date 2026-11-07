@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -66,8 +67,7 @@ namespace SushiBLAS
                         n *= d;
 
                     const size_t bpe = Core::bytes_per_element(dtype);
-                    auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::runtime(),
+                    auto storage = make_runtime_storage(TestEnvironment::runtime(),
                         static_cast<size_t>(K_PAD + n + K_PAD) * bpe,
                         SushiRuntime::Residency::Shared);
 
@@ -345,8 +345,7 @@ namespace SushiBLAS
         TEST_F(Medium_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
         {
             // Disjoint views of one arena must not alias. See tests/library/umbrella/README.md.
-            auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto storage = make_runtime_storage(TestEnvironment::runtime(),
                 32 * sizeof(float),
                 SushiRuntime::Residency::Shared);
 
@@ -372,8 +371,7 @@ namespace SushiBLAS
             {
                 for (const int64_t count : element_counts)
                 {
-                    auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::runtime(),
+                    auto storage = make_runtime_storage(TestEnvironment::runtime(),
                         static_cast<size_t>(count) * sizeof(float),
                         residency);
                     const Tensor t(storage, {count}, Core::DataType::Float32);
@@ -390,9 +388,9 @@ namespace SushiBLAS
 
         TEST_F(Medium_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
         {
-            auto one_byte = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), 1);
+            auto one_byte = make_runtime_storage(TestEnvironment::runtime(), 1);
             auto past_one_block =
-                SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), 129);
+                make_runtime_storage(TestEnvironment::runtime(), 129);
 
             EXPECT_EQ(one_byte->size_bytes(), 128u);
             EXPECT_EQ(past_one_block->size_bytes(), 256u);
@@ -401,8 +399,7 @@ namespace SushiBLAS
         TEST_F(Medium_StorageOffsetTest, AViewOffTheBaseReportsItsOwnAlignment)
         {
             const int64_t n = 64;
-            auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(), static_cast<size_t>(n) * sizeof(float));
+            auto storage = make_runtime_storage(TestEnvironment::runtime(), static_cast<size_t>(n) * sizeof(float));
             const Tensor whole(storage, {n}, Core::DataType::Float32);
 
             // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
@@ -412,8 +409,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
         {
-            auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(), 4 * sizeof(float));
+            auto storage = make_runtime_storage(TestEnvironment::runtime(), 4 * sizeof(float));
             const Tensor t(storage, {4}, Core::DataType::Float32);
 
             EXPECT_EQ(t.device(), TestEnvironment::queue(storage->device_index()).get_device());

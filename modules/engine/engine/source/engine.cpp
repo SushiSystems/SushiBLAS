@@ -31,14 +31,18 @@
 
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/engine_log_category.hpp>
+#include <SushiBLAS/engine/host_mode_admission.hpp>
 #include <SushiBLAS/engine/host_scratch_source.hpp>
-#include <SushiBLAS/engine/host_task_sink.hpp>
 #include <SushiBLAS/engine/profile_hooks.hpp>
+#include <SushiBLAS/engine/runtime_mode_admission.hpp>
+#include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS
 {
     Engine::Engine(SushiRuntime::Runtime& runtime, Core::Layout layout)
-        : runtime_(&runtime), scratch_pool_(runtime), tensor_factory_(runtime, layout)
+        : runtime_(&runtime), block_source_(std::make_unique<RuntimeScratchSource>(runtime)),
+          admission_(std::make_unique<RuntimeModeAdmission>()), scratch_pool_(*block_source_),
+          tensor_factory_(runtime, layout)
     {
         Internal::install_profile_hooks();
         SB_LOG_INFO(K_ENGINE_LOG_CATEGORY, "SushiBLAS Engine initialized with {} layout.",
@@ -48,10 +52,9 @@ namespace SushiBLAS
     Engine::~Engine() = default;
 
     Engine::Engine(Host, Core::Layout layout)
-        : runtime_(nullptr), host_source_(std::make_unique<HostScratchSource>()),
-          scratch_pool_(*host_source_), mode_(ExecutionMode::ForceReference),
-          tensor_factory_(TensorFactory::Host{}, layout),
-          host_sink_(std::make_unique<HostTaskSink>())
+        : runtime_(nullptr), block_source_(std::make_unique<HostScratchSource>()),
+          admission_(std::make_unique<HostModeAdmission>()), scratch_pool_(*block_source_),
+          mode_(ExecutionMode::ForceReference), tensor_factory_(TensorFactory::Host{}, layout)
     {
         SB_LOG_INFO(K_ENGINE_LOG_CATEGORY, "SushiBLAS host Engine initialized with {} layout.",
                     layout == Core::Layout::RowMajor ? "Row-Major" : "Column-Major");

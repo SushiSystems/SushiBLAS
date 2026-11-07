@@ -42,8 +42,8 @@ namespace SushiBLAS
     namespace Test
     {
         /**
-         * @brief Holds a TaskRecorder over a host engine's HostTaskSink and adds the GoogleTest
-         *        assertion on a run.
+         * @brief Owns a HostTaskSink and a TaskRecorder over it for a host engine, and adds the
+         *        GoogleTest assertion on a run.
          *
          * It makes no queue and no graph. The recorded bodies run on the host, in record order,
          * under ForceReference.
@@ -53,13 +53,14 @@ namespace SushiBLAS
         {
             public:
                 /**
-                 * @brief Builds a recorder over the host engine's sink that borrows its scratch pool.
+                 * @brief Builds its own host sink and a recorder over it that borrows the engine's
+                 *        scratch pool and starts in the engine's mode.
                  * @param engine A host engine; it must outlive the fixture.
-                 * @throws UnsupportedExecution when the engine was built on a runtime.
+                 * @throws UnsupportedExecution when the engine's mode is not ForceReference, as on
+                 *         an engine built on a runtime.
                  */
                 explicit HostRecordingFixture(Engine& engine)
-                    : sink_(&engine.host_sink()),
-                      recorder_(*sink_, &engine.scratch_pool(), nullptr, engine.mode())
+                    : recorder_(sink_, &engine.scratch_pool(), nullptr, engine.mode())
                 {
 
                 }
@@ -76,17 +77,23 @@ namespace SushiBLAS
                 /** @brief Returns how many tasks are recorded and have not run. */
                 [[nodiscard]] std::size_t recorded_count() const noexcept
                 {
-                    return sink_->recorded_count();
+                    return sink_.recorded_count();
                 }
 
                 /** @brief Reports whether a run would have nothing to do. */
                 [[nodiscard]] bool is_empty() const noexcept { return recorded_count() == 0; }
 
                 /**
+                 * @brief Runs the recorded bodies in record order and keeps them, as HostTaskSink::replay() does.
+                 * @return Nothing when every body ran, else the first failure.
+                 */
+                [[nodiscard]] std::optional<HostTaskFailure> replay() { return sink_.replay(); }
+
+                /**
                  * @brief Runs the recorded bodies in record order and drops them, as HostTaskSink::run() does.
                  * @return Nothing when every body ran, else the first failure.
                  */
-                [[nodiscard]] std::optional<HostTaskFailure> run() { return sink_->run(); }
+                [[nodiscard]] std::optional<HostTaskFailure> run() { return sink_.run(); }
 
                 /**
                  * @brief Runs the recorded bodies as run() does and reports whether all succeeded.
@@ -103,11 +110,11 @@ namespace SushiBLAS
                 }
 
                 /** @brief Drops every recorded task without running it and returns how many were dropped. */
-                std::size_t discard() noexcept { return sink_->discard(); }
+                std::size_t discard() noexcept { return sink_.discard(); }
 
             private:
-                /// @brief The engine's sink; never null.
-                HostTaskSink* sink_;
+                /// @brief The sink the recorder records through, owned here; declared first so it outlives the recorder.
+                HostTaskSink sink_;
 
                 /// @brief The recorder over sink_.
                 TaskRecorder recorder_;

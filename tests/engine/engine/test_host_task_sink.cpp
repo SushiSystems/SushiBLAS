@@ -36,6 +36,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/host_task_sink.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include "support/task_sink_subjects.hpp"
 
@@ -52,11 +53,23 @@ namespace SushiBLAS
                 description.name = name;
                 sink.add_pair(description, OperandSet(), ExecutionMode::ForceReference,
                               std::string(),
-                              [counter](const KernelPairDispatcher&,
-                                        const std::vector<sycl::event>&) -> sycl::event
+                              [counter](PairRun&)
                               {
                                   ++*counter;
-                                  return sycl::event();
+                              });
+            }
+
+            /** @brief Adds a task named name whose body appends id to *seen. */
+            void add_appending_task(HostTaskSink& sink, const char* name, std::vector<int>* seen,
+                                    int id)
+            {
+                TaskDescription description;
+                description.name = name;
+                sink.add_pair(description, OperandSet(), ExecutionMode::ForceReference,
+                              std::string(),
+                              [seen, id](PairRun&)
+                              {
+                                  seen->push_back(id);
                               });
             }
 
@@ -67,23 +80,21 @@ namespace SushiBLAS
                 description.name = name;
                 sink.add_pair(description, OperandSet(), ExecutionMode::ForceReference,
                               std::string(),
-                              [message](const KernelPairDispatcher&,
-                                        const std::vector<sycl::event>&) -> sycl::event
+                              [message](PairRun&)
                               {
                                   throw std::runtime_error(message);
                               });
             }
         } // namespace
 
-        /** @brief Tests that the host sink admits ForceReference alone and has no graph. */
-        TEST(Small_HostTaskSink, ItAdmitsForceReferenceOnlyAndHasNoGraph)
+        /** @brief Tests that the host sink admits ForceReference alone. */
+        TEST(Small_HostTaskSink, ItAdmitsForceReferenceOnly)
         {
             HostTaskSink sink;
 
             EXPECT_TRUE(sink.admits(ExecutionMode::ForceReference));
             EXPECT_FALSE(sink.admits(ExecutionMode::Auto));
             EXPECT_FALSE(sink.admits(ExecutionMode::ForceSYCL));
-            EXPECT_EQ(sink.graph(), nullptr);
         }
 
         /** @brief Tests that a run of nothing succeeds. */
@@ -129,6 +140,51 @@ namespace SushiBLAS
             EXPECT_EQ(sink.recorded_count(), std::size_t{0});
         }
 
+        /** @brief Tests that a recording replayed twice runs the same bodies in the same order, and stays kept. */
+        TEST(Small_HostTaskSink, ASecondReplayRunsTheSameBodiesInRecordOrder)
+        {
+            HostTaskSink sink;
+            std::vector<int> seen;
+            add_appending_task(sink, "host.first", &seen, 1);
+            add_appending_task(sink, "host.second", &seen, 2);
+
+            EXPECT_FALSE(sink.replay().has_value());
+            EXPECT_FALSE(sink.replay().has_value());
+
+            EXPECT_EQ(seen, (std::vector<int>{1, 2, 1, 2}));
+            EXPECT_EQ(sink.recorded_count(), std::size_t{2});
+        }
+
+        /** @brief Tests that discard after a replay leaves nothing for the next replay to run. */
+        TEST(Small_HostTaskSink, DiscardAfterAReplayLeavesNothingToReplay)
+        {
+            HostTaskSink sink;
+            std::vector<int> seen;
+            add_appending_task(sink, "host.once", &seen, 1);
+            ASSERT_FALSE(sink.replay().has_value());
+
+            EXPECT_EQ(sink.discard(), std::size_t{1});
+            EXPECT_FALSE(sink.replay().has_value());
+
+            EXPECT_EQ(seen, (std::vector<int>{1}));
+            EXPECT_EQ(sink.recorded_count(), std::size_t{0});
+        }
+
+        /** @brief Tests that a replay a body fails keeps every body for the next replay. */
+        TEST(Small_HostTaskSink, AFailedReplayKeepsEveryBody)
+        {
+            HostTaskSink sink;
+            int counter = 0;
+            add_counting_task(sink, "host.before", &counter);
+            add_throwing_task(sink, "host.failure", "fails");
+
+            const std::optional<HostTaskFailure> failure = sink.replay();
+
+            ASSERT_TRUE(failure.has_value());
+            EXPECT_EQ(failure->name, "host.failure");
+            EXPECT_EQ(sink.recorded_count(), std::size_t{2});
+        }
+
         /** @brief Tests that discard drops the bodies without running them. */
         TEST(Small_HostTaskSink, DiscardDropsTheBodiesUnrun)
         {
@@ -149,8 +205,7 @@ namespace SushiBLAS
             TaskDescription description;
             description.name = "host.integer";
             sink.add_pair(description, OperandSet(), ExecutionMode::ForceReference, std::string(),
-                          [](const KernelPairDispatcher&,
-                             const std::vector<sycl::event>&) -> sycl::event
+                          [](PairRun&)
                           {
                               throw 7;
                           });

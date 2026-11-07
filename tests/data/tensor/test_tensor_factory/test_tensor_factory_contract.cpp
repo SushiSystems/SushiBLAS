@@ -138,7 +138,6 @@ namespace SushiBLAS
         {
             const TensorFactory factory(TensorFactory::Host{});
 
-            EXPECT_TRUE(factory.is_host());
             EXPECT_THROW((void)factory.runtime(), UnsupportedExecution);
         }
 
@@ -151,15 +150,14 @@ namespace SushiBLAS
                                                  Core::DataType::Float32,
                                                  SushiRuntime::Residency::Device);
 
-            EXPECT_TRUE(tensor.storage->is_host());
+            EXPECT_EQ(tensor.storage->block().queue(), nullptr);
             EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Host);
         }
 
-        TEST(Medium_TensorFactory, ARuntimeFactoryIsNotHostAndKeepsItsRuntime)
+        TEST(Medium_TensorFactory, ARuntimeFactoryKeepsItsRuntime)
         {
             const TensorFactory factory(TestEnvironment::runtime());
 
-            EXPECT_FALSE(factory.is_host());
             EXPECT_EQ(&factory.runtime(), &TestEnvironment::runtime());
         }
     } // namespace Test

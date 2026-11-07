@@ -36,7 +36,7 @@ K_INDEPENDENT_FOUNDATION_FOLDERS: tuple[str, ...] = tuple(
 )
 K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
 K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
-K_GRAPH_SINK_HEADER = "modules/engine/engine/include/SushiBLAS/engine/graph_task_sink.hpp"
+K_GRAPH_SINK_SOURCE = "modules/engine/engine/source/graph_task_sink.cpp"
 K_GRAPH_PRIMITIVES_FOLDER = "modules/foundation/graph_primitives/"
 K_UNSCREENED_OPERATION_MODULES = frozenset({"io"})
 K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
@@ -56,6 +56,8 @@ K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/rng_stream.hpp",
     "SushiBLAS/engine/scratch_pool.hpp",
     "SushiBLAS/engine/execution_mode.hpp",
+    "SushiBLAS/engine/mode_admission.hpp",
+    "SushiBLAS/engine/scratch_block_source.hpp",
 })
 K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")
 K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
@@ -200,7 +202,7 @@ def find_operation_engine_calls(root: Path) -> Iterator[Violation]:
 
 def _may_record(file: str) -> bool:
     """Returns whether a repository-relative file is TaskRecorder, its graph sink or a graph primitive."""
-    return file in (K_RECORDER_HEADER, K_GRAPH_SINK_HEADER) or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
+    return file in (K_RECORDER_HEADER, K_GRAPH_SINK_SOURCE) or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
 
 
 def find_graph_insertions(root: Path) -> Iterator[Violation]:

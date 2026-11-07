@@ -16,10 +16,11 @@ that recorder. `graph.run()` runs what was recorded; [the first program](../gett
 shows the four lines. The engine is not copyable or movable, and the `Runtime` object must outlive it.
 
 `Engine(Engine::Host{}, layout)` builds a host engine that needs no `Runtime`: the tensor factory makes
-host storages, the scratch pool takes its blocks from a `HostScratchSource`, and the engine owns the
-`HostTaskSink` that `host_sink()` returns. Its mode is `ForceReference`, and `set_mode` with another mode
-and `runtime()` throw `UnsupportedExecution`. A test of an operation records on it through a
-`TaskRecorder` over `host_sink()` and runs the bodies on the host, with no queue. Every operation
+host storages, the scratch pool takes its blocks from a `HostScratchSource`, and a `HostModeAdmission`
+admits `ForceReference` only. `set_mode` asks the engine's `ModeAdmission` on both kinds of engine, so
+another mode throws `UnsupportedExecution` here; `runtime()` throws it too. A test of an operation
+records on it through a `TaskRecorder` over a `HostTaskSink` the test fixture owns, and runs the
+bodies on the host, with no queue. Every operation
 body has the shape `(dispatcher, deps)`, so every operation runs on it.
 
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`

@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -455,8 +456,7 @@ namespace SushiBLAS
                 {
                     constexpr int64_t kElements = 12;
 
-                    auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::runtime(),
+                    auto storage = make_runtime_storage(TestEnvironment::runtime(),
                         static_cast<size_t>(2 * kElements) * sizeof(float),
                         SushiRuntime::Residency::Shared);
 

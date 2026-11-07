@@ -31,21 +31,24 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/tensor/block_maker.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Allocates dense tensors of one default layout from one runtime, or from host memory
-     *        when it has none.
+     * @brief Allocates dense tensors of one default layout through a BlockMaker it owns: one
+     *        runtime's buffers, or host memory.
      * @see modules/README.md
      */
     class TensorFactory final
@@ -61,10 +64,11 @@ namespace SushiBLAS
              * @brief Binds the factory to the runtime that allocates.
              * @param runtime Performs every allocation; it must outlive the factory.
              * @param layout Memory layout of every tensor the factory creates.
+             * @throws std::bad_alloc if the block maker cannot be allocated.
              */
             explicit TensorFactory(SushiRuntime::Runtime& runtime,
-                                   Core::Layout layout = Core::Layout::RowMajor) noexcept
-                : runtime_(&runtime), layout_(layout)
+                                   Core::Layout layout = Core::Layout::RowMajor)
+                : maker_(std::make_unique<RuntimeBlockMaker>(runtime)), layout_(layout)
             {
 
             }
@@ -72,9 +76,10 @@ namespace SushiBLAS
             /**
              * @brief Makes a factory whose storages are host memory no runtime owns.
              * @param layout Memory layout of every tensor the factory creates.
+             * @throws std::bad_alloc if the block maker cannot be allocated.
              */
-            explicit TensorFactory(Host, Core::Layout layout = Core::Layout::RowMajor) noexcept
-                : runtime_(nullptr), layout_(layout)
+            explicit TensorFactory(Host, Core::Layout layout = Core::Layout::RowMajor)
+                : maker_(std::make_unique<HostBlockMaker>()), layout_(layout)
             {
 
             }
@@ -88,40 +93,18 @@ namespace SushiBLAS
             /** @brief Returns the memory layout of every tensor the factory creates. */
             [[nodiscard]] Core::Layout layout() const noexcept { return layout_; }
 
-            /** @brief Returns whether the factory makes host storages and has no runtime. */
-            [[nodiscard]] bool is_host() const noexcept { return runtime_ == nullptr; }
-
             /**
              * @brief Returns the runtime that allocates.
              * @throws UnsupportedExecution on a host factory, which has none.
              */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() const
-            {
-                if (runtime_ == nullptr)
-                    throw UnsupportedExecution("A host TensorFactory has no runtime");
-                return *runtime_;
-            }
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const { return maker_->runtime(); }
 
             /**
              * @brief Returns the byte count a dense tensor of dims and dtype needs; 0 if a dimension is 0.
              * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing count.
              */
             [[nodiscard]] static std::size_t allocation_bytes(SushiRuntime::span<const int64_t> dims,
-                                                              Core::DataType dtype)
-            {
-                SB_THROW_IF(dims.size() > Core::K_MAX_TENSOR_RANK, "Rank {} exceeds limit of {}",
-                            dims.size(), Core::K_MAX_TENSOR_RANK);
-
-                int64_t elements = 1;
-                for (std::size_t axis = 0; axis < dims.size(); ++axis)
-                {
-                    SB_THROW_IF(dims[axis] < 0, "Dimension {} is negative ({})", axis, dims[axis]);
-                    elements = Detail::checked_multiply(elements, dims[axis], "Element count");
-                }
-
-                const int64_t bpe = static_cast<int64_t>(Core::bytes_per_element(dtype));
-                return static_cast<std::size_t>(Detail::checked_multiply(elements, bpe, "Byte size"));
-            }
+                                                              Core::DataType dtype);
 
             /**
              * @brief Creates a dense tensor; a shape with a zero dimension gets no storage.
@@ -137,7 +120,7 @@ namespace SushiBLAS
                 std::size_t device_index = 0) const
             {
                 const std::size_t bytes = allocation_bytes(dims, dtype);
-                const std::size_t device_count = runtime_ ? runtime_->advanced().device_count() : 1;
+                const std::size_t device_count = maker_->device_count();
                 SB_THROW_IF(device_index >= device_count,
                             "Device index {} is out of range; the runtime has {} device queues",
                             device_index, device_count);
@@ -146,17 +129,15 @@ namespace SushiBLAS
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, dtype, 0, layout_);
 
                 SushiRuntime::sushi_ptr<Storage> storage =
-                    runtime_ ? SushiRuntime::make_sushi<Storage>(*runtime_, bytes, residency,
-                                                                 device_index)
-                             : SushiRuntime::make_sushi<Storage>(Storage::Host{}, bytes);
+                    SushiRuntime::make_sushi<Storage>(maker_->make(bytes, residency, device_index));
                 return Tensor(std::move(storage), dims, dtype, 0, layout_);
             }
 
         private:
-            /// @brief The runtime that allocates; null on a host factory.
-            SushiRuntime::Runtime* runtime_;
+            /// @brief Holds the maker of the block of every created storage.
+            std::unique_ptr<BlockMaker> maker_;
 
-            /// @brief The memory layout of every created tensor.
+            /// @brief Holds the memory layout of every created tensor.
             Core::Layout layout_;
     };
 } // namespace SushiBLAS

@@ -42,20 +42,14 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Holds a host engine and a recorder over its sink. */
+        /** @brief Holds a host engine and a recorder over the host sink its fixture owns. */
         class HostEngineSubject
         {
             public:
-                /// @brief Whether the engine has a runtime.
-                static constexpr bool K_HAS_RUNTIME = false;
-
-                /// @brief Whether the engine accepts every execution mode.
-                static constexpr bool K_ACCEPTS_EVERY_MODE = false;
-
                 /** @brief Returns the engine under test. */
                 [[nodiscard]] Engine& engine() noexcept { return engine_; }
 
-                /** @brief Returns the recorder over the engine sink. */
+                /** @brief Returns the recorder over the fixture's host sink. */
                 [[nodiscard]] TaskRecorder& recorder() noexcept { return recording_.recorder(); }
 
                 /**
@@ -82,12 +76,6 @@ namespace SushiBLAS
         class RuntimeEngineSubject
         {
             public:
-                /// @brief Whether the engine has a runtime.
-                static constexpr bool K_HAS_RUNTIME = true;
-
-                /// @brief Whether the engine accepts every execution mode.
-                static constexpr bool K_ACCEPTS_EVERY_MODE = true;
-
                 /** @brief Builds the engine and sets it to ForceReference before the recorder reads its mode. */
                 RuntimeEngineSubject()
                 {

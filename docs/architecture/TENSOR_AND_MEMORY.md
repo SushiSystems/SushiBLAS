@@ -67,20 +67,27 @@ goes. A failed allocation throws `std::runtime_error` with the runtime's message
 size of zero and a device index the runtime does not drive. `Storage::queue()` returns the
 `sycl::queue` of the device that owns the allocation.
 
-A host `Storage`, built with the `Storage::Host` tag and a byte count, owns aligned host memory that
-no `Runtime` allocated (`tensor/host_block.hpp`). It rounds and aligns its size as a runtime
-storage does, and frees the memory with itself. `allocation_base()` and `size_bytes()` and a
-tensor's `data()` work on it, `residency()` reports `Residency::Host` and `device_index()` is 0, and `queue()` throws
-`UnsupportedExecution`, as no device owns the memory.
+A `Storage` holds its bytes through the `StorageBlock` port (`tensor/storage_block.hpp`) and
+forwards to it: `data`, `size_bytes`, `residency`, `device_index`, an optional queue, the observer of
+a borrowed owner, and the copies of bytes out to host memory and in from it. `RuntimeBlock`
+(`tensor/runtime_block.hpp`) is the adapter over a `SushiRuntime::Buffer` and the only tensor header
+that includes `SushiRuntime/sushiruntime.hpp`; `HostBlock` (`tensor/host_block.hpp`) is the adapter
+over host memory. `Storage::queue()` throws `UnsupportedExecution` when the block has no queue.
 
-A borrowed `Storage`, built with the `Storage::Borrowed` tag over a `Buffer<std::byte>` another
+A host `Storage`, built by `make_host_storage(n_bytes)`, owns aligned host memory that no `Runtime`
+allocated. It rounds and aligns its size as a runtime
+storage does, and frees the memory with itself. `allocation_base()` and `size_bytes()` and a
+tensor's `data()` work on it, `residency()` reports `Residency::Host` and `device_index()` is 0, and its block has no queue,
+as no device owns the memory.
+
+A borrowed `Storage`, built by `borrow_runtime_storage(runtime, buffer)` over a `Buffer<std::byte>` another
 owner keeps alive (such as one from SushiRuntime's `Interop::borrow`), owns nothing and allocates
 nothing. Its size is the buffer's, and its base is aligned to `alignof(std::max_align_t)` at
 least, so `Tensor::is_aligned()` may be false for it. An empty or misaligned buffer, or one on a
 device the runtime does not drive, throws `std::runtime_error`.
 
-`TensorFactory` (`tensor/tensor_factory.hpp`) allocates dense tensors of one default layout from
-one `SushiRuntime::Runtime`, which must outlive it. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
+`TensorFactory` (`tensor/tensor_factory.hpp`) allocates dense tensors of one default layout through
+a `BlockMaker` it owns (`HostBlockMaker` or `RuntimeBlockMaker`); the runtime of the second must outlive the factory. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
 dimension, the byte count for overflow and the device index, and returns a tensor without storage
 when a dimension is 0. `Engine::create_tensor` forwards to it.
 

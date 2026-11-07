@@ -29,7 +29,6 @@
 
 #include <SushiBLAS/sparse_storage/sparse_builder.hpp>
 
-#include <cstring>
 #include <vector>
 #include <complex>
 #include <cstddef>
@@ -81,19 +80,17 @@ namespace SushiBLAS
             std::vector<T> chunk(
                 static_cast<std::size_t>(std::min(lines, lines_per_chunk) * line_length));
 
-            const bool host = dense.storage->is_host();
-            const T* source = static_cast<const T*>(dense.data());
+            const std::size_t first_byte =
+                static_cast<std::size_t>(static_cast<const std::byte*>(dense.data()) -
+                                         static_cast<const std::byte*>(
+                                             dense.storage->allocation_base()));
 
             for (int64_t first = 0; first < lines; first += lines_per_chunk)
             {
                 const int64_t count = std::min(lines_per_chunk, lines - first);
                 const std::size_t bytes = static_cast<std::size_t>(count * line_bytes);
-                // A host storage has no queue; its bytes are read in place.
-                if (host)
-                    std::memcpy(chunk.data(), source + first * line_length, bytes);
-                else
-                    dense.storage->queue().memcpy(chunk.data(), source + first * line_length,
-                                                  bytes).wait();
+                dense.storage->copy_to_host(
+                    chunk.data(), first_byte + static_cast<std::size_t>(first * line_bytes), bytes);
 
                 for (int64_t line = 0; line < count; ++line)
                 {
@@ -137,9 +134,7 @@ namespace SushiBLAS
 
         const std::size_t bytes =
             static_cast<std::size_t>(elements) * Core::bytes_per_element(dtype);
-        sycl::queue& target_queue =
-            factory_->runtime().advanced().queue(SushiRuntime::DeviceIndex{device_index_});
-        target_queue.memcpy(tensor.data(), source, bytes).wait();
+        tensor.storage->copy_from_host(source, 0, bytes);
         return tensor;
     }
 

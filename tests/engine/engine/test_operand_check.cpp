@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
@@ -52,8 +53,7 @@ namespace SushiBLAS
                 /** @brief Returns a storage of `elements` FLOAT32 elements in shared memory. */
                 SushiRuntime::sushi_ptr<Storage> make_storage(int64_t elements)
                 {
-                    return SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::runtime(),
+                    return make_runtime_storage(TestEnvironment::runtime(),
                         static_cast<size_t>(elements) * sizeof(float),
                         SushiRuntime::Residency::Shared);
                 }

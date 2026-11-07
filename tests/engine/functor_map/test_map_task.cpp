@@ -88,11 +88,11 @@ namespace SushiBLAS
             Dispatch::Detail::make_map_task<Dispatch::Domain::All>(
                 Core::DataType::Float32, "test", "map", K_COUNT, by_reference.get(),
                 MultiplyLess{}, a.get(), b.get())(
-                KernelPairDispatcher(ExecutionMode::ForceReference), queue(), {}).wait();
+                KernelPairDispatcher(ExecutionMode::ForceReference, queue()), {}).wait();
             Dispatch::Detail::make_map_task<Dispatch::Domain::All>(
                 Core::DataType::Float32, "test", "map", K_COUNT, by_sycl.get(), MultiplyLess{},
-                a.get(), b.get())(KernelPairDispatcher(ExecutionMode::ForceSYCL), queue(),
-                                  {}).wait();
+                a.get(), b.get())(
+                KernelPairDispatcher(ExecutionMode::ForceSYCL, queue()), {}).wait();
 
             EXPECT_EQ(by_sycl.values(), by_reference.values());
             EXPECT_EQ(by_reference.get()[0], a.get()[0] * b.get()[0] - a.get()[0]);
@@ -110,11 +110,11 @@ namespace SushiBLAS
             Dispatch::Detail::ZipTask<Dispatch::Domain::All, SwapNegate, 2>(
                 Core::DataType::Float64, "test", "zip", K_COUNT,
                 std::array<void*, 2>{ref_a.get(), ref_b.get()}, SwapNegate{})(
-                KernelPairDispatcher(ExecutionMode::ForceReference), queue(), {}).wait();
+                KernelPairDispatcher(ExecutionMode::ForceReference, queue()), {}).wait();
             Dispatch::Detail::ZipTask<Dispatch::Domain::All, SwapNegate, 2>(
                 Core::DataType::Float64, "test", "zip", K_COUNT,
                 std::array<void*, 2>{sycl_a.get(), sycl_b.get()}, SwapNegate{})(
-                KernelPairDispatcher(ExecutionMode::ForceSYCL), queue(), {}).wait();
+                KernelPairDispatcher(ExecutionMode::ForceSYCL, queue()), {}).wait();
 
             EXPECT_EQ(sycl_a.values(), ref_a.values());
             EXPECT_EQ(sycl_b.values(), ref_b.values());

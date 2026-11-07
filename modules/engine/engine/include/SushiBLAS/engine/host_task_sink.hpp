@@ -23,24 +23,19 @@
 
 /**
  * @file host_task_sink.hpp
- * @brief Declares HostTaskSink, the TaskSink that keeps bodies and runs them on the host under ForceReference.
+ * @brief Declares HostTaskSink, the TaskSink that keeps bodies in record order and runs them on
+ *        the host under ForceReference.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <string>
-#include <vector>
+#include <memory>
 #include <cstddef>
-#include <utility>
 #include <optional>
-#include <exception>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/task_sink.hpp>
-#include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiBLAS/engine/task_description.hpp>
-#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 
 namespace SushiBLAS
 {
@@ -58,10 +53,10 @@ namespace SushiBLAS
     };
 
     /**
-     * @brief Keeps the bodies of recorded tasks in record order and runs them on the host.
+     * @brief Keeps recorded bodies in record order and runs them on the host, as often as its
+     *        owner replays them: replay() keeps them, discard() drops them, run() does both.
      *
-     * It makes no queue and holds no runtime. A body gets a dispatcher fixed to ForceReference
-     * that holds no queue, so its reference half runs and queue() throws. Not thread-safe
+     * A body gets a dispatcher fixed to ForceReference that holds no queue. Not thread-safe
      * beyond TaskRecorder's own serialisation of add_pair().
      * @see modules/engine/engine/README.md
      */
@@ -69,7 +64,8 @@ namespace SushiBLAS
     {
         public:
             /** @brief Holds no task. */
-            HostTaskSink() = default;
+            HostTaskSink();
+            ~HostTaskSink() override;
 
             /** @brief Reports true for ForceReference only. */
             [[nodiscard]] bool admits(ExecutionMode mode) const noexcept override
@@ -77,78 +73,39 @@ namespace SushiBLAS
                 return mode == ExecutionMode::ForceReference;
             }
 
-            /** @brief Returns null: the host form has no graph. */
-            [[nodiscard]] GraphTaskSink* graph() noexcept override { return nullptr; }
-
             /**
              * @brief Keeps the body after the ones recorded before, with the operand storages it reads.
              * @pre The mode is ForceReference; TaskRecorder refuses any other before it calls.
              */
             void add_pair(const TaskDescription& description, const OperandSet& operands,
-                          ExecutionMode, const std::string&, PairBody body) override
-            {
-                tasks_.push_back(Task{description.name, std::move(body), operands.retained()});
-            }
+                          ExecutionMode mode, const std::string& origin, PairBody body) override;
 
             /** @brief Returns how many tasks are kept and have not run. */
-            [[nodiscard]] std::size_t recorded_count() const noexcept { return tasks_.size(); }
+            [[nodiscard]] std::size_t recorded_count() const noexcept;
 
             /**
-             * @brief Runs the kept bodies in record order, then drops them all.
+             * @brief Runs the kept bodies in record order and keeps them for the next replay.
              *
-             * The first body that throws stops the run; the bodies after it do not run and are dropped.
+             * The first body that throws stops the replay; the bodies after it do not run, and
+             * every body stays kept.
              * @return Nothing when every body ran, else the first failure.
              */
-            [[nodiscard]] std::optional<HostTaskFailure> run()
-            {
-                std::vector<Task> tasks = std::move(tasks_);
-                tasks_.clear();
-                const KernelPairDispatcher dispatcher(ExecutionMode::ForceReference);
-                const std::vector<sycl::event> no_dependencies;
+            [[nodiscard]] std::optional<HostTaskFailure> replay();
 
-                for (std::size_t index = 0; index < tasks.size(); ++index)
-                {
-                    try
-                    {
-                        (void)tasks[index].body(dispatcher, no_dependencies);
-                    }
-                    catch (const std::exception& error)
-                    {
-                        return HostTaskFailure{index, tasks[index].name, error.what()};
-                    }
-                    catch (...)
-                    {
-                        return HostTaskFailure{
-                            index, tasks[index].name,
-                            "the body threw something that is not a std::exception"};
-                    }
-                }
-                return std::nullopt;
-            }
+            /**
+             * @brief Replays the kept bodies once, then drops them all, whether or not one failed.
+             * @return What replay() returned.
+             */
+            [[nodiscard]] std::optional<HostTaskFailure> run();
 
             /** @brief Drops every kept task without running it and returns how many were dropped. */
-            std::size_t discard() noexcept
-            {
-                const std::size_t dropped = tasks_.size();
-                tasks_.clear();
-                return dropped;
-            }
+            std::size_t discard() noexcept;
 
         private:
-            /// @brief One kept task.
-            struct Task
-            {
-                /// @brief The name of the task's description, copied.
-                std::string name;
+            /// @brief The kept tasks, defined in the source.
+            struct Tasks;
 
-                /// @brief The recorded body.
-                PairBody body;
-
-                /// @brief The storages that stay allocated until the task is dropped.
-                Internal::StorageKeepAlive retained;
-            };
-
-            /// @brief The kept tasks in record order.
-            std::vector<Task> tasks_;
+            /// @brief The kept tasks in record order; never null.
+            std::unique_ptr<Tasks> tasks_;
     };
 } // namespace SushiBLAS

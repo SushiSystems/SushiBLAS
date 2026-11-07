@@ -8,6 +8,8 @@ sushiblas_add_module(
     LAYER engine
     SOURCES
         engine.cpp
+        graph_task_sink.cpp
+        host_task_sink.cpp
         engine_profile.cpp
         operation_options.cpp
     DEPENDS
@@ -38,6 +40,10 @@ sushiblas_add_test_program(
         test_host_task_sink.cpp
         test_task_description.cpp
         test_tensor_profile.cpp
+        test_mode_admission.cpp
+        test_host_mode_admission.cpp
+        test_runtime_mode_admission.cpp
+        test_late_count_sink.cpp
     DEVICE_TESTS
         test_engine/test_engine_contract.cpp
         test_engine/test_reduce_plans.cpp
@@ -55,4 +61,5 @@ sushiblas_add_test_program(
         test_task_recorder.cpp
         test_task_sink.cpp
     COMPILE_CHECKS
-        test_engine_log_category.cpp)
+        test_engine_log_category.cpp
+        compile_pair_run.cpp)

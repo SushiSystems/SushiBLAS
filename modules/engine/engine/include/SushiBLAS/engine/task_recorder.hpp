@@ -55,6 +55,8 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/pair_run.hpp>
+#include <SushiBLAS/engine/late_count_sink.hpp>
 #include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/engine/graph_task_sink.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
@@ -113,13 +115,13 @@ namespace SushiBLAS
                     }
 
                     /**
-                     * @brief Runs the body with the dispatcher the sink built.
-                     * @return The event that completes after every kernel the body submitted.
+                     * @brief Runs the body with the dispatcher and the dependencies of the run,
+                     *        and finishes the run with the event that completes after every kernel
+                     *        the body submitted.
                      */
-                    sycl::event operator()(const KernelPairDispatcher& dispatcher,
-                                           const std::vector<sycl::event>& deps) const
+                    void operator()(PairRun& run) const
                     {
-                        return runtime_events((*body_)(dispatcher, deps));
+                        run.finish(runtime_events((*body_)(run.dispatcher(), run.dependencies())));
                     }
 
                 private:
@@ -223,25 +225,28 @@ namespace SushiBLAS
                          LateCountHold& late_counts,
                          ExecutionMode mode = ExecutionMode::Auto) noexcept
                 : own_graph_(std::in_place, recorder), sink_(&*own_graph_),
-                  scratch_pool_(&scratch_pool), late_counts_(&late_counts), mode_(mode),
+                  late_sink_(&*own_graph_), scratch_pool_(&scratch_pool),
+                  late_counts_(&late_counts), mode_(mode),
                   identity_(Internal::Detail::next_recorder_identity())
             {
 
             }
 
             /**
-             * @brief Binds the recorder to a sink it records through.
+             * @brief Binds the recorder to a sink it records through; each pointer may be null.
              * @param sink Receives every task; it must outlive this recorder.
-             * @param scratch_pool Lends scratch, or null; scratch_pool() then throws.
-             * @param late_counts Keeps late-count storages, or null when the sink has no graph.
-             * @param mode Must be one the sink admits.
+             * @param scratch_pool Lends scratch; scratch_pool() throws without one.
+             * @param late_counts Keeps late-count storages, beside late_sink.
+             * @param late_sink Takes late-count kernels; without one only ForceReference records them.
              * @throws UnsupportedExecution when the sink does not admit the mode.
              */
             explicit TaskRecorder(TaskSink& sink, ScratchPool* scratch_pool = nullptr,
                                   LateCountHold* late_counts = nullptr,
-                                  ExecutionMode mode = ExecutionMode::ForceReference)
-                : sink_(&sink), scratch_pool_(scratch_pool), late_counts_(late_counts),
-                  mode_(mode), identity_(Internal::Detail::next_recorder_identity())
+                                  ExecutionMode mode = ExecutionMode::ForceReference,
+                                  LateCountSink* late_sink = nullptr)
+                : sink_(&sink), late_sink_(late_sink), scratch_pool_(scratch_pool),
+                  late_counts_(late_counts), mode_(mode),
+                  identity_(Internal::Detail::next_recorder_identity())
             {
                 require_admitted(mode);
             }
@@ -357,19 +362,18 @@ namespace SushiBLAS
                 }
 
                 require_host_reachable(operands, family, description.name);
-                GraphTaskSink* graph = sink_->graph();
-                if (graph == nullptr || late_counts_ == nullptr)
+                if (late_sink_ == nullptr || late_counts_ == nullptr)
                 {
                     throw UnsupportedExecution(
                         std::string(description.name) +
-                        ": a late-count kernel is a graph node, and the sink of this recorder "
-                        "has no graph.");
+                        ": a late-count kernel is a graph node, and this recorder holds no "
+                        "late-count sink.");
                 }
                 LateCount late = late_counts_->borrow(operands, count);
                 const TaskHandle handle = commit(
                     [&]
                     {
-                        graph->insert_node(
+                        late_sink_->add_late_node(
                             description, Cost::uncosted(UncostedReason::DataDependent), origin_,
                             [&](SushiRuntime::Recorder& recorder,
                                 const SushiRuntime::NodeOptions& options)
@@ -465,6 +469,9 @@ namespace SushiBLAS
 
             /// @brief The sink every record call adds to; never null.
             TaskSink* sink_;
+
+            /// @brief The sink late-count kernels are added to; null when the recorder takes none.
+            LateCountSink* late_sink_;
 
             /// @brief The pool handed to operations that lease scratch; null when there is none.
             ScratchPool* scratch_pool_;

@@ -33,9 +33,11 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <algorithm>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -244,8 +246,12 @@ namespace SushiBLAS
              */
             void retain(const Tensor& operand)
             {
-                if (retained_.retain(operand.storage) && operand.storage->is_borrowed())
-                    owners_.push_back(operand.storage->owner_liveness());
+                if (retained_.retain(operand.storage))
+                {
+                    SushiRuntime::LivenessObserver owner = operand.storage->owner_liveness();
+                    if (names_an_owner(owner))
+                        owners_.push_back(std::move(owner));
+                }
                 if (operand.storage->residency() == SushiRuntime::Residency::Device)
                     has_device_only_operand_ = true;
             }

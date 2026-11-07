@@ -39,6 +39,7 @@
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 
 namespace SushiBLAS
 {
@@ -157,9 +158,8 @@ namespace SushiBLAS
     TensorPack::TensorPack(SushiRuntime::Runtime& runtime, PackLayout layout,
                            std::size_t device_index)
         : layout_(std::move(layout)),
-          storage_(SushiRuntime::make_sushi<Storage>(runtime, layout_.size_bytes(),
-                                                     SushiRuntime::Residency::Host,
-                                                     device_index))
+          storage_(make_runtime_storage(runtime, layout_.size_bytes(),
+                                       SushiRuntime::Residency::Host, device_index))
     {
 
     }

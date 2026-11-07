@@ -38,17 +38,18 @@ namespace SushiBLAS
     namespace Dispatch
     {
         /**
-         * @brief Returns the Profile of the device that holds a tensor's storage, or the host
-         *        Profile when a host engine made the storage.
+         * @brief Returns the Profile of the device whose queue owns a tensor's storage, or the
+         *        host Profile when no queue does.
          * @throws std::runtime_error if the tensor has no storage.
          * @see modules/engine/engine/README.md
          */
         [[nodiscard]] inline const Device::Profile& profile_of(const Tensor& t)
         {
             SB_THROW_IF(!t.storage, "Tensor has no valid storage/context");
-            if (t.storage->is_host())
+            const sycl::queue* queue = t.storage->block().queue();
+            if (queue == nullptr)
                 return Device::host_profile();
-            return Device::profile_for(t.device());
+            return Device::profile_for(*queue);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

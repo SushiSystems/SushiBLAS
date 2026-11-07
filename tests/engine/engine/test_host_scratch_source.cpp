@@ -77,7 +77,7 @@ namespace SushiBLAS
 
             const auto block = source.serve(256, 0);
 
-            EXPECT_TRUE(block->is_host());
+            EXPECT_EQ(block->block().queue(), nullptr);
             EXPECT_EQ(block->residency(), SushiRuntime::Residency::Host);
         }
     } // namespace Test

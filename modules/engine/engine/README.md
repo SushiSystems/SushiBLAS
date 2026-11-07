@@ -19,9 +19,14 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which routes one kernel of a reference and SYCL pair and holds the queue the SYCL half runs on |
-| `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through |
-| `graph_task_sink.hpp` | `GraphTaskSink`, the adapter that adds each task to a `SushiRuntime::Recorder` |
+| `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through; it names no SYCL type |
+| `pair_run.hpp` | `PairRun`, one run of a recorded body: its dispatcher, its dependencies and the event that ends its work |
+| `late_count_sink.hpp` | `LateCountSink`, the port a `TaskRecorder` adds a late-count kernel through |
+| `graph_task_sink.hpp` | `GraphTaskSink`, the adapter of both sink ports that adds each task to a `SushiRuntime::Recorder` |
 | `host_task_sink.hpp` | `HostTaskSink`, the adapter that keeps bodies in record order and runs them on the host under `ForceReference` |
+| `mode_admission.hpp` | `ModeAdmission`, the port `Engine::set_mode` asks which modes the engine admits |
+| `host_mode_admission.hpp` | `HostModeAdmission`, the adapter of a host engine: `ForceReference` only |
+| `runtime_mode_admission.hpp` | `RuntimeModeAdmission`, the adapter of an engine on a runtime: every mode |
 | `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
 | `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
 | `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
@@ -289,25 +294,34 @@ that empties its graph does it through it. Three things are outside the lock:
 
 ### `TaskSink`, `GraphTaskSink` and `HostTaskSink`
 
-`TaskSink` is the port: `admits(mode)`, `graph()` and `add_pair(description, operands, mode, origin,
-body)`, where the body is a `std::function<sycl::event(const KernelPairDispatcher&, const
-std::vector<sycl::event>&)>`. `TaskRecorder` calls it with its recording mutex held.
+`TaskSink` is the port: `admits(mode)` and `add_pair(description, operands, mode, origin, body)`,
+where the body is a `std::function<void(PairRun&)>`. `PairRun` (`pair_run.hpp`) carries the
+dispatcher and the dependencies in, and `finish(event)` carries the event that ends the work out, so
+`task_sink.hpp` names no SYCL type and a host consumer includes it without SYCL. `TaskRecorder` calls
+the sink with its recording mutex held.
 
-`GraphTaskSink` admits every mode and hands each body a dispatcher that holds the device's queue; `HostTaskSink` hands one that holds none. `add_pair` records a node with the cost of the table plus the
-bytes, the region access of the operands, and a `Detail::GraphPairTask` that builds
+`LateCountSink` (`late_count_sink.hpp`) is a second port, for a late-count kernel: a graph node whose
+count a previous node writes, with no host form. `add_late_node(description, cost, origin, record)`
+adds the node `record` adds. A `TaskRecorder` holds this port beside its `TaskSink`, or none:
+`record_late_pair` outside `ForceReference` throws `UnsupportedExecution` on a recorder that holds
+none.
+
+`GraphTaskSink` implements both ports. It admits every mode and hands each body a dispatcher that
+holds the device's queue; `HostTaskSink` hands one that holds none. `add_pair` records a node with
+the cost of the table plus the bytes, the region access of the operands, and a task that builds
 `KernelPairDispatcher(mode, q)` with the queue the runtime gives the task and keeps one reference to
-each operand storage. `insert_node` holds what `TaskRecorder::insert_node` held: the
-`NodeOptions`, the node count before and after, and the refusal message. `record_late_pair` reaches
-the graph through `TaskSink::graph()`, because a late-count kernel is a graph node with no host form;
-on a sink whose `graph()` is null it throws `UnsupportedExecution`.
+each operand storage. That task and the node insertion (the `NodeOptions`, the node count before and
+after, and the refusal message) are defined in `source/graph_task_sink.cpp`, not in the header.
 
 `HostTaskSink` admits `ForceReference` only. It keeps the bodies, the task names and the operand
-storages in record order. `run()` runs the bodies in that order, each with
-`KernelPairDispatcher(ForceReference)` that holds no queue and with no dependencies, and then drops
-them all. The first body that throws stops the run and `run()` returns a `HostTaskFailure` with its
-index, name and message; the bodies after it do not run. `discard()` drops the bodies unrun.
-It is not thread-safe beyond the recorder's own serialisation of `add_pair`; `run()` and `discard()`
-take no lock, so a caller does not record while it runs.
+storages in record order, in a type `source/host_task_sink.cpp` defines. A recording is made once and
+replayed as often as its owner asks: `replay()` runs the bodies in that order, each with
+`KernelPairDispatcher(ForceReference)` that holds no queue and with no dependencies, and keeps them;
+`discard()` drops them unrun; `run()` replays once and then discards. The first body that throws
+stops the replay, which returns a `HostTaskFailure` with its index, name and message; the bodies
+after it do not run, and every body stays kept. It is not thread-safe beyond the recorder's own
+serialisation of `add_pair`; `replay()`, `run()` and `discard()` take no lock, so a caller does not
+record while it replays.
 
 Both adapters pass `TaskSinkContract` (`tests/engine/engine/test_task_sink.cpp`): record
 order is run order, the reference half runs under `ForceReference`, a failing body stops the run
@@ -315,17 +329,21 @@ and is reported, and the dispatcher holds a queue exactly when the adapter has o
 
 ### `Engine`
 
-`Engine(Runtime&, Layout)` wires a `TensorFactory`, a `ScratchPool` over a `RuntimeScratchSource`,
-the random stream and the mode `Auto`. `Engine(Engine::Host{}, Layout)` needs no `SushiRuntime::Runtime`
-and wires `TensorFactory(TensorFactory::Host{})`, a `ScratchPool` over a `HostScratchSource`, the
-same random stream and a `HostTaskSink` that `host_sink()` returns. Its mode is `ForceReference`:
-`set_mode` with any other mode throws `UnsupportedExecution` and leaves the mode. `runtime()` throws
-`UnsupportedExecution` on a host engine, and `host_sink()` throws it on an engine built on a runtime;
-`is_host()` tells which. `RNGStream` holds a seed and an offset under a mutex and reaches no runtime, so
-the host engine uses it as it is.
+The two constructors are the engine's composition roots. Each wires a `TensorFactory`, an owned
+`ScratchBlockSource` the `ScratchPool` lends from, an owned `ModeAdmission`, and the random stream.
+`Engine(Runtime&, Layout)` wires a `RuntimeScratchSource` and a `RuntimeModeAdmission`, which admits
+every mode, and starts in `Auto`. `Engine(Engine::Host{}, Layout)` needs no `SushiRuntime::Runtime`
+and wires `TensorFactory(TensorFactory::Host{})`, a `HostScratchSource` and a `HostModeAdmission`,
+which admits `ForceReference` only, and starts there. `set_mode` is one call for both: it asks the
+`ModeAdmission`, and a refused mode throws `UnsupportedExecution` saying the engine does not admit it,
+and leaves the mode. The engine owns no `TaskSink`, since the recorders of an engine on a runtime
+record on a graph each. `runtime()` throws `UnsupportedExecution` on a host engine, and `is_host()`
+tells which. `RNGStream` holds a seed and an offset under a mutex and reaches no runtime, so the host
+engine uses it as it is.
 
-A recorder on a host engine is `TaskRecorder(engine.host_sink(), &engine.scratch_pool())`;
-`HostRecordingFixture` in `engine_fixture` builds that. A host engine accepts a body of the shape
+A recorder on a host engine records through a `HostTaskSink` its owner builds:
+`TaskRecorder(sink, &engine.scratch_pool(), nullptr, engine.mode())`. `HostRecordingFixture` in
+`engine_fixture` owns that sink and recorder. A host engine accepts a body of the shape
 `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`: `pair.run(deps, reference_fn,
 sycl_fn)` runs `reference_fn`, and `pair.queue()` throws. Every operation body has that shape, so
 every operation records and runs on a host engine.
@@ -403,14 +421,15 @@ reduction executors before they lease scratch.
 
 ### `Detail::RecordedPairTask`
 
-The callable handed to the sink. It holds the body and calls it with the dispatcher and the dependencies, then
-`runtime_events` on the result. The sink keeps one reference to each distinct storage the task declared
-(`GraphPairTask` in the graph adapter, `HostTaskSink` on the host), so an operand's allocation stays
+The callable handed to the sink. It holds the body, calls it with the dispatcher and the
+dependencies of the `PairRun`, and finishes the run with `runtime_events` of the result. The sink
+keeps one reference to each distinct storage the task declared (the graph adapter in its node task,
+`HostTaskSink` in its kept list), so an operand's allocation stays
 alive until the graph or the sink drops the task even if the caller's `Tensor` is destroyed first.
 
 ### Cost, origin and the events of a body
 
-`insert_node` states the node's cost: `cost_of(operation, shape)` from [`cost`](../../foundation/cost/README.md), plus `OperandSet::declared_bytes()`, as `NodeOptions::cost`; a task with no stated cost carries none. `record_late_pair` always states none, because its width is read on the device at run time (`DataDependent`).
+The node insertion of `GraphTaskSink` states the node's cost: `cost_of(operation, shape)` from [`cost`](../../foundation/cost/README.md), plus `OperandSet::declared_bytes()`, as `NodeOptions::cost`; a task with no stated cost carries none. `record_late_pair` always states none, because its width is read on the device at run time (`DataDependent`).
 
 `origin(label)` returns an `OriginScope`. Every node recorded on this recorder while the scope lives gets `NodeOptions::origin` equal to the label, and the spans of those nodes name it. Scopes nest, and a scope that ends restores the label that was open when it began. The recorder holds the label as a string under its recording mutex, so it must not be called from inside `run_exclusive`.
 

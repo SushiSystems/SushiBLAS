@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/scratch_block_source.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 
@@ -67,7 +68,7 @@ namespace SushiBLAS
                             device_index, device_count());
 
                 SushiRuntime::sushi_ptr<Storage> block =
-                    SushiRuntime::make_sushi<Storage>(Storage::Host{}, bytes);
+                    make_host_storage(bytes);
                 served_blocks_.fetch_add(1, std::memory_order_relaxed);
                 served_bytes_.fetch_add(block->size_bytes(), std::memory_order_relaxed);
                 return block;

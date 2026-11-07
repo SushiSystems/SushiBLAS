@@ -27,6 +27,17 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, thread safety and seed determinism |
 | `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
 | `test_host_scratch_source.cpp` | Tests what HostScratchSource counts and the memory it serves |
+| `test_engine_log_category.cpp` | Checks at compile time that the log category names its module and the SushiBLAS project; no test runner lists it |
+| `test_graph_task_sink.cpp` | Tests that GraphTaskSink adds one node to its recorder for each task |
+| `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out |
+| `test_task_cost.cpp` | Tests the access and the cost a recorded node states for an operation, a shape and its operands |
+| `test_task_sink.cpp` | Tests that the host and graph adapters of TaskSink keep the TaskSink contract |
+| `test_tensor_profile.cpp` | Tests that profile_of() gives a host tensor the host Profile and refuses a tensor with no storage |
+| `test_mode_admission.cpp` | Tests that both ModeAdmission adapters keep its contract |
+| `test_host_mode_admission.cpp` | Tests that the host adapter admits no mode that needs a SYCL queue |
+| `test_runtime_mode_admission.cpp` | Tests that the runtime adapter admits the modes that run the SYCL kernel |
+| `compile_pair_run.cpp` | Checks at compile time that a TaskSink body takes a PairRun; no test runner lists it |
+| `test_late_count_sink.cpp` | Tests the LateCountSink contract on the graph adapter: one node per late record, and a refused record names the task |
 | `test_runtime_scratch_source.cpp` | Tests what RuntimeScratchSource serves beyond the BlockSource contract |
 | `test_scratch_block_source.cpp` | Tests that the host and runtime adapters of ScratchBlockSource keep the BlockSource contract, and what the host adapter counts |
 | `test_scratch_pool.cpp` | Tests that a ScratchPool keeps returned blocks idle, reuses them and trims them |

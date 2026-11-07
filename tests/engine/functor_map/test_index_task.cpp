@@ -72,7 +72,7 @@ namespace SushiBLAS
 
                     Dispatch::Detail::IndexTask<Dispatch::Domain::All, NumberTheIndex>(
                         Core::DataType::Float32, "test", "index", K_CAPACITY,
-                        NumberTheIndex{out.get()})(KernelPairDispatcher(mode), queue(), {}).wait();
+                        NumberTheIndex{out.get()})(KernelPairDispatcher(mode, queue()), {}).wait();
 
                     return out.values();
                 }

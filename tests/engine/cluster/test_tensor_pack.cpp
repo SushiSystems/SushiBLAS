@@ -35,6 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/cluster/pack_layout.hpp>
 #include <SushiBLAS/cluster/tensor_pack.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -59,7 +60,7 @@ namespace SushiBLAS
                 const std::int64_t dims[] = {count};
                 const std::size_t bytes =
                     static_cast<std::size_t>(count) * Core::bytes_per_element(dtype);
-                return Tensor(SushiRuntime::make_sushi<Storage>(runtime, bytes,
+                return Tensor(make_runtime_storage(runtime, bytes,
                                                                 SushiRuntime::Residency::Shared,
                                                                 device_index),
                               SushiRuntime::span<const std::int64_t>(dims, 1), dtype);

@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -386,10 +387,10 @@ namespace SushiBLAS
             constexpr int64_t kCols = 3;
             constexpr size_t kElements = static_cast<size_t>(kRows * kCols);
 
-            auto f32 = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(),
+            auto f32 = make_runtime_storage(TestEnvironment::runtime(),
                                                          kElements * sizeof(float),
                                                          SushiRuntime::Residency::Shared);
-            auto f16 = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(),
+            auto f16 = make_runtime_storage(TestEnvironment::runtime(),
                                                          kElements * sizeof(sycl::half),
                                                          SushiRuntime::Residency::Shared);
 
@@ -440,8 +441,7 @@ namespace SushiBLAS
         TEST_F(Medium_ConvertTest, OverlappingOperandsAreRefused)
         {
             constexpr int64_t kN = 8;
-            auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto storage = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
 
@@ -463,8 +463,7 @@ namespace SushiBLAS
             GraphProbe probe;
 
             constexpr int64_t kN = 4;
-            auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
 
@@ -491,8 +490,7 @@ namespace SushiBLAS
             GraphProbe probe;
 
             constexpr int64_t kN = 4;
-            auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
 
@@ -524,12 +522,10 @@ namespace SushiBLAS
 
             constexpr int64_t kN = 8;
 
-            auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto f32_arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
-            auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto f16_arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
                 SushiRuntime::Residency::Shared);
 
@@ -560,12 +556,10 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 4;
 
-            auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto f32_arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
-            auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto f16_arena = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
                 SushiRuntime::Residency::Shared);
 

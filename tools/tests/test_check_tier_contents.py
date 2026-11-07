@@ -175,6 +175,8 @@ class EngineHeaderIncludesTest(unittest.TestCase):
                 "#include <SushiBLAS/engine/rng_stream.hpp>\n"
                 "#include <SushiBLAS/engine/scratch_pool.hpp>\n"
                 "#include <SushiBLAS/engine/execution_mode.hpp>\n"
+                "#include <SushiBLAS/engine/mode_admission.hpp>\n"
+                "#include <SushiBLAS/engine/scratch_block_source.hpp>\n"
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -222,10 +224,10 @@ class GraphInsertionsTest(unittest.TestCase):
     """Checks that TaskRecorder, its graph sink and the graph primitives are the only callers of the recording verbs."""
 
     def test_accepts_the_recorder_header_its_graph_sink_a_primitive_and_a_comment(self) -> None:
-        """Reports nothing for task in task_recorder.hpp or graph_task_sink.hpp, kernel in a graph primitive, or a comment."""
+        """Reports nothing for task in task_recorder.hpp or graph_task_sink.cpp, kernel in a graph primitive, or a comment."""
         files = {
             "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp": "recorder_->task(access, work, options);\n",
-            "modules/engine/engine/include/SushiBLAS/engine/graph_task_sink.hpp": "recorder_->task(access, work, options);\n",
+            "modules/engine/engine/source/graph_task_sink.cpp": "recorder_->task(access, work, options);\n",
             "modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/reduce.hpp": "recorder.kernel(count, access, body, options);\n",
             "modules/operations/logic/source/all.cpp": "// recorder.task(access, work) is the recorder's call.\n",
         }

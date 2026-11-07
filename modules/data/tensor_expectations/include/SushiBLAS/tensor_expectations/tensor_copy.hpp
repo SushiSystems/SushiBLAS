@@ -30,43 +30,46 @@
 
 #pragma once
 
-#include <cstring>
 #include <cstddef>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
         /**
+         * @brief Returns how many bytes tensor's first element lies past its storage's base.
+         * @throws std::runtime_error if the tensor has no storage, or is shape-only.
+         */
+        [[nodiscard]] inline std::size_t byte_offset_of(const Tensor& tensor)
+        {
+            const std::byte* first = static_cast<const std::byte*>(tensor.data());
+            return static_cast<std::size_t>(
+                first - static_cast<const std::byte*>(tensor.storage->allocation_base()));
+        }
+
+        /**
          * @brief Copies bytes from a tensor's data into host memory and returns with the copy done.
          *
-         * A tensor in host storage is copied by memcpy and reaches no queue; any other tensor is
-         * copied through TestEnvironment::queue().
+         * The storage of the tensor does the copy: host storage by memcpy, runtime storage through
+         * the queue of its device.
          * @param bytes Bytes to copy; at most the tensor's dense byte size.
          */
         inline void copy_tensor_to_host(void* destination, const Tensor& tensor, std::size_t bytes)
         {
-            if (tensor.storage.get() != nullptr && tensor.storage->is_host())
-                std::memcpy(destination, tensor.data(), bytes);
-            else
-                TestEnvironment::queue().memcpy(destination, tensor.data(), bytes).wait();
+            tensor.storage->copy_to_host(destination, byte_offset_of(tensor), bytes);
         }
 
         /**
          * @brief Copies bytes from host memory into a tensor's data and returns with the copy done.
          *
-         * A tensor in host storage is written by memcpy and reaches no queue; any other tensor is
-         * written through TestEnvironment::queue().
+         * The storage of the tensor does the copy: host storage by memcpy, runtime storage through
+         * the queue of its device.
          * @param bytes Bytes to copy; at most the tensor's dense byte size.
          */
         inline void copy_host_to_tensor(Tensor& tensor, const void* source, std::size_t bytes)
         {
-            if (tensor.storage.get() != nullptr && tensor.storage->is_host())
-                std::memcpy(tensor.data(), source, bytes);
-            else
-                TestEnvironment::queue().memcpy(tensor.data(), source, bytes).wait();
+            tensor.storage->copy_from_host(source, byte_offset_of(tensor), bytes);
         }
     } // namespace Test
 } // namespace SushiBLAS

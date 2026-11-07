@@ -87,14 +87,16 @@ namespace SushiBLAS
             EngineContract::expect_force_reference_is_accepted(this->subject);
         }
 
-        TYPED_TEST(Small_EngineContract, OtherModesFollowTheRuntime)
+        TYPED_TEST(Small_EngineContract, SetModeKeepsForceSYCLExactlyWhenTheRecorderAdmitsIt)
         {
-            EngineContract::expect_other_modes_follow_the_runtime(this->subject);
+            EngineContract::expect_set_mode_admits_what_the_recorder_admits(this->subject,
+                                                                            ExecutionMode::ForceSYCL);
         }
 
-        TYPED_TEST(Small_EngineContract, TheRuntimeFollowsTheKind)
+        TYPED_TEST(Small_EngineContract, SetModeKeepsAutoExactlyWhenTheRecorderAdmitsIt)
         {
-            EngineContract::expect_runtime_follows_the_kind(this->subject);
+            EngineContract::expect_set_mode_admits_what_the_recorder_admits(this->subject,
+                                                                            ExecutionMode::Auto);
         }
 
         TYPED_TEST(Small_EngineContract, TheRandomStreamReservesOffsets)
@@ -122,14 +124,16 @@ namespace SushiBLAS
             EngineContract::expect_force_reference_is_accepted(this->subject);
         }
 
-        TYPED_TEST(Medium_EngineContract, OtherModesFollowTheRuntime)
+        TYPED_TEST(Medium_EngineContract, SetModeKeepsForceSYCLExactlyWhenTheRecorderAdmitsIt)
         {
-            EngineContract::expect_other_modes_follow_the_runtime(this->subject);
+            EngineContract::expect_set_mode_admits_what_the_recorder_admits(this->subject,
+                                                                            ExecutionMode::ForceSYCL);
         }
 
-        TYPED_TEST(Medium_EngineContract, TheRuntimeFollowsTheKind)
+        TYPED_TEST(Medium_EngineContract, SetModeKeepsAutoExactlyWhenTheRecorderAdmitsIt)
         {
-            EngineContract::expect_runtime_follows_the_kind(this->subject);
+            EngineContract::expect_set_mode_admits_what_the_recorder_admits(this->subject,
+                                                                            ExecutionMode::Auto);
         }
 
         TYPED_TEST(Medium_EngineContract, TheRandomStreamReservesOffsets)
@@ -152,25 +156,9 @@ namespace SushiBLAS
 
             const Tensor tensor = engine.create_tensor({2, 3});
 
-            EXPECT_TRUE(tensor.storage->is_host());
+            EXPECT_EQ(tensor.storage->block().queue(), nullptr);
             EXPECT_EQ(engine.layout(), Core::Layout::ColumnMajor);
             EXPECT_EQ(tensor.layout, Core::Layout::ColumnMajor);
-        }
-
-        /** @brief Tests that a host engine has the sink its recorders record through, and a runtime engine does not. */
-        TEST(Small_HostEngine, ItOwnsTheSinkItsRecordersUse)
-        {
-            Engine engine(Engine::Host{});
-
-            EXPECT_EQ(engine.host_sink().recorded_count(), std::size_t{0});
-        }
-
-        /** @brief Tests that an engine on a runtime has no host sink. */
-        TEST(Medium_RuntimeEngine, ItHasNoHostSink)
-        {
-            Engine engine(TestEnvironment::runtime());
-
-            EXPECT_THROW((void)engine.host_sink(), UnsupportedExecution);
         }
     } // namespace Test
 } // namespace SushiBLAS

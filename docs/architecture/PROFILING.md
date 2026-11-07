@@ -5,8 +5,8 @@ What SushiBLAS tells SushiProfiler about the work it records, and how a span of 
 ## The path of a cost
 
 1. A seam states facts it already holds in a `CostShape`: the extents of a GEMM, the element count of an elementwise operation, the window of a pool. It sets `TaskDescription::shape` and records.
-2. `TaskRecorder::insert_node` calls `cost_of(description.operation, description.shape)`. The table of the `cost` module returns FLOPs and a dtype class, or the reason the task states none.
-3. The recorder adds the bytes the operands declared (`OperandSet::declared_bytes`) and passes the result to SushiRuntime as `NodeOptions::cost`, mapping the dtype to the runtime's class.
+2. `GraphTaskSink`, adding the node, calls `cost_of(description.operation, description.shape)`. The table of the `cost` module returns FLOPs and a dtype class, or the reason the task states none.
+3. The sink adds the bytes the operands declared (`OperandSet::declared_bytes`) and passes the result to SushiRuntime as `NodeOptions::cost`, mapping the dtype to the runtime's class.
 4. The runtime keeps the cost with the node, through plan rebuilds and replays, and its device source writes `flops`, `bytes` and `dtype` on the span of each dispatch.
 5. SushiProfiler's `roofline` reads those attributes and the ceiling facts of the record and states, per node, the achieved rate and its share of the bound.
 

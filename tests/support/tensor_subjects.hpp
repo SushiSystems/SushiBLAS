@@ -23,16 +23,20 @@
 
 /**
  * @file tensor_subjects.hpp
- * @brief Declares the subjects a Storage and a TensorFactory contract runs on: the host adapter and the shared runtime.
+ * @brief Declares the subjects a StorageBlock and a TensorFactory contract runs on: the host adapter and the shared runtime.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
@@ -42,6 +46,45 @@ namespace SushiBLAS
     {
         /// @brief The device count of the host adapter, which has one.
         inline constexpr std::size_t K_HOST_DEVICE_COUNT = 1;
+
+        /** @brief Builds StorageBlocks of host memory through HostBlockMaker. */
+        struct HostBlockSubject
+        {
+            /** @brief Returns a block of n_bytes. */
+            [[nodiscard]] std::unique_ptr<StorageBlock> block_of(std::size_t n_bytes) const
+            {
+                return HostBlockMaker().make(n_bytes, SushiRuntime::Residency::Host, 0);
+            }
+
+            /** @brief Returns the residency a block of this adapter reports. */
+            [[nodiscard]] static SushiRuntime::Residency residency() noexcept
+            {
+                return SushiRuntime::Residency::Host;
+            }
+
+            /** @brief Returns whether a block of this adapter has a queue. */
+            [[nodiscard]] static bool has_queue() noexcept { return false; }
+        };
+
+        /** @brief Builds StorageBlocks of runtime buffers through RuntimeBlockMaker. */
+        struct RuntimeBlockSubject
+        {
+            /** @brief Returns a block of n_bytes on the first device. */
+            [[nodiscard]] std::unique_ptr<StorageBlock> block_of(std::size_t n_bytes) const
+            {
+                return RuntimeBlockMaker(TestEnvironment::runtime())
+                    .make(n_bytes, SushiRuntime::Residency::Shared, 0);
+            }
+
+            /** @brief Returns the residency a block of this adapter reports. */
+            [[nodiscard]] static SushiRuntime::Residency residency() noexcept
+            {
+                return SushiRuntime::Residency::Shared;
+            }
+
+            /** @brief Returns whether a block of this adapter has a queue. */
+            [[nodiscard]] static bool has_queue() noexcept { return true; }
+        };
 
         /** @brief Builds storages and factories on the host, with no runtime. */
         struct HostTensorSubject
@@ -58,7 +101,7 @@ namespace SushiBLAS
             /** @brief Returns a storage of n_bytes. */
             [[nodiscard]] SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes) const
             {
-                return SushiRuntime::make_sushi<Storage>(Storage::Host{}, n_bytes);
+                return make_host_storage(n_bytes);
             }
 
             /** @brief Returns the residency a storage of this adapter reports. */
@@ -86,7 +129,7 @@ namespace SushiBLAS
             /** @brief Returns a storage of n_bytes on the first device. */
             [[nodiscard]] SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes) const
             {
-                return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
+                return make_runtime_storage(TestEnvironment::runtime(), n_bytes);
             }
 
             /** @brief Returns the residency a storage of this adapter reports. */

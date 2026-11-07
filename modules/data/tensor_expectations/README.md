@@ -15,9 +15,9 @@ It depends on `core`, `tensor`, `test_runner` and GoogleTest. Its headers are in
 | `tensor_readback.hpp` | `read_tensor`, which copies a tensor's elements into a host vector |
 | `tensor_copy.hpp` | `copy_tensor_to_host` and `copy_host_to_tensor`, which the fill, comparison and readback headers copy through |
 
-The fill, comparison and readback headers copy through `tensor_copy.hpp`. A tensor in host storage
-(`Storage::is_host()`) is copied by `memcpy` and reaches no queue; any other tensor is copied through
-`TestEnvironment::queue()` and waits, so a call returns with the copy done.
+The fill, comparison and readback headers copy through `tensor_copy.hpp`. The storage of the tensor does
+the copy through its block (`Storage::copy_to_host`, `copy_from_host`): host storage by `memcpy`,
+runtime storage through the queue of its device, and a call returns with the copy done.
 
 ## The complex-type trait
 

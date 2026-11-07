@@ -42,6 +42,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_copy.hpp>
 
@@ -85,12 +86,26 @@ namespace SushiBLAS
             return false;
         }
 
-        /** @brief Returns whether engine.runtime() throws UnsupportedExecution. */
-        [[nodiscard]] inline bool runtime_is_refused(Engine& engine)
+        /** @brief Returns the message engine.set_mode(mode) refuses with, or an empty one when it accepts. */
+        [[nodiscard]] inline std::string set_mode_refusal(Engine& engine, ExecutionMode mode)
         {
             try
             {
-                (void)engine.runtime();
+                engine.set_mode(mode);
+            }
+            catch (const UnsupportedExecution& refusal)
+            {
+                return refusal.what();
+            }
+            return std::string();
+        }
+
+        /** @brief Returns whether recorder.set_mode(mode) throws UnsupportedExecution. */
+        [[nodiscard]] inline bool recorder_refuses(TaskRecorder& recorder, ExecutionMode mode)
+        {
+            try
+            {
+                recorder.set_mode(mode);
             }
             catch (const UnsupportedExecution&)
             {
@@ -175,24 +190,22 @@ namespace SushiBLAS
                 EXPECT_EQ(subject.engine().mode(), ExecutionMode::ForceReference);
             }
 
-            /** @brief Any other mode is refused exactly when the engine has no runtime, and a refusal leaves the mode alone. */
+            /**
+             * @brief set_mode keeps a mode the subject's recorder admits and refuses one it does
+             *        not, leaving the mode as it was and saying the mode is not admitted.
+             */
             template<typename Subject>
-            static void expect_other_modes_follow_the_runtime(Subject& subject)
+            static void expect_set_mode_admits_what_the_recorder_admits(Subject& subject,
+                                                                        ExecutionMode mode)
             {
                 const ExecutionMode before = subject.engine().mode();
+                const bool recorder_refused = recorder_refuses(subject.recorder(), mode);
+                const std::string refusal = set_mode_refusal(subject.engine(), mode);
 
-                EXPECT_EQ(set_mode_is_refused(subject.engine(), ExecutionMode::ForceSYCL),
-                          !Subject::K_ACCEPTS_EVERY_MODE);
-                EXPECT_EQ(subject.engine().mode(),
-                          Subject::K_ACCEPTS_EVERY_MODE ? ExecutionMode::ForceSYCL : before);
-            }
-
-            /** @brief runtime() is refused exactly when the engine has no runtime. */
-            template<typename Subject>
-            static void expect_runtime_follows_the_kind(Subject& subject)
-            {
-                EXPECT_EQ(runtime_is_refused(subject.engine()), !Subject::K_HAS_RUNTIME);
-                EXPECT_EQ(subject.engine().is_host(), !Subject::K_HAS_RUNTIME);
+                EXPECT_EQ(!refusal.empty(), recorder_refused);
+                EXPECT_EQ(subject.engine().mode(), recorder_refused ? before : mode);
+                EXPECT_TRUE(refusal.empty() || refusal.find("does not admit") != std::string::npos)
+                    << refusal;
             }
 
             /** @brief The random stream reserves consecutive offsets under the seed it was set to. */

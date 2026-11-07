@@ -41,7 +41,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/tensor/tensor_log_category.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 
 namespace SushiBLAS

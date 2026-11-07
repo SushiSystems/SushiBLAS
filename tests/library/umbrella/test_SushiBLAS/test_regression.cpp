@@ -32,6 +32,7 @@
 #include <cstring>
 #include <algorithm>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -248,8 +249,7 @@ namespace SushiBLAS
             constexpr int64_t kN = 8;
 
             // source and packed are disjoint views of one allocation; packed is not at offset zero.
-            auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::runtime(),
+            auto storage = make_runtime_storage(TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Residency::Shared);
 

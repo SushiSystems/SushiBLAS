@@ -8,10 +8,13 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_block_maker.cpp` | Tests that the host and runtime adapters of BlockMaker size, place and report their blocks |
 | `test_host_block.cpp` | Tests that HostBlock owns aligned host memory and hands it over on a move |
 | `test_host_data_type.cpp` | Tests that HostDataType gives each host element type its DataType |
-| `test_storage/test_storage.cpp` | Tests that Storage rounds its size up, aligns its allocation, refuses a bad request and views a buffer it borrows |
-| `test_storage/test_storage_contract.cpp` | Tests that the host and runtime adapters of Storage keep the Storage contract, and that a host storage has no queue |
+| `test_runtime_block.cpp` | Tests that RuntimeBlock allocates or borrows a buffer and copies through its device queue |
+| `test_storage_block.cpp` | Tests the defaults and helpers of the StorageBlock port through an in-memory adapter |
+| `test_storage/test_storage.cpp` | Tests that Storage rounds its size up, aligns its allocation, refuses a bad request, views a buffer it borrows and forwards to its block |
+| `test_storage/test_storage_block_contract.cpp` | Tests that the host and runtime adapters of StorageBlock keep the StorageBlock contract |
 | `test_tensor/test_tensor.cpp` | Tests the strides, views, checks and regions of a Tensor over one storage |
 | `test_tensor/test_shape_only_tensor.cpp` | Tests that a shape-only Tensor carries dims, strides, dtype and layout and no storage |
 | `test_tensor_factory/test_tensor_factory.cpp` | Tests the layout, the byte size and the tensors a TensorFactory creates |
@@ -19,8 +22,9 @@ what a test checks; a section below holds why a test is written the way it is.
 
 ## Contract suites
 
-`StorageContract` and `TensorFactoryContract` are typed suites: the checks live in
-`tests/support/storage_contract.hpp` and `tests/support/tensor_factory_contract.hpp`, and the two
-adapters, `HostTensorSubject` and `RuntimeTensorSubject`, in `tests/support/tensor_subjects.hpp`.
+`StorageBlockContract` and `TensorFactoryContract` are typed suites: the checks live in
+`tests/support/storage_block_contract.hpp` and `tests/support/tensor_factory_contract.hpp`, and the
+adapters, `HostBlockSubject`, `RuntimeBlockSubject`, `HostTensorSubject` and `RuntimeTensorSubject`,
+in `tests/support/tensor_subjects.hpp`.
 Each suite is declared twice, as `Small_` on the host adapter and `Medium_` on the runtime one, since
 the size is read from the suite name.

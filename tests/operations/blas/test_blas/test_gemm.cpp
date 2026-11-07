@@ -35,6 +35,7 @@
 #include <complex>
 #include <type_traits>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
@@ -705,8 +706,7 @@ namespace SushiBLAS
                 // The declared read uses Tensor::region(). See tests/operations/blas/README.md.
                 constexpr int64_t kN = 3;
 
-                auto storage = SushiRuntime::make_sushi<Storage>(
-                    TestEnvironment::runtime(),
+                auto storage = make_runtime_storage(TestEnvironment::runtime(),
                     static_cast<size_t>(2 * kN) * sizeof(float),
                     SushiRuntime::Residency::Shared);
 

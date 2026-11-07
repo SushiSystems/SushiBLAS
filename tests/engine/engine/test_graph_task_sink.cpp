@@ -35,6 +35,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/graph_task_sink.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/task_sink_subjects.hpp"
@@ -68,10 +69,8 @@ namespace SushiBLAS
             ASSERT_EQ(sink.node_count(), std::size_t{0});
 
             sink.add_pair(description, operands, ExecutionMode::Auto, std::string(),
-                          [](const KernelPairDispatcher&,
-                             const std::vector<sycl::event>&) -> sycl::event
+                          [](PairRun&)
                           {
-                              return sycl::event();
                           });
 
             EXPECT_EQ(sink.node_count(), std::size_t{1});

@@ -33,6 +33,9 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/core/errors.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -45,16 +48,15 @@ namespace SushiBLAS
         /// @brief Returns a storage of n_bytes on the shared runtime's first device.
         static SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes)
         {
-            return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
+            return make_runtime_storage(TestEnvironment::runtime(), n_bytes);
         }
 
         /// @brief Returns a storage over count bytes of memory, from offset.
         static SushiRuntime::sushi_ptr<Storage> borrowed_of(const OwnedMemory& memory,
                                                            std::size_t offset, std::size_t count)
         {
-            return SushiRuntime::make_sushi<Storage>(Storage::Borrowed{},
-                                                     TestEnvironment::runtime(),
-                                                     memory.borrow(offset, count));
+            return borrow_runtime_storage(TestEnvironment::runtime(),
+                                          memory.borrow(offset, count));
         }
 
         TEST(Medium_Storage, RoundsItsSizeUpToTheAlignment)
@@ -85,7 +87,7 @@ namespace SushiBLAS
         TEST(Medium_Storage, RefusesAnEmptyRequestAndADeviceItDoesNotHave)
         {
             EXPECT_THROW((void)storage_of(0), std::runtime_error);
-            EXPECT_THROW((void)SushiRuntime::make_sushi<Storage>(
+            EXPECT_THROW((void)make_runtime_storage(
                              TestEnvironment::runtime(), 64, SushiRuntime::Residency::Shared,
                              TestEnvironment::device_count()),
                          std::runtime_error);
@@ -110,7 +112,7 @@ namespace SushiBLAS
             const auto storage = borrowed_of(memory, 0, 200);
 
             EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
-            EXPECT_TRUE(storage->is_borrowed());
+            EXPECT_TRUE(names_an_owner(storage->owner_liveness()));
             EXPECT_EQ(storage->allocation_base(), static_cast<void*>(memory.data()));
             EXPECT_EQ(storage->size_bytes(), std::size_t{200});
             EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
@@ -122,7 +124,7 @@ namespace SushiBLAS
         {
             const auto storage = storage_of(64);
 
-            EXPECT_FALSE(storage->is_borrowed());
+            EXPECT_FALSE(names_an_owner(storage->owner_liveness()));
             EXPECT_TRUE(storage->owner_liveness().expired());
         }
 
@@ -157,6 +159,50 @@ namespace SushiBLAS
             const Tensor fits(storage, {16}, Core::DataType::Float32);
             EXPECT_EQ(fits.region().base, static_cast<void*>(memory.data()));
             EXPECT_THROW((void)Tensor(storage, {17}, Core::DataType::Float32), std::runtime_error);
+        }
+        TEST(Small_Storage, ForwardsEveryQuestionToItsBlock)
+        {
+            const auto storage = make_host_storage(64);
+
+            EXPECT_EQ(storage->allocation_base(), storage->block().data());
+            EXPECT_EQ(storage->size_bytes(), storage->block().size_bytes());
+            EXPECT_EQ(storage->residency(), storage->block().residency());
+            EXPECT_EQ(storage->device_index(), storage->block().device_index());
+        }
+
+        TEST(Small_Storage, AStorageWithNoDeviceOwnerHasNoQueue)
+        {
+            const auto storage = make_host_storage(64);
+
+            EXPECT_EQ(storage->block().queue(), nullptr);
+            EXPECT_THROW((void)storage->queue(), UnsupportedExecution);
+        }
+
+        TEST(Small_Storage, CopiesBytesThroughItsBlock)
+        {
+            const auto storage = make_host_storage(64);
+            const std::byte written[3] = {std::byte{1}, std::byte{2}, std::byte{3}};
+            std::byte read[3] = {};
+
+            storage->copy_from_host(written, 8, sizeof(written));
+            storage->copy_to_host(read, 8, sizeof(read));
+
+            EXPECT_EQ(read[0], written[0]);
+            EXPECT_EQ(read[2], written[2]);
+        }
+
+        TEST(Small_Storage, RefusesAMissingBlock)
+        {
+            EXPECT_THROW((void)SushiRuntime::make_sushi<Storage>(std::unique_ptr<StorageBlock>()),
+                         std::runtime_error);
+        }
+
+        TEST(Small_Storage, ATensorsDataIsTheBaseOfAHostStorage)
+        {
+            const auto storage = make_host_storage(64);
+            const Tensor tensor(storage, {4, 4}, Core::DataType::Float32);
+
+            EXPECT_EQ(tensor.data(), storage->allocation_base());
         }
     } // namespace Test
 } // namespace SushiBLAS

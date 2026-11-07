@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <vector>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
@@ -83,8 +84,7 @@ namespace
             /// @brief Returns a vector tensor over a Storage that borrows the memory.
             SushiBLAS::Tensor tensor() const
             {
-                auto storage = SushiRuntime::make_sushi<SushiBLAS::Storage>(
-                    SushiBLAS::Storage::Borrowed{}, TestEnvironment::runtime(),
+                auto storage = SushiBLAS::borrow_runtime_storage(TestEnvironment::runtime(),
                     TestEnvironment::runtime().interop().borrow<std::byte>(
                         reinterpret_cast<std::byte*>(address_), count_ * sizeof(float),
                         SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Shared, token_).value());

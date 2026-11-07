@@ -34,6 +34,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -46,7 +47,7 @@ namespace SushiBLAS
         /// @brief Returns a storage of n_bytes on the shared runtime's first device.
         static SushiRuntime::sushi_ptr<Storage> bytes(std::size_t n_bytes)
         {
-            return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
+            return make_runtime_storage(TestEnvironment::runtime(), n_bytes);
         }
 
         /// @brief Returns the strides of dims in layout, rank entries long.

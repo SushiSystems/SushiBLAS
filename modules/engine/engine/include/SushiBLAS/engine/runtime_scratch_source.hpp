@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <SushiBLAS/engine/scratch_block_source.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -65,13 +66,13 @@ namespace SushiBLAS
 
             /**
              * @brief Allocates a device Storage of at least @p bytes on the queue.
-             * @throws std::runtime_error as Storage's runtime constructor states.
+             * @throws std::runtime_error as make_runtime_storage() states.
              */
             [[nodiscard]] SushiRuntime::sushi_ptr<Storage> serve(
                 std::size_t bytes, std::size_t device_index) override
             {
-                return SushiRuntime::make_sushi<Storage>(
-                    *runtime_, bytes, SushiRuntime::Residency::Device, device_index);
+                return make_runtime_storage(*runtime_, bytes, SushiRuntime::Residency::Device,
+                                            device_index);
             }
 
         private:

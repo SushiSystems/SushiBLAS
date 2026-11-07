@@ -39,22 +39,20 @@
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/mode_admission.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/scratch_block_source.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 namespace SushiBLAS
 {
-    class HostScratchSource;
-    class HostTaskSink;
-
     /**
      * @class Engine
-     * @brief Owns a runtime binding, a scratch pool, a tensor factory, a random stream and an
-     *        execution mode; it records and runs no graph. A host engine has no runtime and
-     *        owns the HostTaskSink its recorders record through.
+     * @brief Owns a runtime binding, a scratch pool over an owned block source, a tensor
+     *        factory, a random stream and an owned mode admission; it records and runs no graph.
+     *        Its two constructors are its composition roots, for the runtime and the host.
      * @see docs/design/LAYERED_EXECUTION/README.md
-     * @see modules/README.md
      */
     class Engine final
     {
@@ -75,7 +73,8 @@ namespace SushiBLAS
 
             /**
              * @brief Builds a host engine: a host tensor factory, a host scratch source, a host
-             *        task sink and a random stream, with mode ForceReference.
+             *        mode admission and a random stream, with mode ForceReference. A recorder on
+             *        it records through a HostTaskSink its owner builds.
              * @param layout The memory layout of tensors this engine creates.
              * @see modules/engine/engine/README.md
              */
@@ -117,29 +116,17 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Returns the sink a TaskRecorder of a host engine records through.
-             * @throws UnsupportedExecution on an engine built on a runtime, whose recorders
-             *         record on a graph.
-             */
-            [[nodiscard]] HostTaskSink& host_sink()
-            {
-                if (host_sink_ == nullptr)
-                    throw UnsupportedExecution("An Engine built on a runtime has no host task sink");
-                return *host_sink_;
-            }
-
-            /**
              * @brief Sets the execution mode a recorder built from now on starts with.
              * @pre No thread is building a recorder from this engine.
-             * @throws UnsupportedExecution on a host engine for any mode but ForceReference; the
-             *         mode stays.
+             * @throws UnsupportedExecution when the engine's mode admission refuses the mode;
+             *         the mode stays.
              */
             void set_mode(ExecutionMode mode)
             {
-                if (is_host() && mode != ExecutionMode::ForceReference)
+                if (!admission_->admits(mode))
                 {
                     throw UnsupportedExecution(
-                        "A host Engine runs ForceReference only: it has no SYCL queue.");
+                        "This Engine does not admit the requested execution mode; its mode stays.");
                 }
                 mode_ = mode;
             }
@@ -189,8 +176,11 @@ namespace SushiBLAS
             /// @brief The runtime that allocates and executes; null on a host engine.
             SushiRuntime::Runtime* runtime_;
 
-            /// @brief The source of the scratch blocks of a host engine; empty otherwise.
-            std::unique_ptr<HostScratchSource> host_source_;
+            /// @brief The source of every scratch block the pool lends; never null.
+            std::unique_ptr<ScratchBlockSource> block_source_;
+
+            /// @brief Answers which modes set_mode accepts; never null.
+            std::unique_ptr<ModeAdmission> admission_;
 
             /// @brief The pool recorded tasks lease scratch from; see modules/README.md.
             ScratchPool scratch_pool_;
@@ -203,8 +193,5 @@ namespace SushiBLAS
 
             /// @brief The random stream of this engine.
             RNGStream rng_;
-
-            /// @brief The sink a host engine's recorders record through; empty otherwise.
-            std::unique_ptr<HostTaskSink> host_sink_;
     };
 } // namespace SushiBLAS

@@ -44,7 +44,7 @@ namespace SushiBLAS
             const auto block = source.serve(256, 0);
 
             EXPECT_EQ(block->residency(), SushiRuntime::Residency::Device);
-            EXPECT_FALSE(block->is_host());
+            EXPECT_NE(block->block().queue(), nullptr);
             EXPECT_EQ(&source.runtime(), &TestEnvironment::runtime());
         }
 
