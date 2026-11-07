@@ -155,8 +155,8 @@ reference allocates it on the host, indexed like B.
 
 The reference of the sweep behind `RandomOps::orthogonal`: modified Gram-Schmidt in place over a
 `VectorSet`, vector `i` projected out of every later vector in ascending order,
-`K_ORTHONORMAL_SWEEPS` times, then each vector scaled to norm `gain`. The layout, the sweep count
-and `tiny_norm_sq` come from `<SushiBLAS/orthonormal/orthonormal_sweep.hpp>`, which the SYCL kernel
+`K_ORTHONORMAL_SWEEPS` times, then each vector scaled to norm `gain`. The layout, the sweep count,
+`tiny_norm_sq`, `projection_coefficient` and `normalising_scale` come from `<SushiBLAS/orthonormal/orthonormal_sweep.hpp>`, which the SYCL kernel
 reads too.
 
 ### `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/csr_pattern.hpp`, `index_list.hpp`

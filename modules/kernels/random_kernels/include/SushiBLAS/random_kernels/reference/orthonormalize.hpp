@@ -78,8 +78,7 @@ namespace SushiBLAS
                             {
                                 T* vm = p + m * set.vec_stride;
                                 const T dot = Detail::strided_dot(vi, vm, set);
-                                const T coef = norm_sq > tiny_norm_sq<T>() ? dot / norm_sq
-                                                                           : static_cast<T>(0);
+                                const T coef = projection_coefficient(dot, norm_sq);
 
                                 for (int64_t j = 0; j < set.length; ++j)
                                     vm[j * set.elem_stride] -= coef * vi[j * set.elem_stride];
@@ -91,8 +90,7 @@ namespace SushiBLAS
                     {
                         T* vector = p + v * set.vec_stride;
                         const T norm_sq = Detail::strided_dot(vector, vector, set);
-                        const T scale = norm_sq > tiny_norm_sq<T>() ? gain / std::sqrt(norm_sq)
-                                                                    : gain;
+                        const T scale = normalising_scale(gain, norm_sq, std::sqrt(norm_sq));
 
                         for (int64_t j = 0; j < set.length; ++j)
                             vector[j * set.elem_stride] *= scale;

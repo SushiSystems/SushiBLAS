@@ -12,4 +12,5 @@ what a test checks. [`tests/README.md`](../../README.md) holds the reasoning the
 | `sycl/test_lu.cpp` | Tests that the SYCL LU and its solve equal the reference bit for bit |
 | `test_chunked_dot.cpp` | Tests that chunked_dot sums each chunk in index order and then the chunk sums in order |
 | `test_gmres_workspace.cpp` | Tests that GmresLayout places every array of the workspace after the one before it, and that a default solve reaches the default tolerance |
+| `test_lu_index.cpp` | Tests the LU pivot search, its tie rule and singular bound, and the trailing-block and solve coordinates on the host |
 | `test_linalg.cpp` | Tests that linalg.hpp alone declares the LU factor and solve in the reference and the SYCL kernels |

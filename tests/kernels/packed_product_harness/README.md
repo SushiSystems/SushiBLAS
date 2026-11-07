@@ -8,4 +8,4 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_packed_product_harness.cpp` | Tests the harness helpers: the patterned values, the blockings and the problem it builds |
+| `test_packed_product_harness.cpp` | Tests the harness helpers: the patterned values, the padded leading dimension and batch stride, the blockings and the problem it builds |

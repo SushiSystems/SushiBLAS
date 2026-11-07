@@ -6,7 +6,7 @@ It depends on no other module: its headers include SYCL and the standard library
 
 | File | Declares |
 | --- | --- |
-| `orthonormal_sweep.hpp` | The vector layout and the constants the orthonormalisation kernels of both back ends share |
+| `orthonormal_sweep.hpp` | The vector layout, the constants and the projection and scaling rules the orthonormalisation kernels of both back ends share |
 
 Each section below holds the reasoning behind a header, under the name of the file and of the symbol it belongs to. The header states the rule in one line and cites this page.
 
@@ -16,4 +16,7 @@ Each section below holds the reasoning behind a header, under the name of the fi
 a length, the step between elements of one vector and the step between vectors.
 `K_ORTHONORMAL_SWEEPS` is 2, the number of modified Gram-Schmidt sweeps, and `tiny_norm_sq` is
 the squared norm at or below which a vector counts as zero. The reference and the SYCL kernel
-read all three from here, so the two back ends cannot disagree on them.
+read all three from here, so the two back ends cannot disagree on them. `projection_coefficient`
+is `dot / norm_sq`, or zero for a vector that counts as zero, and `normalising_scale` is
+`gain / root`, or the gain for such a vector; both kernels call them, and the caller takes the
+square root with its own library.

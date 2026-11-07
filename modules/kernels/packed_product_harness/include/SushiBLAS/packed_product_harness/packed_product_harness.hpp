@@ -68,6 +68,27 @@ namespace SushiBLAS
         inline constexpr std::size_t K_PACKED_TEST_SCRATCH_SKEW = 8;
 
         /**
+         * @brief Returns the padded leading dimension of a rows x cols matrix stored in @p layout.
+         * @return The contiguous extent plus K_PACKED_TEST_LD_PADDING.
+         */
+        [[nodiscard]] constexpr int64_t padded_leading_dimension(Core::Layout layout, int64_t rows,
+                                                                 int64_t cols) noexcept
+        {
+            return ((layout == Core::Layout::ColumnMajor) ? rows : cols) + K_PACKED_TEST_LD_PADDING;
+        }
+
+        /**
+         * @brief Returns the elements between two matrices of a batch of rows x cols matrices.
+         * @return One matrix at leading dimension @p ld plus K_PACKED_TEST_BATCH_GAP.
+         */
+        [[nodiscard]] constexpr int64_t padded_batch_stride(Core::Layout layout, int64_t rows,
+                                                            int64_t cols, int64_t ld) noexcept
+        {
+            return ld * ((layout == Core::Layout::ColumnMajor) ? cols : rows) +
+                   K_PACKED_TEST_BATCH_GAP;
+        }
+
+        /**
          * @brief Owns one aligned shared USM array and frees it with `sycl::free`.
          * @tparam T The element type; trivially copyable.
          */
@@ -226,10 +247,12 @@ namespace SushiBLAS
                       a_cols_(Core::is_transposed(transA) ? m : k),
                       b_rows_(Core::is_transposed(transB) ? n : k),
                       b_cols_(Core::is_transposed(transB) ? k : n),
-                      lda_(leading(a_rows_, a_cols_)), ldb_(leading(b_rows_, b_cols_)),
-                      ldc_(leading(m, n)),
-                      str_a_(stride(a_rows_, a_cols_, lda_)),
-                      str_b_(stride(b_rows_, b_cols_, ldb_)), str_c_(stride(m, n, ldc_)),
+                      lda_(padded_leading_dimension(layout, a_rows_, a_cols_)),
+                      ldb_(padded_leading_dimension(layout, b_rows_, b_cols_)),
+                      ldc_(padded_leading_dimension(layout, m, n)),
+                      str_a_(padded_batch_stride(layout, a_rows_, a_cols_, lda_)),
+                      str_b_(padded_batch_stride(layout, b_rows_, b_cols_, ldb_)),
+                      str_c_(padded_batch_stride(layout, m, n, ldc_)),
                       a_(q, static_cast<std::size_t>(str_a_ * batch_size)),
                       b_(q, static_cast<std::size_t>(str_b_ * batch_size)),
                       c_(q, static_cast<std::size_t>(str_c_ * batch_size)),
@@ -359,20 +382,6 @@ namespace SushiBLAS
                 }
 
             private:
-                /** @brief Returns the padded leading dimension of a rows x cols matrix. */
-                [[nodiscard]] int64_t leading(int64_t rows, int64_t cols) const noexcept
-                {
-                    return ((layout_ == Core::Layout::ColumnMajor) ? rows : cols) +
-                           K_PACKED_TEST_LD_PADDING;
-                }
-
-                /** @brief Returns the elements between two matrices of a batch. */
-                [[nodiscard]] int64_t stride(int64_t rows, int64_t cols, int64_t ld) const noexcept
-                {
-                    return ld * ((layout_ == Core::Layout::ColumnMajor) ? cols : rows) +
-                           K_PACKED_TEST_BATCH_GAP;
-                }
-
                 /// @brief The queue both kernels' memory lives on.
                 sycl::queue& queue_;
 

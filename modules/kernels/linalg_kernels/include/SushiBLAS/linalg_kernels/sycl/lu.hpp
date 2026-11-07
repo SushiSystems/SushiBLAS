@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include <limits>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -37,6 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/no_contraction.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/linalg_kernels/lu_index.hpp>
 
 namespace SushiBLAS
 {
@@ -68,7 +68,6 @@ namespace SushiBLAS
                 const std::size_t device_limit =
                     q.get_device().get_info<sycl::info::device::max_work_group_size>();
                 const std::size_t group = std::min(K_LU_GROUP, device_limit);
-                const T epsilon = std::numeric_limits<T>::epsilon();
 
                 return q.submit([&](sycl::handler& h)
                 {
@@ -89,22 +88,16 @@ namespace SushiBLAS
                             for (std::size_t e = lid; e < n * n; e += group)
                                 local = sycl::fmax(local, sycl::fabs(a[e]));
                             const T largest = sycl::reduce_over_group(g, local, sycl::maximum<T>());
-                            const T threshold = static_cast<T>(n) * epsilon * largest;
+                            const T threshold = Indexing::lu_threshold(n, largest);
 
                             for (std::size_t k = 0; k < n; ++k)
                             {
                                 if (lid == 0)
                                 {
-                                    std::size_t row = k;
-                                    T magnitude = sycl::fabs(a[k * n + k]);
-                                    for (std::size_t i = k + 1; i < n; ++i)
-                                        if (sycl::fabs(a[i * n + k]) > magnitude)
-                                        {
-                                            row = i;
-                                            magnitude = sycl::fabs(a[i * n + k]);
-                                        }
-                                    pivot_row[0] = row;
-                                    failed[0] = magnitude > threshold ? 0 : 1;
+                                    const Indexing::LuPivot<T> best =
+                                        Indexing::lu_pivot_search(a, n, k);
+                                    pivot_row[0] = best.row;
+                                    failed[0] = Indexing::lu_pivot_usable(best.magnitude, threshold) ? 0 : 1;
                                 }
                                 sycl::group_barrier(g);
 
@@ -137,10 +130,9 @@ namespace SushiBLAS
                                 const std::size_t width = n - k - 1;
                                 for (std::size_t e = lid; e < width * width; e += group)
                                 {
-                                    const std::size_t i = k + 1 + e / width;
-                                    const std::size_t j = k + 1 + e % width;
-                                    const T product = a[i * n + k] * a[k * n + j];
-                                    a[i * n + j] -= product;
+                                    const Indexing::LuCell cell = Indexing::lu_trailing_cell(k, width, e);
+                                    const T product = a[cell.row * n + k] * a[k * n + cell.column];
+                                    a[cell.row * n + cell.column] -= product;
                                 }
                                 sycl::group_barrier(g);
                             }
@@ -179,8 +171,9 @@ namespace SushiBLAS
                         SB_FP_CONTRACT_OFF
                         for (std::size_t flat = it.get_global_id(0); flat < count; flat += stride)
                         {
-                            const std::size_t b = flat / rhs_count;
-                            const std::size_t j = flat % rhs_count;
+                            const Indexing::LuSolveCell cell = Indexing::lu_solve_cell(flat, rhs_count);
+                            const std::size_t b = cell.matrix;
+                            const std::size_t j = cell.column;
                             const T* lu = factors + b * n * n;
                             const std::uint32_t* p = pivots + b * n;
                             T* x = rhs + b * n * rhs_count + j;

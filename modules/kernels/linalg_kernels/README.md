@@ -10,6 +10,7 @@ It depends on `arithmetic` and `launch`. Its headers are included as `<SushiBLAS
 | `chunked_dot.hpp` | `chunked_dot` and `K_DOT_CHUNK`, the one summation order of every GMRES dot product |
 | `gmres_workspace.hpp` | `GmresSettings`, the stopping rule, and `GmresLayout`, where each array of the workspace starts |
 | `linalg.hpp` | Includes every linear algebra kernel, reference and SYCL |
+| `lu_index.hpp` | The LU pivot search, its singular bound and the cell coordinates of the trailing update and the solve, on the host |
 | `reference/gmres.hpp` | The reference restarted, block-Jacobi preconditioned GMRES solve |
 | `reference/lu.hpp` | The reference batched LU factorisation and its solve |
 | `sycl/gmres.hpp` | The SYCL GMRES solve, run by one work-group |

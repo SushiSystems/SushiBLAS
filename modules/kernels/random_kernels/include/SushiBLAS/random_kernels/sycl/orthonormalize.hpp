@@ -120,7 +120,7 @@ namespace SushiBLAS
                                 }
                                 group_tree_sum2(item, scratch, group, norm_sq, dot);
 
-                                const T coef = norm_sq > tiny_norm_sq<T>() ? dot / norm_sq : static_cast<T>(0);
+                                const T coef = projection_coefficient(dot, norm_sq);
                                 for (int64_t j = lid; j < s.length; j += step)
                                 {
                                     vm[j * s.elem_stride] -= coef * vi[j * s.elem_stride];
@@ -159,7 +159,7 @@ namespace SushiBLAS
                                 }
                                 group_tree_sum2(item, scratch, group, norm_sq, unused);
 
-                                const T scale = norm_sq > tiny_norm_sq<T>() ? gain / sycl::sqrt(norm_sq) : gain;
+                                const T scale = normalising_scale(gain, norm_sq, sycl::sqrt(norm_sq));
                                 for (int64_t j = lid; j < s.length; j += step)
                                 {
                                     v[j * s.elem_stride] *= scale;

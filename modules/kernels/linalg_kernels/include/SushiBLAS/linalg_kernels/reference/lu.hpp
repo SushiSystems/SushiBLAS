@@ -30,12 +30,12 @@
 #pragma once
 
 #include <cmath>
-#include <limits>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <algorithm>
 #include <SushiBLAS/arithmetic/no_contraction.hpp>
+#include <SushiBLAS/linalg_kernels/lu_index.hpp>
 
 namespace SushiBLAS
 {
@@ -68,21 +68,14 @@ namespace SushiBLAS
                     for (std::size_t i = 0; i < n * n; ++i)
                         largest = std::max(largest, static_cast<T>(std::abs(a[i])));
                     const T threshold =
-                        static_cast<T>(n) * std::numeric_limits<T>::epsilon() * largest;
+                        Indexing::lu_threshold(n, largest);
 
                     for (std::size_t k = 0; k < n; ++k)
                     {
-                        // Strictly greater keeps the lowest row index on a tie.
-                        std::size_t pivot_row = k;
-                        T pivot_magnitude = std::abs(a[k * n + k]);
-                        for (std::size_t i = k + 1; i < n; ++i)
-                            if (std::abs(a[i * n + k]) > pivot_magnitude)
-                            {
-                                pivot_row = i;
-                                pivot_magnitude = std::abs(a[i * n + k]);
-                            }
+                        const Indexing::LuPivot<T> best = Indexing::lu_pivot_search(a, n, k);
+                        const std::size_t pivot_row = best.row;
 
-                        if (!(pivot_magnitude > threshold))
+                        if (!Indexing::lu_pivot_usable(best.magnitude, threshold))
                         {
                             for (std::size_t i = k; i < n; ++i)
                                 pivots[i] = static_cast<std::uint32_t>(i);

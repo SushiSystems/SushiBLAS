@@ -113,6 +113,24 @@ namespace SushiBLAS
             EXPECT_GT(ragged_blocking<float>().inner_bytes, smallest_blocking().inner_bytes);
         }
 
+        TEST(Small_PackedProductHarness, ALeadingDimensionExceedsTheContiguousExtentByThePadding)
+        {
+            // Column-major keeps columns contiguous, so the rows are the extent; row-major, the columns.
+            EXPECT_EQ(padded_leading_dimension(Core::Layout::ColumnMajor, 13, 11),
+                      13 + K_PACKED_TEST_LD_PADDING);
+            EXPECT_EQ(padded_leading_dimension(Core::Layout::RowMajor, 13, 11),
+                      11 + K_PACKED_TEST_LD_PADDING);
+        }
+
+        TEST(Small_PackedProductHarness, ABatchStrideHoldsOneMatrixAndTheGap)
+        {
+            // Column-major: ld 16 for each of 11 columns; row-major: ld 14 for each of 13 rows.
+            EXPECT_EQ(padded_batch_stride(Core::Layout::ColumnMajor, 13, 11, 16),
+                      16 * 11 + K_PACKED_TEST_BATCH_GAP);
+            EXPECT_EQ(padded_batch_stride(Core::Layout::RowMajor, 13, 11, 14),
+                      14 * 13 + K_PACKED_TEST_BATCH_GAP);
+        }
+
         /** @brief Builds problems on the host CPU queue. */
         class Medium_PackedProductHarnessOnDevice : public HostDeviceTest
         {

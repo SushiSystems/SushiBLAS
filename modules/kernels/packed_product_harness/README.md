@@ -7,7 +7,7 @@ It depends on `core`, `arithmetic`, `launch` and `blas_seam_kernels`. Its header
 
 | File | Declares |
 | --- | --- |
-| `packed_product_harness.hpp` | `GemmProblem<T>` and the three blockings of the packed GEMM tests |
+| `packed_product_harness.hpp` | `GemmProblem<T>`, the padded leading dimension and batch stride, and the three blockings of the packed GEMM tests |
 
 ## packed_product_harness.hpp
 

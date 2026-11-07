@@ -18,6 +18,7 @@ sushiblas_add_test_program(
         reference/test_gmres.cpp
         test_chunked_dot.cpp
         test_gmres_workspace.cpp
+        test_lu_index.cpp
     DEVICE_TESTS
         sycl/test_lu.cpp
         sycl/test_gmres.cpp

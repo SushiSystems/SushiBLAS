@@ -56,5 +56,27 @@ namespace SushiBLAS
         {
             return static_cast<T>(1e-12) * static_cast<T>(1e-12);
         }
+
+        /**
+         * @brief Returns the coefficient that projects a vector of squared norm @p norm_sq out of another.
+         * @param dot The dot product of the two vectors.
+         * @return `dot / norm_sq`, or zero when the vector counts as zero.
+         */
+        template<typename T>
+        [[nodiscard]] inline constexpr T projection_coefficient(T dot, T norm_sq) noexcept
+        {
+            return norm_sq > tiny_norm_sq<T>() ? dot / norm_sq : static_cast<T>(0);
+        }
+
+        /**
+         * @brief Returns the factor that scales a vector of squared norm @p norm_sq to norm @p gain.
+         * @param root The square root of @p norm_sq, taken by the caller with its own library.
+         * @return `gain / root`, or @p gain itself when the vector counts as zero.
+         */
+        template<typename T>
+        [[nodiscard]] inline constexpr T normalising_scale(T gain, T norm_sq, T root) noexcept
+        {
+            return norm_sq > tiny_norm_sq<T>() ? gain / root : gain;
+        }
     } // namespace Kernels
 } // namespace SushiBLAS
