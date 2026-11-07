@@ -21,6 +21,7 @@ sushiblas_add_test_program(
     MODULE io
     TESTS
         test_file_header.cpp
+        test_file_remover.cpp
         test_io_status.cpp
         test_partial_file.cpp
     DEVICE_TESTS

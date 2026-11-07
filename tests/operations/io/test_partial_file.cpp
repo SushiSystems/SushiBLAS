@@ -23,60 +23,62 @@
 
 /**
  * @file test_partial_file.cpp
- * @brief Tests that remove_partial_file deletes a file, and warns when it cannot.
+ * @brief Tests that remove_partial_file reports a removed file quietly and warns when it cannot remove one.
  * @author Mustafa Garip
  * @see tests/operations/io/README.md
  */
 
+#include <cstddef>
 #include <string>
-#include <fstream>
-#include <filesystem>
 #include <gtest/gtest.h>
 #include <SushiBLAS/io/partial_file.hpp>
 #include <SushiLog/log/log_capture.hpp>
 #include <SushiBLAS/test_runner/captured_record_count.hpp>
 #include <SushiBLAS/test_runner/scoped_log_level.hpp>
+#include "support/memory_file_remover.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_IoLog, ARemovedPartialFileIsGone)
+        namespace
         {
-            const std::filesystem::path path =
-                std::filesystem::temp_directory_path() / "sushiblas_io_partial_file.bin";
-            std::ofstream(path, std::ios::binary) << "partial";
+            /// @brief The path the tests hold in memory; no file of this name is made.
+            const std::string K_PARTIAL_PATH = "partial_save.bin";
+        } // namespace
 
-            EXPECT_TRUE(IOFiles::remove_partial_file(path.string()));
-            EXPECT_FALSE(std::filesystem::exists(path));
+        TEST(Small_IoLog, ARemovedPartialFileIsReportedGone)
+        {
+            MemoryFileRemover remover;
+            remover.add(K_PARTIAL_PATH);
+
+            EXPECT_TRUE(IOFiles::remove_partial_file(K_PARTIAL_PATH, remover));
+            EXPECT_FALSE(remover.has(K_PARTIAL_PATH));
         }
 
-        TEST(Medium_IoLog, ARemovedPartialFileStatesNothing)
+        TEST(Small_IoLog, ARemovedPartialFileStatesNothing)
         {
-            const std::filesystem::path path =
-                std::filesystem::temp_directory_path() / "sushiblas_io_partial_file_quiet.bin";
-            std::ofstream(path, std::ios::binary) << "partial";
+            MemoryFileRemover remover;
+            remover.add(K_PARTIAL_PATH);
             const ScopedLogLevel level(SushiLog::LogLevel::Trace);
             const SushiLog::LogCapture capture;
 
-            static_cast<void>(IOFiles::remove_partial_file(path.string()));
+            static_cast<void>(IOFiles::remove_partial_file(K_PARTIAL_PATH, remover));
 
             EXPECT_TRUE(capture.records().empty());
         }
 
-        TEST(Medium_IoLog, AFailedCleanupWarns)
+        TEST(Small_IoLog, AFailedCleanupWarns)
         {
-            const std::filesystem::path path =
-                std::filesystem::temp_directory_path() / "sushiblas_io_no_such_partial_file.bin";
-            std::filesystem::remove(path);
+            const MemoryFileRemover remover;
             const SushiLog::LogCapture capture;
 
-            EXPECT_FALSE(IOFiles::remove_partial_file(path.string()));
+            EXPECT_FALSE(IOFiles::remove_partial_file(K_PARTIAL_PATH, remover));
 
             EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn,
                                     "could not remove the partial file"),
                       std::size_t{1});
-            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn, path.string()),
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn, K_PARTIAL_PATH),
                       std::size_t{1});
         }
     } // namespace Test

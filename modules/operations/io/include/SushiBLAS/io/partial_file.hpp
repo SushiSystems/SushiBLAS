@@ -30,9 +30,9 @@
 
 #pragma once
 
-#include <cstdio>
 #include <string>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/io/file_remover.hpp>
 #include <SushiBLAS/io/io_log_category.hpp>
 
 namespace SushiBLAS
@@ -40,14 +40,14 @@ namespace SushiBLAS
     namespace IOFiles
     {
         /**
-         * @brief Deletes the partial file a failed save left at @p path.
+         * @brief Deletes the partial file a failed save left at @p path through @p remover.
          * @return True when the file is gone; false when the delete failed, after a WARN that
          *         names the path and says the file stays on disk.
          * @see modules/operations/io/README.md
          */
-        inline bool remove_partial_file(const std::string& path)
+        inline bool remove_partial_file(const std::string& path, const FileRemover& remover)
         {
-            if (std::remove(path.c_str()) == 0)
+            if (remover.remove(path))
                 return true;
 
             SB_LOG_WARN(K_IO_LOG_CATEGORY,
@@ -55,6 +55,12 @@ namespace SushiBLAS
                         "it stays on disk and may be incomplete",
                         path);
             return false;
+        }
+
+        /** @brief Deletes the partial file a failed save left at @p path from the disk. */
+        inline bool remove_partial_file(const std::string& path)
+        {
+            return remove_partial_file(path, DiskFileRemover{});
         }
     } // namespace IOFiles
 } // namespace SushiBLAS
