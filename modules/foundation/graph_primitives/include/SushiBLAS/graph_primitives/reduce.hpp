@@ -50,6 +50,7 @@
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/reduce_close.hpp>
 
 namespace SushiBLAS
 {
@@ -110,7 +111,7 @@ namespace SushiBLAS
                     Access(Reads(), Detail::access_of<Writes>(out_span)),
                     [out_base, identity](std::size_t)
                     {
-                        out_base[0] = identity;
+                        Detail::store_identity(out_base, identity);
                     },
                     stamper.stage("level", std::size_t{1}));
                 return Detail::recording_outcome(recorder);
@@ -217,7 +218,7 @@ namespace SushiBLAS
                     Access(Reads(), Detail::access_of<Writes>(out_span)),
                     [out_base, identity](std::size_t)
                     {
-                        out_base[0] = identity;
+                        Detail::store_identity(out_base, identity);
                     },
                     stamper.stage("close"));
                 return Detail::recording_outcome(recorder);
@@ -292,8 +293,7 @@ namespace SushiBLAS
                 Access(Reads(state_region), Detail::access_of<Writes>(out_span)),
                 [out_base, identity](std::size_t, std::size_t live_n)
                 {
-                    if (live_n == 0)
-                        out_base[0] = identity;
+                    Detail::close_empty_reduction(out_base, live_n, identity);
                 },
                 stamper.stage("close", std::size_t{1}));
 

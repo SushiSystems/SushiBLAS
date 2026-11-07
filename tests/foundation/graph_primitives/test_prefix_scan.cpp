@@ -613,24 +613,6 @@ namespace SushiBLAS
                                                    NodeWidthRow{"Close", 4, 1u}),
                                  row_name<NodeWidthRow>);
 
-        /** @brief Tests that a capacity of zero writes a zero total and a zero offsets[0]. */
-        TEST(Medium_GraphPrimitivesPrefixScan, ZeroCapacityWritesZeroTotal)
-        {
-            auto runtime = Runtime::create().value();
-            auto counts = runtime.buffer<std::uint32_t>(1).value();
-            auto offsets = runtime.buffer<std::uint32_t>(1).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            offsets[0] = K_CANARY;
-            total[0] = K_CANARY;
-
-            auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(0)).value();
-            graph.run().value();
-
-            EXPECT_EQ(offsets[0], 0u);
-            EXPECT_EQ(total[0], 0u);
-        }
-
         /// @brief Records a scan whose buffers are too short for its capacity.
         class Medium_GraphPrimitivesPrefixScanMisSized
             : public ::testing::TestWithParam<MisSizedRow>

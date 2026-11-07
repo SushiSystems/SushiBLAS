@@ -29,7 +29,7 @@ if (!report)
 
 | Header | Includes |
 | --- | --- |
-| `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp` | The standard library and each other |
+| `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp`, `scan_passes.hpp`, `sort_resolution.hpp`, `reduce_close.hpp`, `segment_fold.hpp` | The standard library and each other |
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
 | `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
 | `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
@@ -59,6 +59,10 @@ place the tile size is written.
 | `fixed_order_reduce.hpp` | `Detail::ReduceLevel`, `Detail::plan_reduction`, `Detail::reduce_scratch_count` |
 | `fixed_order_scan.hpp` | `Detail::LiveTileLevel`, `Detail::plan_tiled_levels`, `Detail::next_live_tile_count`, `Detail::fill_live_tile_levels`, `Detail::fill_live_level_words`, `Detail::live_tile_levels` |
 | `radix_plan.hpp` | `Detail::K_RADIX_*`, `Detail::radix_digit_count`, `Detail::radix_digit`, `Detail::fill_radix_plan` |
+| `scan_passes.hpp` | `Detail::publish_empty_scan`, `Detail::scan_top_pass`, `Detail::scan_tile`, `Detail::close_scan` |
+| `sort_resolution.hpp` | `Detail::publish_sort_state`, `Detail::clear_empty_bucket`, `Detail::bucket_start` |
+| `reduce_close.hpp` | `Detail::store_identity`, `Detail::close_empty_reduction` |
+| `segment_fold.hpp` | `Detail::fold_segment` |
 | `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
 | `primitive_options.hpp` | `PrimitiveOptions`, `Detail::require_options` |
 | `node_stamper.hpp` | `Detail::NodeStamper` |
@@ -290,6 +294,16 @@ element count and the difference is zero.
 
 With a capacity of zero elements the call records the resolver and one node that zeroes the
 offsets and the counts.
+
+## `scan_passes.hpp`, `sort_resolution.hpp` and `reduce_close.hpp`
+
+These hold the arithmetic the recorded nodes of `prefix_scan`, `counting_sort` and `reduce` run,
+as plain functions over pointers and values. The node lambdas only call them, so a host test
+checks every zero-count case, every closing step and every node's sums without a runtime.
+
+The refusal of a live count or key range above its capacity is not decided here. The runtime
+resolves each `LateCount` and fails the run; the primitives only hand it `capacity()`. That
+contract is tested once per primitive on a device, in the primitive's own test file.
 
 ## `radix_plan.hpp`
 

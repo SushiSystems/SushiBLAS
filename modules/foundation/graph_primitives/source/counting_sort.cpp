@@ -50,6 +50,7 @@
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
+#include <SushiBLAS/graph_primitives/sort_resolution.hpp>
 
 namespace SushiBLAS
 {
@@ -157,12 +158,8 @@ namespace SushiBLAS
                                     : Detail::access_of<Writes>(n_state_region, total_span)),
                 [n_state, total_base, plan, digit_count](const std::array<std::size_t, 2>& live)
                 {
-                    const std::size_t tiles = Detail::next_live_tile_count(live[0]);
-                    n_state[0] = static_cast<std::uint32_t>(live[0]);
-                    n_state[1] = static_cast<std::uint32_t>(tiles);
-                    total_base[0] = static_cast<std::uint32_t>(live[0]);
-                    if (plan != nullptr)
-                        Detail::fill_radix_plan(digit_count, live[0], tiles, live[1], plan);
+                    Detail::publish_sort_state(digit_count, live[0], live[1], n_state,
+                                               total_base, plan);
                 },
                 stamper.stage("resolve", std::size_t{1}));
 
@@ -179,9 +176,7 @@ namespace SushiBLAS
                                         : Detail::access_of<Writes>(offsets_span)),
                     [offsets_base, counts_base, key_capacity](std::size_t k)
                     {
-                        offsets_base[k] = 0;
-                        if (counts_base != nullptr && k < key_capacity)
-                            counts_base[k] = 0;
+                        Detail::clear_empty_bucket(k, key_capacity, offsets_base, counts_base);
                     },
                     stamper.stage("offsets", key_capacity + 1));
                 return Detail::recording_outcome(recorder);
@@ -353,17 +348,7 @@ namespace SushiBLAS
                        Detail::access_of<Writes>(offsets_span)),
                 [keys_base, indices_base, offsets_base](std::size_t k, std::size_t live_n)
                 {
-                    std::size_t low = 0;
-                    std::size_t high = live_n;
-                    while (low < high)
-                    {
-                        const std::size_t middle = low + (high - low) / 2;
-                        if (keys_base[indices_base[middle]] < k)
-                            low = middle + 1;
-                        else
-                            high = middle;
-                    }
-                    offsets_base[k] = static_cast<std::uint32_t>(low);
+                    offsets_base[k] = Detail::bucket_start(keys_base, indices_base, live_n, k);
                 },
                 stamper.stage("offsets", key_capacity + 1));
 

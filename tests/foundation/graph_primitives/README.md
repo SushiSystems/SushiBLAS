@@ -21,6 +21,10 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_radix_plan.cpp` | Tests the digit count, the digit of a key and the per-digit plan, without a device |
 | `test_reduce/test_device_sized_reduce.cpp` | Tests that reduce() with a device count gives one result on the chain and the scheduler |
 | `test_reduce/test_reduce.cpp` | Tests reduce(): its fixed combination order, its late-bound count and its node widths |
+| `test_reduce_close.cpp` | Tests the identity an empty reduction writes, without a device |
+| `test_scan_passes.cpp` | Tests the arithmetic of the passes a prefix scan records, without a device |
+| `test_segment_fold.cpp` | Tests the fold of one segment of a ragged array, without a device |
+| `test_sort_resolution.cpp` | Tests what a counting sort decides from its live sizes, without a device |
 | `test_segmented_reduce.cpp` | Tests segmented_reduce(): its per-segment fold, its late-bound count and its widths |
 | `plan_labels.hpp` | Declares the probe the naming tests use to read the names and determinism classes of a graph's nodes |
 | `window_probe.hpp` | Declares the probe the window tests use to read whether a node over a buffer window is ordered |
@@ -33,8 +37,9 @@ buffers and graphs from it, so a refusal one test provokes cannot reach another.
 The device-sized cases, which `device_sized_harness.hpp` runs, need two runtimes with different
 settings in one test, which the shared test runtime could not give.
 
-Four files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_reduce.cpp`,
-`test_radix_plan.cpp`) include
+Eight files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_reduce.cpp`,
+`test_radix_plan.cpp`, `test_reduce_close.cpp`, `test_scan_passes.cpp`,
+`test_segment_fold.cpp`, `test_sort_resolution.cpp`) include
 no SushiRuntime header and submit nothing to a device.
 
 `test_node_stamper.cpp` and `test_primitive_options.cpp` include SushiRuntime's option and error

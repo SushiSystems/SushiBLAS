@@ -48,6 +48,7 @@
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/segment_fold.hpp>
 
 namespace SushiBLAS
 {
@@ -103,20 +104,6 @@ namespace SushiBLAS
                     fits = require_window("segmented_reduce", "output", output.size(),
                                           output_span.offset, output_span.count);
                 return fits;
-            }
-
-            /**
-             * @brief Folds segment s of values left to right; an empty segment yields identity.
-             * @param offsets Segment s covers values[offsets[s], offsets[s + 1]).
-             */
-            template <typename T, class Combine>
-            [[nodiscard]] inline T fold_segment(const Combine& op, const T* values,
-                                                const std::uint32_t* offsets, std::size_t s,
-                                                T identity)
-            {
-                const std::size_t begin = offsets[s];
-                const std::size_t end = offsets[s + 1];
-                return (end > begin) ? fold_tile(op, values, begin, end) : identity;
             }
         } // namespace Detail
 

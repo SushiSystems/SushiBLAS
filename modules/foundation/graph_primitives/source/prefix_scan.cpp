@@ -51,6 +51,7 @@
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/graph_primitives/scan_passes.hpp>
 
 namespace SushiBLAS
 {
@@ -110,8 +111,7 @@ namespace SushiBLAS
                     Access(Reads(), Detail::access_of<Writes>(offsets_span, total_span)),
                     [offsets_base, total_base](const std::array<std::size_t, 1>&)
                     {
-                        offsets_base[0] = 0;
-                        total_base[0] = 0;
+                        Detail::publish_empty_scan(offsets_base, total_base);
                     },
                     stamper.stage("resolve", std::size_t{1}));
                 return Detail::recording_outcome(recorder);
@@ -217,15 +217,8 @@ namespace SushiBLAS
                         [src, dst, offsets_base, total_base, first](std::size_t,
                                                                     std::size_t in_count)
                         {
-                            std::uint32_t running = 0;
-                            for (std::size_t j = 0; j < in_count; ++j)
-                            {
-                                dst[j] = running;
-                                running += src[j];
-                            }
-                            total_base[0] = running;
-                            if (first)
-                                offsets_base[in_count] = running;
+                            Detail::scan_top_pass(src, dst, in_count, total_base,
+                                                  first ? offsets_base : nullptr);
                         },
                         stamper.stage("down_sweep", std::size_t{1}));
                     continue;
@@ -249,16 +242,7 @@ namespace SushiBLAS
                     Access(reads, writes),
                     [src, dst, tile_bases](std::size_t t, std::size_t in_count)
                     {
-                        const std::size_t begin = t * K_REDUCE_TILE;
-                        std::size_t end = begin + K_REDUCE_TILE;
-                        if (end > in_count)
-                            end = in_count;
-                        std::uint32_t running = tile_bases[t];
-                        for (std::size_t j = begin; j < end; ++j)
-                        {
-                            dst[j] = running;
-                            running += src[j];
-                        }
+                        Detail::scan_tile(src, dst, t, in_count, tile_bases[t]);
                     },
                     stamper.stage("down_sweep", level.out_count));
             }
@@ -273,7 +257,7 @@ namespace SushiBLAS
                        Detail::access_of<Writes>(offsets_span)),
                 [offsets_base, total_base](std::size_t, std::size_t live_n)
                 {
-                    offsets_base[live_n] = total_base[0];
+                    Detail::close_scan(offsets_base, total_base, live_n);
                 },
                 stamper.stage("close", std::size_t{1}));
 
