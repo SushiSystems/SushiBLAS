@@ -11,12 +11,13 @@ what a test checks; a section below holds why a test is written the way it is.
 | `random_statistics.hpp` | Holds the laws of the draws and the standard-error checks the statistical tests share |
 | `test_dispatch.cpp` | Tests the dtypes a random task admits, its seed slots and the fill on both paths |
 | `test_random/test_constant.cpp` | Tests, one row per dtype, that RandomOps::constant fills a tensor with one value |
-| `test_random/test_distributions.cpp` | Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws against their laws, and the refusals of every draw |
+| `test_random/test_distributions.cpp` | Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws against their laws |
 | `test_random/test_initializers.cpp` | Tests the Xavier and He initializers of RandomOps |
 | `test_random/test_normal.cpp` | Tests RandomOps::normal's sample moments, spread and seed determinism |
 | `test_random/test_orthogonal.cpp` | Tests, one row per shape and gain, that RandomOps::orthogonal fills a matrix with orthonormal rows or columns |
 | `test_random/test_random_large_lambda.cpp` | Tests the Poisson moments for lambda 50, 5000 and 1e6, and the replay of the Knuth and PTRS methods |
 | `test_random/test_random_reference.cpp` | Tests that each random operation family draws one stream under both forced modes |
+| `test_random/test_random_refusals.cpp` | Tests, on a host engine, that RandomOps refuses a bad parameter, truncated-normal bound, dtype or shape at record time |
 | `test_random/test_shuffle.cpp` | Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset |
 | `test_random/test_uniform.cpp` | Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism |
 | `benchmark_random.cpp` | Times the random draws, shuffle and orthogonal and prints Melem/s per length |

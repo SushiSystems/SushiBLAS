@@ -30,14 +30,14 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_LogicOpsWhere : public SushiBLASTest {};
+class Small_LogicOpsWhere : public HostEngineTest {};
 
-TEST_F(Medium_LogicOpsWhere, PicksTheFirstWhereTheConditionIsNonzeroAndTheSecondElsewhere)
+TEST_F(Small_LogicOpsWhere, PicksTheFirstWhereTheConditionIsNonzeroAndTheSecondElsewhere)
 {
     auto cond = engine->create_tensor({4});
     auto a = engine->create_tensor({4});
@@ -47,7 +47,7 @@ TEST_F(Medium_LogicOpsWhere, PicksTheFirstWhereTheConditionIsNonzeroAndTheSecond
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(b, {10.0f, 20.0f, 30.0f, 40.0f});
     SushiBLAS::LogicOps(recorder()).where(cond, a, b, c);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(c, {1.00000f, 20.00000f, 3.00000f, 40.00000f});
 }

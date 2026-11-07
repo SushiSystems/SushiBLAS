@@ -30,14 +30,14 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_LogicOpsLessEqual : public SushiBLASTest {};
+class Small_LogicOpsLessEqual : public HostEngineTest {};
 
-TEST_F(Medium_LogicOpsLessEqual, WritesOneWhereTheLeftIsLessOrEqual)
+TEST_F(Small_LogicOpsLessEqual, WritesOneWhereTheLeftIsLessOrEqual)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -46,7 +46,7 @@ TEST_F(Medium_LogicOpsLessEqual, WritesOneWhereTheLeftIsLessOrEqual)
     fill_tensor(b, {1.0f, 1.0f, 0.0f, 0.0f});
     
     SushiBLAS::LogicOps(recorder()).less_equal(a, b, c);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(c, {1.00000f, 1.00000f, 0.00000f, 1.00000f});
 }

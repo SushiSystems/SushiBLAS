@@ -30,7 +30,6 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -80,30 +79,11 @@ namespace
     /// @brief Holds the FLOAT32 roundings a device exp may differ from the host one by.
     constexpr std::size_t K_EXP_OPERATIONS = 8;
 
-    /// @brief Holds a quiet NaN.
-    constexpr double K_NAN = std::numeric_limits<double>::quiet_NaN();
-
-    /// @brief Holds positive infinity.
-    constexpr double K_INF = std::numeric_limits<double>::infinity();
-
     /// @brief Holds a lower bound far below any draw; the kernel clamps it to -40.
     constexpr double K_FAR_LOWER_BOUND = -1.0e30;
 
     /** @brief Records one operation on a tensor. */
     using Record = std::function<void(RandomOps&, Tensor&)>;
-
-    /** @brief Names one recorded call, for a row of a table of refusals. */
-    struct CallRow
-    {
-        const char* name; /**< The row name a failure shows. */
-        Record record;    /**< Records the call. */
-    };
-
-    /** @brief Returns the name of a dtype as a test name. */
-    std::string name_of(DataType dtype)
-    {
-        return std::string(SushiBLAS::Core::to_string(dtype));
-    }
 }
 
 class Medium_DistributionsTest : public SushiBLASTest
@@ -257,89 +237,6 @@ TEST_F(Medium_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpen
     expect_mean_matches(samples, truncated_normal_law(K_FAR_LOWER_BOUND, 2.0));
 }
 
-/** @brief Names a truncated normal call its record-time check refuses. */
-struct RefusedBoundsRow
-{
-    const char* name; /**< The row name a failure shows. */
-    DataType dtype;   /**< The dtype of the tensor. */
-    double lower;     /**< The lower cut. */
-    double upper;     /**< The upper cut. */
-};
-
-/** @brief Returns the bounds the draw cannot honour, and a complex tensor. */
-std::vector<RefusedBoundsRow> refused_bounds_rows()
-{
-    return {{"LowerAboveUpper", DataType::Float32, 2.0, -2.0},
-            {"EmptyInterval", DataType::Float32, 1.0, 1.0},
-            {"IntervalFarAboveTheMean", DataType::Float32, 15.0, 20.0},
-            {"IntervalFarBelowTheMean", DataType::Float32, -20.0, -15.0},
-            {"ComplexTensor", DataType::Complex32, -2.0, 2.0}};
-}
-
-/** @brief Runs one row of refused_bounds_rows(). */
-class Medium_TruncatedNormalRefusal : public Medium_DistributionsTest,
-                                      public ::testing::WithParamInterface<RefusedBoundsRow>
-{
-
-};
-
-TEST_P(Medium_TruncatedNormalRefusal, IsRefusedWithInvalidArgument)
-{
-    const RefusedBoundsRow row = GetParam();
-    auto t = engine->create_tensor({8}, row.dtype);
-
-    EXPECT_THROW(RandomOps(recorder(), engine->rng())
-                     .truncated_normal(t, 0.0, 1.0, row.lower, row.upper),
-                 std::invalid_argument);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    , Medium_TruncatedNormalRefusal, ::testing::ValuesIn(refused_bounds_rows()),
-    [](const ::testing::TestParamInfo<RefusedBoundsRow>& info)
-    { return std::string(info.param.name); });
-
-/** @brief Returns the calls whose parameter breaks its rule; no run follows, so a throw comes from the recording call. */
-std::vector<CallRow> invalid_parameter_rows()
-{
-    return {
-        {"ExponentialZeroRate", [](RandomOps& r, Tensor& t) { r.exponential(t, 0.0); }},
-        {"ExponentialNegativeRate", [](RandomOps& r, Tensor& t) { r.exponential(t, -1.0); }},
-        {"ExponentialInfiniteRate", [](RandomOps& r, Tensor& t) { r.exponential(t, K_INF); }},
-        {"ExponentialNaNRate", [](RandomOps& r, Tensor& t) { r.exponential(t, K_NAN); }},
-        {"NormalNegativeStddev", [](RandomOps& r, Tensor& t) { r.normal(t, 0.0, -1.0); }},
-        {"NormalNaNStddev", [](RandomOps& r, Tensor& t) { r.normal(t, 0.0, K_NAN); }},
-        {"NormalInfiniteMean", [](RandomOps& r, Tensor& t) { r.normal(t, K_INF, 1.0); }},
-        {"LogNormalNegativeStddev", [](RandomOps& r, Tensor& t) { r.log_normal(t, 0.0, -1.0); }},
-        {"LogNormalInfiniteStddev", [](RandomOps& r, Tensor& t) { r.log_normal(t, 0.0, K_INF); }},
-        {"LogNormalNaNMean", [](RandomOps& r, Tensor& t) { r.log_normal(t, K_NAN, 1.0); }},
-        {"BernoulliNaNProbability", [](RandomOps& r, Tensor& t) { r.bernoulli(t, K_NAN); }},
-        {"BernoulliNegativeProbability", [](RandomOps& r, Tensor& t) { r.bernoulli(t, -0.5); }},
-        {"BernoulliProbabilityAboveOne", [](RandomOps& r, Tensor& t) { r.bernoulli(t, 1.5); }},
-        {"HeUniformZeroFanIn", [](RandomOps& r, Tensor& t) { r.he_uniform(t, 0); }},
-        {"HeNormalNegativeFanIn", [](RandomOps& r, Tensor& t) { r.he_normal(t, -4); }},
-        {"XavierUniformZeroFans", [](RandomOps& r, Tensor& t) { r.xavier_uniform(t, 0, 0); }},
-        {"XavierNormalNegativeFanOut", [](RandomOps& r, Tensor& t) { r.xavier_normal(t, 2, -2); }}};
-}
-
-/** @brief Runs one row of invalid_parameter_rows(). */
-class Medium_RandomParameterRefusal : public Medium_DistributionsTest,
-                                      public ::testing::WithParamInterface<CallRow>
-{
-
-};
-
-TEST_P(Medium_RandomParameterRefusal, IsRefusedWithInvalidArgument)
-{
-    auto t = engine->create_tensor({4, 4});
-    RandomOps random(recorder(), engine->rng());
-
-    EXPECT_THROW(GetParam().record(random, t), std::invalid_argument);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    , Medium_RandomParameterRefusal, ::testing::ValuesIn(invalid_parameter_rows()),
-    [](const ::testing::TestParamInfo<CallRow>& info) { return std::string(info.param.name); });
-
 TEST_F(Medium_DistributionsTest, ANormalWithZeroStddevDrawsTheMeanEverywhere)
 {
     const std::vector<double> samples = draw(K_SEED, [](RandomOps& random, Tensor& t)
@@ -362,60 +259,3 @@ TEST_F(Medium_DistributionsTest, ALogNormalWithZeroStddevDrawsExpOfTheMeanEveryw
     const double tolerance = absolute_tolerance<float>(K_EXP_OPERATIONS, expected);
     expect_inside(samples, expected - tolerance, expected + tolerance);
 }
-
-/** @brief Runs one dtype that every value draw refuses. */
-class Medium_ValueDrawDtypeRefusal : public Medium_DistributionsTest,
-                                     public ::testing::WithParamInterface<DataType>
-{
-
-};
-
-TEST_P(Medium_ValueDrawDtypeRefusal, EveryValueDrawRefusesHalfAndComplex)
-{
-    auto t = engine->create_tensor({4, 4}, GetParam());
-    RandomOps random(recorder(), engine->rng());
-
-    EXPECT_THROW(random.log_normal(t), std::invalid_argument);
-    EXPECT_THROW(random.exponential(t), std::invalid_argument);
-    EXPECT_THROW(random.poisson(t), std::invalid_argument);
-    EXPECT_THROW(random.bernoulli(t), std::invalid_argument);
-    EXPECT_THROW(random.discrete_uniform(t, 0, 10), std::invalid_argument);
-    EXPECT_THROW(random.truncated_normal(t), std::invalid_argument);
-    EXPECT_THROW(random.xavier_uniform(t, 4, 4), std::invalid_argument);
-    EXPECT_THROW(random.xavier_normal(t, 4, 4), std::invalid_argument);
-    EXPECT_THROW(random.he_uniform(t, 4), std::invalid_argument);
-    EXPECT_THROW(random.he_normal(t, 4), std::invalid_argument);
-    EXPECT_THROW(random.orthogonal(t), std::invalid_argument);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    , Medium_ValueDrawDtypeRefusal,
-    ::testing::Values(DataType::Half, DataType::Complex32, DataType::Complex64),
-    [](const ::testing::TestParamInfo<DataType>& info) { return name_of(info.param); });
-
-TEST_F(Medium_DistributionsTest, UniformAndNormalRefuseHalf)
-{
-    auto half = engine->create_tensor({4}, DataType::Half);
-    RandomOps random(recorder(), engine->rng());
-
-    EXPECT_THROW(random.uniform(half), std::invalid_argument);
-    EXPECT_THROW(random.normal(half), std::invalid_argument);
-}
-
-/** @brief Runs one integer dtype that shuffle refuses. */
-class Medium_ShuffleDtypeRefusal : public Medium_DistributionsTest,
-                                   public ::testing::WithParamInterface<DataType>
-{
-
-};
-
-TEST_P(Medium_ShuffleDtypeRefusal, ShuffleRefusesIntegers)
-{
-    auto t = engine->create_tensor({4}, GetParam());
-
-    EXPECT_THROW(RandomOps(recorder(), engine->rng()).shuffle(t), std::invalid_argument);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    , Medium_ShuffleDtypeRefusal, ::testing::Values(DataType::Int32, DataType::Int64),
-    [](const ::testing::TestParamInfo<DataType>& info) { return name_of(info.param); });

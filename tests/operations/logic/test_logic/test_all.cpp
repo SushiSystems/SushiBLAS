@@ -30,20 +30,20 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_LogicOpsAll : public SushiBLASTest {};
+class Small_LogicOpsAll : public HostEngineTest {};
 
-TEST_F(Medium_LogicOpsAll, AllIsZeroWhenAnyElementIsZero)
+TEST_F(Small_LogicOpsAll, AllIsZeroWhenAnyElementIsZero)
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 0.0f, 3.0f, 0.0f});
     auto out = engine->create_tensor({1});
     SushiBLAS::LogicOps(recorder()).all(t, out);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(out, {0.0f});
 }
