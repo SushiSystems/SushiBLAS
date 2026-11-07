@@ -53,10 +53,29 @@ function(sushiblas_check_module_edge consumer dependency)
     endif()
 endfunction()
 
+# Declares the static archive named @name, composed from every object library the modules
+# recorded and carrying the include roots of the installed modules. The archive links no
+# module target, so the exported target names nothing outside its export set.
+function(sushiblas_compose_archive name)
+    get_property(module_objects_list GLOBAL PROPERTY SUSHIBLAS_MODULE_OBJECT_TARGETS)
+    get_property(installed_roots GLOBAL PROPERTY SUSHIBLAS_INSTALLED_INCLUDE_ROOTS)
+    add_library(${name} STATIC)
+    foreach(module_objects IN LISTS module_objects_list)
+        target_sources(${name} PRIVATE "$<TARGET_OBJECTS:${module_objects}>")
+    endforeach()
+    foreach(include_root IN LISTS installed_roots)
+        target_include_directories(${name} PUBLIC "$<BUILD_INTERFACE:${include_root}>")
+    endforeach()
+    # A namespaced alias so an in-tree consumer (add_subdirectory) and an out-of-tree one
+    # (find_package) spell the dependency identically (SB-6).
+    add_library(SushiBLAS::${name} ALIAS ${name})
+endfunction()
+
 # Declares the module in the current folder.
 #
 #   sushiblas_add_module(
 #       NAME <module> LAYER <tier>
+#       [ARCHIVE]
 #       [INTERNAL]
 #       [SOURCES <file under source/>...]
 #       [DEVICE_SOURCES <file under source/>...]
@@ -64,6 +83,9 @@ endfunction()
 #       [PRIVATE_DEPENDS <module>...]
 #       [EXTERNAL <target>...])
 #
+# ARCHIVE declares the library a consumer links instead of a module of headers: a static
+# archive named <module>, composed from every recorded object library, with no sources,
+# dependencies or include root of its own. Its folder lists it last, after every module.
 # INTERNAL keeps the module's headers out of the install; the modules of the library can
 # include them and a consumer cannot. EXTERNAL names targets from outside this tree.
 # SOURCES names the units that instantiate no kernel and DEVICE_SOURCES the units that do;
@@ -72,7 +94,7 @@ endfunction()
 # sees them too. PRIVATE_DEPENDS names the modules only source/ includes; they reach the
 # object library and no one else, so they need SOURCES or DEVICE_SOURCES.
 function(sushiblas_add_module)
-    cmake_parse_arguments(ARG "INTERNAL" "NAME;LAYER"
+    cmake_parse_arguments(ARG "INTERNAL;ARCHIVE" "NAME;LAYER"
         "SOURCES;DEVICE_SOURCES;DEPENDS;PRIVATE_DEPENDS;EXTERNAL" ${ARGN})
     if("${ARG_NAME}" STREQUAL "" OR "${ARG_LAYER}" STREQUAL "")
         message(FATAL_ERROR "sushiblas_add_module(): NAME and LAYER are required.")
@@ -88,6 +110,15 @@ function(sushiblas_add_module)
             "sushiblas_add_module(${ARG_NAME}): declares LAYER '${ARG_LAYER}' and "
             "SUSHIBLAS_MODULE_LAYERS says '${manifest_layer}' "
             "(cmake/SushiBLASLayers.cmake).")
+    endif()
+    if(ARG_ARCHIVE)
+        if(ARG_INTERNAL OR ARG_SOURCES OR ARG_DEVICE_SOURCES OR ARG_DEPENDS
+           OR ARG_PRIVATE_DEPENDS OR ARG_EXTERNAL)
+            message(FATAL_ERROR
+                "sushiblas_add_module(${ARG_NAME}): ARCHIVE takes only NAME and LAYER.")
+        endif()
+        sushiblas_compose_archive("${ARG_NAME}")
+        return()
     endif()
     if(ARG_PRIVATE_DEPENDS AND NOT ARG_SOURCES AND NOT ARG_DEVICE_SOURCES)
         message(FATAL_ERROR

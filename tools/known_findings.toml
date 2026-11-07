@@ -1,11 +1,4 @@
 [[finding]]
-checker = "layering/check_layering.py"
-rule = "rule_declared_libraries"
-path = "modules/library/sushiblas/CMakeLists.txt"
-count = 2
-backlog = "RW-133"
-
-[[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_no_assertion"
 path = "tools/tests/test_check_version.py"

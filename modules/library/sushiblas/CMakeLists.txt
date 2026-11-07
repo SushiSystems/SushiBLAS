@@ -4,27 +4,14 @@
 # Licensed under the Apache License 2.0. See LICENSE.
 
 # --- Define SushiBLAS Library ---
-# The archive has no source of its own: every object in it comes from a module.
-add_library(sushiblas STATIC)
-
-# --- Modules ---
-# What sushiblas_add_module() recorded (cmake/SushiBLASModule.cmake): the object
-# libraries this archive is composed from and the include roots of the modules. The
-# library reads the two lists and links no module target, so the exported target
-# names nothing outside its export set.
-get_property(SB_MODULE_OBJECT_TARGETS GLOBAL PROPERTY SUSHIBLAS_MODULE_OBJECT_TARGETS)
-get_property(SB_INSTALLED_INCLUDE_ROOTS GLOBAL PROPERTY SUSHIBLAS_INSTALLED_INCLUDE_ROOTS)
-foreach(module_objects IN LISTS SB_MODULE_OBJECT_TARGETS)
-    target_sources(sushiblas PRIVATE "$<TARGET_OBJECTS:${module_objects}>")
-endforeach()
-foreach(include_root IN LISTS SB_INSTALLED_INCLUDE_ROOTS)
-    target_include_directories(sushiblas PUBLIC "$<BUILD_INTERFACE:${include_root}>")
-endforeach()
-
-# A namespaced alias so an in-tree consumer (add_subdirectory) and an out-of-tree one
-# (find_package) spell the dependency identically - mirrors SushiRuntime::SushiRuntime
-# exactly (SB-6).
-add_library(SushiBLAS::sushiblas ALIAS sushiblas)
+# The archive has no source of its own: every object in it comes from a module, and the
+# include roots of the installed modules are its public surface (cmake/SushiBLASModule.cmake).
+# The exported target names nothing outside its export set. Its namespaced alias
+# SushiBLAS::sushiblas mirrors SushiRuntime::SushiRuntime exactly (SB-6).
+sushiblas_add_module(
+    NAME sushiblas
+    LAYER library
+    ARCHIVE)
 
 # --- Include Directories ---
 # The installed modules' include roots are the public surface a consumer compiles
@@ -98,6 +85,7 @@ install(TARGETS sushiblas_sycl_headers sushiblas_device_code
     EXPORT SushiBLASTargets
 )
 
+get_property(SB_INSTALLED_INCLUDE_ROOTS GLOBAL PROPERTY SUSHIBLAS_INSTALLED_INCLUDE_ROOTS)
 foreach(include_root IN LISTS SB_INSTALLED_INCLUDE_ROOTS)
     install(DIRECTORY "${include_root}/"
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
