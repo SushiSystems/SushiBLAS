@@ -49,44 +49,79 @@ namespace SushiBLAS
                 return out;
             }
 
-            /** @brief Returns what a 3 x 4 pattern stored in Index from base reads: begin and end of row 0, row 1 and the end of row 2, and columns 1 and 2. */
-            template<typename Index>
-            std::vector<int64_t> read_by_the_pattern(int64_t base)
+            /** @brief Holds a zero-based CSR structure and what a pattern over it must read. */
+            struct PatternData
             {
-                const std::vector<Index> offsets = stored_at<Index>({0, 2, 2, 3}, static_cast<Index>(base));
-                const std::vector<Index> columns = stored_at<Index>({1, 3, 0}, static_cast<Index>(base));
-                const Kernels::CsrPattern<Index> pattern{3, 4, 3, base, offsets.data(), columns.data()};
-
-                return {pattern.row_begin(0), pattern.row_end(0), pattern.row_begin(1),
-                        pattern.row_end(1),   pattern.row_end(2), pattern.column(1),
-                        pattern.column(2)};
-            }
-
-            /** @brief One index base and type of the pattern. */
-            struct PatternRow
-            {
-                    const char* name;         /**< The row's suffix. */
-                    int64_t base;             /**< The first index the arrays use. */
-                    std::vector<int64_t> (*read)(int64_t); /**< Returns what the pattern stored in the row's type reads. */
+                    int64_t cols;                      /**< The number of columns. */
+                    std::vector<int64_t> offsets;      /**< The zero-based row offsets. */
+                    std::vector<int64_t> columns;      /**< The zero-based column of each entry. */
+                    std::vector<int64_t> expected;     /**< Begin and end of each row, then each column. */
             };
 
-            /** @brief Returns the four combinations of base and index type. */
-            std::vector<PatternRow> pattern_rows()
+            /**
+             * @brief Returns what a pattern over the data, stored in Index from base, reads: the
+             *        begin and the end of each row, then the column of each entry.
+             */
+            template<typename Index>
+            std::vector<int64_t> read_by_the_pattern(const PatternData& data, int64_t base)
             {
-                return {{"ZeroBasedInt32", 0, &read_by_the_pattern<int32_t>},
-                        {"ZeroBasedInt64", 0, &read_by_the_pattern<int64_t>},
-                        {"OneBasedInt32", 1, &read_by_the_pattern<int32_t>},
-                        {"OneBasedInt64", 1, &read_by_the_pattern<int64_t>}};
+                const std::vector<Index> offsets = stored_at<Index>(data.offsets, static_cast<Index>(base));
+                const std::vector<Index> columns = stored_at<Index>(data.columns, static_cast<Index>(base));
+                const int64_t rows = static_cast<int64_t>(data.offsets.size()) - 1;
+                const Kernels::CsrPattern<Index> pattern{
+                    rows, data.cols, static_cast<int64_t>(data.columns.size()), base,
+                    offsets.data(), columns.data()};
+
+                std::vector<int64_t> read;
+                for (int64_t row = 0; row < rows; ++row)
+                {
+                    read.push_back(pattern.row_begin(row));
+                    read.push_back(pattern.row_end(row));
+                }
+                for (int64_t entry = 0; entry < static_cast<int64_t>(data.columns.size()); ++entry)
+                    read.push_back(pattern.column(entry));
+                return read;
             }
 
-            /// @brief Names a row, which gtest takes as the test's suffix.
+            /** @brief One structure, index base and index type of the pattern. */
+            struct PatternRow
+            {
+                    const char* name;         /**< The row suffix. */
+                    int64_t base;             /**< The first index the arrays use. */
+                    PatternData data;         /**< The structure the arrays hold and what it reads. */
+                    std::vector<int64_t> (*read)(const PatternData&, int64_t); /**< Reads the data stored in the row type. */
+            };
+
+            /**
+             * @brief Returns the combinations of structure, base and index type.
+             *
+             * The first structure has 3 rows and 3 entries with row 1 empty; the second has 3 rows
+             * and 5 entries with row 1 empty and the last row longest.
+             */
+            std::vector<PatternRow> pattern_rows()
+            {
+                // Row 0 spans entries 0 to 2, row 1 is empty at 2, row 2 ends at 3; columns 1, 3, 0.
+                const PatternData small{4, {0, 2, 2, 3}, {1, 3, 0}, {0, 2, 2, 2, 2, 3, 1, 3, 0}};
+                // Row 0 spans entries 0 to 2, row 1 is empty at 2, row 2 spans 2 to 5; columns 0, 3, 1, 2, 4.
+                const PatternData wide{5, {0, 2, 2, 5}, {0, 3, 1, 2, 4}, {0, 2, 2, 2, 2, 5, 0, 3, 1, 2, 4}};
+                return {{"SmallZeroBasedInt32", 0, small, &read_by_the_pattern<int32_t>},
+                        {"SmallZeroBasedInt64", 0, small, &read_by_the_pattern<int64_t>},
+                        {"SmallOneBasedInt32", 1, small, &read_by_the_pattern<int32_t>},
+                        {"SmallOneBasedInt64", 1, small, &read_by_the_pattern<int64_t>},
+                        {"WideZeroBasedInt32", 0, wide, &read_by_the_pattern<int32_t>},
+                        {"WideZeroBasedInt64", 0, wide, &read_by_the_pattern<int64_t>},
+                        {"WideOneBasedInt32", 1, wide, &read_by_the_pattern<int32_t>},
+                        {"WideOneBasedInt64", 1, wide, &read_by_the_pattern<int64_t>}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test suffix.
             std::string pattern_row_name(const ::testing::TestParamInfo<PatternRow>& info)
             {
                 return info.param.name;
             }
         } // namespace
 
-        /** @brief Runs the pattern check one base and index type at a time. */
+        /** @brief Runs the pattern check one structure, base and index type at a time. */
         class Small_CsrPattern : public ::testing::TestWithParam<PatternRow>
         {
 
@@ -94,8 +129,7 @@ namespace SushiBLAS
 
         TEST_P(Small_CsrPattern, ReadsItsArraysLessTheBase)
         {
-            // Row 0 spans entries 0 to 2, row 1 is empty at 2, row 2 ends at 3; columns 1 and 2 are 3 and 0.
-            EXPECT_EQ(GetParam().read(GetParam().base), (std::vector<int64_t>{0, 2, 2, 2, 3, 3, 0}));
+            EXPECT_EQ(GetParam().read(GetParam().data, GetParam().base), GetParam().data.expected);
         }
 
         INSTANTIATE_TEST_SUITE_P(, Small_CsrPattern, ::testing::ValuesIn(pattern_rows()),

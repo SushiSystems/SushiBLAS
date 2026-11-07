@@ -8,9 +8,9 @@ the `SparseBuilder` are in [the sparse_storage module](../../data/sparse_storage
 
 | File | Declares |
 | --- | --- |
-| `index_check.hpp` | `require_index_base`, `require_compressed_array`, `require_index_array` |
-| `sparse_vector_operand.hpp` | `SparseVectorOperand` and `describe_sparse_vector` |
-| `sparse_matrix_operand.hpp` | `SparseMatrixOperand` and `describe_sparse_matrix` |
+| `index_check.hpp` | `require_index_base`, `require_compressed_array`, `require_index_array`, each on a `Tensor` or on a `PlacedTensor` |
+| `sparse_vector_operand.hpp` | `SparseVectorOperand`, `PlacedSparseVector` and `describe_sparse_vector` |
+| `sparse_matrix_operand.hpp` | `SparseMatrixOperand`, `PlacedSparseMatrix` and `describe_sparse_matrix` |
 | `accumulator_size.hpp` | `accumulator_bytes`, the size of the type a kernel accumulates a dtype in |
 
 ## `sparse/sparse.hpp`
@@ -53,11 +53,18 @@ The three checks every sparse describer is built from. Each throws `std::invalid
   largest index the operand stores, index base included. An INT32 array is refused for a matrix
   whose entry count or column count does not fit in 31 bits.
 
+Each check has two overloads. The one that takes a `Tensor` reads the facts of its storage with
+`Dispatch::placed` and calls the other, which takes a `Dispatch::PlacedTensor`, a tensor paired with
+those facts. A test builds the pair by hand, so a refusal that reads only shapes, dtypes and whether a
+storage exists runs without a runtime.
+
 ## `sparse_vector_operand.hpp`, `sparse_matrix_operand.hpp`
 
 `describe_sparse_vector` and `describe_sparse_matrix` check one operand and return its geometry:
 the extents, the entry count and `first_index`, the stored value that names row 0, column 0 and
-position 0. A matrix must have `rows + 1` row offsets, one index dtype for both index arrays, and
+position 0. Each has an overload on `PlacedSparseMatrix` or `PlacedSparseVector`, the extents and the
+index base with the arrays as `PlacedTensor`; the overload on the container builds that value and calls
+it. A matrix must have `rows + 1` row offsets, one index dtype for both index arrays, and
 no entries when it has no rows or no columns. A vector stores at most `size` entries. Both call
 `require_device_dtype` on the values, which throws `UnsupportedExecution`.
 

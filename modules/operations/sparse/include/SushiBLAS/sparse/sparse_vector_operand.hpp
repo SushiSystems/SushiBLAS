@@ -51,6 +51,20 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief Pairs the extent and the index base of a sparse vector with its two arrays and
+         *        the facts of their storage, so a test describes a vector without a runtime.
+         * @note The arrays are held by reference through PlacedTensor and must outlive the pair.
+         * @see modules/operations/sparse/README.md
+         */
+        struct PlacedSparseVector
+        {
+            int64_t size;               /**< Length of the dense vector the operand compresses. */
+            Core::IndexBase index_base; /**< The base the stored indices count from. */
+            PlacedTensor indices;       /**< The stored positions. */
+            PlacedTensor values;        /**< The stored values. */
+        };
+
+        /**
          * @brief Returns the geometry of a sparse vector operand.
          * @throws std::invalid_argument on an index base outside its type, a negative size, an
          *         array that is not a contiguous rank-1 tensor with storage, an index dtype other
@@ -58,9 +72,8 @@ namespace SushiBLAS
          *         more entries than the size; UnsupportedExecution on a dtype the device lacks.
          * @see modules/operations/sparse/README.md
          */
-        [[nodiscard]] inline SparseVectorOperand describe_sparse_vector(const SparseVector& x,
-                                                                        const char* op,
-                                                                        const char* operand)
+        [[nodiscard]] inline SparseVectorOperand describe_sparse_vector(
+            const PlacedSparseVector& x, const char* op, const char* operand)
         {
             require_index_base(x.index_base, op, operand);
             if (x.size < 0)
@@ -69,13 +82,13 @@ namespace SushiBLAS
 
             SparseVectorOperand v;
             v.size = x.size;
-            v.nnz = x.values.num_elements;
+            v.nnz = x.values.tensor.num_elements;
             v.first_index = Core::first_index(x.index_base);
 
             require_index_array(x.indices, v.nnz, v.size - 1 + v.first_index, "indices", op,
                                 operand);
             require_compressed_array(x.values, v.nnz, "values", op, operand);
-            require_device_dtype(x.values, op, operand);
+            require_device_dtype(x.values.tensor, x.values.storage, op, operand);
 
             if (v.nnz > v.size)
                 Detail::throw_operand_error(op, operand,
@@ -83,6 +96,21 @@ namespace SushiBLAS
                                             "is stored at most once",
                                             v.nnz, v.size);
             return v;
+        }
+
+        /**
+         * @brief Returns the geometry of a sparse vector operand.
+         * @throws std::invalid_argument and UnsupportedExecution as the overload that takes the
+         *         facts of the storage does.
+         * @see modules/operations/sparse/README.md
+         */
+        [[nodiscard]] inline SparseVectorOperand describe_sparse_vector(const SparseVector& x,
+                                                                        const char* op,
+                                                                        const char* operand)
+        {
+            return describe_sparse_vector(
+                PlacedSparseVector{x.size, x.index_base, placed(x.indices), placed(x.values)}, op,
+                operand);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

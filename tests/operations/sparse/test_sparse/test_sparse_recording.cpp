@@ -23,22 +23,19 @@
 
 /**
  * @file test_sparse_recording.cpp
- * @brief Tests that a recorded sparse task computes its result, keeps its operands and is
- *        ordered behind the task that wrote them.
+ * @brief Tests that a recorded sparse product is ordered behind the task that wrote the
+ *        values of its matrix and behind no task that wrote anything else.
  * @author Mustafa Garip
  */
 
-#include <atomic>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
@@ -46,10 +43,36 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief Holds which tensor the first task writes and the edges the product gets. */
+            struct OrderRow
+            {
+                const char* name;      /**< The row suffix. */
+                bool writes_values;    /**< Whether the first task writes A.values. */
+                std::size_t dependencies; /**< The tasks the product must wait for. */
+            };
+
+            /** @brief Returns a writer of the matrix values and a writer of an unrelated tensor. */
+            std::vector<OrderRow> order_rows()
+            {
+                return {{"AWriterOfTheMatrixValues", true, 1},
+                        {"AWriterOfAnUnrelatedTensor", false, 0}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test suffix.
+            std::string order_row_name(const ::testing::TestParamInfo<OrderRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
         /**
-         * @brief Records sparse calls on FLOAT32 operands with INT32 indices and reads the graph.
+         * @brief Records one sparse product after one writer, on FLOAT32 operands with INT32
+         *        indices, and reads the graph.
          */
-        class Medium_SparseRecording : public SushiBLASTest
+        class Medium_SparseRecording : public SushiBLASTest,
+                                       public ::testing::WithParamInterface<OrderRow>
         {
             protected:
                 /** @brief Returns the CSR matrix of FLOAT32 host triplets, zero-based. */
@@ -62,78 +85,36 @@ namespace SushiBLAS
                         stored_indices<int32_t>(host.column_indices, base), host.values);
                 }
 
-                /** @brief Returns the 4 x 5 sample matrix. */
-                [[nodiscard]] SparseMatrix sample()
-                {
-                    return build(sample_matrix<float>());
-                }
-
-                /**
-                 * @brief Returns a 4 x 4 lower triangle L with rows (2), (1, 3), (., 4, 5),
-                 *        (6, ., 7, 8).
-                 * @return L * (1, 2, 3, 4) is (2, 7, 23, 59); mirrored, the product is
-                 *         (28, 19, 51, 59).
-                 */
-                [[nodiscard]] SparseMatrix lower_triangle()
-                {
-                    HostTriplets<float> host;
-                    host.rows = 4;
-                    host.cols = 4;
-                    host.row_indices = {0, 1, 1, 2, 2, 3, 3, 3};
-                    host.column_indices = {0, 0, 1, 1, 2, 0, 2, 3};
-                    host.values = {2.0f, 1.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f};
-                    return build(host);
-                }
-
                 /** @brief Returns a FLOAT32 vector holding values. */
                 [[nodiscard]] Tensor vector_of(const std::vector<float>& values)
                 {
                     return create_initialized_tensor<float>(
                         {static_cast<int64_t>(values.size())}, values);
                 }
-
-                /** @brief Returns how many USM allocations of the test context are alive. */
-                [[nodiscard]] static std::size_t live_allocations()
-                {
-                    return TestEnvironment::live_allocation_count();
-                }
         };
 
-        TEST_F(Medium_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
+        TEST_P(Medium_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
         {
+            const OrderRow& row = GetParam();
             const Tensor ones = vector_of(std::vector<float>(7, 1.0f));
             const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
+            GraphProbe probe;
+            SparseMatrix A = build(sample_matrix<float>());
+            Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
+            Tensor unrelated = vector_of(std::vector<float>(7, 0.0f));
+            Tensor& written = row.writes_values ? A.values : unrelated;
 
-            {
-                GraphProbe probe;
-                SparseMatrix A = sample();
-                Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
+            ElementwiseOps(probe.recorder()).mul(ones, ones, written);
+            SparseOps(probe.recorder()).spmv(A, x, y);
 
-                ElementwiseOps(probe.recorder()).mul(ones, ones, A.values);
-                SparseOps(probe.recorder()).spmv(A, x, y);
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                    << "The product reads A.values and must depend on the task that wrote them.";
-            }
-
-            {
-                GraphProbe probe;
-                const SparseMatrix A = sample();
-                Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                Tensor unrelated = vector_of(std::vector<float>(7, 0.0f));
-
-                ElementwiseOps(probe.recorder()).mul(ones, ones, unrelated);
-                SparseOps(probe.recorder()).spmv(A, x, y);
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
-                    << "The product reads nothing the first task wrote.";
-            }
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(row.dependencies, (*tasks)[1].dependency_count)
+                << "The product reads A.values and depends on a task only when it wrote them.";
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SparseRecording, ::testing::ValuesIn(order_rows()),
+                                 order_row_name);
     } // namespace Test
 } // namespace SushiBLAS

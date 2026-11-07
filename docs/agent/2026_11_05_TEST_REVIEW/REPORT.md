@@ -84,6 +84,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 23. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the log category test of `operations/logic` becomes `compile_logic_log_category.cpp` under `COMPILE_CHECKS`, not a plain deletion, as `launch`, `test_runner` and `sparse_kernels` did, because `rule_untested_unit` refuses a header left with no test or compile check. The 13 `LogicOps` tests stay `Medium_` until the engine fixture offers a host tensor (RW-150), and their suites are named `Medium_LogicOps<Operation>` so a failing name starts with its unit.
 24. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the statistical tests of `operations/random` check a sample against its law within five standard errors, the variance bound taken from the law's fourth central moment and the sample count, in `tests/operations/random/random_statistics.hpp`; at a fixed seed one moment fails falsely about 6e-7 of the time. This is the statistical bound `testing` names, so it does not go through `tolerance.hpp`. The refusal tests of `RandomOps` stay `Medium_` until it can record on an in-memory task recorder (RW-151), and the cap-acceptance half of the Poisson cap test is dropped, since `PoissonAtTheCapDrawsNonNegativeIntegers` fails when the cap is refused.
 25. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the reduction refusal, dtype, empty-input and partial-plan tests move to `Small_` on host functions of `operations/reductions` (RW-152, job S5), and the `ScratchBuffer` lease tests on a block source port of `ScratchPool` with an in-memory adapter (RW-153, job S6). `LeasesAreSafeAcrossThreads` and `ADeviceWriteOverALeaseSurvivesItsPool` stay `Medium_`: a thread handover and a device write are the boundary. The sign of a reduced `-0` is pinned for max and min only, since `CompensatedSum` starts at `+0` and the library promises no sign for sum and mean.
+26. Ruled 2026-11-07 by the orchestrator on the owner's delegation, for the SPEC seam table of sushiblas (a shape-only tensor for validation; a host engine that runs the reference kernels; index and tail math out of the SYCL launch). The host engine runs no SYCL device and makes no queue. `Storage` gains a host block that no `SushiRuntime::Runtime` owns, and `TensorFactory` a host constructor that makes such storages; `Storage::queue()` on a host storage throws `UnsupportedExecution`. A shape-only tensor carries dims, strides, dtype and layout with no storage, so the operand and dtype checks run on it; a check reaching for storage refuses it. `KernelPairDispatcher` holds the queue: a recorded body is `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`, `pair.run(deps, reference_fn, sycl_fn)` hands the queue to `sycl_fn`, and `pair.queue()` is the one way a body reaches it, throwing on a host engine. `TaskRecorder` records through a `TaskSink` port: the graph adapter inserts into a `SushiRuntime::Recorder` as today, and the host adapter keeps the bodies in record order and runs them under `ForceReference` when the fixture runs. `ScratchPool` takes its blocks from a block source port with a host adapter (RW-153). `Engine` gains a host constructor that wires the host factory, scratch, sink and random stream, and `engine_fixture` gains `HostEngineTest`. Each port has a `<Port>Contract` suite, `Small_` on the host adapter and `Medium_` on the real one. The jobs are H1 to H6 of PLAN.md.
+27. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the sparse checks take a `PlacedTensor` (decision 16), with `PlacedSparseVector` and `PlacedSparseMatrix` beside the container overloads, so the operand and index-check tests run `Small_` on `HandBuiltOperand`. The mode, base, transpose and triangle loops are named sweeps in `tests/support/sparse_test_sweeps.hpp`, as the records call them; the real-only and complex-only routines get fixtures that skip the other types. The merge targets the records name in `foundation/core`, `data/sparse_storage` and `kernels/sparse_kernels` took their rows in M46.
 
 ## Risks the final build checks
 
@@ -105,6 +107,71 @@ Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; t
 - M41: the `Medium_LogicDispatch` instantiation over `K_BOTH_MODES` with its empty prefix and name generator, and the six `Small_LogicPredicates` tests.
 - M43: the five-standard-error bounds of `random_statistics.hpp` on the fixed seeds (truncated normal, log-normal and the large-lambda Poisson rows most of all), the Gram bound `absolute_tolerance<float>(128, gain^2)`, and the per-row Knuth and PTRS slack of the Poisson reference rows.
 - M44: the axis-plan rows over a `Device::Profile` value, the `GTEST_SKIP` in the size-integer sum helper, and the exact equality of `100004096` in the compensated sums.
+- M46: the `PlacedTensor` overloads of the sparse checks, the sweep helpers in `tests/support/sparse_test_sweeps.hpp`, and the exact `EXPECT_EQ` of the ConjTrans, Half and one-by-one sptrsv cases.
+
+## Suite shape
+
+Test declarations (`TEST`, `TEST_F`, `TEST_P`, `TYPED_TEST`) by size prefix per test module, counted from `git ls-files 'tests/*.cpp'` before typed and parametrised expansion. Before the seams: commit 9ec373e5 with M46 half applied in the working tree. The aim is 80% small; every module below it is a refactoring finding.
+
+```
+module                                    small medium large  small%
+applications                                 18      8     0     69%
+data/sparse_storage                           0     22     0      0%
+data/tensor                                   0     26     0      0%
+data/tensor_expectations                      4      9     0     31%
+engine/cluster                               11     10     0     52%
+engine/engine                                16    145     0     10%
+engine/engine_fixture                         0      7     0      0%
+engine/execution_mode_sweep                   0      1     0      0%
+engine/functor_map                            1     33     0      3%
+engine/graph_probe                            0      3     0      0%
+engine/operands                               0     33     0      0%
+engine/profiling                             17     12     0     59%
+engine/recording_graph                        0     10     0      0%
+foundation/arithmetic                        47      0     0    100%
+foundation/blas_test_oracle                  22      0     0    100%
+foundation/core                              38      4     0     90%
+foundation/cost                              42      0     0    100%
+foundation/geometry                          52      0     0    100%
+foundation/graph_primitives                  57    105     0     35%
+foundation/host_device                       16      7     0     70%
+foundation/launch                            26     15     1     62%
+foundation/profile                            8      5     0     62%
+foundation/reduction                         20      5     0     80%
+foundation/reference                         18      2     0     90%
+foundation/serial_reductions                 13      0     0    100%
+foundation/small_integers                     4      0     0    100%
+foundation/sparse_assembly                   19      0     0    100%
+foundation/sparse_fixtures                   16      0     0    100%
+foundation/substitution                       6      0     0    100%
+foundation/test_runner                        3      9     0     25%
+foundation/typed_suite_naming                 1      1     0     50%
+kernels/blas_kernels                         47     46     0     51%
+kernels/blas_seam_kernels                    78     41     1     65%
+kernels/blend_kernels                         7      1     0     88%
+kernels/linalg_kernels                       20      6     0     77%
+kernels/packed_product_harness                5      1     0     83%
+kernels/random_kernels                       17      5     0     77%
+kernels/signal_kernels                       16      5     0     76%
+kernels/sparse_kernels                       26     11     0     70%
+kernels/spatial_kernels                      19     16     0     54%
+library                                       0    110     0      0%
+operations/benchmark_harness                  5      9     0     36%
+operations/blas                               0    322     0      0%
+operations/blend                             10     18     0     36%
+operations/elementwise                       15    102     0     13%
+operations/experimental                      38     18     0     68%
+operations/index                              0     17     0      0%
+operations/io                                 1     29     0      3%
+operations/logic                              6     15     0     29%
+operations/nonlinear                          0     23     0      0%
+operations/random                             5     57     0      8%
+operations/reductions                        14    130     0     10%
+operations/signal                            11      9     0     55%
+operations/sparse                            11     60     0     15%
+operations/spatial                            0     76     0      0%
+TOTAL                                       826   1599     2     34%
+```
 
 ## Dispatches
 
@@ -136,6 +203,7 @@ dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent bac
 dispatch: J16 M41 operations/logic tests — sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
 dispatch: J16 M43 operations/random tests — sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
 dispatch: J16 M44 operations/reductions tests — sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
+dispatch: J16 M46 operations/sparse tests — sonnet medium, 1 round, passed, all 82 records done as written, rung 1
 
 ## Totals
 

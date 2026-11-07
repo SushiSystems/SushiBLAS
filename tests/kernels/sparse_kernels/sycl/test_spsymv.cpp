@@ -52,12 +52,35 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief The triangle spsymv reads. */
+            /** @brief The triangle spsymv reads and the row blocks it scatters over. */
             struct TriangleRow
             {
-                    const char* name; /**< The row's suffix. */
-                    bool upper;       /**< Whether the upper triangle is the one stored and read. */
+                    const char* name;    /**< The row suffix. */
+                    bool upper;          /**< Whether the upper triangle is the one stored and read. */
+                    std::size_t blocks;  /**< The row blocks of the scatter; 0 takes the count of the profile. */
             };
+
+            /** @brief Returns each triangle at the block count of the profile, and the lower one at each block count. */
+            std::vector<TriangleRow> triangle_rows()
+            {
+                return {{"Lower", false, 0},
+                        {"Upper", true, 0},
+                        {"LowerWithOneBlock", false, 1},
+                        {"LowerWithTwoBlocks", false, 2},
+                        {"LowerWithThreeBlocks", false, 3},
+                        {"LowerWithSevenBlocks", false, 7},
+                        {"LowerWithSixtyFourBlocks", false, 64},
+                        {"LowerWithTheMaximumOfBlocks", false,
+                         Kernels::SYCL::K_MAX_SCATTER_BLOCKS}};
+            }
+
+            /** @brief Returns the block count a row asks for, or the one of the profile when it asks for none. */
+            std::size_t blocks_of(const TriangleRow& row, const Device::Profile& profile,
+                                  int64_t outputs, int64_t nnz)
+            {
+                return row.blocks != 0 ? row.blocks
+                                       : Kernels::SYCL::scatter_blocks(profile, outputs, nnz);
+            }
 
             /// @brief Names a row, which gtest takes as the test's suffix.
             std::string triangle_row_name(const ::testing::TestParamInfo<TriangleRow>& info)
@@ -85,7 +108,7 @@ namespace SushiBLAS
             const Kernels::CsrPattern<int64_t> host_pattern{n, n, a.nnz(), 0, a.offsets.data(),
                                                             a.columns.data()};
             const std::size_t blocks =
-                Kernels::SYCL::scatter_blocks(Device::profile_for(queue()), n, a.nnz());
+                blocks_of(GetParam(), Device::profile_for(queue()), n, a.nnz());
             SharedArray<Kernels::Accumulator<double>> partials(
                 queue(), blocks * static_cast<std::size_t>(n));
             const std::vector<double> x = small_integers<double>(n, 5);
@@ -102,9 +125,7 @@ namespace SushiBLAS
             EXPECT_EQ(device_y.values(), y);
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSpsymv,
-                                 ::testing::Values(TriangleRow{"Lower", false},
-                                                   TriangleRow{"Upper", true}),
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSpsymv, ::testing::ValuesIn(triangle_rows()),
                                  triangle_row_name);
     } // namespace Test
 } // namespace SushiBLAS

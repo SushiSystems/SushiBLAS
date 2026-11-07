@@ -46,9 +46,13 @@
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include <SushiBLAS/sparse_assembly/sparse_assembly.hpp>
+#include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/reference/sptrsv.hpp>
+#include "support/forced_mode_checks.hpp"
+#include "support/sparse_test_sweeps.hpp"
 
 namespace SushiBLAS
 {
@@ -62,9 +66,6 @@ namespace SushiBLAS
             /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
             /// for an element of a hand-worked solution.
             constexpr double K_SOLVE_TOLERANCE = absolute_tolerance<float>(128);
-
-            /// @brief The least distance that counts as two solutions being different.
-            constexpr double K_DISTINCT = 1e-2;
 
             /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
             /// below the 2.4e-4 a HALF-carried solution misses by.
@@ -128,6 +129,69 @@ namespace SushiBLAS
                 host.column_indices.push_back(column);
                 host.values.push_back(narrowed<T>(value));
                 return host;
+            }
+
+            /** @brief Returns a matrix whose every stored diagonal entry is NaN. */
+            template<typename T>
+            [[nodiscard]] HostTriplets<T> with_nan_diagonal(HostTriplets<T> host)
+            {
+                const double nan = std::numeric_limits<double>::quiet_NaN();
+                for (std::size_t k = 0; k < host.values.size(); ++k)
+                {
+                    if (host.row_indices[k] == host.column_indices[k])
+                        host.values[k] = narrowed<T>(std::complex<double>(nan, nan));
+                }
+                return host;
+            }
+
+            /** @brief Returns a matrix with every stored value conjugated. */
+            template<typename T>
+            [[nodiscard]] HostTriplets<T> conjugated(HostTriplets<T> host)
+            {
+                for (T& value : host.values)
+                    value = narrowed<T>(std::conj(widened(value)));
+                return host;
+            }
+
+            /** @brief Holds a lower bidiagonal system of integers and its solution. */
+            template<typename T>
+            struct LongSystem
+            {
+                HostTriplets<T> lower; /**< The matrix: 2 on the diagonal, 1 below it. */
+                Wide x;                /**< The solution, integers from -3 to 3. */
+                Wide b;                /**< The right-hand side, 2 * x[i] + x[i - 1]. */
+            };
+
+            /** @brief Returns the bidiagonal system of order K_LONG_ORDER a fixed seed draws. */
+            template<typename T>
+            [[nodiscard]] LongSystem<T> long_bidiagonal_system()
+            {
+                std::mt19937 generator(K_LONG_SEED);
+                std::uniform_int_distribution<int> draw(-3, 3);
+
+                LongSystem<T> system;
+                system.lower.rows = K_LONG_ORDER;
+                system.lower.cols = K_LONG_ORDER;
+                system.x.resize(static_cast<std::size_t>(K_LONG_ORDER));
+                system.b.resize(system.x.size());
+                for (int64_t i = 0; i < K_LONG_ORDER; ++i)
+                {
+                    const std::size_t at = static_cast<std::size_t>(i);
+                    system.x[at] = std::complex<double>(static_cast<double>(draw(generator)), 0.0);
+                    system.b[at] =
+                        2.0 * system.x[at] + (i > 0 ? system.x[at - 1] : std::complex<double>());
+
+                    system.lower.row_indices.push_back(i);
+                    system.lower.column_indices.push_back(i);
+                    system.lower.values.push_back(narrowed<T>({2.0, 0.0}));
+                    if (i > 0)
+                    {
+                        system.lower.row_indices.push_back(i);
+                        system.lower.column_indices.push_back(i - 1);
+                        system.lower.values.push_back(narrowed<T>({1.0, 0.0}));
+                    }
+                }
+                return system;
             }
         } // namespace
 
@@ -234,6 +298,15 @@ namespace SushiBLAS
                     }
                 }
 
+                /** @brief Returns the elements of a result widened to complex doubles. */
+                [[nodiscard]] static Wide widened_vector(const std::vector<T>& values)
+                {
+                    Wide wide(values.size());
+                    for (std::size_t i = 0; i < values.size(); ++i)
+                        wide[i] = widened(values[i]);
+                    return wide;
+                }
+
                 /** @brief Expects every element to equal its host expectation exactly. */
                 static void expect_equal(const std::vector<T>& actual, const Wide& expected)
                 {
@@ -249,6 +322,75 @@ namespace SushiBLAS
 
         SB_TYPED_TEST_SUITE(Medium_SparseSptrsvTest, SparseCases);
 
+        SB_TYPED_TEST_SUITE(Medium_SparseSptrsvTest, SparseCases);
+
+        /**
+         * @brief The sptrsv fixture for the routines that read the imaginary part; a real element
+         *        type skips every test of it.
+         */
+        template<typename TypeParam>
+        class Medium_SparseSptrsvComplexTest : public Medium_SparseSptrsvTest<TypeParam>
+        {
+            protected:
+                /** @brief Skips the test when the element type is real. */
+                void SetUp() override
+                {
+                    Medium_SparseSptrsvTest<TypeParam>::SetUp();
+                    if (!Core::is_complex_v<typename TypeParam::Value>)
+                        GTEST_SKIP() << "the routine under test reads an imaginary part";
+                }
+        };
+
+        SB_TYPED_TEST_SUITE(Medium_SparseSptrsvComplexTest, SparseCases);
+
+        /**
+         * @brief Assembles the triplets of a lower triangle and solves on the host with the
+         *        reference kernel, so no runtime and no queue run.
+         */
+        template<typename TypeParam>
+        class Small_SparseSptrsvTripletOrder : public ::testing::Test
+        {
+            protected:
+                /** @brief The element type under test. */
+                using T = typename TypeParam::Value;
+
+                /** @brief The index type under test. */
+                using Index = typename TypeParam::IndexType;
+
+                /** @brief Returns x after the reference kernel solves op(A) * x = b for the lower triangle A. */
+                [[nodiscard]] static std::vector<T> solve(const HostTriplets<T>& host,
+                                                          Core::Transpose trans, const Wide& b)
+                {
+                    const Core::IndexBase base = Core::IndexBase::Zero;
+                    const Sparse::HostCsr<Index, T> csr = Sparse::assemble_csr<Index, T>(
+                        host.rows, host.cols, Core::first_index(base),
+                        stored_indices<Index>(host.row_indices, base),
+                        stored_indices<Index>(host.column_indices, base), host.values);
+                    const Kernels::CsrPattern<Index> pattern{
+                        host.rows, host.cols, static_cast<int64_t>(csr.values.size()),
+                        Core::first_index(base), csr.row_offsets.data(),
+                        csr.column_indices.data()};
+
+                    std::vector<T> x(b.size());
+                    for (std::size_t i = 0; i < b.size(); ++i)
+                        x[i] = narrowed<T>(b[i]);
+                    Kernels::Reference::sptrsv(Core::Uplo::Lower, trans, Core::Diag::NonUnit,
+                                               pattern, csr.values.data(), x.data());
+                    return x;
+                }
+
+                /** @brief Expects two solutions to hold the same bits in every element. */
+                static void expect_same_bits(const std::vector<T>& first,
+                                             const std::vector<T>& second)
+                {
+                    ASSERT_EQ(first.size(), second.size());
+                    EXPECT_EQ(std::memcmp(first.data(), second.data(), first.size() * sizeof(T)),
+                              0);
+                }
+        };
+
+        SB_TYPED_TEST_SUITE(Small_SparseSptrsvTripletOrder, SparseCases);
+
         TYPED_TEST(Medium_SparseSptrsvTest, BothTrianglesSolveBothSystemsOfTheSample)
         {
             using T = typename TypeParam::Value;
@@ -260,24 +402,20 @@ namespace SushiBLAS
             const Wide transposed = reals({28, 18, 43, 32});
             const Core::Diag diag = Core::Diag::NonUnit;
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
-                                                Core::Transpose::NoTrans, diag, plain),
-                                      x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
-                                                Core::Transpose::Trans, diag, transposed),
-                                      x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
-                                                Core::Transpose::NoTrans, diag, transposed),
-                                      x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
-                                                Core::Transpose::Trans, diag, plain),
-                                      x, K_SOLVE_TOLERANCE);
-                }
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
+                                            Core::Transpose::NoTrans, diag, plain),
+                                  x, K_SOLVE_TOLERANCE);
+                this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
+                                            Core::Transpose::Trans, diag, transposed),
+                                  x, K_SOLVE_TOLERANCE);
+                this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
+                                            Core::Transpose::NoTrans, diag, transposed),
+                                  x, K_SOLVE_TOLERANCE);
+                this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
+                                            Core::Transpose::Trans, diag, plain),
+                                  x, K_SOLVE_TOLERANCE);
+            });
         }
 
         TYPED_TEST(Medium_SparseSptrsvTest, AUnitDiagonalIsNotRead)
@@ -285,17 +423,10 @@ namespace SushiBLAS
             using T = typename TypeParam::Value;
 
             // Every stored diagonal entry is NaN, so reading one would poison the solution.
-            const double nan = std::numeric_limits<double>::quiet_NaN();
-            HostTriplets<T> lower = lower_sample<T>(false);
-            for (std::size_t k = 0; k < lower.values.size(); ++k)
-            {
-                if (lower.row_indices[k] == lower.column_indices[k])
-                    lower.values[k] = narrowed<T>(std::complex<double>(nan, nan));
-            }
+            const HostTriplets<T> lower = with_nan_diagonal(lower_sample<T>(false));
             const Wide x = counting(4, 1.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 this->expect_near(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
                                             Core::Transpose::NoTrans, Core::Diag::Unit,
                                             reals({1, 3, 11, 31})),
@@ -304,7 +435,7 @@ namespace SushiBLAS
                                             Core::Transpose::Trans, Core::Diag::Unit,
                                             reals({27, 14, 31, 4})),
                                   x, K_SOLVE_TOLERANCE);
-            }
+            });
         }
 
         TYPED_TEST(Medium_SparseSptrsvTest, TheOtherTriangleIsNotRead)
@@ -317,8 +448,7 @@ namespace SushiBLAS
                 with_entry(with_entry(lower_sample<T>(false), 0, 1, nan), 0, 3, nan), 1, 2, nan);
             const Wide x = counting(4, 1.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 this->expect_near(this->run(mode, poisoned, Core::IndexBase::Zero,
                                             Core::Uplo::Lower, Core::Transpose::NoTrans,
                                             Core::Diag::NonUnit, reals({2, 7, 23, 59})),
@@ -327,10 +457,10 @@ namespace SushiBLAS
                                             Core::Uplo::Lower, Core::Transpose::Trans,
                                             Core::Diag::NonUnit, reals({28, 18, 43, 32})),
                                   x, K_SOLVE_TOLERANCE);
-            }
+            });
         }
 
-        TYPED_TEST(Medium_SparseSptrsvTest, TheOrderOfTheTripletsDoesNotChangeTheBits)
+        TYPED_TEST(Small_SparseSptrsvTripletOrder, TheOrderOfTheTripletsDoesNotChangeTheBits)
         {
             using T = typename TypeParam::Value;
 
@@ -341,23 +471,10 @@ namespace SushiBLAS
             std::reverse(reversed.values.begin(), reversed.values.end());
             const Wide b = reals({1, 2, 3, 4});
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::Transpose trans :
-                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
-                {
-                    const std::vector<T> first =
-                        this->run(mode, listed, Core::IndexBase::Zero, Core::Uplo::Lower, trans,
-                                  Core::Diag::NonUnit, b);
-                    const std::vector<T> second =
-                        this->run(mode, reversed, Core::IndexBase::Zero, Core::Uplo::Lower, trans,
-                                  Core::Diag::NonUnit, b);
-
-                    ASSERT_EQ(first.size(), second.size());
-                    EXPECT_EQ(std::memcmp(first.data(), second.data(), first.size() * sizeof(T)),
-                              0);
-                }
-            }
+            in_plain_and_transposed([&](Core::Transpose trans) {
+                this->expect_same_bits(this->solve(listed, trans, b),
+                                       this->solve(reversed, trans, b));
+            });
         }
 
         TYPED_TEST(Medium_SparseSptrsvTest, ADiagonalStoredAsTwoEntriesIsTheirSum)
@@ -368,40 +485,27 @@ namespace SushiBLAS
             const Wide values = reals({1.5, 0.5, 1, 3});
             const Wide x = counting(2, 1.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    const SparseMatrix A =
-                        this->matrix_of_arrays(2, 2, offsets, columns, values, base);
-                    this->expect_near(this->solve(mode, A, Core::Uplo::Lower,
-                                                  Core::Transpose::NoTrans, Core::Diag::NonUnit,
-                                                  reals({2, 7})),
-                                      x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->solve(mode, A, Core::Uplo::Lower,
-                                                  Core::Transpose::Trans, Core::Diag::NonUnit,
-                                                  reals({4, 6})),
-                                      x, K_SOLVE_TOLERANCE);
-                }
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                const SparseMatrix A = this->matrix_of_arrays(2, 2, offsets, columns, values, base);
+                this->expect_near(this->solve(mode, A, Core::Uplo::Lower, Core::Transpose::NoTrans,
+                                              Core::Diag::NonUnit, reals({2, 7})),
+                                  x, K_SOLVE_TOLERANCE);
+                this->expect_near(this->solve(mode, A, Core::Uplo::Lower, Core::Transpose::Trans,
+                                              Core::Diag::NonUnit, reals({4, 6})),
+                                  x, K_SOLVE_TOLERANCE);
+            });
         }
 
-        TYPED_TEST(Medium_SparseSptrsvTest, ConjTransSolvesAgainstTheConjugateTranspose)
+        TYPED_TEST(Medium_SparseSptrsvComplexTest, ConjTransSolvesAgainstTheConjugateTranspose)
         {
             using T = typename TypeParam::Value;
 
-            if (!Core::is_complex_v<T>)
-                GTEST_SKIP() << "the case needs a complex element type";
-
             const HostTriplets<T> lower = lower_sample<T>(true);
-            HostTriplets<T> conjugate = lower;
-            for (T& value : conjugate.values)
-                value = narrowed<T>(std::conj(widened(value)));
+            const HostTriplets<T> conjugate = conjugated(lower);
             const Wide b = {{1.0, 1.0}, {2.0, -1.0}, {3.0, 2.0}, {4.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                const std::vector<T> conjugated =
+            in_each_forced_mode([&](ExecutionMode mode) {
+                const std::vector<T> conjugated_solution =
                     this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
                               Core::Transpose::ConjTrans, Core::Diag::NonUnit, b);
                 const std::vector<T> of_conjugate =
@@ -411,15 +515,13 @@ namespace SushiBLAS
                     this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
                               Core::Transpose::Trans, Core::Diag::NonUnit, b);
 
-                Wide expected(of_conjugate.size());
-                for (std::size_t i = 0; i < expected.size(); ++i)
-                    expected[i] = widened(of_conjugate[i]);
-                this->expect_near(conjugated, expected, K_SOLVE_TOLERANCE);
+                this->expect_near(conjugated_solution, this->widened_vector(of_conjugate),
+                                  K_SOLVE_TOLERANCE);
 
                 // Element 3 is 4 / (8 - i) against 4 / (8 + i): the imaginary parts are opposite.
                 ASSERT_EQ(plain.size(), 4u);
-                EXPECT_GT(std::abs(widened(conjugated[3]) - widened(plain[3])), K_DISTINCT);
-            }
+                EXPECT_LT(widened(conjugated_solution[3]).imag() * widened(plain[3]).imag(), 0.0);
+            });
         }
 
         TYPED_TEST(Medium_SparseSptrsvTest, SystemsOfOrderOneAndZeroSolve)
@@ -434,20 +536,22 @@ namespace SushiBLAS
             one_entry.values = {narrowed<T>({4.0, 0.0})};
             const HostTriplets<T> empty;
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
-                    this->expect_near(this->run(mode, one_entry, Core::IndexBase::Zero, uplo,
-                                                Core::Transpose::NoTrans, Core::Diag::NonUnit,
-                                                reals({2})),
-                                      reals({0.5}), K_SOLVE_TOLERANCE);
+            in_each_forced_mode([&](ExecutionMode mode) {
+                in_each_triangle([&](Core::Uplo uplo) {
+                    this->expect_equal(this->run(mode, one_entry, Core::IndexBase::Zero, uplo,
+                                                 Core::Transpose::NoTrans, Core::Diag::NonUnit,
+                                                 reals({2})),
+                                       reals({0.5}));
+                });
 
+                // A system of order zero records one task and runs; b has no element to check.
                 this->set_mode(mode);
                 const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 Tensor b = this->engine->create_tensor({0}, sushiblas_dtype<T>());
-                EXPECT_NO_THROW(SparseOps(this->recorder()).sptrsv(A, b, Core::Uplo::Lower));
-                EXPECT_TRUE(this->recording->run().has_value());
-            }
+                SparseOps(this->recorder()).sptrsv(A, b, Core::Uplo::Lower);
+                EXPECT_EQ(this->recording->recorded_count(), 1u);
+                EXPECT_TRUE(this->recording->run_succeeds());
+            });
         }
 
         TYPED_TEST(Medium_SparseSptrsvTest, ALongBidiagonalSystemOfIntegersIsSolvedExactly)
@@ -455,29 +559,14 @@ namespace SushiBLAS
             using T = typename TypeParam::Value;
 
             // The diagonal is 2 and the subdiagonal 1, so x[i] = (b[i] - x[i - 1]) / 2 is exact.
-            std::mt19937 generator(K_LONG_SEED);
-            std::uniform_int_distribution<int> draw(-3, 3);
+            const LongSystem<T> system = long_bidiagonal_system<T>();
 
-            HostTriplets<T> lower;
-            lower.rows = K_LONG_ORDER;
-            lower.cols = K_LONG_ORDER;
-            Wide x(static_cast<std::size_t>(K_LONG_ORDER));
-            Wide b(x.size());
-            for (int64_t i = 0; i < K_LONG_ORDER; ++i)
-            {
-                const std::size_t at = static_cast<std::size_t>(i);
-                x[at] = std::complex<double>(static_cast<double>(draw(generator)), 0.0);
-                b[at] = 2.0 * x[at] + (i > 0 ? x[at - 1] : std::complex<double>(0.0, 0.0));
-
-                lower = with_entry(std::move(lower), i, i, {2.0, 0.0});
-                if (i > 0)
-                    lower = with_entry(std::move(lower), i, i - 1, {1.0, 0.0});
-            }
-
-            for (const ExecutionMode mode : K_BOTH_MODES)
-                this->expect_equal(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
-                                             Core::Transpose::NoTrans, Core::Diag::NonUnit, b),
-                                   x);
+            in_each_forced_mode([&](ExecutionMode mode) {
+                this->expect_equal(this->run(mode, system.lower, Core::IndexBase::Zero,
+                                             Core::Uplo::Lower, Core::Transpose::NoTrans,
+                                             Core::Diag::NonUnit, system.b),
+                                   system.x);
+            });
         }
 
         /**
@@ -498,8 +587,7 @@ namespace SushiBLAS
             lower.column_indices = {0, 0, 1};
             lower.values = {sycl::half(3.0f), sycl::half(3.0f), sycl::half(1.0f)};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 const std::vector<sycl::half> x =
                     run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
                         Core::Transpose::NoTrans, Core::Diag::NonUnit, reals({1, 1}));
@@ -507,7 +595,7 @@ namespace SushiBLAS
                 ASSERT_EQ(x.size(), 2u);
                 EXPECT_NEAR(static_cast<double>(static_cast<float>(x[1])), 0.0,
                             K_HALF_CARRY_TOLERANCE);
-            }
+            });
         }
     } // namespace Test
 } // namespace SushiBLAS

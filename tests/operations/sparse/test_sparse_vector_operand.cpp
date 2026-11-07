@@ -23,53 +23,81 @@
 
 /**
  * @file test_sparse_vector_operand.cpp
- * @brief Tests how a compressed vector is described and the sizes that are refused.
+ * @brief Tests how a compressed vector is described and the sizes that are refused, on arrays
+ *        built by hand so no runtime runs.
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/sparse_storage/sparse_vector.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include "support/hand_built_operand.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds compressed vectors on the fixture's engine. */
-        class Medium_SparseVectorOperand : public SushiBLASTest
+        namespace
         {
-            protected:
-                /** @brief Returns a zero-based vector of a size storing a count of entries. */
-                [[nodiscard]] SparseVector compressed(int64_t size, int64_t entries) const
-                {
-                    SparseVector x;
-                    x.size = size;
-                    x.indices = engine->create_tensor({entries}, Core::DataType::Int64);
-                    x.values = engine->create_tensor({entries});
-                    return x;
-                }
-        };
+            /// @brief The made-up allocation of each array of the vector.
+            constexpr std::size_t K_INDICES_ALLOCATION = 1;
+            constexpr std::size_t K_VALUES_ALLOCATION = 2;
 
-        TEST_F(Medium_SparseVectorOperand, DescribesItsSizeEntriesAndFirstIndex)
+            /**
+             * @brief Holds the two arrays of a zero-based vector with INT64 indices, which a test
+             *        pairs with a size.
+             */
+            struct VectorArrays
+            {
+                /** @brief Builds the arrays of a vector storing entries entries. */
+                explicit VectorArrays(int64_t entries)
+                    : indices({entries}, Core::DataType::Int64, K_INDICES_ALLOCATION),
+                      values({entries}, Core::DataType::Float32, K_VALUES_ALLOCATION)
+                {
+
+                }
+
+                HandBuiltOperand indices; /**< The stored positions. */
+                HandBuiltOperand values;  /**< The stored values. */
+
+                /** @brief Returns the arrays paired with the size of a vector. */
+                [[nodiscard]] Dispatch::PlacedSparseVector placed(int64_t size) const
+                {
+                    return Dispatch::PlacedSparseVector{size, Core::IndexBase::Zero,
+                                                        indices.placed(), values.placed()};
+                }
+            };
+        } // namespace
+
+        TEST(Small_SparseVectorOperand, DescribesItsSizeEntriesAndFirstIndex)
         {
+            const VectorArrays arrays(3);
+
             const Dispatch::SparseVectorOperand v =
-                Dispatch::describe_sparse_vector(compressed(10, 3), "op", "x");
+                Dispatch::describe_sparse_vector(arrays.placed(10), "op", "x");
 
             EXPECT_EQ(v.size, int64_t{10});
             EXPECT_EQ(v.nnz, int64_t{3});
             EXPECT_EQ(v.first_index, int64_t{0});
         }
 
-        TEST_F(Medium_SparseVectorOperand, RefusesANegativeSizeAndMoreEntriesThanPositions)
+        TEST(Small_SparseVectorOperand, RefusesANegativeSize)
         {
-            EXPECT_THROW((void)Dispatch::describe_sparse_vector(compressed(-1, 0), "op", "x"),
+            const VectorArrays arrays(0);
+
+            EXPECT_THROW((void)Dispatch::describe_sparse_vector(arrays.placed(-1), "op", "x"),
                          std::invalid_argument);
-            EXPECT_THROW((void)Dispatch::describe_sparse_vector(compressed(2, 3), "op", "x"),
+        }
+
+        TEST(Small_SparseVectorOperand, RefusesMoreEntriesThanPositions)
+        {
+            const VectorArrays arrays(3);
+
+            EXPECT_THROW((void)Dispatch::describe_sparse_vector(arrays.placed(2), "op", "x"),
                          std::invalid_argument);
         }
     } // namespace Test

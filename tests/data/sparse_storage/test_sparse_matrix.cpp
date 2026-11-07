@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -58,18 +60,54 @@ namespace SushiBLAS
             EXPECT_EQ(matrix.nnz(), int64_t{0});
         }
 
-        TEST(Medium_SparseMatrix, ReadsItsCountAndDtypesFromItsTensors)
+        namespace
+        {
+            /** @brief Holds the dtypes of the three arrays of one matrix. */
+            struct DtypeRow
+            {
+                const char* name;               /**< The row suffix. */
+                Core::DataType offset_dtype;    /**< The element type of the row offsets. */
+                Core::DataType column_dtype;    /**< The element type of the column indices. */
+                Core::DataType value_dtype;     /**< The element type of the values. */
+            };
+
+            /** @brief Returns the dtype triples the matrix is read with. */
+            std::vector<DtypeRow> dtype_rows()
+            {
+                return {{"Int32IndicesComplex64Values", Core::DataType::Int32,
+                         Core::DataType::Int32, Core::DataType::Complex64},
+                        {"Int64OffsetsInt32ColumnsHalfValues", Core::DataType::Int64,
+                         Core::DataType::Int32, Core::DataType::Half}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test suffix.
+            std::string dtype_row_name(const ::testing::TestParamInfo<DtypeRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Builds a matrix with the dtypes of one row at a time. */
+        class Medium_SparseMatrixDtypes : public ::testing::TestWithParam<DtypeRow>
+        {
+
+        };
+
+        TEST_P(Medium_SparseMatrixDtypes, ReadsItsCountAndDtypesFromItsTensors)
         {
             SparseMatrix matrix;
             matrix.rows = 3;
             matrix.cols = 4;
-            matrix.row_offsets = vector_of(4, Core::DataType::Int32);
-            matrix.column_indices = vector_of(5, Core::DataType::Int32);
-            matrix.values = vector_of(5, Core::DataType::Complex64);
+            matrix.row_offsets = vector_of(4, GetParam().offset_dtype);
+            matrix.column_indices = vector_of(5, GetParam().column_dtype);
+            matrix.values = vector_of(5, GetParam().value_dtype);
 
             EXPECT_EQ(matrix.nnz(), int64_t{5});
-            EXPECT_EQ(matrix.dtype(), Core::DataType::Complex64);
-            EXPECT_EQ(matrix.index_dtype(), Core::DataType::Int32);
+            EXPECT_EQ(matrix.dtype(), GetParam().value_dtype);
+            EXPECT_EQ(matrix.index_dtype(), GetParam().offset_dtype);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SparseMatrixDtypes, ::testing::ValuesIn(dtype_rows()),
+                                 dtype_row_name);
     } // namespace Test
 } // namespace SushiBLAS

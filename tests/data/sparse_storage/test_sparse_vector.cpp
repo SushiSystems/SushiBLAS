@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -57,17 +59,51 @@ namespace SushiBLAS
             EXPECT_EQ(vector.nnz(), int64_t{0});
         }
 
-        TEST(Medium_SparseVector, ReadsItsCountAndDtypesFromItsTensors)
+        namespace
+        {
+            /** @brief Holds the dtypes of the two arrays of one vector. */
+            struct DtypeRow
+            {
+                const char* name;               /**< The row suffix. */
+                Core::DataType index_dtype;     /**< The element type of the indices. */
+                Core::DataType value_dtype;     /**< The element type of the values. */
+            };
+
+            /** @brief Returns the dtype pairs the vector is read with. */
+            std::vector<DtypeRow> dtype_rows()
+            {
+                return {{"Int64IndicesHalfValues", Core::DataType::Int64, Core::DataType::Half},
+                        {"Int32IndicesComplex64Values", Core::DataType::Int32,
+                         Core::DataType::Complex64}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test suffix.
+            std::string dtype_row_name(const ::testing::TestParamInfo<DtypeRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Builds a vector with the dtypes of one row at a time. */
+        class Medium_SparseVectorDtypes : public ::testing::TestWithParam<DtypeRow>
+        {
+
+        };
+
+        TEST_P(Medium_SparseVectorDtypes, ReadsItsCountAndDtypesFromItsTensors)
         {
             SparseVector vector;
             vector.size = 10;
             vector.index_base = Core::IndexBase::One;
-            vector.indices = entries_of(3, Core::DataType::Int64);
-            vector.values = entries_of(3, Core::DataType::Half);
+            vector.indices = entries_of(3, GetParam().index_dtype);
+            vector.values = entries_of(3, GetParam().value_dtype);
 
             EXPECT_EQ(vector.nnz(), int64_t{3});
-            EXPECT_EQ(vector.dtype(), Core::DataType::Half);
-            EXPECT_EQ(vector.index_dtype(), Core::DataType::Int64);
+            EXPECT_EQ(vector.dtype(), GetParam().value_dtype);
+            EXPECT_EQ(vector.index_dtype(), GetParam().index_dtype);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SparseVectorDtypes, ::testing::ValuesIn(dtype_rows()),
+                                 dtype_row_name);
     } // namespace Test
 } // namespace SushiBLAS

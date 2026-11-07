@@ -23,45 +23,61 @@
 
 /**
  * @file test_sparse_matrix_operand.cpp
- * @brief Tests how a CSR matrix is described and the shapes of its arrays that are refused.
+ * @brief Tests how a CSR matrix is described and the shapes of its arrays that are refused, on
+ *        arrays built by hand so no runtime runs.
  * @author Mustafa Garip
  */
 
+#include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include "support/hand_built_operand.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds CSR matrices on the fixture's engine. */
-        class Medium_SparseMatrixOperand : public SushiBLASTest
+        namespace
         {
-            protected:
-                /** @brief Returns a 3 x 4 one-based matrix of five entries with INT32 indices. */
-                [[nodiscard]] SparseMatrix three_by_four() const
-                {
-                    SparseMatrix a;
-                    a.rows = 3;
-                    a.cols = 4;
-                    a.index_base = Core::IndexBase::One;
-                    a.row_offsets = engine->create_tensor({4}, Core::DataType::Int32);
-                    a.column_indices = engine->create_tensor({5}, Core::DataType::Int32);
-                    a.values = engine->create_tensor({5});
-                    return a;
-                }
-        };
+            /// @brief The made-up allocation of each array of the matrix.
+            constexpr std::size_t K_OFFSETS_ALLOCATION = 1;
+            constexpr std::size_t K_COLUMNS_ALLOCATION = 2;
+            constexpr std::size_t K_VALUES_ALLOCATION = 3;
 
-        TEST_F(Medium_SparseMatrixOperand, DescribesItsExtentsEntriesAndFirstIndex)
+            /**
+             * @brief Holds the three arrays of a 3 x 4 one-based matrix of five entries with INT32
+             *        indices, which a test spoils one array at a time.
+             */
+            struct MatrixArrays
+            {
+                HandBuiltOperand row_offsets{{4}, Core::DataType::Int32, K_OFFSETS_ALLOCATION};
+                HandBuiltOperand column_indices{{5}, Core::DataType::Int32, K_COLUMNS_ALLOCATION};
+                HandBuiltOperand values{{5}, Core::DataType::Float32, K_VALUES_ALLOCATION};
+
+                /** @brief Returns the arrays paired with the extents and the index base of a matrix. */
+                [[nodiscard]] Dispatch::PlacedSparseMatrix placed() const
+                {
+                    return Dispatch::PlacedSparseMatrix{3,
+                                                        4,
+                                                        Core::IndexBase::One,
+                                                        row_offsets.placed(),
+                                                        column_indices.placed(),
+                                                        values.placed()};
+                }
+            };
+        } // namespace
+
+        TEST(Small_SparseMatrixOperand, DescribesItsExtentsEntriesAndFirstIndex)
         {
+            const MatrixArrays arrays;
+
             const Dispatch::SparseMatrixOperand m =
-                Dispatch::describe_sparse_matrix(three_by_four(), "op", "A");
+                Dispatch::describe_sparse_matrix(arrays.placed(), "op", "A");
 
             EXPECT_EQ(m.rows, int64_t{3});
             EXPECT_EQ(m.cols, int64_t{4});
@@ -69,16 +85,22 @@ namespace SushiBLAS
             EXPECT_EQ(m.first_index, int64_t{1});
         }
 
-        TEST_F(Medium_SparseMatrixOperand, RefusesAWrongOffsetCountAndMixedIndexDtypes)
+        TEST(Small_SparseMatrixOperand, RefusesAWrongOffsetCount)
         {
-            SparseMatrix short_offsets = three_by_four();
-            short_offsets.row_offsets = engine->create_tensor({3}, Core::DataType::Int32);
-            SparseMatrix mixed = three_by_four();
-            mixed.column_indices = engine->create_tensor({5}, Core::DataType::Int64);
+            MatrixArrays arrays;
+            arrays.row_offsets = HandBuiltOperand({3}, Core::DataType::Int32, K_OFFSETS_ALLOCATION);
 
-            EXPECT_THROW((void)Dispatch::describe_sparse_matrix(short_offsets, "op", "A"),
+            EXPECT_THROW((void)Dispatch::describe_sparse_matrix(arrays.placed(), "op", "A"),
                          std::invalid_argument);
-            EXPECT_THROW((void)Dispatch::describe_sparse_matrix(mixed, "op", "A"),
+        }
+
+        TEST(Small_SparseMatrixOperand, RefusesMixedIndexDtypes)
+        {
+            MatrixArrays arrays;
+            arrays.column_indices =
+                HandBuiltOperand({5}, Core::DataType::Int64, K_COLUMNS_ALLOCATION);
+
+            EXPECT_THROW((void)Dispatch::describe_sparse_matrix(arrays.placed(), "op", "A"),
                          std::invalid_argument);
         }
     } // namespace Test

@@ -50,23 +50,38 @@ namespace SushiBLAS
 
         namespace
         {
-            /** @brief One call of scatter_blocks on a CPU profile and the count it must give. */
+            /** @brief One call of scatter_blocks on a CPU or a GPU profile and the count it must give. */
             struct BlockCountRow
             {
                     const char* name;     /**< The row's suffix. */
-                    std::size_t units;    /**< The compute units of the CPU profile. */
+                    bool is_cpu;          /**< Whether the profile is a CPU one. */
+                    std::size_t units;    /**< The compute units of the profile. */
                     int64_t outputs;      /**< Elements of the result. */
                     int64_t entries;      /**< Stored entries of the matrix. */
                     std::size_t expected; /**< The block count. */
             };
 
-            /** @brief Returns the rows: no outputs, too few entries, units bind, and the maximum binds. */
+            /**
+             * @brief Returns the rows: no outputs, no entries, too few entries, the units bind on a
+             *        CPU and on a GPU, the density binds, and the maximum binds on a CPU and on a GPU.
+             *
+             * A CPU takes its compute units; a GPU takes its compute units times the waves per unit.
+             * The density row stores 250 entries for 100 outputs, so 2 * 250 / 100 = 5 partial sums
+             * per output are affordable, below the 12 compute units.
+             */
             std::vector<BlockCountRow> block_count_rows()
             {
-                return {{"NoOutputsTakeNoBlock", 8, 0, 100, 0},
-                        {"FewEntriesPerOutputTakeOneBlock", 8, 1000, 100, 1},
-                        {"TheUnitsCapTheCount", 8, 10, 1000000, 8},
-                        {"TheMaximumCapsTheCount", 1000, 10, 1000000, Blocks::K_MAX_SCATTER_BLOCKS}};
+                return {{"NoOutputsTakeNoBlock", true, 8, 0, 100, 0},
+                        {"NoEntriesTakeOneBlock", true, 12, 10, 0, 1},
+                        {"FewEntriesPerOutputTakeOneBlock", true, 8, 1000, 100, 1},
+                        {"TheUnitsCapTheCount", true, 8, 10, 1000000, 8},
+                        {"TheUnitsOfAGpuAreTimesTheWaves", false, 4, 10, 1000,
+                         4 * Device::K_WAVES_PER_COMPUTE_UNIT},
+                        {"TheDensityCapsTheCount", true, 12, 100, 250, 5},
+                        {"TheMaximumCapsTheCount", true, 1000, 10, 1000000,
+                         Blocks::K_MAX_SCATTER_BLOCKS},
+                        {"TheMaximumCapsAGpuCount", false, 64, 10, 100000,
+                         Blocks::K_MAX_SCATTER_BLOCKS}};
             }
 
             /// @brief Names a row, which gtest takes as the test's suffix.
@@ -148,11 +163,11 @@ namespace SushiBLAS
         TEST_P(Small_RowBlocks, TheBlockCountIsCappedByUnitsEntriesAndTheMaximum)
         {
             const BlockCountRow& row = GetParam();
-            Device::Profile cpu;
-            cpu.is_cpu = true;
-            cpu.compute_units = row.units;
+            Device::Profile profile;
+            profile.is_cpu = row.is_cpu;
+            profile.compute_units = row.units;
 
-            EXPECT_EQ(Blocks::scatter_blocks(cpu, row.outputs, row.entries), row.expected);
+            EXPECT_EQ(Blocks::scatter_blocks(profile, row.outputs, row.entries), row.expected);
         }
 
         INSTANTIATE_TEST_SUITE_P(, Small_RowBlocks, ::testing::ValuesIn(block_count_rows()),

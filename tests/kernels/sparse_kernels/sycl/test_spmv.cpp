@@ -55,9 +55,32 @@ namespace SushiBLAS
             /** @brief One form of the spmv. */
             struct FormRow
             {
-                    const char* name; /**< The row's suffix. */
-                    bool transposed;  /**< Whether op(A) is the transpose. */
+                    const char* name;    /**< The row suffix. */
+                    bool transposed;     /**< Whether op(A) is the transpose. */
+                    std::size_t blocks;  /**< The row blocks of the scatter; 0 takes the count of the profile. */
             };
+
+            /** @brief Returns the plain form, the transposed form, and the transposed form at each block count. */
+            std::vector<FormRow> form_rows()
+            {
+                return {{"Plain", false, 0},
+                        {"Transposed", true, 0},
+                        {"TransposedWithOneBlock", true, 1},
+                        {"TransposedWithTwoBlocks", true, 2},
+                        {"TransposedWithThreeBlocks", true, 3},
+                        {"TransposedWithSevenBlocks", true, 7},
+                        {"TransposedWithSixtyFourBlocks", true, 64},
+                        {"TransposedWithTheMaximumOfBlocks", true,
+                         Kernels::SYCL::K_MAX_SCATTER_BLOCKS}};
+            }
+
+            /** @brief Returns the block count a row asks for, or the one of the profile when it asks for none. */
+            std::size_t blocks_of(const FormRow& row, const Device::Profile& profile,
+                                  int64_t outputs, int64_t nnz)
+            {
+                return row.blocks != 0 ? row.blocks
+                                       : Kernels::SYCL::scatter_blocks(profile, outputs, nnz);
+            }
 
             /// @brief Names a row, which gtest takes as the test's suffix.
             std::string form_row_name(const ::testing::TestParamInfo<FormRow>& info)
@@ -87,8 +110,8 @@ namespace SushiBLAS
             const Kernels::CsrPattern<int64_t> host_pattern{rows, cols, a.nnz(), 0,
                                                             a.offsets.data(), a.columns.data()};
             const int64_t outputs = transposed ? cols : rows;
-            const std::size_t blocks = Kernels::SYCL::scatter_blocks(
-                Device::profile_for(queue()), outputs, a.nnz());
+            const std::size_t blocks =
+                blocks_of(GetParam(), Device::profile_for(queue()), outputs, a.nnz());
             SharedArray<Kernels::Accumulator<double>> partials(
                 queue(), blocks * static_cast<std::size_t>(outputs));
             const std::vector<double> x = small_integers<double>(transposed ? rows : cols, 2);
@@ -105,9 +128,7 @@ namespace SushiBLAS
             EXPECT_EQ(device_y.values(), y);
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSparseSpmv,
-                                 ::testing::Values(FormRow{"Plain", false},
-                                                   FormRow{"Transposed", true}),
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLSparseSpmv, ::testing::ValuesIn(form_rows()),
                                  form_row_name);
     } // namespace Test
 } // namespace SushiBLAS

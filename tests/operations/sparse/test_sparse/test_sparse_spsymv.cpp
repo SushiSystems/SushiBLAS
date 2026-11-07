@@ -23,11 +23,10 @@
 
 /**
  * @file test_sparse_spsymv.cpp
- * @brief Tests SparseOps::spsymv, sphemv and their SYCL kernel against mirrored host products.
+ * @brief Tests SparseOps::spsymv and sphemv against mirrored host products.
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <limits>
 #include <vector>
 #include <complex>
@@ -39,15 +38,14 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/forced_mode_checks.hpp"
+#include "support/sparse_test_sweeps.hpp"
 
 namespace SushiBLAS
 {
@@ -58,10 +56,6 @@ namespace SushiBLAS
             /** @brief A host vector of expectations or of operand values. */
             using Wide = std::vector<std::complex<double>>;
 
-            /// @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one,
-            /// for an element of a hand-worked complex product.
-            constexpr double K_SAMPLE_TOLERANCE = absolute_tolerance<float>(128);
-
             /// @brief Order of the integer-valued matrix; above one work-group on every device.
             constexpr int64_t K_EXACT_ORDER = 1000;
 
@@ -71,15 +65,29 @@ namespace SushiBLAS
             /// @brief Seed of the integer-valued matrix.
             constexpr std::uint32_t K_EXACT_SEED = 20261007u;
 
-            /// @brief The two triangles a one-triangle product reads.
-            constexpr Core::Uplo K_BOTH_TRIANGLES[2] = {Core::Uplo::Lower, Core::Uplo::Upper};
-
             /** @brief Selects which of the two one-triangle products a case records. */
             enum class Mirror : std::uint8_t
             {
                 Symmetric, /**< spsymv: the mirror of an entry is the entry. */
                 Hermitian  /**< sphemv: the mirror of an entry is its conjugate. */
             };
+
+            /** @brief Returns n elements cycling through -2, -1, 0, 1, 2. */
+            [[nodiscard]] Wide cycling_vector(std::size_t n)
+            {
+                Wide cycled(n);
+                for (std::size_t i = 0; i < n; ++i)
+                    cycled[i] = std::complex<double>(static_cast<double>(i % 5) - 2.0, 0.0);
+                return cycled;
+            }
+
+            /** @brief Runs check once for each Mirror, symmetric then Hermitian. */
+            template<typename Check>
+            void in_each_mirror(Check&& check)
+            {
+                check(Mirror::Symmetric);
+                check(Mirror::Hermitian);
+            }
 
             /**
              * @brief Returns the lower triangle of the 4 x 4 symmetric sample S.
@@ -255,19 +263,6 @@ namespace SushiBLAS
                     return read_tensor<T>(ty);
                 }
 
-                /** @brief Expects every element within tolerance of its host expectation. */
-                static void expect_near(const std::vector<T>& actual, const Wide& expected,
-                                        double tolerance)
-                {
-                    ASSERT_EQ(actual.size(), expected.size());
-                    for (std::size_t i = 0; i < actual.size(); ++i)
-                    {
-                        const std::complex<double> got = widened(actual[i]);
-                        EXPECT_NEAR(got.real(), expected[i].real(), tolerance) << "element " << i;
-                        EXPECT_NEAR(got.imag(), expected[i].imag(), tolerance) << "element " << i;
-                    }
-                }
-
                 /** @brief Expects every element to equal its host expectation exactly. */
                 static void expect_equal(const std::vector<T>& actual, const Wide& expected)
                 {
@@ -290,6 +285,45 @@ namespace SushiBLAS
 
         SB_TYPED_TEST_SUITE(Medium_SparseSpsymvTest, SparseCases);
 
+        SB_TYPED_TEST_SUITE(Medium_SparseSpsymvTest, SparseCases);
+
+        /**
+         * @brief The spsymv fixture for the routines that read the imaginary part; a real element
+         *        type skips every test of it.
+         */
+        template<typename TypeParam>
+        class Medium_SparseSpsymvComplexTest : public Medium_SparseSpsymvTest<TypeParam>
+        {
+            protected:
+                /** @brief Skips the test when the element type is real. */
+                void SetUp() override
+                {
+                    Medium_SparseSpsymvTest<TypeParam>::SetUp();
+                    if (!Core::is_complex_v<typename TypeParam::Value>)
+                        GTEST_SKIP() << "the routine under test reads an imaginary part";
+                }
+        };
+
+        /**
+         * @brief The spsymv fixture for the routines compared on a real tensor; a complex element
+         *        type skips every test of it.
+         */
+        template<typename TypeParam>
+        class Medium_SparseSpsymvRealTest : public Medium_SparseSpsymvTest<TypeParam>
+        {
+            protected:
+                /** @brief Skips the test when the element type is complex. */
+                void SetUp() override
+                {
+                    Medium_SparseSpsymvTest<TypeParam>::SetUp();
+                    if (Core::is_complex_v<typename TypeParam::Value>)
+                        GTEST_SKIP() << "the routine under test is compared on a real tensor";
+                }
+        };
+
+        SB_TYPED_TEST_SUITE(Medium_SparseSpsymvComplexTest, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseSpsymvRealTest, SparseCases);
+
         TYPED_TEST(Medium_SparseSpsymvTest, EitherStoredTriangleGivesTheProductOfTheSample)
         {
             const Wide x = counting(4, 1.0);
@@ -299,26 +333,20 @@ namespace SushiBLAS
             const std::complex<double> zero(0.0, 0.0);
             const std::complex<double> two(2.0, 0.0);
             const std::complex<double> minus_one(-1.0, 0.0);
-
             const Wide plain = {{20.0, 0.0}, {7.0, 0.0}, {39.0, 0.0}, {50.0, 0.0}};
             const Wide scaled = {{39.0, 0.0}, {13.0, 0.0}, {77.0, 0.0}, {99.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
-                    {
-                        const auto triangle = this->sample_triangle(uplo);
-                        this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
-                                                     one, x, zero, zeros),
-                                           plain);
-                        this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
-                                                     two, x, minus_one, ones),
-                                           scaled);
-                    }
-                }
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                in_each_triangle([&](Core::Uplo uplo) {
+                    const auto triangle = this->sample_triangle(uplo);
+                    this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
+                                                 one, x, zero, zeros),
+                                       plain);
+                    this->expect_equal(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
+                                                 two, x, minus_one, ones),
+                                       scaled);
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpsymvTest, AMatrixStoredInFullGivesTheSameUnderEitherUplo)
@@ -332,13 +360,13 @@ namespace SushiBLAS
             const std::complex<double> zero(0.0, 0.0);
             const Wide expected = {{20.0, 0.0}, {7.0, 0.0}, {39.0, 0.0}, {50.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
+            in_each_forced_mode([&](ExecutionMode mode) {
+                in_each_triangle([&](Core::Uplo uplo) {
                     this->expect_equal(this->run(mode, Mirror::Symmetric, full,
                                                  Core::IndexBase::Zero, uplo, one, x, zero, zeros),
                                        expected);
-            }
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpsymvTest, TheOtherTriangleIsNotRead)
@@ -355,13 +383,11 @@ namespace SushiBLAS
             const std::complex<double> zero(0.0, 0.0);
             const Wide expected = {{20.0, 0.0}, {7.0, 0.0}, {39.0, 0.0}, {50.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                    this->expect_equal(this->run(mode, Mirror::Symmetric, poisoned, base,
-                                                 Core::Uplo::Lower, one, x, zero, zeros),
-                                       expected);
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->expect_equal(this->run(mode, Mirror::Symmetric, poisoned, base,
+                                             Core::Uplo::Lower, one, x, zero, zeros),
+                                   expected);
+            });
         }
 
         TYPED_TEST(Medium_SparseSpsymvTest, ABetaOfZeroDoesNotReadY)
@@ -373,23 +399,20 @@ namespace SushiBLAS
             const std::complex<double> zero(0.0, 0.0);
             const Wide expected = {{20.0, 0.0}, {7.0, 0.0}, {39.0, 0.0}, {50.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Mirror mirror : {Mirror::Symmetric, Mirror::Hermitian})
+            in_each_forced_mode([&](ExecutionMode mode) {
+                in_each_mirror([&](Mirror mirror) {
                     this->expect_equal(this->run(mode, mirror,
                                                  this->sample_triangle(Core::Uplo::Lower),
                                                  Core::IndexBase::Zero, Core::Uplo::Lower, one, x,
                                                  zero, poisoned),
                                        expected);
-            }
+                });
+            });
         }
 
-        TYPED_TEST(Medium_SparseSpsymvTest, SphemvConjugatesTheMirrorAndReadsARealDiagonal)
+        TYPED_TEST(Medium_SparseSpsymvComplexTest, SphemvConjugatesTheMirrorAndReadsARealDiagonal)
         {
             using T = typename TypeParam::Value;
-
-            if (!Core::is_complex_v<T>)
-                GTEST_SKIP() << "the case needs a complex element type";
 
             // The lower triangle (0,0) = 2 + 9i, (1,0) = 1 + 2i, (1,1) = 3, against x = (1, i).
             HostTriplets<T> lower;
@@ -399,42 +422,34 @@ namespace SushiBLAS
             lower.column_indices = {0, 0, 1};
             lower.values = {narrowed<T>({2.0, 9.0}), narrowed<T>({1.0, 2.0}),
                             narrowed<T>({3.0, 0.0})};
-
             const Wide x = {{1.0, 0.0}, {0.0, 1.0}};
             const Wide zeros(2, std::complex<double>(0.0, 0.0));
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    this->expect_near(this->run(mode, Mirror::Hermitian, lower, base,
-                                                Core::Uplo::Lower, one, x, zero, zeros),
-                                      {{4.0, 1.0}, {1.0, 5.0}}, K_SAMPLE_TOLERANCE);
-                    this->expect_near(this->run(mode, Mirror::Symmetric, lower, base,
-                                                Core::Uplo::Lower, one, x, zero, zeros),
-                                      {{0.0, 10.0}, {1.0, 5.0}}, K_SAMPLE_TOLERANCE);
-                }
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                // The diagonal is read as 2, and the mirror of (1,0) is 1 - 2i.
+                this->expect_equal(this->run(mode, Mirror::Hermitian, lower, base,
+                                             Core::Uplo::Lower, one, x, zero, zeros),
+                                   {{4.0, 1.0}, {1.0, 5.0}});
+                // The diagonal is read as 2 + 9i, and the mirror of (1,0) is 1 + 2i.
+                this->expect_equal(this->run(mode, Mirror::Symmetric, lower, base,
+                                             Core::Uplo::Lower, one, x, zero, zeros),
+                                   {{0.0, 10.0}, {1.0, 5.0}});
+            });
         }
 
-        TYPED_TEST(Medium_SparseSpsymvTest, OnARealTensorSphemvHoldsTheBitsOfSpsymv)
+        TYPED_TEST(Medium_SparseSpsymvRealTest, OnARealTensorSphemvHoldsTheBitsOfSpsymv)
         {
             using T = typename TypeParam::Value;
-
-            if (Core::is_complex_v<T>)
-                GTEST_SKIP() << "the case needs a real element type";
 
             const Wide x = counting(4, 1.0);
             const Wide ones(4, std::complex<double>(1.0, 0.0));
             const std::complex<double> two(2.0, 0.0);
             const std::complex<double> minus_one(-1.0, 0.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
-                {
+            in_each_forced_mode([&](ExecutionMode mode) {
+                in_each_triangle([&](Core::Uplo uplo) {
                     const auto triangle = this->sample_triangle(uplo);
                     const std::vector<T> symmetric =
                         this->run(mode, Mirror::Symmetric, triangle, Core::IndexBase::Zero, uplo,
@@ -447,8 +462,8 @@ namespace SushiBLAS
                     EXPECT_EQ(std::memcmp(symmetric.data(), hermitian.data(),
                                           symmetric.size() * sizeof(T)),
                               0);
-                }
-            }
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpsymvTest, IntegerDataIsExactInBothModesForEitherTriangle)
@@ -461,42 +476,41 @@ namespace SushiBLAS
             const std::complex<double> minus_one(-1.0, 0.0);
 
             // x cycles through -2, -1, 0, 1, 2 and y starts at 1.
-            Wide x(static_cast<std::size_t>(K_EXACT_ORDER));
-            for (std::size_t i = 0; i < x.size(); ++i)
-                x[i] = std::complex<double>(static_cast<double>(i % 5) - 2.0, 0.0);
+            const Wide x = cycling_vector(static_cast<std::size_t>(K_EXACT_ORDER));
             const Wide y(x.size(), one);
 
-            for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
-            {
+            in_each_triangle([&](Core::Uplo uplo) {
                 const HostTriplets<T> triangle =
                     uplo == Core::Uplo::Lower ? lower : transpose_of(lower);
                 const Wide expected = host_mirrored_product(triangle, uplo, Mirror::Symmetric, one,
                                                             x, minus_one, y);
-
-                for (const ExecutionMode mode : K_BOTH_MODES)
+                in_each_forced_mode([&](ExecutionMode mode) {
                     this->expect_equal(this->run(mode, Mirror::Symmetric, triangle,
                                                  Core::IndexBase::Zero, uplo, one, x, minus_one, y),
                                        expected);
-            }
+                });
+            });
         }
 
-        TYPED_TEST(Medium_SparseSpsymvTest, AMatrixOfOrderZeroRecordsAndRuns)
+        TYPED_TEST(Medium_SparseSpsymvTest, AMatrixOfOrderZeroRecordsOneTaskPerRoutineAndRuns)
         {
             using T = typename TypeParam::Value;
 
             const HostTriplets<T> empty;
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+
+            in_each_forced_mode([&](ExecutionMode mode) {
                 this->set_mode(mode);
                 const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 const Tensor x = this->engine->create_tensor({0}, sushiblas_dtype<T>());
                 Tensor y = this->engine->create_tensor({0}, sushiblas_dtype<T>());
 
                 SparseOps ops(this->recorder());
-                EXPECT_NO_THROW(ops.spsymv(A, x, y, Core::Uplo::Lower));
-                EXPECT_NO_THROW(ops.sphemv(A, x, y, Core::Uplo::Upper));
-                EXPECT_TRUE(this->recording->run().has_value());
-            }
+                ops.spsymv(A, x, y, Core::Uplo::Lower);
+                ops.sphemv(A, x, y, Core::Uplo::Upper);
+
+                EXPECT_EQ(this->recording->recorded_count(), 2u);
+                EXPECT_TRUE(this->recording->run_succeeds());
+            });
         }
 
         /**
@@ -523,71 +537,11 @@ namespace SushiBLAS
             const Wide zeros(4, zero);
             const Wide expected = {one, {2048.0, 0.0}, one, {-2048.0, 0.0}};
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
+            in_each_forced_mode([&](ExecutionMode mode) {
                 expect_equal(run(mode, Mirror::Symmetric, lower, Core::IndexBase::Zero,
                                  Core::Uplo::Lower, one, ones, zero, zeros),
                              expected);
-        }
-
-        /**
-         * @brief Calls the symmetric SYCL kernel with a block count the test chooses.
-         */
-        class Medium_SparseSpsymvKernel : public SushiBLASTest
-        {
-            protected:
-                /** @brief Returns A * x from the SYCL kernel run with blocks row blocks. */
-                [[nodiscard]] std::vector<float> mirrored_product(const HostTriplets<float>& lower,
-                                                                  const std::vector<float>& x,
-                                                                  std::size_t blocks)
-                {
-                    const Core::IndexBase base = Core::IndexBase::Zero;
-                    const SparseBuilder builder(engine->tensor_factory());
-                    const SparseMatrix A = builder.matrix_from_triplets(
-                        lower.rows, lower.cols, stored_indices<int32_t>(lower.row_indices, base),
-                        stored_indices<int32_t>(lower.column_indices, base), lower.values);
-                    const Tensor tx = create_initialized_tensor<float>({lower.rows}, x);
-                    Tensor ty = engine->create_tensor({lower.rows});
-                    Tensor partials =
-                        engine->create_tensor({static_cast<int64_t>(blocks) * lower.rows});
-
-                    const Kernels::CsrPattern<int32_t> pattern{
-                        A.rows, A.cols, A.nnz(), 0, A.row_offsets.data_as<int32_t>(),
-                        A.column_indices.data_as<int32_t>()};
-                    Kernels::SYCL::spsymv<float, int32_t>(
-                        TestEnvironment::queue(), Core::Uplo::Lower, pattern,
-                        A.values.data_as<float>(), 1.0f, tx.data_as<float>(), 1, 0.0f,
-                        ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
-                    return read_tensor<float>(ty);
-                }
-        };
-
-        TEST_F(Medium_SparseSpsymvKernel, EveryBlockCountGivesTheExactIntegerResult)
-        {
-            const HostTriplets<float> lower = lower_part(integer_valued_matrix<float>(
-                K_EXACT_ORDER, K_EXACT_ORDER, K_EXACT_PER_ROW, K_EXACT_SEED));
-            std::vector<float> x(static_cast<std::size_t>(lower.rows));
-            Wide wide_x(x.size());
-            for (std::size_t i = 0; i < x.size(); ++i)
-            {
-                x[i] = static_cast<float>(i % 5) - 2.0f;
-                wide_x[i] = std::complex<double>(static_cast<double>(x[i]), 0.0);
-            }
-
-            const std::complex<double> one(1.0, 0.0);
-            const std::complex<double> zero(0.0, 0.0);
-            const Wide expected =
-                host_mirrored_product(lower, Core::Uplo::Lower, Mirror::Symmetric, one, wide_x,
-                                      zero, Wide(x.size(), zero));
-
-            const std::size_t block_counts[6] = {1, 2, 3, 7, 64, 256};
-            for (const std::size_t blocks : block_counts)
-            {
-                const std::vector<float> actual = mirrored_product(lower, x, blocks);
-                ASSERT_EQ(actual.size(), expected.size());
-                for (std::size_t i = 0; i < actual.size(); ++i)
-                    EXPECT_EQ(static_cast<double>(actual[i]), expected[i].real())
-                        << "row " << i << " with " << blocks << " blocks";
-            }
+            });
         }
     } // namespace Test
 } // namespace SushiBLAS

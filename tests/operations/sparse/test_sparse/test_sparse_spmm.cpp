@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <limits>
 #include <vector>
 #include <complex>
@@ -42,9 +41,11 @@
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/forced_mode_checks.hpp"
+#include "support/sparse_conj_case.hpp"
+#include "support/sparse_test_sweeps.hpp"
 
 namespace SushiBLAS
 {
@@ -77,19 +78,49 @@ namespace SushiBLAS
             /// @brief Columns of the dense operands the integer-valued matrix multiplies.
             constexpr std::size_t K_EXACT_DENSE_COLUMNS = 5;
 
-            /// @brief The three values of Core::Transpose.
-            constexpr Core::Transpose K_EVERY_TRANSPOSE[3] = {
-                Core::Transpose::NoTrans, Core::Transpose::Trans, Core::Transpose::ConjTrans};
-
             /// @brief The two layouts a dense operand is stored in.
             constexpr Core::Layout K_BOTH_LAYOUTS[2] = {Core::Layout::RowMajor,
                                                         Core::Layout::ColumnMajor};
+
+            /** @brief Asks a comparison to demand equal elements, where a double asks for a bound. */
+            struct Exactly
+            {
+
+            };
+
+            /// @brief The request for equal elements.
+            constexpr Exactly K_EXACTLY{};
 
             /** @brief Returns count columns of rows elements, every one holding value. */
             [[nodiscard]] Columns filled(std::size_t rows, std::size_t count,
                                          std::complex<double> value)
             {
                 return Columns(count, Wide(rows, value));
+            }
+
+            /** @brief Returns count columns of rows elements; element (j, r) is j + 1 + 10 * r. */
+            [[nodiscard]] Columns sample_dense_columns(std::size_t rows, std::size_t count)
+            {
+                Columns columns(count);
+                for (std::size_t r = 0; r < count; ++r)
+                    columns[r] = counting(rows, 1.0 + 10.0 * static_cast<double>(r));
+                return columns;
+            }
+
+            /**
+             * @brief Returns count columns of rows elements; element (j, r) cycles through
+             *        -2, -1, 0, 1, 2 along j, shifted by 2 * r.
+             */
+            [[nodiscard]] Columns cycling_columns(std::size_t rows, std::size_t count)
+            {
+                Columns columns(count, Wide(rows));
+                for (std::size_t r = 0; r < count; ++r)
+                {
+                    for (std::size_t j = 0; j < rows; ++j)
+                        columns[r][j] = std::complex<double>(
+                            static_cast<double>((j + 2 * r) % 5) - 2.0, 0.0);
+                }
+                return columns;
             }
         } // namespace
 
@@ -115,6 +146,19 @@ namespace SushiBLAS
                         !TestEnvironment::queue().get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
+                }
+
+                /** @brief Runs check once on an engine of each layout, under a trace that names it. */
+                template<typename Check>
+                void in_each_layout(Check&& check)
+                {
+                    for (const Core::Layout layout : K_BOTH_LAYOUTS)
+                    {
+                        SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major"
+                                                                       : "column-major");
+                        reinit_engine(layout);
+                        check();
+                    }
                 }
 
                 /** @brief Returns the CSR matrix of host triplets, stored with base. */
@@ -185,8 +229,8 @@ namespace SushiBLAS
                 }
 
                 /** @brief Expects every element within tolerance of its host expectation. */
-                static void expect_near(const std::vector<T>& actual, const Wide& expected,
-                                        double tolerance)
+                static void expect_within(const std::vector<T>& actual, const Wide& expected,
+                                          double tolerance)
                 {
                     ASSERT_EQ(actual.size(), expected.size());
                     for (std::size_t i = 0; i < actual.size(); ++i)
@@ -197,48 +241,60 @@ namespace SushiBLAS
                     }
                 }
 
+                /** @brief Expects every element to equal its host expectation exactly. */
+                static void expect_within(const std::vector<T>& actual, const Wide& expected,
+                                          Exactly)
+                {
+                    ASSERT_EQ(actual.size(), expected.size());
+                    for (std::size_t i = 0; i < actual.size(); ++i)
+                    {
+                        const std::complex<double> got = widened(actual[i]);
+                        EXPECT_EQ(got.real(), expected[i].real()) << "element " << i;
+                        EXPECT_EQ(got.imag(), expected[i].imag()) << "element " << i;
+                    }
+                }
+
                 /**
                  * @brief Expects the product on both layouts and in both modes to hold expected.
                  * @param c The value of C before the call.
+                 * @param bound A tolerance in elements, or K_EXACTLY for equal elements.
                  */
+                template<typename Bound>
                 void expect_columns(const HostTriplets<T>& host, Core::IndexBase base,
                                     Core::Transpose trans, std::complex<double> alpha,
                                     const Columns& b, std::complex<double> beta, const Columns& c,
-                                    const Columns& expected, double tolerance)
+                                    const Columns& expected, Bound bound)
                 {
-                    for (const Core::Layout layout : K_BOTH_LAYOUTS)
-                    {
-                        SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major"
-                                                                       : "column-major");
-                        reinit_engine(layout);
-                        for (const ExecutionMode mode : K_BOTH_MODES)
-                        {
+                    in_each_layout([&] {
+                        in_each_forced_mode([&](ExecutionMode mode) {
                             const std::vector<std::vector<T>> actual =
                                 run(mode, host, base, trans, alpha, b, beta, c);
                             ASSERT_EQ(actual.size(), expected.size());
                             for (std::size_t r = 0; r < actual.size(); ++r)
                             {
                                 SCOPED_TRACE(r);
-                                expect_near(actual[r], expected[r], tolerance);
+                                expect_within(actual[r], expected[r], bound);
                             }
-                        }
-                    }
+                        });
+                    });
                 }
 
                 /**
                  * @brief Expects the product to equal host_product of each column of B and C.
                  * @param c The value of C before the call; pass zeros to the host when beta is 0.
+                 * @param bound A tolerance in elements, or K_EXACTLY for equal elements.
                  */
+                template<typename Bound>
                 void expect_host_columns(const HostTriplets<T>& host, Core::IndexBase base,
                                          Core::Transpose trans, std::complex<double> alpha,
                                          const Columns& b, std::complex<double> beta,
-                                         const Columns& c, double tolerance)
+                                         const Columns& c, Bound bound)
                 {
                     Columns expected(b.size());
                     for (std::size_t r = 0; r < b.size(); ++r)
                         expected[r] = host_product(host, trans, alpha, b[r], beta, c[r]);
 
-                    expect_columns(host, base, trans, alpha, b, beta, c, expected, tolerance);
+                    expect_columns(host, base, trans, alpha, b, beta, c, expected, bound);
                 }
         };
 
@@ -253,21 +309,19 @@ namespace SushiBLAS
             const std::complex<double> beta(-1.0, 0.0);
             const std::complex<double> one(1.0, 0.0);
 
-            for (const Core::Transpose trans : K_EVERY_TRANSPOSE)
-            {
+            in_each_transpose([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const std::size_t inputs = transposed ? 4 : 5;
                 const std::size_t outputs = transposed ? 5 : 4;
 
                 // Element (j, r) of B is j + 1 + 10 * r.
-                Columns b(3);
-                for (std::size_t r = 0; r < b.size(); ++r)
-                    b[r] = counting(inputs, 1.0 + 10.0 * static_cast<double>(r));
+                const Columns b = sample_dense_columns(inputs, 3);
 
-                for (const Core::IndexBase base : K_BOTH_BASES)
+                in_each_index_base([&](Core::IndexBase base) {
                     this->expect_host_columns(host, base, trans, alpha, b, beta,
                                               filled(outputs, 3, one), K_SAMPLE_TOLERANCE);
-            }
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmmTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
@@ -281,27 +335,14 @@ namespace SushiBLAS
 
             // Column 0 of B selects row 0 of A: 1 + 2i in column 0 and 2 - i in column 3.
             Columns b = filled(4, 2, zero);
-            b[0][0] = Core::is_complex_v<T> ? std::complex<double>(1.0, 1.0) : one;
+            b[0][0] = conj_selector<T>();
             const Columns c = filled(5, 2, zero);
             const Wide untouched(5, zero);
 
-            if (Core::is_complex_v<T>)
-            {
-                this->expect_columns(host, base, Core::Transpose::Trans, one, b, zero, c,
-                                     {{{-1.0, 3.0}, zero, zero, {3.0, 1.0}, zero}, untouched},
-                                     K_SAMPLE_TOLERANCE);
-                this->expect_columns(host, base, Core::Transpose::ConjTrans, one, b, zero, c,
-                                     {{{3.0, -1.0}, zero, zero, {1.0, 3.0}, zero}, untouched},
-                                     K_SAMPLE_TOLERANCE);
-            }
-            else
-            {
-                const Columns real_product = {{one, zero, zero, {2.0, 0.0}, zero}, untouched};
-                this->expect_columns(host, base, Core::Transpose::Trans, one, b, zero, c,
-                                     real_product, 0.0);
-                this->expect_columns(host, base, Core::Transpose::ConjTrans, one, b, zero, c,
-                                     real_product, 0.0);
-            }
+            this->expect_columns(host, base, Core::Transpose::Trans, one, b, zero, c,
+                                 {conj_probe_product<T>(false), untouched}, K_EXACTLY);
+            this->expect_columns(host, base, Core::Transpose::ConjTrans, one, b, zero, c,
+                                 {conj_probe_product<T>(true), untouched}, K_EXACTLY);
         }
 
         TYPED_TEST(Medium_SparseSpmmTest, ABetaOfZeroDoesNotReadC)
@@ -312,10 +353,8 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const double nan = std::numeric_limits<double>::quiet_NaN();
-            const Core::Transpose both[2] = {Core::Transpose::NoTrans, Core::Transpose::Trans};
 
-            for (const Core::Transpose trans : both)
-            {
+            in_plain_and_transposed([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const std::size_t inputs = transposed ? 4 : 5;
                 const std::size_t outputs = transposed ? 5 : 4;
@@ -328,7 +367,7 @@ namespace SushiBLAS
                 this->expect_columns(host, Core::IndexBase::Zero, trans, one, b, zero,
                                      filled(outputs, 2, std::complex<double>(nan, nan)), expected,
                                      K_SAMPLE_TOLERANCE);
-            }
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmmTest, IntegerDataIsExactInBothModesForEveryTranspose)
@@ -340,8 +379,7 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> minus_one(-1.0, 0.0);
 
-            for (const Core::Transpose trans : K_EVERY_TRANSPOSE)
-            {
+            in_each_transpose([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const std::size_t inputs = static_cast<std::size_t>(transposed ? host.rows
                                                                                : host.cols);
@@ -349,38 +387,33 @@ namespace SushiBLAS
                                                                                 : host.rows);
 
                 // Element (j, r) of B cycles through -2, -1, 0, 1, 2 along j, shifted by 2 * r.
-                Columns b = filled(inputs, K_EXACT_DENSE_COLUMNS, one);
-                for (std::size_t r = 0; r < b.size(); ++r)
-                {
-                    for (std::size_t j = 0; j < inputs; ++j)
-                        b[r][j] = std::complex<double>(static_cast<double>((j + 2 * r) % 5) - 2.0,
-                                                       0.0);
-                }
+                const Columns b = cycling_columns(inputs, K_EXACT_DENSE_COLUMNS);
 
                 this->expect_host_columns(host, Core::IndexBase::Zero, trans, one, b, minus_one,
-                                          filled(outputs, K_EXACT_DENSE_COLUMNS, one), 0.0);
-            }
+                                          filled(outputs, K_EXACT_DENSE_COLUMNS, one), K_EXACTLY);
+            });
         }
 
-        TYPED_TEST(Medium_SparseSpmmTest, DenseOperandsWithoutColumnsRecordAndRun)
+        TYPED_TEST(Medium_SparseSpmmTest, DenseOperandsWithoutColumnsRecordOneTaskAndGiveAnEmptyC)
         {
             using T = typename TypeParam::Value;
 
             const HostTriplets<T> host = sample_matrix<T>();
-            for (const Core::Layout layout : K_BOTH_LAYOUTS)
-            {
-                this->reinit_engine(layout);
-                for (const ExecutionMode mode : K_BOTH_MODES)
-                {
+
+            this->in_each_layout([&] {
+                in_each_forced_mode([&](ExecutionMode mode) {
                     this->set_mode(mode);
                     const SparseMatrix A = this->build(host, Core::IndexBase::Zero);
                     const Tensor B = this->engine->create_tensor({5, 0}, sushiblas_dtype<T>());
                     Tensor C = this->engine->create_tensor({4, 0}, sushiblas_dtype<T>());
 
-                    EXPECT_NO_THROW(SparseOps(this->recorder()).spmm(A, B, C));
-                    EXPECT_TRUE(this->recording->run().has_value());
-                }
-            }
+                    SparseOps(this->recorder()).spmm(A, B, C);
+
+                    EXPECT_EQ(this->recording->recorded_count(), 1u);
+                    EXPECT_TRUE(this->recording->run_succeeds());
+                    EXPECT_EQ(C.num_elements, int64_t{0});
+                });
+            });
         }
 
         /**
@@ -405,7 +438,8 @@ namespace SushiBLAS
             const std::complex<double> zero(0.0, 0.0);
 
             expect_columns(column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
-                           filled(3, 2, one), zero, filled(1, 2, zero), filled(1, 2, one), 0.0);
+                           filled(3, 2, one), zero, filled(1, 2, zero), filled(1, 2, one),
+                           K_EXACTLY);
         }
     } // namespace Test
 } // namespace SushiBLAS

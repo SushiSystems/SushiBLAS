@@ -23,12 +23,13 @@
 
 /**
  * @file test_sparse_spmv.cpp
- * @brief Tests SparseOps::spmv and the transposed SYCL kernel against host products.
+ * @brief Tests SparseOps::spmv against host products, and the transposed SYCL kernel on a matrix
+ *        whose heaviest row spans several row blocks.
  * @author Mustafa Garip
  */
 
 #include <array>
-#include <cmath>
+#include <string>
 #include <limits>
 #include <vector>
 #include <complex>
@@ -38,16 +39,17 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/forced_mode_checks.hpp"
+#include "support/sparse_conj_case.hpp"
+#include "support/sparse_test_sweeps.hpp"
 
 namespace SushiBLAS
 {
@@ -69,10 +71,6 @@ namespace SushiBLAS
         /// @brief Seed of the integer-valued matrix.
         constexpr std::uint32_t K_EXACT_SEED = 20261007u;
 
-        /// @brief The three values of Core::Transpose.
-        constexpr Core::Transpose K_EVERY_TRANSPOSE[3] = {
-            Core::Transpose::NoTrans, Core::Transpose::Trans, Core::Transpose::ConjTrans};
-
         /// @brief The value the elements between those of a strided view hold.
         constexpr double K_FILLER = -7.0;
 
@@ -90,6 +88,73 @@ namespace SushiBLAS
 
         /// @brief Empty rows after the last stored entry of the block-partition matrix.
         constexpr int64_t K_TRAILING_EMPTY_ROWS = 2;
+
+        namespace
+        {
+            /** @brief A host vector of expectations or of operand values. */
+            using Wide = std::vector<std::complex<double>>;
+
+            /** @brief Returns n elements cycling through -2, -1, 0, 1, 2. */
+            [[nodiscard]] Wide cycling_vector(std::size_t n)
+            {
+                Wide cycled(n);
+                for (std::size_t i = 0; i < n; ++i)
+                    cycled[i] = std::complex<double>(static_cast<double>(i % 5) - 2.0, 0.0);
+                return cycled;
+            }
+
+            /** @brief Returns the real parts of a vector as floats. */
+            [[nodiscard]] std::vector<float> floats_of(const Wide& values)
+            {
+                std::vector<float> narrowed_values(values.size());
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    narrowed_values[i] = static_cast<float>(values[i].real());
+                return narrowed_values;
+            }
+
+            /**
+             * @brief Returns the matrix whose rows split into row blocks unevenly: three empty
+             *        rows, a hundred stored rows of which one holds 900 entries and the others
+             *        one, and two empty rows. Every entry is 1 in column 0.
+             */
+            [[nodiscard]] HostTriplets<float> block_partition_matrix()
+            {
+                HostTriplets<float> m;
+                m.rows = K_LEADING_EMPTY_ROWS + K_STORED_ROWS + K_TRAILING_EMPTY_ROWS;
+                m.cols = 1;
+                for (int64_t row = 0; row < K_STORED_ROWS; ++row)
+                {
+                    const int64_t entries = row == K_HEAVY_ROW ? K_HEAVY_ENTRIES : 1;
+                    for (int64_t entry = 0; entry < entries; ++entry)
+                    {
+                        m.row_indices.push_back(K_LEADING_EMPTY_ROWS + row);
+                        m.column_indices.push_back(0);
+                        m.values.push_back(1.0f);
+                    }
+                }
+                return m;
+            }
+
+            /** @brief Holds a count of row blocks the kernel is launched with. */
+            struct BlockRow
+            {
+                const char* name;   /**< The row suffix. */
+                std::size_t blocks; /**< The row blocks of the scatter. */
+            };
+
+            /** @brief Returns one block per entry range of the heavy row, a few, and the maximum. */
+            std::vector<BlockRow> block_rows()
+            {
+                return {{"OneBlock", 1}, {"TwoBlocks", 2}, {"SevenBlocks", 7},
+                        {"TheMaximumOfBlocks", Kernels::SYCL::K_MAX_SCATTER_BLOCKS}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test suffix.
+            std::string block_row_name(const ::testing::TestParamInfo<BlockRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
 
         /**
          * @brief Builds CSR matrices from host triplets and runs spmv in a chosen execution mode.
@@ -229,6 +294,21 @@ namespace SushiBLAS
                 }
 
                 /**
+                 * @brief Expects the host product of a real T to equal the figures worked out by
+                 *        hand; a complex T has no such figures and passes.
+                 */
+                static void expect_real_product_by_hand(const Wide& expected,
+                                                        const std::vector<double>& by_hand)
+                {
+                    if constexpr (!Core::is_complex_v<T>)
+                    {
+                        ASSERT_EQ(expected.size(), by_hand.size());
+                        for (std::size_t i = 0; i < by_hand.size(); ++i)
+                            EXPECT_EQ(expected[i].real(), by_hand[i]) << "element " << i;
+                    }
+                }
+
+                /**
                  * @brief Expects the even elements near expected and the odd ones still K_FILLER.
                  * @param wide The elements of a tensor interleaved() made, after the call.
                  */
@@ -265,20 +345,13 @@ namespace SushiBLAS
             const Core::Transpose trans = Core::Transpose::NoTrans;
 
             const Wide expected = host_product(host, trans, alpha, x, beta, y);
-            if (!Core::is_complex_v<T>)
-            {
-                // A * x is (9, 0, 43, 41) for x = (1, 2, 3, 4, 5).
-                const double by_hand[4] = {17.0, -1.0, 85.0, 81.0};
-                for (std::size_t i = 0; i < 4; ++i)
-                    ASSERT_EQ(expected[i].real(), by_hand[i]);
-            }
+            // A * x is (9, 0, 43, 41) for x = (1, 2, 3, 4, 5).
+            this->expect_real_product_by_hand(expected, {17.0, -1.0, 85.0, 81.0});
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                    this->expect_near(this->run(mode, host, base, trans, alpha, x, beta, y),
-                                      expected, K_SAMPLE_TOLERANCE);
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->expect_near(this->run(mode, host, base, trans, alpha, x, beta, y), expected,
+                                  K_SAMPLE_TOLERANCE);
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, TheTransposedSampleProductMatchesTheHost)
@@ -294,19 +367,12 @@ namespace SushiBLAS
             const Core::Transpose trans = Core::Transpose::Trans;
 
             const Wide expected = host_product(host, trans, one, x, zero, y);
-            if (!Core::is_complex_v<T>)
-            {
-                const double by_hand[5] = {25.0, 9.0, 12.0, 2.0, 43.0};
-                for (std::size_t i = 0; i < 5; ++i)
-                    ASSERT_EQ(expected[i].real(), by_hand[i]);
-            }
+            this->expect_real_product_by_hand(expected, {25.0, 9.0, 12.0, 2.0, 43.0});
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                    this->expect_near(this->run(mode, host, base, trans, one, x, zero, y),
-                                      expected, K_SAMPLE_TOLERANCE);
-            }
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->expect_near(this->run(mode, host, base, trans, one, x, zero, y), expected,
+                                  K_SAMPLE_TOLERANCE);
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
@@ -322,28 +388,17 @@ namespace SushiBLAS
 
             // x selects row 0, whose entries are 1 + 2i in column 0 and 2 - i in column 3.
             Wide x(4, zero);
-            x[0] = Core::is_complex_v<T> ? std::complex<double>(1.0, 1.0) : one;
+            x[0] = conj_selector<T>();
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 const std::vector<T> plain =
                     this->run(mode, host, base, Core::Transpose::Trans, one, x, zero, y);
                 const std::vector<T> conjugated =
                     this->run(mode, host, base, Core::Transpose::ConjTrans, one, x, zero, y);
 
-                if (Core::is_complex_v<T>)
-                {
-                    this->expect_near(plain, {{-1.0, 3.0}, zero, zero, {3.0, 1.0}, zero},
-                                      K_SAMPLE_TOLERANCE);
-                    this->expect_near(conjugated, {{3.0, -1.0}, zero, zero, {1.0, 3.0}, zero},
-                                      K_SAMPLE_TOLERANCE);
-                }
-                else
-                {
-                    this->expect_equal(plain, {one, zero, zero, {2.0, 0.0}, zero});
-                    this->expect_equal(conjugated, {one, zero, zero, {2.0, 0.0}, zero});
-                }
-            }
+                this->expect_equal(plain, conj_probe_product<T>(false));
+                this->expect_equal(conjugated, conj_probe_product<T>(true));
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, IntegerDataIsExactInBothModesForEveryTranspose)
@@ -357,23 +412,21 @@ namespace SushiBLAS
             const std::complex<double> minus_one(-1.0, 0.0);
             const Core::IndexBase base = Core::IndexBase::Zero;
 
-            for (const Core::Transpose trans : K_EVERY_TRANSPOSE)
-            {
+            in_each_transpose([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const int64_t inputs = transposed ? host.rows : host.cols;
                 const int64_t outputs = transposed ? host.cols : host.rows;
 
                 // x cycles through -2, -1, 0, 1, 2 and y starts at 1.
-                Wide x(static_cast<std::size_t>(inputs));
-                for (std::size_t i = 0; i < x.size(); ++i)
-                    x[i] = std::complex<double>(static_cast<double>(i % 5) - 2.0, 0.0);
+                const Wide x = cycling_vector(static_cast<std::size_t>(inputs));
                 const Wide y(static_cast<std::size_t>(outputs), one);
 
                 const Wide expected = host_product(host, trans, one, x, minus_one, y);
-                for (const ExecutionMode mode : K_BOTH_MODES)
+                in_each_forced_mode([&](ExecutionMode mode) {
                     this->expect_equal(this->run(mode, host, base, trans, one, x, minus_one, y),
                                        expected);
-            }
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, ABetaOfZeroDoesNotReadY)
@@ -385,10 +438,8 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const double nan = std::numeric_limits<double>::quiet_NaN();
-            const Core::Transpose both[2] = {Core::Transpose::NoTrans, Core::Transpose::Trans};
 
-            for (const Core::Transpose trans : both)
-            {
+            in_plain_and_transposed([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const std::size_t inputs = transposed ? 4 : 5;
                 const std::size_t outputs = transposed ? 5 : 4;
@@ -397,11 +448,12 @@ namespace SushiBLAS
                 const Wide poisoned(outputs, std::complex<double>(nan, nan));
                 const Wide expected = host_product(host, trans, one, x, zero, Wide(outputs, zero));
 
-                for (const ExecutionMode mode : K_BOTH_MODES)
+                in_each_forced_mode([&](ExecutionMode mode) {
                     this->expect_near(this->run(mode, host, Core::IndexBase::Zero, trans, one, x,
                                                 zero, poisoned),
                                       expected, K_SAMPLE_TOLERANCE);
-            }
+                });
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutEntriesScalesYByBeta)
@@ -415,60 +467,111 @@ namespace SushiBLAS
             const std::complex<double> alpha(3.0, 0.0);
             const std::complex<double> beta(-2.0, 0.0);
 
-            for (const Core::Transpose trans : K_EVERY_TRANSPOSE)
-            {
+            in_each_transpose([&](Core::Transpose trans) {
                 const bool transposed = Core::is_transposed(trans);
                 const Wide x = counting(transposed ? 3 : 4, 1.0);
                 const Wide y = counting(transposed ? 4 : 3, 1.0);
 
                 const Wide expected = host_product(host, trans, alpha, x, beta, y);
-                for (const ExecutionMode mode : K_BOTH_MODES)
-                {
-                    for (const Core::IndexBase base : K_BOTH_BASES)
-                        this->expect_equal(this->run(mode, host, base, trans, alpha, x, beta, y),
-                                           expected);
-                }
-            }
+                in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                    this->expect_equal(this->run(mode, host, base, trans, alpha, x, beta, y),
+                                       expected);
+                });
+            });
         }
 
-        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutRowsOrColumnsScalesItsOtherSide)
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutRowsScalesYByBetaUnderTrans)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
 
             HostTriplets<T> no_rows;
             no_rows.cols = 5;
+            const BLASScalar alpha = 3.0;
+            const BLASScalar beta = -2.0;
+            const Wide scaled = {{-2.0, 0.0}, {-4.0, 0.0}, {-6.0, 0.0}, {-8.0, 0.0}, {-10.0, 0.0}};
+
+            in_each_forced_mode([&](ExecutionMode mode) {
+                this->set_mode(mode);
+                const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::Zero);
+                // The side of length 5 is y under TRANS for a matrix of 0 x 5.
+                const Tensor nothing = this->vector_without_elements();
+                Tensor y = this->vector_of(counting(5, 1.0));
+
+                SparseOps(this->recorder()).spmv(wide_matrix, nothing, y, Core::Transpose::Trans,
+                                                 alpha, beta);
+                this->recording->run().value();
+
+                this->expect_equal(read_tensor<T>(y), scaled);
+            });
+        }
+
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutColumnsScalesYByBeta)
+        {
+            using T = typename TypeParam::Value;
+            using Wide = std::vector<std::complex<double>>;
+
+            HostTriplets<T> no_columns;
+            no_columns.rows = 5;
+            const BLASScalar alpha = 3.0;
+            const BLASScalar beta = -2.0;
+            const Wide scaled = {{-2.0, 0.0}, {-4.0, 0.0}, {-6.0, 0.0}, {-8.0, 0.0}, {-10.0, 0.0}};
+
+            in_each_forced_mode([&](ExecutionMode mode) {
+                this->set_mode(mode);
+                const SparseMatrix tall_matrix = this->build(no_columns, Core::IndexBase::One);
+                // The side of length 5 is y under NO_TRANS for a matrix of 5 x 0.
+                const Tensor nothing = this->vector_without_elements();
+                Tensor y = this->vector_of(counting(5, 1.0));
+
+                SparseOps(this->recorder()).spmv(tall_matrix, nothing, y,
+                                                 Core::Transpose::NoTrans, alpha, beta);
+                this->recording->run().value();
+
+                this->expect_equal(read_tensor<T>(y), scaled);
+            });
+        }
+
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutRowsRecordsOneTaskForAnEmptyResult)
+        {
+            using T = typename TypeParam::Value;
+
+            HostTriplets<T> no_rows;
+            no_rows.cols = 5;
+
+            in_each_forced_mode([&](ExecutionMode mode) {
+                this->set_mode(mode);
+                const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::Zero);
+                const Tensor x = this->vector_of(counting(5, 1.0));
+                Tensor no_result = this->vector_without_elements();
+
+                SparseOps(this->recorder()).spmv(wide_matrix, x, no_result,
+                                                 Core::Transpose::NoTrans, 3.0, -2.0);
+
+                EXPECT_EQ(this->recording->recorded_count(), 1u);
+                EXPECT_TRUE(this->recording->run_succeeds());
+            });
+        }
+
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutColumnsRecordsOneTaskForAnEmptyResult)
+        {
+            using T = typename TypeParam::Value;
+
             HostTriplets<T> no_columns;
             no_columns.rows = 5;
 
-            const BLASScalar alpha = 3.0;
-            const BLASScalar beta = -2.0;
-            const Wide five = counting(5, 1.0);
-            const Wide scaled = {{-2.0, 0.0}, {-4.0, 0.0}, {-6.0, 0.0}, {-8.0, 0.0}, {-10.0, 0.0}};
-
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 this->set_mode(mode);
-                const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::Zero);
                 const SparseMatrix tall_matrix = this->build(no_columns, Core::IndexBase::One);
-
-                // The side of length 5 is y under TRANS for 0 x 5 and under NO_TRANS for 5 x 0.
-                const Tensor nothing = this->vector_without_elements();
+                const Tensor x = this->vector_of(counting(5, 1.0));
                 Tensor no_result = this->vector_without_elements();
-                const Tensor x = this->vector_of(five);
-                Tensor y_wide = this->vector_of(five);
-                Tensor y_tall = this->vector_of(five);
 
-                SparseOps ops(this->recorder());
-                ops.spmv(wide_matrix, x, no_result, Core::Transpose::NoTrans, alpha, beta);
-                ops.spmv(wide_matrix, nothing, y_wide, Core::Transpose::Trans, alpha, beta);
-                ops.spmv(tall_matrix, nothing, y_tall, Core::Transpose::NoTrans, alpha, beta);
-                ops.spmv(tall_matrix, x, no_result, Core::Transpose::Trans, alpha, beta);
-                this->recording->run().value();
+                SparseOps(this->recorder()).spmv(tall_matrix, x, no_result,
+                                                 Core::Transpose::Trans, 3.0, -2.0);
 
-                this->expect_equal(read_tensor<T>(y_wide), scaled);
-                this->expect_equal(read_tensor<T>(y_tall), scaled);
-            }
+                EXPECT_EQ(this->recording->recorded_count(), 1u);
+                EXPECT_TRUE(this->recording->run_succeeds());
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, StridedVectorsGiveTheSampleProduct)
@@ -484,25 +587,20 @@ namespace SushiBLAS
             const Core::Transpose trans = Core::Transpose::NoTrans;
             const Wide expected = host_product(host, trans, alpha, x, beta, y);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    this->set_mode(mode);
-                    const SparseMatrix A = this->build(host, base);
-                    const Tensor wide_x = this->interleaved(x);
-                    const Tensor wide_y = this->interleaved(y);
-                    const Tensor tx = this->every_second(wide_x);
-                    Tensor ty = this->every_second(wide_y);
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->set_mode(mode);
+                const SparseMatrix A = this->build(host, base);
+                const Tensor wide_x = this->interleaved(x);
+                const Tensor wide_y = this->interleaved(y);
+                const Tensor tx = this->every_second(wide_x);
+                Tensor ty = this->every_second(wide_y);
 
-                    SparseOps(this->recorder()).spmv(A, tx, ty, trans, BLASScalar(alpha),
-                                                  BLASScalar(beta));
-                    this->recording->run().value();
+                SparseOps(this->recorder()).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                                                 BLASScalar(beta));
+                this->recording->run().value();
 
-                    this->expect_interleaved(read_tensor<T>(wide_y), expected,
-                                             K_SAMPLE_TOLERANCE);
-                }
-            }
+                this->expect_interleaved(read_tensor<T>(wide_y), expected, K_SAMPLE_TOLERANCE);
+            });
         }
 
         TYPED_TEST(Medium_SparseSpmvTest, APairStoredTwiceCountsTwice)
@@ -516,29 +614,22 @@ namespace SushiBLAS
             const Wide values = {{2.0, 0.0}, {3.0, 0.0}, {4.0, 0.0}};
             const std::complex<double> zero(0.0, 0.0);
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                for (const Core::IndexBase base : K_BOTH_BASES)
-                {
-                    this->set_mode(mode);
-                    const SparseMatrix A =
-                        this->matrix_of_arrays(2, 3, offsets, columns, values, base);
-                    const Tensor by_columns =
-                        this->vector_of({{1.0, 0.0}, {10.0, 0.0}, {100.0, 0.0}});
-                    const Tensor by_rows = this->vector_of({{1.0, 0.0}, {10.0, 0.0}});
-                    Tensor product = this->vector_of(Wide(2, zero));
-                    Tensor transposed = this->vector_of(Wide(3, zero));
+            in_each_mode_and_base([&](ExecutionMode mode, Core::IndexBase base) {
+                this->set_mode(mode);
+                const SparseMatrix A = this->matrix_of_arrays(2, 3, offsets, columns, values, base);
+                const Tensor by_columns = this->vector_of({{1.0, 0.0}, {10.0, 0.0}, {100.0, 0.0}});
+                const Tensor by_rows = this->vector_of({{1.0, 0.0}, {10.0, 0.0}});
+                Tensor product = this->vector_of(Wide(2, zero));
+                Tensor transposed = this->vector_of(Wide(3, zero));
 
-                    SparseOps ops(this->recorder());
-                    ops.spmv(A, by_columns, product);
-                    ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
-                    this->recording->run().value();
+                SparseOps ops(this->recorder());
+                ops.spmv(A, by_columns, product);
+                ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
+                this->recording->run().value();
 
-                    this->expect_equal(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}});
-                    this->expect_equal(read_tensor<T>(transposed),
-                                       {zero, {5.0, 0.0}, {40.0, 0.0}});
-                }
-            }
+                this->expect_equal(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}});
+                this->expect_equal(read_tensor<T>(transposed), {zero, {5.0, 0.0}, {40.0, 0.0}});
+            });
         }
 
         /**
@@ -571,21 +662,21 @@ namespace SushiBLAS
             column.column_indices = {0, 0, 0};
             column.values = row.values;
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
+            in_each_forced_mode([&](ExecutionMode mode) {
                 expect_equal(run(mode, row, Core::IndexBase::Zero, Core::Transpose::NoTrans, one,
                                  ones, zero, start),
                              Wide(1, one));
                 expect_equal(run(mode, column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
                                  ones, zero, start),
                              Wide(1, one));
-            }
+            });
         }
 
         /**
          * @brief Calls the transposed SYCL kernel with a block count the test chooses.
          */
-        class Medium_SparseSpmvKernel : public SushiBLASTest
+        class Medium_SparseSpmvKernel : public SushiBLASTest,
+                                        public ::testing::WithParamInterface<BlockRow>
         {
             protected:
                 /** @brief Returns A^T * x from the SYCL kernel run with blocks row blocks. */
@@ -612,106 +703,35 @@ namespace SushiBLAS
                         ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
                     return read_tensor<float>(ty);
                 }
+
+                /** @brief Expects every element of a float result to equal its host expectation. */
+                static void expect_floats_equal(const std::vector<float>& actual,
+                                                const std::vector<std::complex<double>>& expected)
+                {
+                    ASSERT_EQ(actual.size(), expected.size());
+                    for (std::size_t j = 0; j < actual.size(); ++j)
+                        EXPECT_EQ(static_cast<double>(actual[j]), expected[j].real())
+                            << "column " << j;
+                }
         };
 
-        TEST_F(Medium_SparseSpmvKernel, EveryBlockCountGivesTheExactIntegerResult)
+        TEST_P(Medium_SparseSpmvKernel, TheRowBlocksCoverEveryEntryOnce)
         {
-            using Wide = std::vector<std::complex<double>>;
-
-            const HostTriplets<float> host = integer_valued_matrix<float>(
-                K_EXACT_ROWS, K_EXACT_COLS, K_EXACT_PER_ROW, K_EXACT_SEED);
-            std::vector<float> x(static_cast<std::size_t>(host.rows));
-            Wide wide_x(x.size());
-            for (std::size_t i = 0; i < x.size(); ++i)
-            {
-                x[i] = static_cast<float>(i % 5) - 2.0f;
-                wide_x[i] = std::complex<double>(static_cast<double>(x[i]), 0.0);
-            }
-
+            // A row block that misses an entry or reads one twice changes the sum of column 0.
+            const HostTriplets<float> host = block_partition_matrix();
+            const Wide wide_x = cycling_vector(static_cast<std::size_t>(host.rows));
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const Wide expected = host_product(host, Core::Transpose::Trans, one, wide_x, zero,
                                                Wide(static_cast<std::size_t>(host.cols), zero));
 
-            const std::size_t block_counts[6] = {1, 2, 3, 7, 64, 256};
-            for (const std::size_t blocks : block_counts)
-            {
-                const std::vector<float> actual = transposed_product(host, x, blocks);
-                ASSERT_EQ(actual.size(), expected.size());
-                for (std::size_t j = 0; j < actual.size(); ++j)
-                    EXPECT_EQ(static_cast<double>(actual[j]), expected[j].real())
-                        << "column " << j << " with " << blocks << " blocks";
-            }
+            const std::vector<float> actual =
+                transposed_product(host, floats_of(wide_x), GetParam().blocks);
+
+            expect_floats_equal(actual, expected);
         }
 
-        TEST_F(Medium_SparseSpmvKernel, TheRowBlocksCoverEveryEntryOnce)
-        {
-            namespace Blocks = Kernels::SYCL::Detail;
-
-            // Three empty rows, a hundred stored rows of which one holds 900, two empty rows.
-            std::vector<int32_t> offsets(static_cast<std::size_t>(K_LEADING_EMPTY_ROWS) + 1, 0);
-            for (int64_t row = 0; row < K_STORED_ROWS; ++row)
-                offsets.push_back(offsets.back() +
-                                  static_cast<int32_t>(row == K_HEAVY_ROW ? K_HEAVY_ENTRIES : 1));
-            offsets.insert(offsets.end(), static_cast<std::size_t>(K_TRAILING_EMPTY_ROWS),
-                           offsets.back());
-
-            const int64_t rows = static_cast<int64_t>(offsets.size()) - 1;
-            const int64_t nnz = offsets.back();
-            const std::vector<int32_t> columns(static_cast<std::size_t>(nnz), 0);
-            const Kernels::CsrPattern<int32_t> pattern{rows, 1, nnz, 0, offsets.data(),
-                                                       columns.data()};
-            ASSERT_EQ(nnz, K_STORED_ROWS - 1 + K_HEAVY_ENTRIES);
-
-            const int64_t block_counts[4] = {1, 2, 7, 256};
-            for (const int64_t blocks : block_counts)
-            {
-                SCOPED_TRACE(blocks);
-                EXPECT_EQ(Blocks::block_first_row(pattern, 0, blocks), 0);
-                EXPECT_EQ(Blocks::block_end_row(pattern, blocks - 1, blocks), rows);
-
-                int64_t previous_first = 0;
-                int64_t covered = 0;
-                for (int64_t block = 0; block < blocks; ++block)
-                {
-                    const int64_t first = Blocks::block_first_row(pattern, block, blocks);
-                    const int64_t end = Blocks::block_end_row(pattern, block, blocks);
-                    ASSERT_GE(first, previous_first) << "block " << block;
-                    ASSERT_GE(end, first) << "block " << block;
-                    ASSERT_LE(end, rows) << "block " << block;
-
-                    covered += offsets[static_cast<std::size_t>(end)] -
-                               offsets[static_cast<std::size_t>(first)];
-                    previous_first = first;
-                }
-                EXPECT_EQ(covered, nnz);
-            }
-        }
-
-        TEST_F(Medium_SparseSpmvKernel, TheBlockCountFollowsTheProfileAndTheDensity)
-        {
-            using Kernels::SYCL::scatter_blocks;
-
-            Device::Profile cpu;
-            cpu.is_cpu = true;
-            cpu.compute_units = 12;
-
-            Device::Profile gpu;
-            gpu.is_cpu = false;
-            gpu.compute_units = 4;
-
-            Device::Profile large_gpu;
-            large_gpu.is_cpu = false;
-            large_gpu.compute_units = 64;
-
-            EXPECT_EQ(scatter_blocks(cpu, 0, 100), 0u);
-            EXPECT_EQ(scatter_blocks(cpu, 10, 0), 1u);
-            EXPECT_EQ(scatter_blocks(cpu, 10, 1000), 12u);
-            EXPECT_EQ(scatter_blocks(gpu, 10, 1000), 4u * Device::K_WAVES_PER_COMPUTE_UNIT);
-
-            // 2 * 250 / 100 partial sums per output are affordable, below the 12 compute units.
-            EXPECT_EQ(scatter_blocks(cpu, 100, 250), 5u);
-            EXPECT_EQ(scatter_blocks(large_gpu, 10, 100000), Kernels::SYCL::K_MAX_SCATTER_BLOCKS);
-        }
+        INSTANTIATE_TEST_SUITE_P(, Medium_SparseSpmvKernel, ::testing::ValuesIn(block_rows()),
+                                 block_row_name);
     } // namespace Test
 } // namespace SushiBLAS

@@ -39,24 +39,52 @@ namespace SushiBLAS
     {
         namespace
         {
+            /** @brief Returns what an IndexList of the zero-based positions, stored in Index from base, reads at entry. */
+            template<typename Index>
+            int64_t position_read(int64_t base, int64_t entry, const std::vector<int64_t>& zero_based)
+            {
+                std::vector<Index> stored;
+                for (const int64_t position : zero_based)
+                    stored.push_back(static_cast<Index>(position + base));
+                const Kernels::IndexList<Index> list{static_cast<int64_t>(stored.size()), 8, base,
+                                                     stored.data()};
+                return list.at(entry);
+            }
+
             /** @brief One stored list and the dense positions it must read. */
             struct PositionRow
             {
-                    const char* name;                 /**< The row's suffix. */
+                    const char* name;                 /**< The row suffix. */
                     int64_t base;                     /**< The first index the list uses. */
+                    std::vector<int64_t> positions;   /**< The zero-based positions the list holds. */
                     int64_t entry;                    /**< The entry read. */
-                    int64_t expected;                 /**< The dense position of that entry. */
+                    int64_t (*read)(int64_t, int64_t, const std::vector<int64_t>&); /**< Reads the list stored in the row type. */
             };
 
-            /** @brief Returns every entry of the positions 4, 0 and 7 under base zero and one. */
+            /**
+             * @brief Returns every entry of the positions 4, 0 and 7 under base zero and one in
+             *        INT64, and every entry of the positions 6, 1 and 4 (stored 7, 2, 5 one-based)
+             *        in INT32 and INT64.
+             */
             std::vector<PositionRow> position_rows()
             {
-                return {{"ZeroBasedFirst", 0, 0, 4}, {"ZeroBasedSecond", 0, 1, 0},
-                        {"ZeroBasedThird", 0, 2, 7}, {"OneBasedFirst", 1, 0, 4},
-                        {"OneBasedSecond", 1, 1, 0},  {"OneBasedThird", 1, 2, 7}};
+                const std::vector<int64_t> spread{4, 0, 7};
+                const std::vector<int64_t> stored_7_2_5{6, 1, 4};
+                return {{"ZeroBasedFirst", 0, spread, 0, &position_read<int64_t>},
+                        {"ZeroBasedSecond", 0, spread, 1, &position_read<int64_t>},
+                        {"ZeroBasedThird", 0, spread, 2, &position_read<int64_t>},
+                        {"OneBasedFirst", 1, spread, 0, &position_read<int64_t>},
+                        {"OneBasedSecond", 1, spread, 1, &position_read<int64_t>},
+                        {"OneBasedThird", 1, spread, 2, &position_read<int64_t>},
+                        {"OneBasedInt32Stored7First", 1, stored_7_2_5, 0, &position_read<int32_t>},
+                        {"OneBasedInt32Stored2Second", 1, stored_7_2_5, 1, &position_read<int32_t>},
+                        {"OneBasedInt32Stored5Third", 1, stored_7_2_5, 2, &position_read<int32_t>},
+                        {"OneBasedInt64Stored7First", 1, stored_7_2_5, 0, &position_read<int64_t>},
+                        {"OneBasedInt64Stored2Second", 1, stored_7_2_5, 1, &position_read<int64_t>},
+                        {"OneBasedInt64Stored5Third", 1, stored_7_2_5, 2, &position_read<int64_t>}};
             }
 
-            /// @brief Names a row, which gtest takes as the test's suffix.
+            /// @brief Names a row, which gtest takes as the test suffix.
             std::string position_row_name(const ::testing::TestParamInfo<PositionRow>& info)
             {
                 return info.param.name;
@@ -72,10 +100,8 @@ namespace SushiBLAS
         TEST_P(Small_IndexList, ReadsEachPositionLessTheBase)
         {
             const PositionRow& row = GetParam();
-            const std::vector<int64_t> stored{4 + row.base, 0 + row.base, 7 + row.base};
-            const Kernels::IndexList<int64_t> list{3, 8, row.base, stored.data()};
 
-            EXPECT_EQ(list.at(row.entry), row.expected);
+            EXPECT_EQ(row.read(row.base, row.entry, row.positions), row.positions[row.entry]);
         }
 
         INSTANTIATE_TEST_SUITE_P(, Small_IndexList, ::testing::ValuesIn(position_rows()),

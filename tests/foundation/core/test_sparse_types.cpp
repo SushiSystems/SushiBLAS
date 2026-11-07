@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/sparse_types.hpp>
 
@@ -45,13 +46,47 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::IndexBase::One), 222);
         }
 
-        TEST(Small_IndexBase, IsValidAcceptsBothBasesAndNothingElse)
+        namespace
         {
-            EXPECT_TRUE(Core::is_valid(Core::IndexBase::Zero));
-            EXPECT_TRUE(Core::is_valid(Core::IndexBase::One));
-            EXPECT_FALSE(Core::is_valid(Core::IndexBase{}));
-            EXPECT_FALSE(Core::is_valid(static_cast<Core::IndexBase>(K_PAST_LAST_BASE)));
+            /** @brief Holds one value of IndexBase and whether is_valid takes it for an enumerator. */
+            struct ValidityRow
+            {
+                const char* name;     /**< The row's suffix. */
+                Core::IndexBase base; /**< The value handed to is_valid. */
+                bool valid;           /**< Whether it is an enumerator. */
+            };
+
+            /** @brief Returns both enumerators and each kind of value outside them. */
+            std::vector<ValidityRow> validity_rows()
+            {
+                return {{"Zero", Core::IndexBase::Zero, true},
+                        {"One", Core::IndexBase::One, true},
+                        {"ACastOfZero", static_cast<Core::IndexBase>(0), false},
+                        {"PastTheLastEnumerator", static_cast<Core::IndexBase>(K_PAST_LAST_BASE),
+                         false},
+                        {"TheLargestByte", static_cast<Core::IndexBase>(255), false}};
+            }
+
+            /// @brief Names a row, which gtest takes as the test's suffix.
+            std::string validity_row_name(const ::testing::TestParamInfo<ValidityRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Hands is_valid one value at a time. */
+        class Small_IndexBaseValidity : public ::testing::TestWithParam<ValidityRow>
+        {
+
+        };
+
+        TEST_P(Small_IndexBaseValidity, IsValidAcceptsBothBasesAndNothingElse)
+        {
+            EXPECT_EQ(Core::is_valid(GetParam().base), GetParam().valid);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_IndexBaseValidity, ::testing::ValuesIn(validity_rows()),
+                                 validity_row_name);
 
         TEST(Small_IndexBase, FirstIndexIsZeroOrOne)
         {

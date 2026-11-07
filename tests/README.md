@@ -108,7 +108,10 @@ floating-point tolerance from a rounding bound; `tensor_expectations/tolerance_b
 absolute bounds a comparison takes on it, so no comparison spells a tolerance literal. `owned_memory.hpp` holds memory a test owns, `shared_allocator_contract.hpp` the checks every
 `SharedAllocator` adapter passes, `forced_mode_checks.hpp` the forced-mode loop and the refusal checks
 the operation tests share, and `hand_built_operand.hpp` the operand values the `Small_` refusal tests
-build without a queue.
+build without a queue. `refusal_naming.hpp` holds the expectation that a refusal names a word,
+`sparse_test_sweeps.hpp` the index-base, transposition and triangle sweeps the sparse operation tests
+run a check over, and `sparse_conj_case.hpp` the hand-worked case that tells a conjugate transpose
+from a transpose on the 4 x 5 sample.
 
 ## Shared reasoning
 
