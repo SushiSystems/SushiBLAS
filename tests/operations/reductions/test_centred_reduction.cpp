@@ -57,7 +57,7 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_CentredReduction, TheReferenceVarianceOfOneToFiveIsTwo)
+        TEST(Small_CentredReduction, TheReferenceVarianceOfOneToFiveIsTwo)
         {
             const std::vector<double> values{1, 2, 3, 4, 5};
             double variance = 0;
@@ -67,13 +67,29 @@ namespace SushiBLAS
             EXPECT_EQ(variance, 2.0);
         }
 
-        TEST_F(Medium_CentredReduction, TheTermsCentreOnTheValueTheyAreGiven)
+        TEST(Small_CentredReduction, MeanOfSumDividesTheSumByTheCount)
+        {
+            EXPECT_EQ(Dispatch::MeanOfSum{}(12.0, std::size_t{4}), 3.0);
+        }
+
+        TEST(Small_CentredReduction, SquaredDeviationSquaresTheDistanceFromTheCentre)
         {
             const double centre = 3.0;
 
-            EXPECT_EQ(Dispatch::MeanOfSum{}(12.0, std::size_t{4}), 3.0);
             EXPECT_EQ(Dispatch::SquaredDeviation<double>{&centre}(5.0), 4.0);
+        }
+
+        TEST(Small_CentredReduction, RootOfMeanDeviationsTakesTheRootOfTheMeanDeviation)
+        {
+            const double centre = 3.0;
+
             EXPECT_EQ(Dispatch::RootOfMeanDeviations<double>{&centre}(36.0, std::size_t{4}), 3.0);
+        }
+
+        TEST(Small_CentredReduction, ExpBelowCentreIsOneAtTheCentre)
+        {
+            const double centre = 3.0;
+
             EXPECT_EQ(Dispatch::ExpBelowCentre<double>{&centre}(3.0), 1.0);
         }
 

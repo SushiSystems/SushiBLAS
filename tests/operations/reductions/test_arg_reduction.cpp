@@ -51,7 +51,7 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_ArgReduction, TheReferenceFindsTheFirstLargestAndSmallest)
+        TEST(Small_ArgReduction, TheReferenceFindsTheFirstLargestAndSmallest)
         {
             const std::vector<float> values{2.0f, 7.0f, -3.0f, 7.0f, -3.0f};
             int64_t index = -1;

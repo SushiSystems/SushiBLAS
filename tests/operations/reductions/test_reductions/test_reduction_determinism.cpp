@@ -29,42 +29,178 @@
 
 #include <cmath>
 #include <cstring>
-#include <limits>
+#include <numeric>
+#include <string>
 #include <vector>
 #include <cstddef>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include "support/tolerance.hpp"
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /// @brief Below `K_CPU_TWO_STAGE_MIN_ELEMENTS`: the single sequential pass.
+            constexpr int64_t K_SMALL = 4096;
+
+            /// @brief Above it: the two-stage work-group tree plus an ordered fold.
+            constexpr int64_t K_LARGE = 1 << 18;
+
+            /// @brief The element count of the var, std and logsumexp case; two-stage too.
+            constexpr int64_t K_MOMENTS = 100000;
+
+            /// @brief How many times a sum-like reduction runs in a stability case.
+            constexpr int K_RUNS = 32;
+
+            /// @brief How many times the var, std and logsumexp case runs each reduction.
+            constexpr int K_MOMENT_RUNS = 10;
+
+            /// @brief The rounded operations on the longest path of a compensated sum, as one ulp.
+            constexpr std::size_t K_COMPENSATED_ROUNDINGS = 2;
+
+            /// @brief The element count of the direct two-stage case; no group width divides it.
+            constexpr std::size_t K_TREE_COUNT = 3000;
+
+            /// @brief The ones that follow the head of the compensated-tail input.
+            constexpr int64_t K_ONES = 4096;
+
+            /// @brief The head of the compensated-tail input; its ulp in float is 8.
+            constexpr float K_HEAD = 1e8f;
+
+            /// @brief The unit CPU profile of the planner cases.
+            Device::Profile cpu_profile()
+            {
+                Device::Profile profile;
+                profile.is_cpu = true;
+                profile.compute_units = 8;
+                profile.max_work_group_size = 8192;
+                return profile;
+            }
+
+            /**
+             * @brief Values for the additive reductions.
+             *
+             * No exact binary representation and a spread of magnitudes, so a changed
+             * combination order lands on different bits rather than cancelling out.
+             */
+            float additive_value(std::size_t i)
+            {
+                return 0.1f + static_cast<float>(i % 97) * 0.017f;
+            }
+
+            /**
+             * @brief Returns values near 1.0 whose running product stays finite and non-zero.
+             * @see tests/operations/reductions/README.md
+             */
+            float multiplicative_value(std::size_t i)
+            {
+                return 1.0f + (static_cast<float>(i % 7) - 3.0f) * 1e-4f;
+            }
+
+            /** @brief Returns the sum of n copies of 0.1f added one after the other in float. */
+            float naive_sum_of_tenths(int64_t n)
+            {
+                float naive = 0.0f;
+                for (int64_t i = 0; i < n; ++i)
+                    naive += 0.1f;
+                return naive;
+            }
+
+            /** @brief Returns kN positive values that differ from one another. */
+            std::vector<float> graded_values()
+            {
+                std::vector<float> host(K_TREE_COUNT);
+                for (std::size_t i = 0; i < host.size(); ++i)
+                    host[i] = 0.1f + static_cast<float>(i % 31) * 0.031f;
+                return host;
+            }
+
+            /** @brief Returns one large head followed by K_ONES ones. */
+            std::vector<float> head_then_ones()
+            {
+                std::vector<float> host(static_cast<std::size_t>(K_ONES + 1), 1.0f);
+                host[0] = K_HEAD;
+                return host;
+            }
+
+            /** @brief The reduction a stability row records. */
+            using RecordOp = void (*)(TaskRecorder&, const Tensor&, Tensor&);
+
+            /** @brief The generator of the input a stability row reduces. */
+            using Generator = float (*)(std::size_t);
+        }
+
+        /** @brief One reduction, its input generator and the size and run count it is held to. */
+        struct StabilityRow
+        {
+            std::string name;
+            RecordOp op;
+            Generator gen;
+            int64_t n;
+            int runs;
+        };
+
+        /** @brief Returns the folding reductions at a size on each side of the CPU threshold. */
+        static std::vector<StabilityRow> stability_rows()
+        {
+            const RecordOp sum = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).sum(t, r); };
+            const RecordOp mean = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).mean(t, r); };
+            const RecordOp asum = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).asum(t, r); };
+            const RecordOp nrm2 = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).nrm2(t, r); };
+            const RecordOp prod = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).prod(t, r); };
+            const RecordOp var = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).var(t, r); };
+            const RecordOp std_dev = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).std(t, r); };
+            const RecordOp logsumexp = [](TaskRecorder& e, const Tensor& t, Tensor& r)
+            { SushiBLAS::ReductionOps(e).logsumexp(t, r); };
+
+            return {
+                {"SumAtTheSinglePassSize", sum, additive_value, K_SMALL, K_RUNS},
+                {"SumAtTheTwoStageSize", sum, additive_value, K_LARGE, K_RUNS},
+                {"MeanAtTheSinglePassSize", mean, additive_value, K_SMALL, K_RUNS},
+                {"MeanAtTheTwoStageSize", mean, additive_value, K_LARGE, K_RUNS},
+                {"AsumAtTheSinglePassSize", asum, additive_value, K_SMALL, K_RUNS},
+                {"AsumAtTheTwoStageSize", asum, additive_value, K_LARGE, K_RUNS},
+                {"Nrm2AtTheSinglePassSize", nrm2, additive_value, K_SMALL, K_RUNS},
+                {"Nrm2AtTheTwoStageSize", nrm2, additive_value, K_LARGE, K_RUNS},
+                {"ProdAtTheSinglePassSize", prod, multiplicative_value, K_SMALL, K_RUNS},
+                {"ProdAtTheTwoStageSize", prod, multiplicative_value, K_LARGE, K_RUNS},
+                {"VarAtTheMomentsSize", var, additive_value, K_MOMENTS, K_MOMENT_RUNS},
+                {"StdAtTheMomentsSize", std_dev, additive_value, K_MOMENTS, K_MOMENT_RUNS},
+                {"LogSumExpAtTheMomentsSize", logsumexp, additive_value, K_MOMENTS,
+                 K_MOMENT_RUNS},
+            };
+        }
+
+        /** @brief Names a row by its description, which gtest takes as the test's suffix. */
+        template<typename Row>
+        static std::string row_name(const ::testing::TestParamInfo<Row>& info)
+        {
+            return info.param.name;
+        }
+
         class Medium_ReductionDeterminism : public SushiBLASTest
         {
             protected:
-                /** @brief Below `K_CPU_TWO_STAGE_MIN_ELEMENTS`: the single sequential pass. */
-                static constexpr int64_t K_SMALL = 4096;
-
-                /** @brief Above it: the two-stage work-group tree plus an ordered fold. */
-                static constexpr int64_t K_LARGE = 1 << 18;
-
-                /** @brief The element count of the var, std and logsumexp case; two-stage too. */
-                static constexpr int64_t K_MOMENTS = 100000;
-
-                /** @brief How many times the var, std and logsumexp case runs each reduction. */
-                static constexpr int K_MOMENT_RUNS = 10;
-
                 /**
                  * @brief Which reduction shape @p n will actually take on this device.
                  *
                  * Reported in a SCOPED_TRACE so a failure says which of the two kernels
-                 * produced it, and asserted on directly by @ref BothShapesAreReachedHere
-                 * so that a future retune cannot quietly collapse this file's coverage
-                 * onto one path.
+                 * produced it, and asserted on directly by the shape cases so that a future
+                 * retune cannot quietly collapse this file's coverage onto one path.
                  */
                 [[nodiscard]] static bool is_two_stage(int64_t n)
                 {
@@ -93,31 +229,29 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Runs @p op @p runs times and asserts every result has the same bits.
-                 * @param n Element count, which selects the reduction shape.
+                 * @brief Runs a row's reduction its run count and asserts every result has the same bits.
                  * @see tests/operations/reductions/README.md
                  */
-                template<typename Op, typename Gen>
-                void expect_bitwise_stable(int64_t n, Op op, Gen gen, int runs = 32)
+                void expect_bitwise_stable(const StabilityRow& row)
                 {
-                    SCOPED_TRACE(is_two_stage(n) ? "two-stage shape" : "single-pass shape");
+                    SCOPED_TRACE(is_two_stage(row.n) ? "two-stage shape" : "single-pass shape");
 
                     float first = 0.0f;
-                    for (int r = 0; r < runs; ++r)
+                    for (int r = 0; r < row.runs; ++r)
                     {
                         Engine eng(TestEnvironment::runtime());
 
-                        auto t = eng.create_tensor({n});
+                        auto t = eng.create_tensor({row.n});
                         auto res = eng.create_tensor({1});
 
-                        std::vector<float> host(static_cast<std::size_t>(n));
+                        std::vector<float> host(static_cast<std::size_t>(row.n));
                         for (std::size_t i = 0; i < host.size(); ++i)
-                            host[i] = gen(i);
+                            host[i] = row.gen(i);
                         TestEnvironment::queue().memcpy(t.data(), host.data(),
                                                host.size() * sizeof(float)).wait();
 
                         RecordingFixture fixture(eng);
-                        op(fixture.recorder(), t, res);
+                        row.op(fixture.recorder(), t, res);
                         fixture.run().value();
 
                         const float got = scalar(res);
@@ -139,134 +273,86 @@ namespace SushiBLAS
                     }
                 }
 
-                /**
-                 * @brief Values for the additive reductions.
-                 *
-                 * No exact binary representation and a spread of magnitudes, so a changed
-                 * combination order lands on different bits rather than cancelling out.
-                 */
-                static float additive_value(std::size_t i)
+                /** @brief Returns the sum of n copies of 0.1f the device produces. */
+                float compensated_sum_of_tenths(int64_t n)
                 {
-                    return 0.1f + static_cast<float>(i % 97) * 0.017f;
-                }
+                    SCOPED_TRACE(is_two_stage(n) ? "two-stage shape" : "single-pass shape");
 
-                /**
-                 * @brief Returns values near 1.0 whose running product stays finite and non-zero.
-                 * @see tests/operations/reductions/README.md
-                 */
-                static float multiplicative_value(std::size_t i)
-                {
-                    return 1.0f + (static_cast<float>(i % 7) - 3.0f) * 1e-4f;
+                    auto t = filled(n, 0.1f);
+                    auto res = engine->create_tensor({1});
+                    SushiBLAS::ReductionOps(recorder()).sum(t, res);
+                    recording->run().value();
+                    return scalar(res);
                 }
         };
 
         /**
-         * @brief Tests that the two sizes used here reach both reduction shapes.
+         * @brief Tests that a CPU takes the single sequential pass at the small size.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_ReductionDeterminism, BothShapesAreReachedHere)
+        TEST(Small_ReductionDeterminism, ACPUTakesTheSinglePassAtTheSmallSize)
         {
-            auto& q = TestEnvironment::queue();
-            const Device::Profile& p = Device::profile_for(q);
-
-            EXPECT_TRUE(is_two_stage(K_LARGE))
-                << "kLarge must exercise the two-stage shape.";
-
-            if (p.is_cpu)
-            {
-                EXPECT_FALSE(is_two_stage(K_SMALL))
-                    << "kSmall must exercise the single-pass shape on a CPU.";
-            }
-        }
-
-        TEST_F(Medium_ReductionDeterminism, SumIsBitwiseStable)
-        {
-            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).sum(t, r);
-            };
-            expect_bitwise_stable(K_SMALL, op, additive_value);
-            expect_bitwise_stable(K_LARGE, op, additive_value);
-        }
-
-        TEST_F(Medium_ReductionDeterminism, MeanIsBitwiseStable)
-        {
-            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).mean(t, r);
-            };
-            expect_bitwise_stable(K_SMALL, op, additive_value);
-            expect_bitwise_stable(K_LARGE, op, additive_value);
-        }
-
-        TEST_F(Medium_ReductionDeterminism, AsumIsBitwiseStable)
-        {
-            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).asum(t, r);
-            };
-            expect_bitwise_stable(K_SMALL, op, additive_value);
-            expect_bitwise_stable(K_LARGE, op, additive_value);
-        }
-
-        TEST_F(Medium_ReductionDeterminism, Nrm2IsBitwiseStable)
-        {
-            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).nrm2(t, r);
-            };
-            expect_bitwise_stable(K_SMALL, op, additive_value);
-            expect_bitwise_stable(K_LARGE, op, additive_value);
-        }
-
-        TEST_F(Medium_ReductionDeterminism, ProdIsBitwiseStable)
-        {
-            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).prod(t, r);
-            };
-            expect_bitwise_stable(K_SMALL, op, multiplicative_value);
-            expect_bitwise_stable(K_LARGE, op, multiplicative_value);
+            EXPECT_EQ(Reduce::planned_partials(cpu_profile(), static_cast<std::size_t>(K_SMALL)),
+                      std::size_t{0});
         }
 
         /**
-         * @brief Tests that var, std and logsumexp repeat to the bit in the two-stage shape.
+         * @brief Tests that a CPU takes the two-stage tree at the large size.
+         * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_ReductionDeterminism, TwoStageMomentsAreBitwiseStable)
+        TEST(Small_ReductionDeterminism, ACPUTakesTheTwoStageTreeAtTheLargeSize)
         {
-            ASSERT_TRUE(is_two_stage(K_MOMENTS))
-                << "kMoments must exercise the two-stage shape.";
-
-            auto var = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).var(t, r);
-            };
-            auto std_dev = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).std(t, r);
-            };
-            auto logsumexp = [](TaskRecorder& e, const Tensor& t, Tensor& r)
-            {
-                SushiBLAS::ReductionOps(e).logsumexp(t, r);
-            };
-
-            expect_bitwise_stable(K_MOMENTS, var, additive_value, K_MOMENT_RUNS);
-            expect_bitwise_stable(K_MOMENTS, std_dev, additive_value, K_MOMENT_RUNS);
-            expect_bitwise_stable(K_MOMENTS, logsumexp, additive_value, K_MOMENT_RUNS);
+            EXPECT_GT(Reduce::planned_partials(cpu_profile(), static_cast<std::size_t>(K_LARGE)),
+                      std::size_t{0});
         }
+
+        /**
+         * @brief Tests that the large size reaches the two-stage shape on the test device.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_ReductionDeterminism, TheLargeSizeReachesTheTwoStageShapeHere)
+        {
+            EXPECT_TRUE(is_two_stage(K_LARGE)) << "kLarge must exercise the two-stage shape.";
+        }
+
+        /**
+         * @brief Tests that the moments size reaches the two-stage shape on the test device.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_ReductionDeterminism, TheMomentsSizeReachesTheTwoStageShapeHere)
+        {
+            EXPECT_TRUE(is_two_stage(K_MOMENTS)) << "kMoments must exercise the two-stage shape.";
+        }
+
+        /** @brief Runs one reduction at one size for its run count. */
+        class Medium_ReductionStability : public Medium_ReductionDeterminism,
+                                          public ::testing::WithParamInterface<StabilityRow>
+        {
+        };
+
+        /**
+         * @brief Tests that a reduction repeats to the bit at its size.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_P(Medium_ReductionStability, TheReductionIsBitwiseStable)
+        {
+            expect_bitwise_stable(GetParam());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReductionStability, ::testing::ValuesIn(stability_rows()),
+                                 row_name<StabilityRow>);
 
         /**
          * @brief Tests that a compensated sum recovers 4096 ones under a head of 1e8.
+         *
+         * Naive summation returns 1e8 here, because every 1.0 falls below the ulp of the running
+         * total; 100004096 is a multiple of 8 and so exact in float.
          * @see tests/operations/reductions/README.md
          */
         TEST_F(Medium_ReductionDeterminism, CompensatedSumRecoversASmallTailUnderALargeHead)
         {
-            constexpr int64_t kOnes = 4096;
-            constexpr float kHead = 1e8f;
-
-            auto t = engine->create_tensor({kOnes + 1});
-            std::vector<float> host(static_cast<std::size_t>(kOnes + 1), 1.0f);
-            host[0] = kHead;
+            const std::vector<float> host = head_then_ones();
+            auto t = engine->create_tensor({K_ONES + 1});
             TestEnvironment::queue()
                 .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
 
@@ -274,94 +360,104 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum(t, res);
             recording->run().value();
 
-            EXPECT_FLOAT_EQ(kHead + static_cast<float>(kOnes), scalar(res))
-                << "Naive summation returns " << kHead << " here, because every 1.0 falls "
-                   "below the ulp of the running total. Neumaier compensation is what "
-                   "recovers the tail.";
+            EXPECT_EQ(K_HEAD + static_cast<float>(K_ONES), scalar(res));
+        }
+
+        /** @brief Sums n copies of 0.1f at one size on each side of the CPU threshold. */
+        class Medium_ReductionTenths : public Medium_ReductionDeterminism,
+                                       public ::testing::WithParamInterface<int64_t>
+        {
+        };
+
+        /**
+         * @brief Tests that the compensated sum of repeated 0.1f is nearer the exact sum than naive float summation.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_P(Medium_ReductionTenths, CompensatedSumBeatsNaiveSummation)
+        {
+            const int64_t n = GetParam();
+            // 0.1f is 0.100000001490116..., and n copies of it sum to n times that.
+            const double exact = static_cast<double>(n) * static_cast<double>(0.1f);
+
+            const float got = compensated_sum_of_tenths(n);
+            const float naive = naive_sum_of_tenths(n);
+
+            EXPECT_LT(std::fabs(static_cast<double>(got) - exact),
+                      std::fabs(static_cast<double>(naive) - exact))
+                << "n = " << n << ": the compensated reduction produced " << got
+                << " but naive float summation produces " << naive
+                << ". Equal errors mean the compensation is not running.";
         }
 
         /**
-         * @brief Tests that the compensated sum of repeated 0.1f beats naive float summation.
+         * @brief Tests that the compensated sum of repeated 0.1f lands within the rounding bound of the exact sum.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_ReductionDeterminism, CompensatedSumBeatsNaiveSummationOnRepeatedTenths)
+        TEST_P(Medium_ReductionTenths, CompensatedSumLandsWithinTheRoundingBound)
         {
-            for (int64_t n : {K_SMALL, K_LARGE})
-            {
-                SCOPED_TRACE(is_two_stage(n) ? "two-stage shape" : "single-pass shape");
+            const int64_t n = GetParam();
+            const double exact = static_cast<double>(n) * static_cast<double>(0.1f);
 
-                auto t = filled(n, 0.1f);
-                auto res = engine->create_tensor({1});
-                SushiBLAS::ReductionOps(recorder()).sum(t, res);
-                recording->run().value();
-
-                // 0.1f is 0.100000001490116..., and n copies of it sum to n times that.
-                const double exact = static_cast<double>(n) * static_cast<double>(0.1f);
-
-                float naive = 0.0f;
-                for (int64_t i = 0; i < n; ++i)
-                    naive += 0.1f;
-
-                const double got_err = std::fabs(static_cast<double>(scalar(res)) - exact);
-                const double naive_err = std::fabs(static_cast<double>(naive) - exact);
-
-                EXPECT_LT(got_err, naive_err)
-                    << "n = " << n << ": the compensated reduction produced "
-                    << scalar(res) << " (error " << got_err << ") but naive float "
-                    << "summation produces " << naive << " (error " << naive_err
-                    << "). Equal errors mean the compensation is not running.";
-
-                // The result is within one ulp of the exact answer at this magnitude.
-                EXPECT_LT(got_err, exact * static_cast<double>(std::numeric_limits<float>::epsilon()))
-                    << "n = " << n << ": compensated summation should land within an ulp.";
-            }
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+                static_cast<double>(compensated_sum_of_tenths(n)), exact,
+                K_COMPENSATED_ROUNDINGS)));
         }
 
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReductionTenths, ::testing::Values(K_SMALL, K_LARGE));
+
         /**
-         * @brief Tests that the two-stage tree, called directly, agrees with the sequential pass.
+         * @brief Tests that the two-stage tree, called directly, is within the rounding bound of the exact sum.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_ReductionDeterminism, TwoStageTreeAgreesWithTheSequentialPass)
+        TEST_F(Medium_ReductionDeterminism, TheTwoStageTreeSumsWithinTheRoundingBound)
         {
-            constexpr std::size_t kN = 3000;   // not a multiple of any group width
-
             auto& q = TestEnvironment::queue();
-
-            auto in = engine->create_tensor({static_cast<int64_t>(kN)});
-            auto out_seq = engine->create_tensor({1});
+            const std::vector<float> host = graded_values();
+            auto in = engine->create_tensor({static_cast<int64_t>(K_TREE_COUNT)});
             auto out_tree = engine->create_tensor({1});
-
-            std::vector<float> host(kN);
-            for (std::size_t i = 0; i < kN; ++i)
-                host[i] = 0.1f + static_cast<float>(i % 31) * 0.031f;
             q.memcpy(in.data(), host.data(), host.size() * sizeof(float)).wait();
 
             // Scratch enough for the widest tree Reduce::plan can ask for.
-            auto scratch = engine->create_tensor(
-                {static_cast<int64_t>(Reduce::K_MAX_GROUPS)});
+            auto scratch = engine->create_tensor({static_cast<int64_t>(Reduce::K_MAX_GROUPS)});
 
             const auto identity = [](float x) { return x; };
             const auto keep = [](float v, [[maybe_unused]] std::size_t n) { return v; };
 
             Reduce::reduce<Reduce::CompensatedSum>(
-                q, in.data_as<float>(), out_seq.data_as<float>(), kN,
-                static_cast<float*>(nullptr), 0, identity, keep, {}).wait();
-
-            Reduce::reduce<Reduce::CompensatedSum>(
-                q, in.data_as<float>(), out_tree.data_as<float>(), kN,
+                q, in.data_as<float>(), out_tree.data_as<float>(), K_TREE_COUNT,
                 scratch.data_as<float>(), Reduce::K_MAX_GROUPS, identity, keep, {}).wait();
 
-            const double exact = [&]
-            {
-                double s = 0.0;
-                for (float v : host)
-                    s += static_cast<double>(v);
-                return s;
-            }();
+            // The values are positive, so the sum is its own magnitude.
+            const double exact = std::accumulate(host.begin(), host.end(), 0.0);
 
             // The two shapes sum in different orders. See tests/operations/reductions/README.md.
-            EXPECT_NEAR(static_cast<double>(scalar(out_tree)), exact, absolute_tolerance<float>(2, exact));
-            EXPECT_NEAR(static_cast<double>(scalar(out_seq)), exact, absolute_tolerance<float>(2, exact));
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<float>(
+                static_cast<double>(scalar(out_tree)), exact, exact, K_TREE_COUNT)));
+        }
+
+        /**
+         * @brief Tests that the sequential pass, called directly, is within the rounding bound of the exact sum.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_ReductionDeterminism, TheSequentialPassSumsWithinTheRoundingBound)
+        {
+            auto& q = TestEnvironment::queue();
+            const std::vector<float> host = graded_values();
+            auto in = engine->create_tensor({static_cast<int64_t>(K_TREE_COUNT)});
+            auto out_seq = engine->create_tensor({1});
+            q.memcpy(in.data(), host.data(), host.size() * sizeof(float)).wait();
+
+            const auto identity = [](float x) { return x; };
+            const auto keep = [](float v, [[maybe_unused]] std::size_t n) { return v; };
+
+            Reduce::reduce<Reduce::CompensatedSum>(
+                q, in.data_as<float>(), out_seq.data_as<float>(), K_TREE_COUNT,
+                static_cast<float*>(nullptr), 0, identity, keep, {}).wait();
+
+            const double exact = std::accumulate(host.begin(), host.end(), 0.0);
+
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_sum_error<float>(
+                static_cast<double>(scalar(out_seq)), exact, exact, K_TREE_COUNT)));
         }
 
     } // namespace Test

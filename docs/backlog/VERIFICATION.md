@@ -24,6 +24,8 @@
 | RW-149 | P3 | open | Let GraphProbe and the engine fixture record on an injected runtime, so tests run small | The index-ops recording and refusal tests that only read the recorded graph run Small_ with no process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-150 | P3 | open | Give the engine fixture a host tensor and host run, so the LogicOps tests run small | The 13 LogicOps tests under tests/operations/logic/test_logic run Small_ on host tensors with no device queue or process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-151 | P3 | open | Let RandomOps record on an in-memory task recorder, so its refusal tests run small | The truncated-normal, parameter, dtype and storage refusals of RandomOps run Small_ with no engine, device queue or process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
+| RW-152 | P3 | open | Pull the reduction refusals and empty-input rules into host functions to test them small | The axis, dtype, malformed, empty and partial-plan refusal tests of operations/reductions run Small_ on host functions; one Medium_ launch per family stays |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
+| RW-153 | P3 | open | Give ScratchPool a block source port with an in-memory adapter to test leases small | The ScratchBuffer lease, copy and return tests run Small_ on the in-memory block source; the thread and device-write tests stay Medium_ |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 

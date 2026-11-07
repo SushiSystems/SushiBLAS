@@ -36,10 +36,12 @@ Determinism for this seam is tested here and not in `test_reductions/test_reduct
 that file's helpers are built around a scalar result and this seam's answer is a vector. The
 property and the means are the same: `std::memcmp`, not a tolerance.
 
-The file holds three fixtures: the planner
-(`Medium_AxisReductionPlan`, a pure function that needs no device), the public operations over
-every dtype a reduction serves (`Medium_AxisReductionsTyped`), and layout, shape, rejection and
-the two kernels (`Medium_AxisReductions`).
+The file holds these suites: the planner (`Small_AxisReductionPlan` and `Small_AxisReductionWidth`,
+rows over a `Device::Profile` value that need no device), the public operations over every dtype a
+reduction serves (`Medium_AxisReductionsTyped`), layout, shape and the two kernels
+(`Medium_AxisReductions`), the refusals (`Medium_AxisReductionRefusal` and
+`Medium_AxisReductionDtype`, rows over the malformed operand and the dtype) and the byte stability
+of each kernel shape (`Medium_AxisReductionStability`).
 
 `K_ROW_MAJOR` holds small whole numbers on purpose. They are exact in HALF as well as in the
 wider types, so one expectation serves every dtype and a mismatch is a real disagreement, not a
@@ -54,59 +56,61 @@ rounding difference.
   col sum  3  -5   0  -7
 ```
 
-`EnoughSegmentsTakesOneItemPerSegment`: one item per segment is the cheap shape whenever there
-is already enough work to go round. It needs no local memory and no barriers, and its fold
-order is trivially fixed.
+`TheShapeFollowsTheSegmentGeometry` is one row per geometry. An enough-segments row takes one
+item per segment, the cheap shape whenever there is already enough work to go round: it needs no
+local memory and no barriers, and its fold order is trivially fixed. A few-long-segments row has
+too few segments to fill the machine and segments long enough to be worth a work-group, the only
+case where the tree earns its barriers. A few-short-segments row at one short of the group width
+declines the tree, since a group whose segment is shorter than the group is mostly idle lanes
+paying log2(local) pairs of barriers; the row at the group width takes it. The empty rows, a zero
+extent and a zero segment count, must not select a shape that would launch `segments * local`
+work-items over nothing, or divide by a zero extent.
+`ACooperativePlanTakesTheGroupWidthOfItsDevice` holds that a cooperative plan uses the whole
+group width of a CPU and of a GPU profile.
 
-`FewLongSegmentsTakeAWorkGroupEach`: too few segments to fill the machine, and segments long
-enough to be worth a work-group, is the only case where the tree earns its barriers.
-
-`FewShortSegmentsStillTakeOneItemPerSegment`: a group whose segment is shorter than the group
-is mostly idle lanes paying log2(local) pairs of barriers, so the tree is declined below one
-full pass.
-
-`EmptySpansTakeTheCheapShape`: a degenerate span must not select a shape that would launch
-`segments * local` work-items over nothing, or divide by a zero extent.
-
-`ColumnMajorOperandsFoldTheSameAxes`: the axis is a question about the matrix, not about memory
-order, so the same logical matrix must reduce to the same vectors under either layout. The
-kernel never learns which layout it is on. `Tensor::strides` already carries it, and
+`ColumnMajorOperandsFoldTheRowsOfTheSameMatrix` and
+`ColumnMajorOperandsFoldTheColumnsOfTheSameMatrix`: the axis is a question about the matrix, not
+about memory order, so the same logical matrix must reduce to the same vectors under either
+layout. The kernel never learns which layout it is on. `Tensor::strides` already carries it, and
 `axis_span_for` turns the pair into a stride pair.
 
 `AViewAtANonZeroOffsetReducesItsOwnElements`: every address the kernel forms is
 `data() + s * segment_stride + k * element_stride`, and `data()` already carries the offset, so
 this checks that the offset was not dropped on the way through the seam.
 
-`AxisReductionsOrderAgainstViewsOfOneAllocation` is the bare-pointer hazard described under
-"Views at a non-zero offset", on this seam.
+`AxisReductionsOverViewsOfOneAllocationSeeTheirWriter` checks the value and
+`AnAxisReductionIsOrderedBehindTheOpThatWroteItsInput` checks the recorded dependency; together
+they are the bare-pointer hazard described under "Views at a non-zero offset", on this seam.
 `Medium_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation` pins it for the whole-tensor
 seam.
 
-`NonRealDtypesAreRefusedByName`: a fold needs an ordering and an identity, which `std::complex`
-does not have, and an integer tensor is not an arithmetic type in this library. It is the same
-`Domain::Real` rule the whole-tensor reductions carry.
+`MaxAlongAndSumAlongRefuseItByName`, one row per dtype: a fold needs an ordering and an
+identity, which `std::complex` does not have, and an integer tensor is not an arithmetic type in
+this library. It is the same `Domain::Real` rule the whole-tensor reductions carry.
+`MaxAlongRefusesItAtRecordTime`, `MinAlongRefusesItAtRecordTime` and
+`SumAlongRefusesItAtRecordTime` run one row per malformed pair of operands.
 
 `TheCooperativeTreeAgreesWithTheItemPerSegmentFold`: `plan_axis` picks one shape per input, so
 on any single machine the public operations only ever reach one of the two kernels for a given
 size. The test drives both directly, over one input, at a size the planner would never send to
-the cooperative kernel. That is the only way the work-group tree gets exercised on a machine
+the cooperative kernel, and holds each sum to `n * u * sum|x|` of the sum in double. That is the only way the work-group tree gets exercised on a machine
 with no GPU. The extent is deliberately not a multiple of any work-group width, so the tree's
 trailing lanes fold fewer elements than the leading ones, and the lanes past the extent fold
 none and contribute the identity. The two results are not bit-equal to each other, because they
 add in different orders; that is the point of having two shapes. Both must be right, and both
-must be stable run to run, which `BothShapesAreBitwiseStable` asserts.
+must be stable run to run, which `AShapeIsBitwiseStable` asserts.
 
-`BothShapesFindTheSamePerSegmentMaximum`: the per-segment answers differ from the whole-tensor
-answer by a lot. `max` is exactly associative, so the two shapes must agree to the bit here and
-not merely to a tolerance. Segment `s` peaks at `100 * s + 1`, at a position that moves with
+`TheItemPerSegmentShapeFindsTheSegmentMaximum` and `TheWorkGroupTreeFindsTheSegmentMaximum`: the
+per-segment answers differ from the whole-tensor answer by a lot. `max` is exactly associative,
+so the two shapes must give the expected values to the bit here and not merely to a tolerance. Segment `s` peaks at `100 * s + 1`, at a position that moves with
 `s`, so no shape can be right by reading a fixed lane.
 
 `RowSumsAreCompensated`: each row is one large head followed by 4096 ones. In float, 1e8 has an
 ulp of 8, so `1e8 + 1` rounds straight back to 1e8 and an uncompensated serial fold returns
 exactly 1e8, short by the entire tail. 100004096 is a multiple of 8 and therefore exactly
-representable, so the test asserts that value with `EXPECT_FLOAT_EQ`, which allows four ulps.
+representable, so the test asserts that value with equality.
 
-`BothShapesAreBitwiseStable`: the guarantee SushiBLAS inherits from
+`AShapeIsBitwiseStable`: the guarantee SushiBLAS inherits from
 `sushiruntime_deterministic_fp` is byte equality for the same binary on the same device, so the
 test compares bytes. A tolerance-based check cannot tell that apart from "close enough", which
 is the whole distinction under test. It runs at both shapes by driving the kernel directly, for
@@ -115,11 +119,10 @@ trivial and the case vacuous, so the input has to reduce to a number first.
 
 `ARowWiseShiftSurvivesAGapThatDestroysAGlobalOne` is the numerical property the axis reduction
 was added for: a log-sum-exp shifted by each row's own maximum survives a gap between a row and
-the batch maximum that destroys the globally shifted form. Both spellings are computed from the
-same logits, so the comparison does not appeal to a remembered number. Every row is three equal
-values, whose log-softmax is exactly -ln(3) for any offset, which makes the expectation
-hand-computable and independent of the offset under test. The second half of the test shifts by
-the global maximum, which is all the library offered before this seam existed.
+the batch maximum that destroys the globally shifted form. Every row is three equal values, whose
+sum of shifted exponentials is exactly 3 for any offset, which makes the expectation
+hand-computable and independent of the offset under test. The library makes no promise about the
+globally shifted form, so the test does not assert its underflow.
 
 ## test_reductions/test_count_nonfinite.cpp
 
@@ -138,31 +141,27 @@ implementation that returned a positive number unconditionally would pass every 
 
 The last index has its own case. A fold whose loop bound is off by one drops exactly the final
 element and is otherwise perfect, so the bad element is planted at index 0, at the middle and
-at n-1 in turn. This runs at a size above `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`, where the
+at n-1, one test each. This runs at a size above `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`, where the
 two-stage kernel with its grid-strided walk and halving tree is the one running.
 
 `EveryBadElementIsCounted`: the answer is a count and not a flag. Several bad elements of both
 kinds, spread across the tensor, must add up. This distinguishes the operation from a
 saturating "any" and is the extra information the INT64 result buys.
 
-`BothLaunchShapesGiveTheSameCount` runs the same content at a size on each side of the CPU's
-crossover from the single pass to the two-stage kernel. Both shapes must give the same count,
-which is what lets the threshold be a pure performance choice. The local is named `below` and
+`TheSinglePassShapeCountsBothBadEnds` and `TheTwoStageShapeCountsBothBadEnds` run the same
+content at a size on each side of the CPU's crossover from the single pass to the two-stage
+kernel. Both shapes must give the same count, which is what lets the threshold be a pure
+performance choice. The local is named `below` and
 not `small` because `<rpcndr.h>`, which reaches this translation unit through the Windows
 headers, defines `small` as a macro for `char`.
 
-`AsumReportsOverflowOnAHalfTensorThisOpCallsClean` decides whether this operation needed to
-exist. `asum` would nearly have served: a sum of magnitudes is non-finite whenever any element
-is, and a caller could have written `isfinite(asum(g))`. The test runs both operations on one
-tensor of eight finite fp16 values, and they disagree. The tensor is clean, and `asum` says it
-is not, because it stores its total in a HALF result and 8 x 20000 leaves binary16's range
-long before any element does. It is a measurement, not an assertion of intent. In a
-loss-scaling loop that disagreement halves the scale on a step that never overflowed, and does
-it again on the next step, for ever; the mechanism meant to rescue a mixed-precision run would
-be what stalls it. The test asserts nothing about which value `asum` returns, only that it is
-not finite.
+`LargeFiniteValuesCountZero` holds that eight finite values of 20000, which binary16 represents
+exactly, count zero. The values are chosen because their sum leaves binary16's range long before
+any element does, so a screen built on a sum of magnitudes would call the tensor non-finite. In a
+loss-scaling loop that wrong answer halves the scale on a step that never overflowed, and does it
+again on the next step, for ever.
 
-`NonRealInputDTypesAreRefusedByName`: an integer element cannot be infinite or NaN, so "0"
+`NonRealInputIsRefusedByName`, one row per dtype: an integer element cannot be infinite or NaN, so "0"
 would be true and useless. It would tell a caller who handed over the wrong tensor that the
 right one was screened.
 
@@ -180,17 +179,17 @@ library. A differential oracle against `sum_along` over a reshaped view would ag
 
 `FoldsTheTwoMiddleAxesOfAnNhwcTensor` is the shape the second segment axis exists for: one
 result per (n, c), whose input offset is `n * H*W*C + c` and which no single segment stride
-reaches.
+reaches. Each mean is held to `u * sum|x|` of the mean in double.
 
 `ASingleSegmentPairIsStillCorrect`: N = 1 and C = 1 collapses both segment counts to one, the
 case a generalisation most easily breaks. A stride that is never multiplied by anything but
 zero is a stride nothing checks.
 
-`ALongExtentReachesTheCooperativeShape`: one fold of 262144 elements is too few segments to
-fill the machine and a segment far longer than a work-group, so `plan_axis` takes the
-cooperative shape. Both shapes compute their segment's base address, and both had that
-computation changed, so covering only the item-per-segment shape would leave half the change
-untested.
+`ALongExtentTakesTheCooperativeShape` and `TheMeanOfALongExtentIsCorrect`: one fold of 262144
+elements is too few segments to fill the machine and a segment far longer than a work-group, so
+`plan_axis` takes the cooperative shape, which the first test asserts on the test device. Both
+shapes compute their segment's base address, and both had that computation changed, so covering
+only the item-per-segment shape would leave half the change untested.
 
 ## test_reductions/test_reduction_determinism.cpp
 
@@ -220,35 +219,38 @@ nothing. The multiplicative values sit just either side of 1.0 with a zero-mean 
 their period, so the product stays finite and non-zero at every size used and the ordering is
 observable in it.
 
-`BothShapesAreReachedHere` guards the file's own premise. If a retune ever moved the CPU
-threshold past `K_LARGE`, every case would silently test the sequential path twice and the
-parallel one never, and still pass.
+`ACPUTakesTheSinglePassAtTheSmallSize` and `ACPUTakesTheTwoStageTreeAtTheLargeSize` guard the
+file's own premise on a CPU profile, and `TheLargeSizeReachesTheTwoStageShapeHere` and
+`TheMomentsSizeReachesTheTwoStageShapeHere` guard it on the test device. If a retune ever moved
+the CPU threshold past `K_LARGE`, every case would silently test the sequential path twice and
+the parallel one never, and still pass.
 
 `CompensatedSumRecoversASmallTailUnderALargeHead` shows the accuracy Neumaier compensation buys
 on an input built to lose it: one large magnitude followed by many small ones. In `float`, 1e8
 has an ulp of 8, so `1e8 + 1` rounds straight back to 1e8 and a naive running sum discards
 every one of the 4096 ones that follow. It returns exactly 1e8, off by the entire tail. The
 compensation term holds what each addition dropped and gives back 100004096, which is exactly
-representable because it is a multiple of 8, so the test asserts that value with
-`EXPECT_FLOAT_EQ`. The gap between right and wrong is 4096, not an ulp, so the test cannot pass
-by accident. It was verified to fail without the compensation by removing it: the result came
+representable because it is a multiple of 8, so the test asserts that value with equality. The
+gap between right and wrong is 4096, not an ulp, so the test cannot pass by accident. It was verified to fail without the compensation by removing it: the result came
 back as 1e8.
 
-`CompensatedSumBeatsNaiveSummationOnRepeatedTenths` checks the same property on a long run of
-0.1f, a value with no exact binary representation, so every addition rounds. The test pins no
-constant. It computes the exact answer (in double, over the float values stored) and what a
-naive float pass would produce, and asserts the device beat the naive one. On the single-pass
-shape the device kernel adds the same values in the same order as `naive`, so without the
-compensation the two are bit-identical and `EXPECT_LT` fails outright.
+`CompensatedSumBeatsNaiveSummation` and `CompensatedSumLandsWithinTheRoundingBound` check the same
+property on a long run of 0.1f, a value with no exact binary representation, so every addition
+rounds. The tests pin no constant. They compute the exact answer (in double, over the float
+values stored) and what a naive float pass would produce, and assert the device beat the naive
+one and lands within the derived rounding bound of the exact sum. On the single-pass shape the
+device kernel adds the same values in the same order as `naive`, so without the compensation the
+two are bit-identical and `EXPECT_LT` fails outright.
 
-`TwoStageTreeAgreesWithTheSequentialPass`: `Reduce::reduce` picks its shape from the device, so
+`TheTwoStageTreeSumsWithinTheRoundingBound` and `TheSequentialPassSumsWithinTheRoundingBound`:
+`Reduce::reduce` picks its shape from the device, so
 on the machine these were written on the public `ReductionOps::sum` path only reaches the
 two-stage kernel above 16K elements and the sequential one below. The test calls both at the
 same small size, by handing the two-stage path a scratch buffer it would not otherwise get, so
 the work-group tree is checked against an answer that does not depend on it. The tree is the
 part a CPU under-exercises: on a GPU it is the only path there is, and this project has no GPU
 to run it on. The two results are not bit-equal, because they sum in different orders, but both
-must be right and both must be stable run to run.
+must be within the rounding bound of the exact sum.
 
 ## test_reductions/test_reductions.cpp
 

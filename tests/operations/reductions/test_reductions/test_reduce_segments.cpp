@@ -28,6 +28,7 @@
  */
 
 #include <array>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -361,6 +362,64 @@ namespace SushiBLAS
                         << ", the host fold in lane order gives " << static_cast<double>(want);
                 }
             }
+
+            /** @brief Returns the sum of each ramp segment over extent terms. */
+            [[nodiscard]] std::vector<std::int64_t> ramp_sums(std::size_t extent)
+            {
+                std::vector<std::int64_t> sums(K_RAMP_SEGMENTS);
+                for (std::size_t s = 0; s < K_RAMP_SEGMENTS; ++s)
+                    sums[s] = ramp_sum(s, extent);
+                return sums;
+            }
+
+            /** @brief Holds the two trees a lane partial can be joined by, as FLOAT32 sums of one segment. */
+            struct LaneTrees
+            {
+                float strided;  /**< The lanes joined as (0 + 2) + (1 + 3). */
+                float adjacent; /**< The lanes joined as (0 + 1) + (2 + 3). */
+            };
+
+            /** @brief Returns both lane trees of segment s of the order-sensitive pattern. */
+            [[nodiscard]] LaneTrees lane_trees(std::size_t s)
+            {
+                using Sum = Reduce::CompensatedSum<float>;
+
+                std::array<Sum, K_PATTERN_LANES> lanes{};
+                for (std::size_t k = 0; k < K_PATTERN_EXTENT; ++k)
+                    lanes[k % K_PATTERN_LANES].accumulate(order_sensitive_term(s + k));
+
+                return LaneTrees{
+                    Sum::combine(Sum::combine(lanes[0].value(), lanes[2].value()),
+                                 Sum::combine(lanes[1].value(), lanes[3].value())),
+                    Sum::combine(Sum::combine(lanes[0].value(), lanes[1].value()),
+                                 Sum::combine(lanes[2].value(), lanes[3].value()))};
+            }
+
+            /** @brief Returns the sum of every segment of the order-sensitive pattern in the work-group order. */
+            [[nodiscard]] std::vector<float> lane_order_sums()
+            {
+                std::vector<float> sums(K_PATTERN_SEGMENTS);
+                for (std::size_t s = 0; s < K_PATTERN_SEGMENTS; ++s)
+                    sums[s] = lane_trees(s).strided;
+                return sums;
+            }
+
+            /** @brief Expects each ramp segment's record to show one call, its own index and its own sum. */
+            void expect_each_segment_stored_once(const SharedVector<StoreRecord>& records)
+            {
+                for (std::size_t s = 0; s < K_RAMP_SEGMENTS; ++s)
+                {
+                    EXPECT_EQ(records[s].calls, 1) << "segment " << s;
+                    EXPECT_EQ(records[s].segment, static_cast<std::int64_t>(s));
+                    EXPECT_EQ(records[s].value, ramp_sum(s, K_COUNTED_EXTENT)) << "segment " << s;
+                }
+            }
+
+            /** @brief Names a launch shape by its lane count, as a gtest suffix. */
+            [[nodiscard]] std::string lane_label(std::size_t lanes)
+            {
+                return lanes == 1 ? "ItemPerSegment" : "WorkGroupTree";
+            }
         } // namespace
 
         /** @brief Runs the segmented fold on the test queue and on the fixture's engine. */
@@ -374,32 +433,98 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that both launch shapes fold every term of every segment once, for extents around the lane count and for none. */
-        TEST_F(Medium_ReduceSegments, BothShapesFoldEverySegmentOnce)
+        /** @brief Runs a case that needs the fp64 aspect, and skips it on a device without it. */
+        class Medium_ReduceSegmentsFp64 : public Medium_ReduceSegments
         {
+            protected:
+                /** @brief Skips the test when the device does not report the fp64 aspect. */
+                void SetUp() override
+                {
+                    Medium_ReduceSegments::SetUp();
+                    if (!queue().get_device().has(sycl::aspect::fp64))
+                        GTEST_SKIP() << "the device does not report the fp64 aspect";
+                }
+        };
+
+        /** @brief Runs a case that needs the fp16 aspect, and skips it on a device without it. */
+        class Medium_ReduceSegmentsFp16 : public Medium_ReduceSegments
+        {
+            protected:
+                /** @brief Skips the test when the device does not report the fp16 aspect. */
+                void SetUp() override
+                {
+                    Medium_ReduceSegments::SetUp();
+                    if (!queue().get_device().has(sycl::aspect::fp16))
+                        GTEST_SKIP() << "the device does not report the fp16 aspect";
+                }
+        };
+
+        /** @brief Names a row by its description, which gtest takes as the test's suffix. */
+        template<typename Row>
+        static std::string row_name(const ::testing::TestParamInfo<Row>& info)
+        {
+            return info.param.name;
+        }
+
+        /** @brief One launch shape over one extent of the ramp. */
+        struct FoldRow
+        {
+            std::string name;
+            std::size_t lanes;
+            std::size_t extent;
+        };
+
+        /** @brief Returns both launch shapes over every extent around the lane count and none. */
+        static std::vector<FoldRow> fold_rows()
+        {
+            std::vector<FoldRow> rows;
+            for (const std::size_t lanes : K_LANE_COUNTS)
+                for (const std::size_t extent : K_RAMP_EXTENTS)
+                    rows.push_back({lane_label(lanes) + "Over" + std::to_string(extent) + "Terms",
+                                    lanes, extent});
+            return rows;
+        }
+
+        /** @brief Folds the ramp in one launch shape. */
+        class Medium_ReduceSegmentsFold : public Medium_ReduceSegments,
+                                          public ::testing::WithParamInterface<FoldRow>
+        {
+        };
+
+        /** @brief Tests that a launch shape folds every term of every segment once, for extents around the lane count and for none. */
+        TEST_P(Medium_ReduceSegmentsFold, EveryTermOfEverySegmentIsFoldedOnce)
+        {
+            const FoldRow& row = GetParam();
             sycl::queue& q = queue();
             SharedVector<std::int64_t> sums = shared_vector<std::int64_t>(q, K_RAMP_SEGMENTS);
+            std::fill(sums.begin(), sums.end(), K_UNWRITTEN);
 
-            for (const std::size_t lanes : K_LANE_COUNTS)
-            {
-                SCOPED_TRACE(shape_name(lanes));
+            Reduce::reduce_segments<Reduce::ExactSum, std::int64_t>(
+                q, K_RAMP_SEGMENTS, row.extent, Reduce::AxisPlan{row.lanes}, RampOpen{},
+                IndexedStore<std::int64_t>(sums.data()), {}).wait();
 
-                for (const std::size_t extent : K_RAMP_EXTENTS)
-                {
-                    std::fill(sums.begin(), sums.end(), K_UNWRITTEN);
-
-                    Reduce::reduce_segments<Reduce::ExactSum, std::int64_t>(
-                        q, K_RAMP_SEGMENTS, extent, Reduce::AxisPlan{lanes}, RampOpen{},
-                        IndexedStore<std::int64_t>(sums.data()), {}).wait();
-
-                    for (std::size_t s = 0; s < K_RAMP_SEGMENTS; ++s)
-                    {
-                        EXPECT_EQ(sums[s], ramp_sum(s, extent))
-                            << "segment " << s << " over " << extent << " terms";
-                    }
-                }
-            }
+            EXPECT_EQ(std::vector<std::int64_t>(sums.begin(), sums.end()), ramp_sums(row.extent));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReduceSegmentsFold, ::testing::ValuesIn(fold_rows()),
+                                 row_name<FoldRow>);
+
+        /** @brief Runs the host-only check of the order-sensitive pattern, one segment per row. */
+        class Small_ReduceSegmentsPattern : public ::testing::TestWithParam<std::size_t>
+        {
+        };
+
+        /** @brief Tests that the pattern sums differently in the two lane trees, so the order is observable. */
+        TEST_P(Small_ReduceSegmentsPattern, TheTwoLaneTreesSumTheSegmentDifferently)
+        {
+            const LaneTrees trees = lane_trees(GetParam());
+
+            EXPECT_FALSE(same_bits(trees.strided, trees.adjacent))
+                << "both trees give " << trees.strided;
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ReduceSegmentsPattern,
+                                 ::testing::Range(std::size_t{0}, K_PATTERN_SEGMENTS));
 
         /**
          * @brief Tests that the work-group shape folds lane `k % 4` in ascending k and joins the lanes as `(0 + 2) + (1 + 3)`.
@@ -407,8 +532,6 @@ namespace SushiBLAS
          */
         TEST_F(Medium_ReduceSegments, TheCooperativeShapeFoldsInLaneOrder)
         {
-            using Sum = Reduce::CompensatedSum<float>;
-
             sycl::queue& q = queue();
             SharedVector<float> sums = shared_vector<float>(q, K_PATTERN_SEGMENTS);
 
@@ -416,100 +539,122 @@ namespace SushiBLAS
                 q, K_PATTERN_SEGMENTS, K_PATTERN_EXTENT, Reduce::AxisPlan{K_PATTERN_LANES},
                 PatternOpen{}, IndexedStore<float>(sums.data()), {}).wait();
 
-            for (std::size_t s = 0; s < K_PATTERN_SEGMENTS; ++s)
-            {
-                std::array<Sum, K_PATTERN_LANES> lanes{};
-                for (std::size_t k = 0; k < K_PATTERN_EXTENT; ++k)
-                    lanes[k % K_PATTERN_LANES].accumulate(order_sensitive_term(s + k));
-
-                const float strided = Sum::combine(
-                    Sum::combine(lanes[0].value(), lanes[2].value()),
-                    Sum::combine(lanes[1].value(), lanes[3].value()));
-                const float adjacent = Sum::combine(
-                    Sum::combine(lanes[0].value(), lanes[1].value()),
-                    Sum::combine(lanes[2].value(), lanes[3].value()));
-
-                // A pattern both trees sum alike proves no order. See the test README.
-                ASSERT_FALSE(same_bits(strided, adjacent))
-                    << "segment " << s << ": both trees give " << strided;
-
-                EXPECT_TRUE(same_bits(sums[s], strided))
-                    << "segment " << s << " is " << sums[s] << ", the lane order gives "
-                    << strided;
-            }
+            EXPECT_EQ(std::vector<float>(sums.begin(), sums.end()), lane_order_sums());
         }
 
-        /** @brief Tests that reduce_axis writes the bits of a host fold in lane order for FLOAT32 and FLOAT64, in both shapes, with one segment axis and with two. */
-        TEST_F(Medium_ReduceSegments, ReduceAxisKeepsItsFloatBits)
+        /** @brief One segment-axis count and one launch shape of the axis fold. */
+        struct AxisRow
         {
-            sycl::queue& q = queue();
+            std::string name;
+            std::size_t groups;
+            std::size_t lanes;
+        };
 
+        /** @brief Returns one and two segment axes in both launch shapes. */
+        static std::vector<AxisRow> axis_rows()
+        {
+            std::vector<AxisRow> rows;
             for (const std::size_t groups : K_AXIS_GROUP_COUNTS)
-            {
                 for (const std::size_t lanes : K_LANE_COUNTS)
-                    expect_axis_sums_in_lane_order<float>(q, groups, lanes);
-            }
-
-            if (!q.get_device().has(sycl::aspect::fp64))
-                GTEST_SKIP() << "FLOAT32 was compared; the device does not report the fp64 "
-                                "aspect, so FLOAT64 was not";
-
-            for (const std::size_t groups : K_AXIS_GROUP_COUNTS)
-            {
-                for (const std::size_t lanes : K_LANE_COUNTS)
-                    expect_axis_sums_in_lane_order<double>(q, groups, lanes);
-            }
+                    rows.push_back({std::to_string(groups) + "SegmentAxesIn" + lane_label(lanes),
+                                    groups, lanes});
+            return rows;
         }
+
+        /** @brief Folds a FLOAT32 axis in one launch shape. */
+        class Medium_ReduceAxisFloat32 : public Medium_ReduceSegments,
+                                         public ::testing::WithParamInterface<AxisRow>
+        {
+        };
+
+        /** @brief Tests that reduce_axis writes the bits of a host fold in lane order for FLOAT32. */
+        TEST_P(Medium_ReduceAxisFloat32, ReduceAxisKeepsItsFloatBits)
+        {
+            expect_axis_sums_in_lane_order<float>(queue(), GetParam().groups, GetParam().lanes);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReduceAxisFloat32, ::testing::ValuesIn(axis_rows()),
+                                 row_name<AxisRow>);
+
+        /** @brief Folds a FLOAT64 axis in one launch shape. */
+        class Medium_ReduceAxisFloat64 : public Medium_ReduceSegmentsFp64,
+                                         public ::testing::WithParamInterface<AxisRow>
+        {
+        };
+
+        /** @brief Tests that reduce_axis writes the bits of a host fold in lane order for FLOAT64. */
+        TEST_P(Medium_ReduceAxisFloat64, ReduceAxisKeepsItsFloatBits)
+        {
+            expect_axis_sums_in_lane_order<double>(queue(), GetParam().groups, GetParam().lanes);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReduceAxisFloat64, ::testing::ValuesIn(axis_rows()),
+                                 row_name<AxisRow>);
+
+        /** @brief One launch shape. */
+        struct LaneRow
+        {
+            std::string name;
+            std::size_t lanes;
+        };
+
+        /** @brief Returns both launch shapes. */
+        static std::vector<LaneRow> lane_rows()
+        {
+            std::vector<LaneRow> rows;
+            for (const std::size_t lanes : K_LANE_COUNTS)
+                rows.push_back({lane_label(lanes), lanes});
+            return rows;
+        }
+
+        /** @brief Folds a HALF axis in one launch shape. */
+        class Medium_ReduceSegmentsHalf : public Medium_ReduceSegmentsFp16,
+                                          public ::testing::WithParamInterface<LaneRow>
+        {
+        };
 
         /**
-         * @brief Tests that a HALF segment holding `60000, 60000, -60000` in one lane reduces to 60000 in both shapes.
+         * @brief Tests that a HALF segment holding `60000, 60000, -60000` in one lane reduces to 60000 in a launch shape.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_ReduceSegments, AHalfAxisSumIsFoldedInFloat)
+        TEST_P(Medium_ReduceSegmentsHalf, AHalfAxisSumIsFoldedInFloat)
         {
             sycl::queue& q = queue();
-            if (!q.get_device().has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
-
+            const std::size_t lanes = GetParam().lanes;
             const sycl::half want(K_HALF_LARGE);
 
-            for (const std::size_t lanes : K_LANE_COUNTS)
-            {
-                SCOPED_TRACE(shape_name(lanes));
+            // The three values sit lanes elements apart, so lane 0 folds all three in order.
+            const std::size_t extent = 2 * lanes + 1;
+            SharedVector<sycl::half> row = shared_vector<sycl::half>(q, extent);
+            row[0] = sycl::half(K_HALF_LARGE);
+            row[lanes] = sycl::half(K_HALF_LARGE);
+            row[2 * lanes] = sycl::half(-K_HALF_LARGE);
 
-                // The three values sit lanes elements apart, so lane 0 folds all three in order.
-                const std::size_t extent = 2 * lanes + 1;
-                SharedVector<sycl::half> row = shared_vector<sycl::half>(q, extent);
-                row[0] = sycl::half(K_HALF_LARGE);
-                row[lanes] = sycl::half(K_HALF_LARGE);
-                row[2 * lanes] = sycl::half(-K_HALF_LARGE);
+            SharedVector<sycl::half> sum = shared_vector<sycl::half>(q, 1);
 
-                SharedVector<sycl::half> sum = shared_vector<sycl::half>(q, 1);
+            Reduce::AxisSpan span;
+            span.segments = 1;
+            span.extent = extent;
+            span.segment_stride = extent;
 
-                Reduce::AxisSpan span;
-                span.segments = 1;
-                span.extent = extent;
-                span.segment_stride = extent;
+            const sycl::half* in = row.data();
+            Reduce::reduce_axis<Reduce::CompensatedSum>(
+                q, in, sum.data(), span, Reduce::AxisPlan{lanes},
+                [](sycl::half x) { return x; },
+                [](float value, std::size_t) { return value; },
+                {}).wait();
 
-                const sycl::half* in = row.data();
-                Reduce::reduce_axis<Reduce::CompensatedSum>(
-                    q, in, sum.data(), span, Reduce::AxisPlan{lanes},
-                    [](sycl::half x) { return x; },
-                    [](float value, std::size_t) { return value; },
-                    {}).wait();
-
-                EXPECT_TRUE(same_bits(sum[0], want))
-                    << "the sum is " << static_cast<float>(sum[0])
-                    << "; a fold in HALF passes through an infinity";
-            }
+            EXPECT_TRUE(same_bits(sum[0], want))
+                << "the sum is " << static_cast<float>(sum[0])
+                << "; a fold in HALF passes through an infinity";
         }
 
-        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSYCL, though each channel sums to 128 000. */
-        TEST_F(Medium_ReduceSegments, AHalfMeanSpatialDoesNotOverflow)
-        {
-            if (!queue().get_device().has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReduceSegmentsHalf, ::testing::ValuesIn(lane_rows()),
+                                 row_name<LaneRow>);
 
+        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSYCL, though each channel sums to 128 000. */
+        TEST_F(Medium_ReduceSegmentsFp16, AHalfMeanSpatialDoesNotOverflow)
+        {
             set_mode(ExecutionMode::ForceSYCL);
 
             Tensor map = engine->create_tensor({1, K_MAP_SIDE, K_MAP_SIDE, K_MAP_CHANNELS},
@@ -521,43 +666,35 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).mean_spatial(map, means);
             recording->run().value();
 
-            const std::vector<sycl::half> got = read_tensor<sycl::half>(means);
-            ASSERT_EQ(got.size(), static_cast<std::size_t>(K_MAP_CHANNELS));
-
-            const sycl::half want(K_MAP_VALUE);
-            for (std::size_t c = 0; c < got.size(); ++c)
-            {
-                EXPECT_TRUE(same_bits(got[c], want))
-                    << "the mean of channel " << c << " is " << static_cast<float>(got[c]);
-            }
+            EXPECT_EQ(read_tensor<sycl::half>(means),
+                      std::vector<sycl::half>(static_cast<std::size_t>(K_MAP_CHANNELS),
+                                              sycl::half(K_MAP_VALUE)));
         }
 
-        /** @brief Tests that both launch shapes call the store once for each segment index, with that segment's value, and for no other index. */
-        TEST_F(Medium_ReduceSegments, AStoreSeesItsOwnSegmentOnly)
+        /** @brief Counts the calls the store of one launch shape receives. */
+        class Medium_ReduceSegmentsStore : public Medium_ReduceSegments,
+                                           public ::testing::WithParamInterface<LaneRow>
+        {
+        };
+
+        /** @brief Tests that a launch shape calls the store once for each segment index, with that segment's value, and for no other index. */
+        TEST_P(Medium_ReduceSegmentsStore, AStoreSeesItsOwnSegmentOnly)
         {
             sycl::queue& q = queue();
             SharedVector<StoreRecord> records = shared_vector<StoreRecord>(q, K_RAMP_SEGMENTS + 1);
+            std::fill(records.begin(), records.end(), StoreRecord{});
 
-            for (const std::size_t lanes : K_LANE_COUNTS)
-            {
-                SCOPED_TRACE(shape_name(lanes));
-                std::fill(records.begin(), records.end(), StoreRecord{});
+            Reduce::reduce_segments<Reduce::ExactSum, std::int64_t>(
+                q, K_RAMP_SEGMENTS, K_COUNTED_EXTENT, Reduce::AxisPlan{GetParam().lanes},
+                RampOpen{}, CountingStore(records.data(), K_RAMP_SEGMENTS), {}).wait();
 
-                Reduce::reduce_segments<Reduce::ExactSum, std::int64_t>(
-                    q, K_RAMP_SEGMENTS, K_COUNTED_EXTENT, Reduce::AxisPlan{lanes}, RampOpen{},
-                    CountingStore(records.data(), K_RAMP_SEGMENTS), {}).wait();
-
-                for (std::size_t s = 0; s < K_RAMP_SEGMENTS; ++s)
-                {
-                    EXPECT_EQ(records[s].calls, 1) << "segment " << s;
-                    EXPECT_EQ(records[s].segment, static_cast<std::int64_t>(s));
-                    EXPECT_EQ(records[s].value, ramp_sum(s, K_COUNTED_EXTENT)) << "segment " << s;
-                }
-
-                EXPECT_EQ(records[K_RAMP_SEGMENTS].calls, 0)
-                    << "the store was called with an index past the last segment";
-            }
+            expect_each_segment_stored_once(records);
+            EXPECT_EQ(records[K_RAMP_SEGMENTS].calls, 0)
+                << "the store was called with an index past the last segment";
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_ReduceSegmentsStore, ::testing::ValuesIn(lane_rows()),
+                                 row_name<LaneRow>);
 
     } // namespace Test
 } // namespace SushiBLAS

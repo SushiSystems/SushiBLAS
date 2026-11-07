@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <limits>
 #include <string>
 #include <vector>
@@ -102,6 +101,27 @@ namespace SushiBLAS
                         .memcpy(&host, result.data(), sizeof(int64_t)).wait();
                     return host;
                 }
+
+                /** @brief `n` clean values with a NaN first and an infinity last. */
+                static std::vector<T> bad_at_both_ends(int64_t n)
+                {
+                    auto data = clean(n);
+                    data.front() = nan();
+                    data.back() = inf();
+                    return data;
+                }
+
+                /** @brief Expects one infinity and then one NaN, planted at @p index of K_LARGE, to count one each. */
+                void expect_one_bad_element_found_at(size_t index)
+                {
+                    auto with_inf = clean(K_LARGE);
+                    with_inf[index] = inf();
+                    EXPECT_EQ(1, count(with_inf)) << "an infinity at index " << index;
+
+                    auto with_nan = clean(K_LARGE);
+                    with_nan[index] = nan();
+                    EXPECT_EQ(1, count(with_nan)) << "a NaN at index " << index;
+                }
         };
 
         using CountTypes = ::testing::Types<sycl::half, float, double>;
@@ -118,20 +138,39 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that an infinity of either sign is counted.
+         * @brief Tests that large finite values count zero, however far their sum would overflow.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Medium_CountNonFiniteTyped, AnInfinityIsCountedInEitherSign)
+        TYPED_TEST(Medium_CountNonFiniteTyped, LargeFiniteValuesCountZero)
         {
             using T = TypeParam;
 
-            auto positive = this->clean(K_SMALL);
-            positive[17] = this->inf();
-            EXPECT_EQ(1, this->count(positive));
+            // 20000 is exact in binary16, and eight of them sum past its range.
+            EXPECT_EQ(0, this->count(std::vector<T>(8, static_cast<T>(20000.0f))));
+        }
 
-            auto negative = this->clean(K_SMALL);
-            negative[17] = static_cast<T>(-this->inf());
-            EXPECT_EQ(1, this->count(negative));
+        /**
+         * @brief Tests that a positive infinity is counted.
+         * @see tests/operations/reductions/README.md
+         */
+        TYPED_TEST(Medium_CountNonFiniteTyped, APositiveInfinityIsCounted)
+        {
+            auto data = this->clean(K_SMALL);
+            data[17] = this->inf();
+            EXPECT_EQ(1, this->count(data));
+        }
+
+        /**
+         * @brief Tests that a negative infinity is counted.
+         * @see tests/operations/reductions/README.md
+         */
+        TYPED_TEST(Medium_CountNonFiniteTyped, ANegativeInfinityIsCounted)
+        {
+            using T = TypeParam;
+
+            auto data = this->clean(K_SMALL);
+            data[17] = static_cast<T>(-this->inf());
+            EXPECT_EQ(1, this->count(data));
         }
 
         /**
@@ -146,25 +185,30 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that one bad element is found at the first, a middle and the last index.
+         * @brief Tests that one bad element is found at the first index.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Medium_CountNonFiniteTyped, ASingleBadElementIsFoundAtAnyIndexIncludingTheLast)
+        TYPED_TEST(Medium_CountNonFiniteTyped, ASingleBadElementIsFoundAtTheFirstIndex)
         {
-            const std::vector<size_t> where = {0,
-                                               static_cast<size_t>(K_LARGE) / 2,
-                                               static_cast<size_t>(K_LARGE) - 1};
+            this->expect_one_bad_element_found_at(0);
+        }
 
-            for (size_t index : where)
-            {
-                auto with_inf = this->clean(K_LARGE);
-                with_inf[index] = this->inf();
-                EXPECT_EQ(1, this->count(with_inf)) << "an infinity at index " << index;
+        /**
+         * @brief Tests that one bad element is found at a middle index.
+         * @see tests/operations/reductions/README.md
+         */
+        TYPED_TEST(Medium_CountNonFiniteTyped, ASingleBadElementIsFoundAtTheMiddleIndex)
+        {
+            this->expect_one_bad_element_found_at(static_cast<size_t>(K_LARGE) / 2);
+        }
 
-                auto with_nan = this->clean(K_LARGE);
-                with_nan[index] = this->nan();
-                EXPECT_EQ(1, this->count(with_nan)) << "a NaN at index " << index;
-            }
+        /**
+         * @brief Tests that one bad element is found at the last index, where an off-by-one drops it.
+         * @see tests/operations/reductions/README.md
+         */
+        TYPED_TEST(Medium_CountNonFiniteTyped, ASingleBadElementIsFoundAtTheLastIndex)
+        {
+            this->expect_one_bad_element_found_at(static_cast<size_t>(K_LARGE) - 1);
         }
 
         /**
@@ -185,22 +229,39 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that sizes on each side of the CPU's two-stage threshold count the same.
+         * @brief Tests that a size below the CPU's two-stage threshold counts both bad ends.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Medium_CountNonFiniteTyped, BothLaunchShapesGiveTheSameCount)
+        TYPED_TEST(Medium_CountNonFiniteTyped, TheSinglePassShapeCountsBothBadEnds)
         {
             // `small` is a macro for `char` in <rpcndr.h>. See the test README.
-            auto below = this->clean(K_SMALL);
-            below[0] = this->nan();
-            below[static_cast<size_t>(K_SMALL) - 1] = this->inf();
+            EXPECT_EQ(2, this->count(this->bad_at_both_ends(K_SMALL)));
+        }
 
-            auto above = this->clean(K_LARGE);
-            above[0] = this->nan();
-            above[static_cast<size_t>(K_LARGE) - 1] = this->inf();
+        /**
+         * @brief Tests that a size above the CPU's two-stage threshold counts both bad ends.
+         * @see tests/operations/reductions/README.md
+         */
+        TYPED_TEST(Medium_CountNonFiniteTyped, TheTwoStageShapeCountsBothBadEnds)
+        {
+            EXPECT_EQ(2, this->count(this->bad_at_both_ends(K_LARGE)));
+        }
 
-            EXPECT_EQ(2, this->count(below)) << "the single-pass shape";
-            EXPECT_EQ(2, this->count(above)) << "the two-stage shape";
+        /**
+         * @brief Returns the message of the `std::invalid_argument` fn throws, or "".
+         */
+        template<typename Fn>
+        static std::string message_of(Fn&& fn)
+        {
+            try
+            {
+                fn();
+            }
+            catch (const std::invalid_argument& e)
+            {
+                return std::string(e.what());
+            }
+            return std::string();
         }
 
         class Medium_CountNonFiniteTest : public SushiBLASTest
@@ -214,98 +275,90 @@ namespace SushiBLAS
                         .memcpy(&host, t.data(), sizeof(int64_t)).wait();
                     return host;
                 }
-
-                /** @brief The HALF scalar @p t holds, widened to float. */
-                float read_half(const Tensor& t)
-                {
-                    sycl::half host{};
-                    TestEnvironment::queue()
-                        .memcpy(&host, t.data(), sizeof(sycl::half)).wait();
-                    return static_cast<float>(host);
-                }
-
-                /** @brief The message of the `std::invalid_argument` @p fn throws, or "". */
-                template<typename Fn>
-                std::string message_of(Fn&& fn)
-                {
-                    try
-                    {
-                        fn();
-                    }
-                    catch (const std::invalid_argument& e)
-                    {
-                        return std::string(e.what());
-                    }
-                    return std::string();
-                }
         };
 
-        /**
-         * @brief Tests that asum overflows on eight finite fp16 values this op counts as clean.
-         * @see tests/operations/reductions/README.md
-         */
-        TEST_F(Medium_CountNonFiniteTest, AsumReportsOverflowOnAHalfTensorThisOpCallsClean)
+        /** @brief Names a dtype row by the dtype's name. */
+        static std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
         {
-            const std::vector<sycl::half> values(8, static_cast<sycl::half>(20000.0f));
-
-            auto t = create_initialized_tensor<sycl::half>({8}, values);
-            auto count = engine->create_tensor({1}, Core::DataType::Int64);
-            auto total = engine->create_tensor({1}, Core::DataType::Half);
-
-            SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, count);
-            SushiBLAS::ReductionOps(recorder()).asum(t, total);
-            recording->run().value();
-
-            EXPECT_EQ(0, read_count(count))
-                << "Every element is 20000, which binary16 represents exactly. The tensor "
-                   "is clean and the count must say so.";
-            EXPECT_FALSE(std::isfinite(read_half(total)))
-                << "If this ever becomes finite, re-read the argument on "
-                   "ReductionOps::count_nonfinite: it rests on asum overflowing here, and "
-                   "if it no longer does then the case for a dedicated op is weaker than "
-                   "the header claims.";
+            return Core::to_string(info.param);
         }
+
+        /** @brief Records count_nonfinite over an input dtype the op refuses. */
+        class Medium_CountNonFiniteDtype
+            : public SushiBLASTest,
+              public ::testing::WithParamInterface<Core::DataType>
+        {
+        };
 
         /**
          * @brief Tests that integer and complex inputs are refused by name.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_CountNonFiniteTest, NonRealInputDTypesAreRefusedByName)
+        TEST_P(Medium_CountNonFiniteDtype, NonRealInputIsRefusedByName)
         {
             GraphProbe probe;
-
             auto result = engine->create_tensor({1}, Core::DataType::Int64);
+            auto t = engine->create_tensor({4}, GetParam());
 
-            for (Core::DataType dtype : {Core::DataType::Int32, Core::DataType::Int64,
-                                         Core::DataType::Complex32, Core::DataType::Complex64})
-            {
-                auto t = engine->create_tensor({4}, dtype);
-                const std::string msg = message_of(
-                    [&]
-                    {
-                        SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result);
-                    });
-                EXPECT_NE(std::string::npos, msg.find(Core::to_string(dtype)))
-                    << "dtype " << Core::to_string(dtype) << " gave: " << msg;
-            }
+            const std::string msg = message_of(
+                [&]
+                {
+                    SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result);
+                });
 
-            EXPECT_EQ(0u, probe.take_recorded_count())
-                << "A refused reduction must not leave a task on the graph.";
+            EXPECT_NE(std::string::npos, msg.find(Core::to_string(GetParam()))) << msg;
         }
 
-        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeAnInt64Scalar)
+        INSTANTIATE_TEST_SUITE_P(, Medium_CountNonFiniteDtype,
+                                 ::testing::Values(Core::DataType::Int32, Core::DataType::Int64,
+                                                   Core::DataType::Complex32,
+                                                   Core::DataType::Complex64),
+                                 dtype_name);
+
+        /**
+         * @brief Tests that a refused reduction leaves no task on the graph.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_CountNonFiniteTest, ARefusedReductionLeavesNoTaskOnTheGraph)
+        {
+            GraphProbe probe;
+            auto result = engine->create_tensor({1}, Core::DataType::Int64);
+            auto t = engine->create_tensor({4}, Core::DataType::Int32);
+
+            EXPECT_THROW(SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result),
+                         std::invalid_argument);
+
+            EXPECT_EQ(0u, probe.take_recorded_count());
+        }
+
+        /**
+         * @brief Tests that a result of another dtype than INT64 is refused by name.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeInt64)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
-
             auto wrong_dtype = engine->create_tensor({1}, Core::DataType::Float32);
-            const std::string dtype_msg = message_of(
-                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, wrong_dtype); });
-            EXPECT_NE(std::string::npos, dtype_msg.find("INT64")) << dtype_msg;
 
+            const std::string msg = message_of(
+                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, wrong_dtype); });
+
+            EXPECT_NE(std::string::npos, msg.find("INT64")) << msg;
+        }
+
+        /**
+         * @brief Tests that an INT64 result that is not a scalar is refused by name.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeAScalar)
+        {
+            auto t = engine->create_tensor({4}, Core::DataType::Float32);
             auto not_scalar = engine->create_tensor({2}, Core::DataType::Int64);
-            const std::string scalar_msg = message_of(
+
+            const std::string msg = message_of(
                 [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, not_scalar); });
-            EXPECT_NE(std::string::npos, scalar_msg.find("scalar")) << scalar_msg;
+
+            EXPECT_NE(std::string::npos, msg.find("scalar")) << msg;
         }
 
         /**

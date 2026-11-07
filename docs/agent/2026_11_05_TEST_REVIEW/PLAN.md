@@ -62,12 +62,18 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M41 | the tests of `operations/logic` (15 files): 13 rewrite, 2 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M42 | the tests of `operations/nonlinear` (10 files): 22 rewrite, 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M43 | the tests of `operations/random` (11 files): 32 rewrite, 1 resize, 8 split, 11 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M44 | the tests of `operations/reductions` (13 files): 66 rewrite, 3 resize, 12 split, 22 delete | T1, T2, T3, T4, T5, T6, T7, T8 | running |
+| M44 | the tests of `operations/reductions` (13 files): 66 rewrite, 3 resize, 12 split, 22 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M45 | the tests of `operations/signal` (1 file): 5 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M46 | the tests of `operations/sparse` (12 files): 50 rewrite, 6 resize, 9 split, 8 merge, 8 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M46 | the tests of `operations/sparse` (12 files): 50 rewrite, 6 resize, 9 split, 8 merge, 8 delete | T1, T2, T3, T4, T5, T6, T7, T8 | running |
 | M47 | the tests of `operations/spatial` (12 files): 44 rewrite, 17 resize, 12 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M48 | the tests of `package` (1 file): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M49 | the tests of `tools` (7 files): 11 rewrite, 37 resize, 11 split, 14 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43 | todo |
+| S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40 | todo |
+| S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10 | todo |
+| S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39 | todo |
+| S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44 | todo |
+| S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | todo |
 
 ## Acceptance
 
@@ -82,5 +88,6 @@ writes each add. Nothing in a module job changes production code except a seam a
 - **M jobs.** Every record of the module is applied: no test the report deletes remains, every kept and
   new test passes at the size its label states, and the module's tests pass through the project's own
   test command. Build: that command over the module.
+- **S jobs.** Owner order of 2026-11-07: a test a record resizes to small runs `Small_` on a seam the job builds; `Medium_` stays only for a kernel against its host reference, an adapter's bytes or a thread handover.
 
 The owner chooses inline or parallel mode.

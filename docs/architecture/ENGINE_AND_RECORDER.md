@@ -71,7 +71,7 @@ TaskRecorder first_recorder(first_graph.recorder(), pool, late_counts);
 
 // ...
 
-ReductionOps(first_recorder).sum(input, first_result);
+ReductionOps(first_recorder).sum(*input_, *result_);
 ```
 
 Source: `tests/operations/reductions/test_reductions/test_scratch_buffer.cpp`

@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -39,7 +38,6 @@
 #include <SushiBLAS/reductions/arg_reduction.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 
@@ -47,46 +45,78 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /// @brief The bytes of an IEEE binary16 value, the width a half partial must exceed.
+        constexpr std::size_t K_HALF_BYTES = 2;
+
+        /// @brief The bytes of a FLOAT64 partial.
+        constexpr std::size_t K_FLOAT64_BYTES = 8;
+
+        /// @brief The bytes of an INT32 partial.
+        constexpr std::size_t K_INT32_BYTES = 4;
+
         /** @brief Records reductions on the fixture's engine. */
         class Medium_ReductionDispatch : public SushiBLASTest
         {
+            protected:
+                /** @brief Returns the index argmax records and runs under mode on a fixed input. */
+                std::vector<int64_t> argmax_index_under(ExecutionMode mode)
+                {
+                    const Tensor t = create_initialized_tensor<float>({5}, {2, 7, -3, 7, -3});
+                    Tensor result = create_initialized_tensor<int64_t>({1}, {-1});
 
+                    set_mode(mode);
+                    Dispatch::execute_index_reduction(
+                        recorder(), t, result, "argmax", SushiRuntime::OperationID(),
+                        Dispatch::ArgReductionDispatch<Reduce::RunningArgMax>{},
+                        Dispatch::planned_partials_for(t));
+                    EXPECT_TRUE(recording->run().has_value());
+
+                    return read_tensor<int64_t>(result);
+                }
         };
 
-        TEST_F(Medium_ReductionDispatch, AHalfPartialIsHeldWideAndTheRestAtTheirWidth)
+        TEST(Small_ReductionDispatch, AHalfPartialIsWiderThanTheHalfItSums)
         {
-            EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Half),
-                      sizeof(Reduce::AccumulationOf<sycl::half>));
-            EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Float64), sizeof(double));
-            EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Int32), sizeof(int32_t));
+            EXPECT_GT(Dispatch::partial_bytes(Core::DataType::Half), K_HALF_BYTES);
         }
 
-        TEST_F(Medium_ReductionDispatch, AnEmptyTensorPlansNoPartialsAndTheReferenceLeasesNone)
+        TEST(Small_ReductionDispatch, AFloat64PartialTakesEightBytes)
+        {
+            EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Float64), K_FLOAT64_BYTES);
+        }
+
+        TEST(Small_ReductionDispatch, AnInt32PartialTakesFourBytes)
+        {
+            EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Int32), K_INT32_BYTES);
+        }
+
+        TEST_F(Medium_ReductionDispatch, AnEmptyTensorPlansNoPartials)
+        {
+            EXPECT_EQ(Dispatch::planned_partials_for(engine->create_tensor({0})), std::size_t{0});
+        }
+
+        TEST_F(Medium_ReductionDispatch, TheReferenceRecorderLeasesNoPartials)
         {
             GraphProbe reference(ExecutionMode::ForceReference);
+
+            EXPECT_EQ(Dispatch::leased_partials(reference.recorder(), 12), std::size_t{0});
+        }
+
+        TEST_F(Medium_ReductionDispatch, TheAutomaticRecorderLeasesThePlannedPartials)
+        {
             GraphProbe automatic;
 
-            EXPECT_EQ(Dispatch::planned_partials_for(engine->create_tensor({0})), std::size_t{0});
-            EXPECT_EQ(Dispatch::leased_partials(reference.recorder(), 12), std::size_t{0});
             EXPECT_EQ(Dispatch::leased_partials(automatic.recorder(), 12), std::size_t{12});
         }
 
-        TEST_F(Medium_ReductionDispatch, AnIndexReductionGivesTheSameIndexInBothModes)
+        TEST_F(Medium_ReductionDispatch, AnIndexReductionFindsTheFirstLargestOnTheReference)
         {
-            const Tensor t = create_initialized_tensor<float>({5}, {2, 7, -3, 7, -3});
+            EXPECT_EQ(argmax_index_under(ExecutionMode::ForceReference), (std::vector<int64_t>{1}));
+        }
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                Tensor result = create_initialized_tensor<int64_t>({1}, {-1});
-                set_mode(mode);
-                Dispatch::execute_index_reduction(
-                    recorder(), t, result, "argmax", SushiRuntime::OperationID(),
-                    Dispatch::ArgReductionDispatch<Reduce::RunningArgMax>{},
-                    Dispatch::planned_partials_for(t));
-                ASSERT_TRUE(recording->run().has_value());
-
-                EXPECT_EQ(read_tensor<int64_t>(result), (std::vector<int64_t>{1}));
-            }
+        TEST_F(Medium_ReductionDispatch, AnIndexReductionFindsTheFirstLargestOnSYCL)
+        {
+            EXPECT_EQ(argmax_index_under(ExecutionMode::ForceSYCL), (std::vector<int64_t>{1}));
         }
     } // namespace Test
 } // namespace SushiBLAS

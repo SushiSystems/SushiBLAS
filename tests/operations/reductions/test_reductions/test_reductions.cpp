@@ -49,6 +49,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/tolerance.hpp"
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
@@ -60,47 +61,6 @@
 
 using namespace SushiBLAS::Test;
 using namespace SushiBLAS;
-
-template <typename T>
-class Medium_ReductionOpsTyped : public SushiBLASTest 
-{
-protected:
-    std::vector<T> generate_random_data(size_t size) 
-    {
-        std::vector<T> data(size);
-        std::mt19937 gen(42);
-        if constexpr (std::is_integral_v<T>) 
-        {
-            std::uniform_int_distribution<T> dist(-10, 10);
-            for (auto& v : data)
-                v = dist(gen);
-        } else 
-        {
-            std::uniform_real_distribution<T> dist(static_cast<T>(-10.0), static_cast<T>(10.0));
-            for (auto& v : data)
-                v = dist(gen);
-        }
-        return data;
-    }
-};
-
-using TestTypes = ::testing::Types<float>;
-SB_TYPED_TEST_SUITE(Medium_ReductionOpsTyped, TestTypes);
-
-TYPED_TEST(Medium_ReductionOpsTyped, LogSumExp) 
-{
-    using T = TypeParam;
-    std::vector<T> data = {static_cast<T>(1), static_cast<T>(2), static_cast<T>(3)};
-    T expected = ReferenceKernels::logsumexp(data);
-
-    auto t = this->template create_initialized_tensor<T>({3}, data);
-    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
-
-    SushiBLAS::ReductionOps(this->recorder()).logsumexp(t, res);
-    this->recording->run().value();
-
-    EXPECT_TENSOR_NEAR(res, {expected}, K_DEFAULT_TOLERANCE);
-}
 
 namespace
 {
@@ -118,13 +78,6 @@ namespace
 
     /// @brief Holds the seed of the generator the moment cases draw from.
     constexpr std::uint32_t K_MOMENT_SEED = 20261007u;
-
-    /// @brief Holds how many units in the last place of the element type a moment may be off by.
-    constexpr long double K_MOMENT_ULPS = 4.0L;
-
-    /// @brief Holds the absolute tolerance: 2048 FLOAT32 roundings of a value of order one,
-    /// for the finite logsumexp expectation.
-    constexpr double K_LOGSUMEXP_TOLERANCE = absolute_tolerance<float>(2048);
 
     /// @brief Holds a value as hi + lo, where lo is the rounding error of hi.
     struct Paired
@@ -196,13 +149,6 @@ namespace
         }
 
         return paired_quotient(squares, n).hi;
-    }
-
-    /** @brief Returns one unit in the last place of T at magnitude, which must not be zero. */
-    template<typename T>
-    long double ulp_at(long double magnitude)
-    {
-        return std::ldexp(1.0L, std::ilogb(magnitude) - (std::numeric_limits<T>::digits - 1));
     }
 
     /** @brief Returns the message of the std::invalid_argument record throws, or "" if none. */
@@ -597,6 +543,98 @@ namespace
     }
 }
 
+namespace
+{
+    /// @brief Holds how many rounded operations a moment may spend beyond the two-pass truth.
+    constexpr std::size_t K_MOMENT_ROUNDINGS = 8;
+
+    /// @brief Holds how many rounded operations the finite logsumexp of three terms may spend.
+    constexpr std::size_t K_LOGSUMEXP_ROUNDINGS = 64;
+
+    /// @brief Holds how many rounded operations the shift, exp, sum, log and add of a large pair spend.
+    constexpr std::size_t K_SHIFTED_LOGSUMEXP_ROUNDINGS = 4;
+
+    /// @brief Holds the ratio at which these cases fail: the bound itself, not a multiple of it.
+    constexpr double K_BOUND_THRESHOLD = 1.0;
+
+    /// @brief Holds the mean of the three terms that FLOAT64 sums exactly and FLOAT32 does not.
+    constexpr float K_MEAN_DIVIDED_FIRST = 8388610.0f;
+
+    /// @brief Holds the value that narrowing the sum before the division would give instead.
+    constexpr float K_MEAN_NARROWED_FIRST = 8388611.0f;
+
+    /** @brief Returns the terms whose FLOAT32 sum rounds; the sum is 25165831, which rounds to 25165832. */
+    std::vector<float> narrowing_terms()
+    {
+        return {16777216.0f, 8388608.0f, 7.0f};
+    }
+
+    /** @brief Returns size values drawn from the moment seed, between -10 and 10. */
+    template<typename T>
+    std::vector<T> moment_values(std::size_t size)
+    {
+        std::mt19937 generator(K_MOMENT_SEED);
+        std::uniform_real_distribution<float> distribution(-10.0f, 10.0f);
+
+        std::vector<T> values(size);
+        for (T& value : values)
+            value = static_cast<T>(distribution(generator));
+        return values;
+    }
+
+    /** @brief Returns the INT32 or, when wide, the INT64 tensor of size small integers. */
+    Tensor small_integer_tensor(Engine& engine, std::size_t size, bool wide)
+    {
+        const std::vector<int64_t> dims = {static_cast<int64_t>(size)};
+        return wide ? tensor_of(engine, dims, small_integers<int64_t>(size))
+                    : tensor_of(engine, dims, small_integers<int32_t>(size));
+    }
+
+    /** @brief Names a size row for gtest. */
+    std::string size_name(const ::testing::TestParamInfo<std::size_t>& info)
+    {
+        return "Size" + std::to_string(info.param);
+    }
+
+    /** @brief Names a dtype row for gtest. */
+    std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
+    {
+        return Core::to_string(info.param);
+    }
+
+    /** @brief Names a row by its description, which gtest takes as the test's suffix. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return info.param.name;
+    }
+}
+
+template <typename T>
+class Medium_ReductionOpsTyped : public SushiBLASTest
+{
+};
+
+using TestTypes = ::testing::Types<float>;
+SB_TYPED_TEST_SUITE(Medium_ReductionOpsTyped, TestTypes);
+
+TYPED_TEST(Medium_ReductionOpsTyped, LogSumExpOfOneTwoThreeMatchesTheHostReference)
+{
+    using T = TypeParam;
+    std::vector<T> data = {static_cast<T>(1), static_cast<T>(2), static_cast<T>(3)};
+    T expected = ReferenceKernels::logsumexp(data);
+
+    auto t = this->template create_initialized_tensor<T>({3}, data);
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
+
+    SushiBLAS::ReductionOps(this->recorder()).logsumexp(t, res);
+    this->recording->run().value();
+
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<T>(
+        static_cast<double>(read_tensor<T>(res)[0]), static_cast<double>(expected),
+        K_LOGSUMEXP_ROUNDINGS, K_BOUND_THRESHOLD)));
+}
+
 /// @brief Runs the reduction cases that take their own element types.
 class Medium_ReductionOps : public SushiBLASTest
 {
@@ -647,8 +685,14 @@ class Medium_ReductionOps : public SushiBLASTest
             }
         }
 
-        /** @brief Reduces FLOAT32 values with logsumexp and checks the result. */
-        void expect_logsumexp(const std::vector<float>& values, float expected)
+        /** @brief Returns a tensor of shape {0, 3} that has no storage. */
+        static Tensor empty_operand()
+        {
+            return Tensor(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
+        }
+
+        /** @brief Reduces FLOAT32 values with logsumexp and expects the result exactly. */
+        void expect_logsumexp_equal(const std::vector<float>& values, float expected)
         {
             auto t = engine->create_tensor({static_cast<int64_t>(values.size())});
             fill_tensor(t, values);
@@ -657,7 +701,7 @@ class Medium_ReductionOps : public SushiBLASTest
             SushiBLAS::ReductionOps(recorder()).logsumexp(t, result);
             recording->run().value();
 
-            expect_tensor(result, {expected}, K_LOGSUMEXP_TOLERANCE);
+            expect_tensor_equal(result, {expected});
         }
 
         /** @brief Reduces values with argmax and argmin and checks both indices. */
@@ -699,25 +743,38 @@ class Medium_ReductionOps : public SushiBLASTest
         }
 };
 
+/** @brief Runs the dtype refusals over one integer dtype. */
+class Medium_ReductionOpsIntegerDtype : public Medium_ReductionOps,
+                                        public ::testing::WithParamInterface<Core::DataType>
+{
+};
+
 /**
- * @brief Tests that the real-only reductions refuse integer and complex tensors by dtype name.
+ * @brief Tests that the real-only reductions refuse an integer tensor by dtype name.
  */
-TEST_F(Medium_ReductionOps, NonRealDtypesAreRefusedByName)
+TEST_P(Medium_ReductionOpsIntegerDtype, TheRealOnlyReductionsRefuseItByName)
 {
     SushiBLAS::ReductionOps reductions(recorder());
 
-    for (Core::DataType dtype : {Core::DataType::Int32, Core::DataType::Int64})
-    {
-        SCOPED_TRACE(Core::to_string(dtype));
+    auto t = engine->create_tensor({4}, GetParam());
+    auto result = engine->create_tensor({1}, GetParam());
+    const std::string name = Core::to_string(GetParam());
 
-        auto t = engine->create_tensor({4}, dtype);
-        auto result = engine->create_tensor({1}, dtype);
-        const std::string name = Core::to_string(dtype);
+    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.sum(t, result); }).find(name));
+    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.nrm2(t, result); }).find(name));
+    EXPECT_NE(std::string::npos, refusal_of([&] { reductions.mean(t, result); }).find(name));
+}
 
-        EXPECT_NE(std::string::npos, refusal_of([&] { reductions.sum(t, result); }).find(name));
-        EXPECT_NE(std::string::npos, refusal_of([&] { reductions.nrm2(t, result); }).find(name));
-        EXPECT_NE(std::string::npos, refusal_of([&] { reductions.mean(t, result); }).find(name));
-    }
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsIntegerDtype,
+                         ::testing::Values(Core::DataType::Int32, Core::DataType::Int64),
+                         dtype_name);
+
+/**
+ * @brief Tests that the real-only reductions refuse a complex tensor by dtype name.
+ */
+TEST_F(Medium_ReductionOps, ComplexDtypesAreRefusedByName)
+{
+    SushiBLAS::ReductionOps reductions(recorder());
 
     auto z = engine->create_tensor({4}, Core::DataType::Complex32);
     auto z_result = engine->create_tensor({1}, Core::DataType::Complex32);
@@ -729,17 +786,37 @@ TEST_F(Medium_ReductionOps, NonRealDtypesAreRefusedByName)
               refusal_of([&] { reductions.max(z, z_result); }).find(complex_name));
 }
 
+/** @brief Runs the device-only cases, and skips them on a device that hands out no device-only USM. */
+class Medium_ReductionOpsDeviceOnly : public Medium_ReductionOps
+{
+    protected:
+        /** @brief Allocates the device-only operands, or skips the test when none can be had. */
+        void SetUp() override
+        {
+            Medium_ReductionOps::SetUp();
+
+            t_ = device_only_tensor({4});
+            matrix_ = device_only_tensor({2, 4});
+            image_ = device_only_tensor({1, 2, 2, 3});
+            if (!t_ || !matrix_ || !image_)
+                GTEST_SKIP() << "the device hands out no device-only USM";
+        }
+
+        /// @brief A device-only vector.
+        std::optional<Tensor> t_;
+
+        /// @brief A device-only matrix.
+        std::optional<Tensor> matrix_;
+
+        /// @brief A device-only NHWC image.
+        std::optional<Tensor> image_;
+};
+
 /**
  * @brief Tests that a device-only operand is refused under ForceReference on every reduction seam.
  */
-TEST_F(Medium_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
+TEST_F(Medium_ReductionOpsDeviceOnly, ADeviceOnlyOperandIsRefusedOnEverySeamUnderForceReference)
 {
-    std::optional<Tensor> t = device_only_tensor({4});
-    std::optional<Tensor> matrix = device_only_tensor({2, 4});
-    std::optional<Tensor> image = device_only_tensor({1, 2, 2, 3});
-    if (!t || !matrix || !image)
-        GTEST_SKIP() << "the device hands out no device-only USM";
-
     auto scalar = engine->create_tensor({1});
     auto index = engine->create_tensor({1}, Core::DataType::Int64);
     auto per_row = engine->create_tensor({2});
@@ -749,82 +826,181 @@ TEST_F(Medium_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     ReductionOps refused(on_host.recorder());
 
     // One call per seam: folding, centred, index, counting, and the span seam twice.
-    expect_mode_refusal("sum", [&] { refused.sum(*t, scalar); });
-    expect_mode_refusal("var", [&] { refused.var(*t, scalar); });
-    expect_mode_refusal("argmax", [&] { refused.argmax(*t, index); });
-    expect_mode_refusal("count_nonfinite", [&] { refused.count_nonfinite(*t, index); });
-    expect_mode_refusal("sum_along", [&] { refused.sum_along(*matrix, 1, per_row); });
-    expect_mode_refusal("mean_spatial", [&] { refused.mean_spatial(*image, per_channel); });
+    expect_mode_refusal("sum", [&] { refused.sum(*t_, scalar); });
+    expect_mode_refusal("var", [&] { refused.var(*t_, scalar); });
+    expect_mode_refusal("argmax", [&] { refused.argmax(*t_, index); });
+    expect_mode_refusal("count_nonfinite", [&] { refused.count_nonfinite(*t_, index); });
+    expect_mode_refusal("sum_along", [&] { refused.sum_along(*matrix_, 1, per_row); });
+    expect_mode_refusal("mean_spatial", [&] { refused.mean_spatial(*image_, per_channel); });
+
     EXPECT_EQ(0u, on_host.take_recorded_count());
+}
+
+/**
+ * @brief Tests that a device-only operand is recorded under ForceSYCL on every reduction seam.
+ */
+TEST_F(Medium_ReductionOpsDeviceOnly, ADeviceOnlyOperandIsRecordedOnEverySeamUnderForceSYCL)
+{
+    auto scalar = engine->create_tensor({1});
+    auto index = engine->create_tensor({1}, Core::DataType::Int64);
+    auto per_row = engine->create_tensor({2});
+    auto per_channel = engine->create_tensor({1, 3});
 
     GraphProbe on_device(ExecutionMode::ForceSYCL);
     ReductionOps recorded(on_device.recorder());
 
-    EXPECT_NO_THROW(recorded.sum(*t, scalar));
-    EXPECT_NO_THROW(recorded.var(*t, scalar));
-    EXPECT_NO_THROW(recorded.argmax(*t, index));
-    EXPECT_NO_THROW(recorded.count_nonfinite(*t, index));
-    EXPECT_NO_THROW(recorded.sum_along(*matrix, 1, per_row));
-    EXPECT_NO_THROW(recorded.mean_spatial(*image, per_channel));
+    recorded.sum(*t_, scalar);
+    recorded.var(*t_, scalar);
+    recorded.argmax(*t_, index);
+    recorded.count_nonfinite(*t_, index);
+    recorded.sum_along(*matrix_, 1, per_row);
+    recorded.mean_spatial(*image_, per_channel);
+
     EXPECT_EQ(6u, on_device.take_recorded_count());
 }
+
+/** @brief One call with a malformed operand or result, recorded over a vector of four and a result of three. */
+struct MalformedCall
+{
+    const char* name;
+    void (*record)(ReductionOps&, const Tensor&, Tensor&);
+};
+
+/** @brief Returns the calls a malformed operand makes: a rank-1 axis reduction and a non-scalar result. */
+static std::vector<MalformedCall> malformed_calls()
+{
+    return {
+        // A rank-1 operand is malformed for every axis reduction.
+        {"SumAlongOfARankOneOperand",
+         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.sum_along(vector, 0, wide); }},
+        {"MaxAlongOfARankOneOperand",
+         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.max_along(vector, 0, wide); }},
+        // A three-element result is not a scalar.
+        {"SumIntoAThreeElementResult",
+         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.sum(vector, wide); }},
+        {"ArgMaxIntoAThreeElementResult",
+         [](ReductionOps& ops, const Tensor& vector, Tensor& wide) { ops.argmax(vector, wide); }},
+    };
+}
+
+/** @brief Records one malformed call under both forced modes. */
+class Medium_ReductionOpsMalformed : public Medium_ReductionOps,
+                                     public ::testing::WithParamInterface<MalformedCall>
+{
+};
 
 /**
  * @brief Tests that a malformed operand is refused with the same message under both forced modes.
  */
-TEST_F(Medium_ReductionOps, MalformedOperandsAreRefusedAlikeInBothModes)
+TEST_P(Medium_ReductionOpsMalformed, ItIsRefusedAlikeInBothModes)
 {
+    const MalformedCall& call = GetParam();
     auto vector = engine->create_tensor({4});
     auto wide = engine->create_tensor({3});
 
-    // A rank-1 operand is malformed for every axis reduction.
-    expect_refusal_in_both_modes("sum_along",
-                                 [&](ReductionOps& ops) { ops.sum_along(vector, 0, wide); });
-    expect_refusal_in_both_modes("max_along",
-                                 [&](ReductionOps& ops) { ops.max_along(vector, 0, wide); });
-
-    // A three-element result is not a scalar.
-    expect_refusal_in_both_modes("sum", [&](ReductionOps& ops) { ops.sum(vector, wide); });
-    expect_refusal_in_both_modes("argmax", [&](ReductionOps& ops) { ops.argmax(vector, wide); });
+    expect_refusal_in_both_modes(call.name,
+                                 [&](ReductionOps& ops) { call.record(ops, vector, wide); });
 }
 
-/**
- * @brief Tests that an empty operand writes the identity or is refused, alike under both forced modes.
- */
-TEST_F(Medium_ReductionOps, EmptyOperandsBehaveAlikeInBothModes)
-{
-    const Tensor empty(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
-    auto scalar = engine->create_tensor({1});
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsMalformed, ::testing::ValuesIn(malformed_calls()),
+                         row_name<MalformedCall>);
 
+/**
+ * @brief Tests that the sum of an empty operand is the identity 0 under both forced modes.
+ */
+TEST_F(Medium_ReductionOps, AnEmptySumIsZeroInBothModes)
+{
     const ModeResults<float> sums = in_both_modes<float>(
-        *engine, whole_call("sum", &ReductionOps::sum, empty));
-    const ModeResults<float> products = in_both_modes<float>(
-        *engine, whole_call("prod", &ReductionOps::prod, empty));
+        *engine, whole_call("sum", &ReductionOps::sum, empty_operand()));
 
     // Each result started from K_UNWRITTEN, so an identity here was written by the fold.
     EXPECT_TRUE(same_bits(0.0f, sums.reference[0])) << sums.reference[0];
     EXPECT_TRUE(same_bits(0.0f, sums.device[0])) << sums.device[0];
+}
+
+/**
+ * @brief Tests that the product of an empty operand is the identity 1 under both forced modes.
+ */
+TEST_F(Medium_ReductionOps, AnEmptyProductIsOneInBothModes)
+{
+    const ModeResults<float> products = in_both_modes<float>(
+        *engine, whole_call("prod", &ReductionOps::prod, empty_operand()));
+
     EXPECT_TRUE(same_bits(1.0f, products.reference[0])) << products.reference[0];
     EXPECT_TRUE(same_bits(1.0f, products.device[0])) << products.device[0];
+}
+
+/**
+ * @brief Tests that the mean of an empty operand is refused alike under both forced modes.
+ */
+TEST_F(Medium_ReductionOps, AnEmptyMeanIsRefusedAlikeInBothModes)
+{
+    const Tensor empty = empty_operand();
+    auto scalar = engine->create_tensor({1});
 
     expect_refusal_in_both_modes("mean", [&](ReductionOps& ops) { ops.mean(empty, scalar); });
+}
+
+/**
+ * @brief Tests that the maximum of an empty operand is refused alike under both forced modes.
+ */
+TEST_F(Medium_ReductionOps, AnEmptyMaxIsRefusedAlikeInBothModes)
+{
+    const Tensor empty = empty_operand();
+    auto scalar = engine->create_tensor({1});
+
     expect_refusal_in_both_modes("max", [&](ReductionOps& ops) { ops.max(empty, scalar); });
 }
+
+/** @brief One reduction whose recording under ForceReference must lease no scratch. */
+struct LeaseRow
+{
+    const char* name;
+    Core::DataType result_dtype;
+    void (*record)(ReductionOps&, const Tensor&, Tensor&);
+};
+
+/** @brief Returns the folding, centred, index and counting seams. */
+static std::vector<LeaseRow> lease_rows()
+{
+    return {
+        {"Sum", Core::DataType::Float32,
+         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.sum(t, out); }},
+        {"Var", Core::DataType::Float32,
+         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.var(t, out); }},
+        {"ArgMax", Core::DataType::Int64,
+         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.argmax(t, out); }},
+        {"CountNonFinite", Core::DataType::Int64,
+         [](ReductionOps& ops, const Tensor& t, Tensor& out) { ops.count_nonfinite(t, out); }},
+    };
+}
+
+/** @brief Records one reduction over a two-stage input, and skips the case on a device that plans no partials. */
+class Medium_ReductionOpsLease : public Medium_ReductionOps,
+                                 public ::testing::WithParamInterface<LeaseRow>
+{
+    protected:
+        /** @brief Builds the input, or skips the test when the device plans no partials. */
+        void SetUp() override
+        {
+            Medium_ReductionOps::SetUp();
+
+            input_ = create_initialized_tensor<float>({static_cast<int64_t>(K_TWO_STAGE_SIZE)},
+                                                      parity_values<float>(K_TWO_STAGE_SIZE));
+            if (Dispatch::planned_partials_for(*input_) == 0)
+                GTEST_SKIP() << "the device plans no partials, so the SYCL path would lease none either";
+        }
+
+        /// @brief The two-stage-sized input.
+        std::optional<Tensor> input_;
+};
 
 /**
  * @brief Tests that a reduction recorded under ForceReference leases no scratch and allocates none.
  */
-TEST_F(Medium_ReductionOps, AReferenceReductionLeasesNoScratch)
+TEST_P(Medium_ReductionOpsLease, AReferenceReductionLeasesNoScratch)
 {
-    auto t = create_initialized_tensor<float>({static_cast<int64_t>(K_TWO_STAGE_SIZE)},
-                                              parity_values<float>(K_TWO_STAGE_SIZE));
-    if (Dispatch::planned_partials_for(t) == 0)
-        GTEST_SKIP() << "the device plans no partials, so the SYCL path would lease none either";
-
-    auto total = engine->create_tensor({1});
-    auto variance = engine->create_tensor({1});
-    auto index = engine->create_tensor({1}, Core::DataType::Int64);
-    auto count = engine->create_tensor({1}, Core::DataType::Int64);
+    auto result = engine->create_tensor({1}, GetParam().result_dtype);
 
     GraphProbe probe(ExecutionMode::ForceReference);
     ReductionOps reductions(probe.recorder());
@@ -832,10 +1008,7 @@ TEST_F(Medium_ReductionOps, AReferenceReductionLeasesNoScratch)
     const std::size_t idle_before = probe.scratch_pool().idle_block_count();
     const std::size_t live_before = TestEnvironment::live_allocation_count();
 
-    reductions.sum(t, total);
-    reductions.var(t, variance);
-    reductions.argmax(t, index);
-    reductions.count_nonfinite(t, count);
+    GetParam().record(reductions, *input_, result);
 
     // A lease would be a live allocation from the moment its task is recorded.
     EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
@@ -844,120 +1017,231 @@ TEST_F(Medium_ReductionOps, AReferenceReductionLeasesNoScratch)
 
     EXPECT_EQ(idle_before, probe.scratch_pool().idle_block_count());
     EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
-    EXPECT_EQ(0, read_tensor<int64_t>(count)[0]);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsLease, ::testing::ValuesIn(lease_rows()),
+                         row_name<LeaseRow>);
 
 /**
  * @brief Tests that the host mean of FLOAT32 terms divides its FLOAT64 sum before it narrows.
  */
 TEST_F(Medium_ReductionOps, AHostMeanDividesBeforeItNarrows)
 {
-    // The sum is 25165831, which FLOAT32 rounds to 25165832; a third of each rounds differently.
-    const std::vector<float> values = {16777216.0f, 8388608.0f, 7.0f};
-    const float divided_first = 8388610.0f;
-    const float narrowed_first = 8388611.0f;
-
     set_mode(ExecutionMode::ForceReference);
 
-    auto t = create_initialized_tensor<float>({3}, values);
-    auto image = create_initialized_tensor<float>({1, 3, 1, 1}, values);
+    auto t = create_initialized_tensor<float>({3}, narrowing_terms());
     auto mean = engine->create_tensor({1});
-    auto spatial_mean = engine->create_tensor({1, 1});
 
     ReductionOps(recorder()).mean(t, mean);
-    ReductionOps(recorder()).mean_spatial(image, spatial_mean);
     recording->run().value();
 
     const float got_mean = read_tensor<float>(mean)[0];
-    const float got_spatial_mean = read_tensor<float>(spatial_mean)[0];
-
-    EXPECT_TRUE(same_bits(divided_first, got_mean))
-        << "mean gave " << got_mean << "; narrowing first gives " << narrowed_first;
-    EXPECT_TRUE(same_bits(divided_first, got_spatial_mean))
-        << "mean_spatial gave " << got_spatial_mean << "; narrowing first gives " << narrowed_first;
+    EXPECT_TRUE(same_bits(K_MEAN_DIVIDED_FIRST, got_mean))
+        << "mean gave " << got_mean << "; narrowing first gives " << K_MEAN_NARROWED_FIRST;
 }
+
+/**
+ * @brief Tests that the host mean_spatial of FLOAT32 terms divides its FLOAT64 sum before it narrows.
+ */
+TEST_F(Medium_ReductionOps, AHostMeanSpatialDividesBeforeItNarrows)
+{
+    set_mode(ExecutionMode::ForceReference);
+
+    auto image = create_initialized_tensor<float>({1, 3, 1, 1}, narrowing_terms());
+    auto spatial_mean = engine->create_tensor({1, 1});
+
+    ReductionOps(recorder()).mean_spatial(image, spatial_mean);
+    recording->run().value();
+
+    const float got_spatial_mean = read_tensor<float>(spatial_mean)[0];
+    EXPECT_TRUE(same_bits(K_MEAN_DIVIDED_FIRST, got_spatial_mean))
+        << "mean_spatial gave " << got_spatial_mean << "; narrowing first gives "
+        << K_MEAN_NARROWED_FIRST;
+}
+
+/** @brief One integer width and size the index reductions run on. */
+struct IndexRow
+{
+    std::string name;
+    std::size_t size;
+    bool wide;
+};
+
+/** @brief Returns INT32 and INT64 at the single-pass size and past the two-stage threshold. */
+static std::vector<IndexRow> index_rows()
+{
+    return {
+        {"Int32AtTheSinglePassSize", K_SINGLE_PASS_SIZE, false},
+        {"Int64AtTheSinglePassSize", K_SINGLE_PASS_SIZE, true},
+        {"Int32AtTheTwoStageSize", K_TWO_STAGE_SIZE, false},
+        {"Int64AtTheTwoStageSize", K_TWO_STAGE_SIZE, true},
+    };
+}
+
+/** @brief Runs argmax and argmin over one integer width and size on both paths. */
+class Medium_ReductionOpsIndex : public Medium_ReductionOps,
+                                 public ::testing::WithParamInterface<IndexRow>
+{
+};
 
 /**
  * @brief Tests that argmax and argmin of integers elect the same index on both paths.
  */
-TEST_F(Medium_ReductionOps, IndexReductionsOfIntegersAgreeToTheBit)
+TEST_P(Medium_ReductionOpsIndex, ArgMaxAndArgMinAgreeToTheBit)
 {
-    for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
+    const IndexRow& row = GetParam();
+    const Tensor t = small_integer_tensor(*engine, row.size, row.wide);
 
-        const Tensor narrow = tensor_of(*engine, {static_cast<int64_t>(size)},
-                                        small_integers<int32_t>(size));
-        const Tensor wide = tensor_of(*engine, {static_cast<int64_t>(size)},
-                                      small_integers<int64_t>(size));
+    const ModeResults<int64_t> at_max = in_both_modes<int64_t>(
+        *engine, whole_call("argmax", &ReductionOps::argmax, t));
+    const ModeResults<int64_t> at_min = in_both_modes<int64_t>(
+        *engine, whole_call("argmin", &ReductionOps::argmin, t));
 
-        for (const Tensor& t : {narrow, wide})
-        {
-            const ModeResults<int64_t> at_max = in_both_modes<int64_t>(
-                *engine, whole_call("argmax", &ReductionOps::argmax, t));
-            const ModeResults<int64_t> at_min = in_both_modes<int64_t>(
-                *engine, whole_call("argmin", &ReductionOps::argmin, t));
+    expect_equal_bits("argmax", at_max);
+    expect_equal_bits("argmin", at_min);
 
-            expect_equal_bits("argmax", at_max);
-            expect_equal_bits("argmin", at_min);
+    // The walk from -3 to 3 first peaks at index 6 and first bottoms at index 0.
+    EXPECT_EQ(6, at_max.reference[0]);
+    EXPECT_EQ(0, at_min.reference[0]);
+}
 
-            // The walk from -3 to 3 first peaks at index 6 and first bottoms at index 0.
-            EXPECT_EQ(6, at_max.reference[0]);
-            EXPECT_EQ(0, at_min.reference[0]);
-        }
-    }
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsIndex, ::testing::ValuesIn(index_rows()),
+                         row_name<IndexRow>);
+
+/** @brief One logsumexp input whose result is infinite or NaN, so it is expected exactly. */
+struct SpecialLogSumExpRow
+{
+    const char* name;
+    std::vector<float> values;
+    float expected;
+};
+
+/** @brief Returns an infinite maximum, only negative infinities and a NaN. */
+static std::vector<SpecialLogSumExpRow> special_logsumexp_rows()
+{
+    return {
+        {"AnInfiniteMaximum", {0.0f, K_INF}, K_INF},
+        {"OnlyNegativeInfinities", {-K_INF, -K_INF}, -K_INF},
+        {"ANaN", {1.0f, K_NAN}, K_NAN},
+    };
+}
+
+/** @brief Runs logsumexp over one special input. */
+class Medium_ReductionOpsSpecialLogSumExp : public Medium_ReductionOps,
+                                            public ::testing::WithParamInterface<SpecialLogSumExpRow>
+{
+};
+
+/**
+ * @brief Tests logsumexp on an infinite maximum, on only negative infinities and on a NaN.
+ */
+TEST_P(Medium_ReductionOpsSpecialLogSumExp, TheResultIsTheSpecialValue)
+{
+    expect_logsumexp_equal(GetParam().values, GetParam().expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsSpecialLogSumExp,
+                         ::testing::ValuesIn(special_logsumexp_rows()),
+                         row_name<SpecialLogSumExpRow>);
+
+/**
+ * @brief Tests that logsumexp of two equal large elements is their value plus log(2).
+ */
+TEST_F(Medium_ReductionOps, LogSumExpOfTwoEqualLargeElementsAddsLogTwo)
+{
+    auto t = engine->create_tensor({2});
+    fill_tensor(t, {1000.0f, 1000.0f});
+
+    auto result = engine->create_tensor({1});
+    SushiBLAS::ReductionOps(recorder()).logsumexp(t, result);
+    recording->run().value();
+
+    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+        static_cast<double>(read_tensor<float>(result)[0]), 1000.0 + std::log(2.0),
+        K_SHIFTED_LOGSUMEXP_ROUNDINGS, K_BOUND_THRESHOLD)));
+}
+
+/** @brief Runs the argmax and argmin scan rules at one size. */
+class Medium_ReductionOpsArgScan : public Medium_ReductionOps,
+                                   public ::testing::WithParamInterface<std::size_t>
+{
+};
+
+/**
+ * @brief Tests that argmax and argmin take the lowest index among equal elements.
+ */
+TEST_P(Medium_ReductionOpsArgScan, TiesTakeTheLowestIndex)
+{
+    const std::size_t size = GetParam();
+
+    expect_ties_take_the_lowest_index<float>(size);
+    expect_ties_take_the_lowest_index<int32_t>(size);
+    expect_ties_take_the_lowest_index<int64_t>(size);
+    expect_arg_indices(std::vector<float>(size, 2.5f), 0, 0);
 }
 
 /**
- * @brief Tests logsumexp on an infinite maximum, on a NaN and on two large equal elements.
+ * @brief Tests that a NaN at index 0 is the answer of argmax and argmin, whatever follows it.
  */
-TEST_F(Medium_ReductionOps, LogSumExpHandlesInfiniteAndNaNInputs)
+TEST_P(Medium_ReductionOpsArgScan, ANaNAtIndexZeroIsTheAnswer)
 {
-    expect_logsumexp({0.0f, K_INF}, K_INF);
-    expect_logsumexp({-K_INF, -K_INF}, -K_INF);
-    expect_logsumexp({1.0f, K_NAN}, K_NAN);
+    const std::size_t size = GetParam();
+    std::vector<float> nan_first(size, 1.0f);
+    nan_first[0] = K_NAN;
+    nan_first[size / 3] = 5.0f;
+    nan_first[size / 5] = -5.0f;
 
-    // Two equal elements give their value plus log(2).
-    expect_logsumexp({1000.0f, 1000.0f}, 1000.0f + std::log(2.0f));
+    expect_arg_indices(nan_first, 0, 0);
 }
 
 /**
- * @brief Tests the tie and NaN rules of argmax and argmin in both launch shapes.
+ * @brief Tests that a NaN past index 0 is never chosen by argmax or argmin.
  */
-TEST_F(Medium_ReductionOps, ArgMaxAndArgMinFollowTheScanRule)
+TEST_P(Medium_ReductionOpsArgScan, ANaNPastIndexZeroIsNeverChosen)
 {
-    for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
+    const std::size_t size = GetParam();
+    std::vector<float> nan_later(size, 1.0f);
+    nan_later[size / 2] = K_NAN;
+    nan_later[size / 3] = 5.0f;
+    nan_later[size / 5] = -5.0f;
 
-        expect_ties_take_the_lowest_index<float>(size);
-        expect_ties_take_the_lowest_index<int32_t>(size);
-        expect_ties_take_the_lowest_index<int64_t>(size);
-
-        expect_arg_indices(std::vector<float>(size, 2.5f), 0, 0);
-
-        // A NaN at index 0 is the answer of both, whatever follows it.
-        std::vector<float> nan_first(size, 1.0f);
-        nan_first[0] = K_NAN;
-        nan_first[size / 3] = 5.0f;
-        nan_first[size / 5] = -5.0f;
-        expect_arg_indices(nan_first, 0, 0);
-
-        // A NaN past index 0 is never chosen.
-        std::vector<float> nan_later(size, 1.0f);
-        nan_later[size / 2] = K_NAN;
-        nan_later[size / 3] = 5.0f;
-        nan_later[size / 5] = -5.0f;
-        expect_arg_indices(nan_later, static_cast<int64_t>(size / 3),
-                           static_cast<int64_t>(size / 5));
-    }
+    expect_arg_indices(nan_later, static_cast<int64_t>(size / 3), static_cast<int64_t>(size / 5));
 }
+
+INSTANTIATE_TEST_SUITE_P(, Medium_ReductionOpsArgScan,
+                         ::testing::Values(K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE), size_name);
 
 /// @brief Runs the var and std cases once per real element type.
 template<typename T>
 class Medium_ReductionMomentsTyped : public SushiBLASTest
 {
+    protected:
+        /** @brief Expects var and std of size drawn values to stay within the bound of a two-pass host computation. */
+        void expect_moments_match_the_host(std::size_t size)
+        {
+            const std::vector<T> values = moment_values<T>(size);
 
+            auto t = this->template create_initialized_tensor<T>({static_cast<int64_t>(size)},
+                                                                 values);
+            auto variance = this->engine->create_tensor({1}, sushiblas_dtype<T>());
+            auto deviation = this->engine->create_tensor({1}, sushiblas_dtype<T>());
+
+            SushiBLAS::ReductionOps(this->recorder()).var(t, variance);
+            SushiBLAS::ReductionOps(this->recorder()).std(t, deviation);
+            this->recording->run().value();
+
+            const long double expected_variance = host_variance(values);
+            const long double expected_deviation = std::sqrt(expected_variance);
+
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<T>(
+                to_double(read_tensor<T>(variance)[0]), static_cast<double>(expected_variance),
+                K_MOMENT_ROUNDINGS, K_BOUND_THRESHOLD)))
+                << "var of " << size << " elements";
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<T>(
+                to_double(read_tensor<T>(deviation)[0]), static_cast<double>(expected_deviation),
+                K_MOMENT_ROUNDINGS, K_BOUND_THRESHOLD)))
+                << "std of " << size << " elements";
+        }
 };
 
 /// @brief Names the element types the moment cases run over.
@@ -965,43 +1249,27 @@ using MomentTypes = ::testing::Types<sycl::half, float, double>;
 SB_TYPED_TEST_SUITE(Medium_ReductionMomentsTyped, MomentTypes);
 
 /**
- * @brief Tests that var and std stay within four ulp of a two-pass host computation.
+ * @brief Tests that var and std of five elements stay within the bound of a two-pass host computation.
  */
-TYPED_TEST(Medium_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
+TYPED_TEST(Medium_ReductionMomentsTyped, VarianceOfFiveElementsMatchesATwoPassHostReference)
 {
-    using T = TypeParam;
+    this->expect_moments_match_the_host(5);
+}
 
-    std::mt19937 generator(K_MOMENT_SEED);
-    std::uniform_real_distribution<float> distribution(-10.0f, 10.0f);
+/**
+ * @brief Tests that var and std of a thousand elements stay within the bound of a two-pass host computation.
+ */
+TYPED_TEST(Medium_ReductionMomentsTyped, VarianceOfAThousandElementsMatchesATwoPassHostReference)
+{
+    this->expect_moments_match_the_host(1000);
+}
 
-    for (std::size_t size : {std::size_t{5}, std::size_t{1000}, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
-
-        std::vector<T> values(size);
-        for (T& value : values)
-            value = static_cast<T>(distribution(generator));
-
-        auto t = this->template create_initialized_tensor<T>({static_cast<int64_t>(size)}, values);
-        auto variance = this->engine->create_tensor({1}, sushiblas_dtype<T>());
-        auto deviation = this->engine->create_tensor({1}, sushiblas_dtype<T>());
-
-        SushiBLAS::ReductionOps(this->recorder()).var(t, variance);
-        SushiBLAS::ReductionOps(this->recorder()).std(t, deviation);
-        this->recording->run().value();
-
-        const long double expected_variance = host_variance(values);
-        const long double expected_deviation = std::sqrt(expected_variance);
-        const long double got_variance = to_long_double(read_tensor<T>(variance)[0]);
-        const long double got_deviation = to_long_double(read_tensor<T>(deviation)[0]);
-
-        EXPECT_LE(std::fabs(got_variance - expected_variance),
-                  K_MOMENT_ULPS * ulp_at<T>(expected_variance))
-            << "var gave " << got_variance << ", the host " << expected_variance;
-        EXPECT_LE(std::fabs(got_deviation - expected_deviation),
-                  K_MOMENT_ULPS * ulp_at<T>(expected_deviation))
-            << "std gave " << got_deviation << ", the host " << expected_deviation;
-    }
+/**
+ * @brief Tests that var and std past the two-stage threshold stay within the bound of a two-pass host computation.
+ */
+TYPED_TEST(Medium_ReductionMomentsTyped, VarianceOfTheTwoStageSizeMatchesATwoPassHostReference)
+{
+    this->expect_moments_match_the_host(K_TWO_STAGE_SIZE);
 }
 
 /// @brief Runs each parity case once per real element type, on both paths of a reduction.
@@ -1018,6 +1286,158 @@ class Medium_ReductionReferenceTyped : public SushiBLASTest
             if (std::is_same_v<T, sycl::half> && !device.has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
         }
+
+        /** @brief Expects the SYCL result of each sum-class call over shape to be within the rounding bound of its host result. */
+        void expect_sums_within_the_bound(const ParityShape& shape)
+        {
+            const std::vector<T> values = parity_values<T>(shape.size());
+            const ParityOperands operands = operands_of(*this->engine, values, shape);
+
+            for (const SumClassCall& sum : sum_class_calls(operands, shape))
+            {
+                const ModeResults<T> results = in_both_modes<T>(*this->engine, sum.call);
+                expect_within_rounding(sum.call.name, results, K_SUM_ROUNDINGS,
+                                       folded_magnitudes(values, sum));
+            }
+        }
+
+        /**
+         * @brief Expects the sum-class calls over small integers of shape to come out with equal bits.
+         *
+         * T holds every integer below 2^digits, so a shape whose magnitude exceeds that is skipped
+         * and reported as skipped, which leaves HALF the shorter tensors.
+         */
+        void expect_small_integer_sums_to_the_bit(const ParityShape& shape)
+        {
+            const double exact_integers = std::ldexp(1.0, std::numeric_limits<T>::digits);
+            const std::vector<T> values = small_integers<T>(shape.size());
+            if (magnitude_of(values) >= exact_integers)
+                GTEST_SKIP() << "the sums of " << shape.size()
+                             << " small integers are not exact in this element type";
+
+            const ParityOperands operands = operands_of(*this->engine, values, shape);
+
+            for (const SumClassCall& sum : sum_class_calls(operands, shape))
+                expect_equal_bits(sum.call.name, in_both_modes<T>(*this->engine, sum.call));
+        }
+
+        /** @brief Expects max, min, max_along and min_along over signed zeros and over the marked input to agree to the bit. */
+        void expect_ordered_values_agree(const ParityShape& shape)
+        {
+            const std::size_t size = shape.size();
+            const ParityOperands zeros = operands_of(*this->engine, signed_zeros<T>(size), shape);
+            const ParityOperands marked = operands_of(*this->engine, marked_integers<T>(size), shape);
+
+            for (const ParityOperands& operands : {zeros, marked})
+            {
+                for (const ReductionCall& call : ordered_value_calls(operands, shape))
+                    expect_equal_bits(call.name, in_both_modes<T>(*this->engine, call));
+            }
+        }
+
+        /** @brief Expects argmax, argmin and count_nonfinite over signed zeros and over the marked input to agree to the bit. */
+        void expect_indices_and_counts_agree(const ParityShape& shape)
+        {
+            const std::size_t size = shape.size();
+            const ParityOperands zeros = operands_of(*this->engine, signed_zeros<T>(size), shape);
+            const ParityOperands marked = operands_of(*this->engine, marked_integers<T>(size), shape);
+
+            for (const ParityOperands& operands : {zeros, marked})
+            {
+                for (const ReductionCall& call :
+                     {whole_call("argmax", &ReductionOps::argmax, operands.flat),
+                      whole_call("argmin", &ReductionOps::argmin, operands.flat),
+                      whole_call("count_nonfinite", &ReductionOps::count_nonfinite, operands.flat)})
+                    expect_equal_bits(call.name, in_both_modes<int64_t>(*this->engine, call));
+            }
+        }
+
+        /** @brief Expects +0 as the maximum of zeros of both signs and -0 as their minimum. */
+        void expect_zero_extremes_keep_their_signs(const ParityShape& shape)
+        {
+            const ParityOperands zeros =
+                operands_of(*this->engine, signed_zeros<T>(shape.size()), shape);
+            const std::vector<ReductionCall> extremes = ordered_value_calls(zeros, shape);
+
+            EXPECT_FALSE(std::signbit(
+                to_double(in_both_modes<T>(*this->engine, extremes[0]).reference[0])));
+            EXPECT_TRUE(std::signbit(
+                to_double(in_both_modes<T>(*this->engine, extremes[1]).reference[0])));
+        }
+
+        /** @brief Expects the NaN to make the maximum NaN, the infinity to be the largest element, the first -3 the smallest, and two elements non-finite. */
+        void expect_marked_answers(const ParityShape& shape)
+        {
+            const std::size_t size = shape.size();
+            const ParityOperands marked = operands_of(*this->engine, marked_integers<T>(size), shape);
+
+            const ModeResults<T> largest = in_both_modes<T>(
+                *this->engine, whole_call("max", &ReductionOps::max, marked.flat));
+            const ModeResults<int64_t> at_largest = in_both_modes<int64_t>(
+                *this->engine, whole_call("argmax", &ReductionOps::argmax, marked.flat));
+            const ModeResults<int64_t> at_smallest = in_both_modes<int64_t>(
+                *this->engine, whole_call("argmin", &ReductionOps::argmin, marked.flat));
+            const ModeResults<int64_t> non_finite = in_both_modes<int64_t>(
+                *this->engine,
+                whole_call("count_nonfinite", &ReductionOps::count_nonfinite, marked.flat));
+
+            EXPECT_TRUE(std::isnan(to_double(largest.reference[0])));
+            EXPECT_EQ(static_cast<int64_t>(size / 3), at_largest.reference[0]);
+            EXPECT_EQ(0, at_smallest.reference[0]);
+            EXPECT_EQ(2, non_finite.reference[0]);
+        }
+
+        /** @brief Expects var and std of size drawn values to differ between the paths by no more than both allowances together. */
+        void expect_moments_agree(std::size_t size)
+        {
+            const Tensor t = tensor_of(*this->engine, {static_cast<int64_t>(size)},
+                                       moment_values<T>(size));
+
+            for (const ReductionCall& call : {whole_call("var", &ReductionOps::var, t),
+                                              whole_call("std", &ReductionOps::std, t)})
+            {
+                SCOPED_TRACE(call.name);
+
+                const ModeResults<T> results = in_both_modes<T>(*this->engine, call);
+
+                // Each path is allowed K_MOMENT_ROUNDINGS against the two-pass truth.
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<T>(
+                    to_double(results.device[0]), to_double(results.reference[0]),
+                    2 * K_MOMENT_ROUNDINGS, K_BOUND_THRESHOLD)))
+                    << "the host path gave " << to_double(results.reference[0])
+                    << ", the SYCL path " << to_double(results.device[0]);
+            }
+        }
+
+        /** @brief Expects the nrm2 of size parity values to agree between the paths within the rounding allowance. */
+        void expect_nrm2_within_the_bound(std::size_t size)
+        {
+            const Tensor t = tensor_of(*this->engine, {static_cast<int64_t>(size)},
+                                       parity_values<T>(size));
+            const ModeResults<T> norms = in_both_modes<T>(
+                *this->engine, whole_call("nrm2", &ReductionOps::nrm2, t));
+
+            expect_within_rounding("nrm2", norms, K_NORM_ROUNDINGS,
+                                   {std::fabs(to_double(norms.reference[0]))});
+        }
+
+        /** @brief Expects logsumexp of size parity values to agree between the paths within a few epsilons. */
+        void expect_logsumexp_agrees(std::size_t size)
+        {
+            const double epsilon = to_double(std::numeric_limits<T>::epsilon());
+
+            const Tensor t = tensor_of(*this->engine, {static_cast<int64_t>(size)},
+                                       parity_values<T>(size));
+            const ModeResults<T> results = in_both_modes<T>(
+                *this->engine, whole_call("logsumexp", &ReductionOps::logsumexp, t));
+
+            const double reference = to_double(results.reference[0]);
+            const double device = to_double(results.device[0]);
+
+            EXPECT_LE(std::fabs(device - reference),
+                      K_LOGSUMEXP_PARITY_EPSILONS * epsilon * std::max(1.0, std::fabs(reference)))
+                << "the host path gave " << reference << ", the SYCL path " << device;
+        }
 };
 
 /// @brief Names the element types the parity cases run over.
@@ -1025,207 +1445,178 @@ using ParityTypes = ::testing::Types<sycl::half, float, double>;
 SB_TYPED_TEST_SUITE(Medium_ReductionReferenceTyped, ParityTypes);
 
 /**
- * @brief Tests that the SYCL result of each sum is within the rounding bound of its host result.
+ * @brief Tests that the SYCL result of each sum is within the rounding bound of its host result at the single-pass size.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTheBound)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTheBoundAtTheSinglePassShape)
 {
-    using T = TypeParam;
-    Engine& engine = *this->engine;
-
-    for (const ParityShape& shape : {K_SINGLE_PASS_SHAPE, K_TWO_STAGE_SHAPE})
-    {
-        SCOPED_TRACE(shape.size());
-
-        const std::vector<T> values = parity_values<T>(shape.size());
-        const ParityOperands operands = operands_of(engine, values, shape);
-
-        for (const SumClassCall& sum : sum_class_calls(operands, shape))
-        {
-            const ModeResults<T> results = in_both_modes<T>(engine, sum.call);
-            expect_within_rounding(sum.call.name, results, K_SUM_ROUNDINGS,
-                                   folded_magnitudes(values, sum));
-        }
-    }
+    this->expect_sums_within_the_bound(K_SINGLE_PASS_SHAPE);
 }
 
 /**
- * @brief Tests that sums of small integers, which no path rounds, come out with equal bits.
+ * @brief Tests that the SYCL result of each sum is within the rounding bound of its host result at the two-stage size.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, SumsOfSmallIntegersAgreeToTheBit)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTheBoundAtTheTwoStageShape)
 {
-    using T = TypeParam;
-    Engine& engine = *this->engine;
-
-    const double exact_integers = std::ldexp(1.0, std::numeric_limits<T>::digits);
-
-    for (const ParityShape& shape : {K_SIX_ELEMENTS, K_THOUSAND_ELEMENTS, K_TWO_STAGE_SHAPE})
-    {
-        SCOPED_TRACE(shape.size());
-
-        const std::vector<T> values = small_integers<T>(shape.size());
-
-        // T holds every integer below 2^digits, so HALF leaves the longest tensor to the wider types.
-        if (magnitude_of(values) >= exact_integers)
-            continue;
-
-        const ParityOperands operands = operands_of(engine, values, shape);
-
-        for (const SumClassCall& sum : sum_class_calls(operands, shape))
-            expect_equal_bits(sum.call.name, in_both_modes<T>(engine, sum.call));
-    }
+    this->expect_sums_within_the_bound(K_TWO_STAGE_SHAPE);
 }
 
 /**
- * @brief Tests that the reductions whose result does not depend on the fold order agree to the bit.
+ * @brief Tests that sums of six small integers, which no path rounds, come out with equal bits.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, OrderFreeReductionsAgreeToTheBit)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsOfSixSmallIntegersAgreeToTheBit)
 {
-    using T = TypeParam;
-    Engine& engine = *this->engine;
-
-    for (const ParityShape& shape : {K_SINGLE_PASS_SHAPE, K_TWO_STAGE_SHAPE})
-    {
-        SCOPED_TRACE(shape.size());
-
-        const std::size_t size = shape.size();
-        const ParityOperands zeros = operands_of(engine, signed_zeros<T>(size), shape);
-        const ParityOperands marked = operands_of(engine, marked_integers<T>(size), shape);
-
-        for (const ParityOperands& operands : {zeros, marked})
-        {
-            for (const ReductionCall& call : ordered_value_calls(operands, shape))
-                expect_equal_bits(call.name, in_both_modes<T>(engine, call));
-
-            for (const ReductionCall& call :
-                 {whole_call("argmax", &ReductionOps::argmax, operands.flat),
-                  whole_call("argmin", &ReductionOps::argmin, operands.flat),
-                  whole_call("count_nonfinite", &ReductionOps::count_nonfinite, operands.flat)})
-                expect_equal_bits(call.name, in_both_modes<int64_t>(engine, call));
-        }
-
-        // +0 is the maximum of zeros of both signs and -0 their minimum.
-        const std::vector<ReductionCall> extremes = ordered_value_calls(zeros, shape);
-        EXPECT_FALSE(std::signbit(to_double(in_both_modes<T>(engine, extremes[0]).reference[0])));
-        EXPECT_TRUE(std::signbit(to_double(in_both_modes<T>(engine, extremes[1]).reference[0])));
-
-        // The NaN makes the maximum NaN; the infinity is the largest element, the first -3 the smallest.
-        const ModeResults<T> largest = in_both_modes<T>(
-            engine, whole_call("max", &ReductionOps::max, marked.flat));
-        const ModeResults<int64_t> at_largest = in_both_modes<int64_t>(
-            engine, whole_call("argmax", &ReductionOps::argmax, marked.flat));
-        const ModeResults<int64_t> at_smallest = in_both_modes<int64_t>(
-            engine, whole_call("argmin", &ReductionOps::argmin, marked.flat));
-        const ModeResults<int64_t> non_finite = in_both_modes<int64_t>(
-            engine, whole_call("count_nonfinite", &ReductionOps::count_nonfinite, marked.flat));
-
-        EXPECT_TRUE(std::isnan(to_double(largest.reference[0])));
-        EXPECT_EQ(static_cast<int64_t>(size / 3), at_largest.reference[0]);
-        EXPECT_EQ(0, at_smallest.reference[0]);
-        EXPECT_EQ(2, non_finite.reference[0]);
-    }
+    this->expect_small_integer_sums_to_the_bit(K_SIX_ELEMENTS);
 }
 
 /**
- * @brief Tests that var and std of the two paths differ by no more than both allowances together.
+ * @brief Tests that sums of a thousand small integers, which no path rounds, come out with equal bits.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, MomentsAgreeWithTheirReferencePath)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsOfAThousandSmallIntegersAgreeToTheBit)
 {
-    using T = TypeParam;
-    Engine& engine = *this->engine;
-
-    std::mt19937 generator(K_MOMENT_SEED);
-    std::uniform_real_distribution<float> distribution(-10.0f, 10.0f);
-
-    for (std::size_t size : {std::size_t{5}, std::size_t{1000}, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
-
-        std::vector<T> values(size);
-        for (T& value : values)
-            value = static_cast<T>(distribution(generator));
-
-        const Tensor t = tensor_of(engine, {static_cast<int64_t>(size)}, values);
-
-        for (const ReductionCall& call : {whole_call("var", &ReductionOps::var, t),
-                                          whole_call("std", &ReductionOps::std, t)})
-        {
-            SCOPED_TRACE(call.name);
-
-            const ModeResults<T> results = in_both_modes<T>(engine, call);
-            const long double reference = to_long_double(results.reference[0]);
-            const long double device = to_long_double(results.device[0]);
-
-            // Each path is allowed K_MOMENT_ULPS against the two-pass truth.
-            EXPECT_LE(std::fabs(device - reference),
-                      2.0L * K_MOMENT_ULPS * ulp_at<T>(reference))
-                << "the host path gave " << reference << ", the SYCL path " << device;
-        }
-    }
+    this->expect_small_integer_sums_to_the_bit(K_THOUSAND_ELEMENTS);
 }
 
 /**
- * @brief Tests that prod and nrm2 of the two paths stay within their rounding allowances.
+ * @brief Tests that sums of small integers past the two-stage threshold come out with equal bits, where the type holds them.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, ProductAndNormAgreeWithinTheirBounds)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsOfTwoStageSmallIntegersAgreeToTheBit)
+{
+    this->expect_small_integer_sums_to_the_bit(K_TWO_STAGE_SHAPE);
+}
+
+/**
+ * @brief Tests that max, min, max_along and min_along agree to the bit on signed zeros and on NaN and infinity.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, OrderedValueReductionsAgreeToTheBit)
+{
+    this->expect_ordered_values_agree(K_SINGLE_PASS_SHAPE);
+    this->expect_ordered_values_agree(K_TWO_STAGE_SHAPE);
+}
+
+/**
+ * @brief Tests that argmax, argmin and count_nonfinite agree to the bit on signed zeros and on NaN and infinity.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, IndexAndCountReductionsAgreeToTheBit)
+{
+    this->expect_indices_and_counts_agree(K_SINGLE_PASS_SHAPE);
+    this->expect_indices_and_counts_agree(K_TWO_STAGE_SHAPE);
+}
+
+/**
+ * @brief Tests that the maximum of zeros of both signs is +0 and their minimum is -0.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, SignedZerosGivePositiveMaxAndNegativeMin)
+{
+    this->expect_zero_extremes_keep_their_signs(K_SINGLE_PASS_SHAPE);
+    this->expect_zero_extremes_keep_their_signs(K_TWO_STAGE_SHAPE);
+}
+
+/**
+ * @brief Tests that a marked input gives a NaN maximum, its infinity as the largest element and two non-finite elements.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, AMarkedInputGivesNaNMaxAndTheMarkedIndices)
+{
+    this->expect_marked_answers(K_SINGLE_PASS_SHAPE);
+    this->expect_marked_answers(K_TWO_STAGE_SHAPE);
+}
+
+/**
+ * @brief Tests that var and std of five elements differ between the paths by no more than both allowances together.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, MomentsOfFiveElementsAgreeWithTheirReferencePath)
+{
+    this->expect_moments_agree(5);
+}
+
+/**
+ * @brief Tests that var and std of a thousand elements differ between the paths by no more than both allowances together.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, MomentsOfAThousandElementsAgreeWithTheirReferencePath)
+{
+    this->expect_moments_agree(1000);
+}
+
+/**
+ * @brief Tests that var and std past the two-stage threshold differ between the paths by no more than both allowances together.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, MomentsOfTheTwoStageSizeAgreeWithTheirReferencePath)
+{
+    this->expect_moments_agree(K_TWO_STAGE_SIZE);
+}
+
+/**
+ * @brief Tests that prod of values near one stays within its rounding allowance between the paths.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, ProductAgreesWithinItsBound)
 {
     using T = TypeParam;
-    Engine& engine = *this->engine;
-
-    const std::vector<int64_t> terms = {static_cast<int64_t>(K_PRODUCT_TERMS)};
-    const Tensor near_one = tensor_of(engine, terms, near_one_values<T>());
-    const Tensor powers = tensor_of(engine, terms, powers_of_two<T>());
+    const Tensor near_one = tensor_of(*this->engine, {static_cast<int64_t>(K_PRODUCT_TERMS)},
+                                      near_one_values<T>());
 
     // Each path multiplies the values in its own order and may round once per value.
     const ModeResults<T> rounded = in_both_modes<T>(
-        engine, whole_call("prod", &ReductionOps::prod, near_one));
+        *this->engine, whole_call("prod", &ReductionOps::prod, near_one));
+
     expect_within_rounding("prod", rounded, 2 * K_PRODUCT_TERMS,
                            {std::fabs(to_double(rounded.reference[0]))});
-
-    // A product of powers of two is exact in every order.
-    const ModeResults<T> exact = in_both_modes<T>(
-        engine, whole_call("prod", &ReductionOps::prod, powers));
-    expect_equal_bits("prod of powers of two", exact);
-    EXPECT_TRUE(same_bits(from_double<T>(0.25), exact.reference[0]))
-        << to_double(exact.reference[0]);
-
-    for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
-
-        const Tensor t = tensor_of(engine, {static_cast<int64_t>(size)}, parity_values<T>(size));
-        const ModeResults<T> norms = in_both_modes<T>(
-            engine, whole_call("nrm2", &ReductionOps::nrm2, t));
-
-        expect_within_rounding("nrm2", norms, K_NORM_ROUNDINGS,
-                               {std::fabs(to_double(norms.reference[0]))});
-    }
 }
 
 /**
- * @brief Tests that logsumexp of the two paths agrees, on finite terms and on its special values.
+ * @brief Tests that a product of powers of two is exact in every order and equals 1/4 on both paths.
  */
-TYPED_TEST(Medium_ReductionReferenceTyped, LogSumExpAgreesWithItsReferencePath)
+TYPED_TEST(Medium_ReductionReferenceTyped, AProductOfPowersOfTwoIsExactOnBothPaths)
+{
+    using T = TypeParam;
+    const Tensor powers = tensor_of(*this->engine, {static_cast<int64_t>(K_PRODUCT_TERMS)},
+                                    powers_of_two<T>());
+
+    const ModeResults<T> exact = in_both_modes<T>(
+        *this->engine, whole_call("prod", &ReductionOps::prod, powers));
+
+    expect_equal_bits("prod of powers of two", exact);
+    EXPECT_TRUE(same_bits(from_double<T>(0.25), exact.reference[0]))
+        << to_double(exact.reference[0]);
+}
+
+/**
+ * @brief Tests that nrm2 at the single-pass size stays within its rounding allowance between the paths.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, Nrm2AgreesWithinItsBoundAtTheSinglePassSize)
+{
+    this->expect_nrm2_within_the_bound(K_SINGLE_PASS_SIZE);
+}
+
+/**
+ * @brief Tests that nrm2 at the two-stage size stays within its rounding allowance between the paths.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, Nrm2AgreesWithinItsBoundAtTheTwoStageSize)
+{
+    this->expect_nrm2_within_the_bound(K_TWO_STAGE_SIZE);
+}
+
+/**
+ * @brief Tests that logsumexp at the single-pass size agrees between the paths on finite terms.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, LogSumExpAgreesOnFiniteTermsAtTheSinglePassSize)
+{
+    this->expect_logsumexp_agrees(K_SINGLE_PASS_SIZE);
+}
+
+/**
+ * @brief Tests that logsumexp at the two-stage size agrees between the paths on finite terms.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, LogSumExpAgreesOnFiniteTermsAtTheTwoStageSize)
+{
+    this->expect_logsumexp_agrees(K_TWO_STAGE_SIZE);
+}
+
+/**
+ * @brief Tests that logsumexp of the two paths agrees on its special values.
+ */
+TYPED_TEST(Medium_ReductionReferenceTyped, LogSumExpAgreesOnItsSpecialValues)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
-
-    const double epsilon = to_double(std::numeric_limits<T>::epsilon());
-
-    for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
-    {
-        SCOPED_TRACE(size);
-
-        const Tensor t = tensor_of(engine, {static_cast<int64_t>(size)}, parity_values<T>(size));
-        const ModeResults<T> results = in_both_modes<T>(
-            engine, whole_call("logsumexp", &ReductionOps::logsumexp, t));
-
-        const double reference = to_double(results.reference[0]);
-        const double device = to_double(results.device[0]);
-
-        EXPECT_LE(std::fabs(device - reference),
-                  K_LOGSUMEXP_PARITY_EPSILONS * epsilon * std::max(1.0, std::fabs(reference)))
-            << "the host path gave " << reference << ", the SYCL path " << device;
-    }
 
     const double infinity = std::numeric_limits<double>::infinity();
     const double not_a_number = std::numeric_limits<double>::quiet_NaN();

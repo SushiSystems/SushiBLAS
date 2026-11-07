@@ -83,6 +83,7 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 22. Decision 9 wired the same day: `TestEnvironment` makes the host CPU queue in `SetUp()` and hands it out through `cpu_queue()`; `HostDeviceTest` reads it, `host_device` declares the test-only edge to `test_runner`, and `host_queue.hpp` with its function-local queue is deleted. The device-list choice moved to `test_runner/cpu_queue.hpp` as `Detail::make_cpu_queue`, and the test that made a queue of its own is deleted, since the fixture test checks the same queue.
 23. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the log category test of `operations/logic` becomes `compile_logic_log_category.cpp` under `COMPILE_CHECKS`, not a plain deletion, as `launch`, `test_runner` and `sparse_kernels` did, because `rule_untested_unit` refuses a header left with no test or compile check. The 13 `LogicOps` tests stay `Medium_` until the engine fixture offers a host tensor (RW-150), and their suites are named `Medium_LogicOps<Operation>` so a failing name starts with its unit.
 24. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the statistical tests of `operations/random` check a sample against its law within five standard errors, the variance bound taken from the law's fourth central moment and the sample count, in `tests/operations/random/random_statistics.hpp`; at a fixed seed one moment fails falsely about 6e-7 of the time. This is the statistical bound `testing` names, so it does not go through `tolerance.hpp`. The refusal tests of `RandomOps` stay `Medium_` until it can record on an in-memory task recorder (RW-151), and the cap-acceptance half of the Poisson cap test is dropped, since `PoissonAtTheCapDrawsNonNegativeIntegers` fails when the cap is refused.
+25. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the reduction refusal, dtype, empty-input and partial-plan tests move to `Small_` on host functions of `operations/reductions` (RW-152, job S5), and the `ScratchBuffer` lease tests on a block source port of `ScratchPool` with an in-memory adapter (RW-153, job S6). `LeasesAreSafeAcrossThreads` and `ADeviceWriteOverALeaseSurvivesItsPool` stay `Medium_`: a thread handover and a device write are the boundary. The sign of a reduced `-0` is pinned for max and min only, since `CompensatedSum` starts at `+0` and the library promises no sign for sum and mean.
 
 ## Risks the final build checks
 
@@ -103,6 +104,7 @@ Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; t
 - M23: `Medium_TypedSuiteNaming` names its suites `/0` and `/1` by type order.
 - M41: the `Medium_LogicDispatch` instantiation over `K_BOTH_MODES` with its empty prefix and name generator, and the six `Small_LogicPredicates` tests.
 - M43: the five-standard-error bounds of `random_statistics.hpp` on the fixed seeds (truncated normal, log-normal and the large-lambda Poisson rows most of all), the Gram bound `absolute_tolerance<float>(128, gain^2)`, and the per-row Knuth and PTRS slack of the Poisson reference rows.
+- M44: the axis-plan rows over a `Device::Profile` value, the `GTEST_SKIP` in the size-integer sum helper, and the exact equality of `100004096` in the compensated sums.
 
 ## Dispatches
 
@@ -133,6 +135,7 @@ dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-1
 dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
 dispatch: J16 M41 operations/logic tests — sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
 dispatch: J16 M43 operations/random tests — sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
+dispatch: J16 M44 operations/reductions tests — sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
 
 ## Totals
 

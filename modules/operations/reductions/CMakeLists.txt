@@ -50,4 +50,4 @@ sushiblas_add_test_program(
     DEVICE_BENCHMARKS
         benchmark_reductions.cpp
     COMPILE_CHECKS
-        test_reductions_log_category.cpp)
+        compile_reductions_log_category.cpp)

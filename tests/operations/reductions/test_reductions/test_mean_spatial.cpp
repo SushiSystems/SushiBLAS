@@ -27,29 +27,116 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/reduction/reduce_axis.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include "support/tolerance.hpp"
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
     namespace Test
     {
         namespace
         {
-            /** @brief Copies a FLOAT32 tensor's elements back to the host. */
-            std::vector<float> read_back(const Tensor& t)
+            /// @brief The batch extent of the NHWC case.
+            constexpr int64_t K_N = 2;
+
+            /// @brief The height of the NHWC case.
+            constexpr int64_t K_H = 3;
+
+            /// @brief The width of the NHWC case.
+            constexpr int64_t K_W = 4;
+
+            /// @brief The channel count of the NHWC case.
+            constexpr int64_t K_C = 5;
+
+            /// @brief The side of the square spatial extent of the long case.
+            constexpr int64_t K_LONG_SIDE = 512;
+
+            /// @brief Returns the values i % 17 - 8 for the elements of the NHWC case.
+            std::vector<float> nhwc_source()
             {
-                const std::size_t n = static_cast<std::size_t>(t.num_elements);
-                std::vector<float> host(n);
-                auto& q = TestEnvironment::queue();
-                q.memcpy(host.data(), t.data(), n * sizeof(float)).wait();
-                return host;
+                std::vector<float> src(static_cast<std::size_t>(K_N * K_H * K_W * K_C));
+                for (std::size_t i = 0; i < src.size(); ++i)
+                    src[i] = static_cast<float>(i % 17) - 8.0f;
+                return src;
+            }
+
+            /// @brief Returns the values i % 7 - 3 for the elements of the long case.
+            std::vector<float> long_source()
+            {
+                std::vector<float> src(static_cast<std::size_t>(K_LONG_SIDE * K_LONG_SIDE));
+                for (std::size_t i = 0; i < src.size(); ++i)
+                    src[i] = static_cast<float>(i % 7) - 3.0f;
+                return src;
+            }
+
+            /**
+             * @brief Expects a mean to lie within the rounding bound of the mean of src in double.
+             * @param got The mean the code under test produced.
+             * @param sum The sum of the values folded, in double.
+             * @param magnitude The sum of their absolute values, in double.
+             * @param count The number of values folded.
+             */
+            ::testing::AssertionResult mean_is_within_bound(float got, double sum, double magnitude,
+                                                            std::size_t count)
+            {
+                const double elements = static_cast<double>(count);
+                return TestSupport::is_within(TestSupport::measure_sum_error<float>(
+                    static_cast<double>(got), sum / elements, magnitude / elements, count));
+            }
+
+            /** @brief Expects got to be the mean of every value of src within the rounding bound. */
+            void expect_mean_of_all(float got, const std::vector<float>& src)
+            {
+                double sum = 0.0;
+                double magnitude = 0.0;
+                for (float value : src)
+                {
+                    sum += static_cast<double>(value);
+                    magnitude += std::fabs(static_cast<double>(value));
+                }
+                EXPECT_TRUE(mean_is_within_bound(got, sum, magnitude, src.size()));
+            }
+
+            /**
+             * @brief Expects each (n, c) result to be the mean of its H * W values of src.
+             * @param got N * C results, row-major.
+             */
+            void expect_nhwc_means(const std::vector<float>& got, const std::vector<float>& src)
+            {
+                ASSERT_EQ(got.size(), static_cast<std::size_t>(K_N * K_C));
+                for (int64_t n = 0; n < K_N; ++n)
+                {
+                    for (int64_t c = 0; c < K_C; ++c)
+                    {
+                        double sum = 0.0;
+                        double magnitude = 0.0;
+                        for (int64_t h = 0; h < K_H; ++h)
+                        {
+                            for (int64_t w = 0; w < K_W; ++w)
+                            {
+                                const std::size_t idx = static_cast<std::size_t>(
+                                    ((n * K_H + h) * K_W + w) * K_C + c);
+                                sum += static_cast<double>(src[idx]);
+                                magnitude += std::fabs(static_cast<double>(src[idx]));
+                            }
+                        }
+                        EXPECT_TRUE(mean_is_within_bound(got[static_cast<std::size_t>(n * K_C + c)],
+                                                         sum, magnitude,
+                                                         static_cast<std::size_t>(K_H * K_W)))
+                            << "at (n, c) = (" << n << ", " << c << ")";
+                    }
+                }
             }
         }
 
@@ -61,44 +148,15 @@ namespace SushiBLAS
          */
         TEST_F(Medium_MeanSpatialTest, FoldsTheTwoMiddleAxesOfAnNhwcTensor)
         {
-            constexpr int64_t N = 2, H = 3, W = 4, C = 5;
-            const std::size_t total = static_cast<std::size_t>(N * H * W * C);
-
-            std::vector<float> src(total);
-            for (std::size_t i = 0; i < total; ++i)
-                src[i] = static_cast<float>(i % 17) - 8.0f;
-
-            auto x = engine->create_tensor({N, H, W, C});
-            auto out = engine->create_tensor({N, C});
+            const std::vector<float> src = nhwc_source();
+            auto x = engine->create_tensor({K_N, K_H, K_W, K_C});
+            auto out = engine->create_tensor({K_N, K_C});
             fill_tensor(x, src);
 
             SushiBLAS::ReductionOps(recorder()).mean_spatial(x, out);
             recording->run().value();
 
-            const std::vector<float> got = read_back(out);
-            ASSERT_EQ(got.size(), static_cast<std::size_t>(N * C));
-
-            for (int64_t n = 0; n < N; ++n)
-            {
-                for (int64_t c = 0; c < C; ++c)
-                {
-                    double acc = 0.0;
-                    for (int64_t h = 0; h < H; ++h)
-                    {
-                        for (int64_t w = 0; w < W; ++w)
-                        {
-                            const std::size_t idx =
-                                static_cast<std::size_t>(((n * H + h) * W + w) * C + c);
-                            acc += static_cast<double>(src[idx]);
-                        }
-                    }
-
-                    const double expected = acc / static_cast<double>(H * W);
-                    EXPECT_NEAR(got[static_cast<std::size_t>(n * C + c)],
-                                static_cast<float>(expected), absolute_tolerance<float>(16))
-                        << "at (n, c) = (" << n << ", " << c << ")";
-                }
-            }
+            expect_nhwc_means(read_tensor<float>(out), src);
         }
 
         /**
@@ -114,39 +172,38 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).mean_spatial(x, out);
             recording->run().value();
 
-            const std::vector<float> got = read_back(out);
-            ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
-            EXPECT_NEAR(got[0], 2.5f, absolute_tolerance<float>(16));
+            // 10 / 4 is exact in float.
+            expect_tensor_equal(out, {2.5f});
         }
 
         /**
-         * @brief Tests one fold of 262144 elements, which takes the cooperative shape.
+         * @brief Tests that one fold of 262144 elements takes the cooperative shape on the test device.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Medium_MeanSpatialTest, ALongExtentReachesTheCooperativeShape)
+        TEST_F(Medium_MeanSpatialTest, ALongExtentTakesTheCooperativeShape)
         {
-            constexpr int64_t H = 512, W = 512;
-            const std::size_t total = static_cast<std::size_t>(H * W);
+            const Device::Profile device = Device::profile_for(TestEnvironment::queue());
 
-            std::vector<float> src(total);
-            for (std::size_t i = 0; i < total; ++i)
-                src[i] = static_cast<float>(i % 7) - 3.0f;
+            EXPECT_TRUE(Reduce::plan_axis(device, 1,
+                                          static_cast<std::size_t>(K_LONG_SIDE * K_LONG_SIDE))
+                            .cooperative());
+        }
 
-            auto x = engine->create_tensor({1, H, W, 1});
+        /**
+         * @brief Tests the mean of a fold of 262144 elements, the length the cooperative shape serves.
+         * @see tests/operations/reductions/README.md
+         */
+        TEST_F(Medium_MeanSpatialTest, TheMeanOfALongExtentIsCorrect)
+        {
+            const std::vector<float> src = long_source();
+            auto x = engine->create_tensor({1, K_LONG_SIDE, K_LONG_SIDE, 1});
             auto out = engine->create_tensor({1, 1});
             fill_tensor(x, src);
 
             SushiBLAS::ReductionOps(recorder()).mean_spatial(x, out);
             recording->run().value();
 
-            double acc = 0.0;
-            for (std::size_t i = 0; i < total; ++i)
-                acc += static_cast<double>(src[i]);
-            const double expected = acc / static_cast<double>(total);
-
-            const std::vector<float> got = read_back(out);
-            ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
-            EXPECT_NEAR(got[0], static_cast<float>(expected), absolute_tolerance<float>(16));
+            expect_mean_of_all(read_tensor<float>(out)[0], src);
         }
     } // namespace Test
 } // namespace SushiBLAS
