@@ -29,6 +29,7 @@
 
 #include <complex>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -65,51 +66,42 @@ class Medium_ConstantTest : public SushiBLASTest
         }
 };
 
-TEST_F(Medium_ConstantTest, Float32)
+/** @brief Names one dtype, element count and fill value of the constant fill. */
+struct ConstantRow
 {
-    const int N = 10;
-    auto t = engine->create_tensor({N});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, 2.5);
-    recording->run().value();
-    expect_tensor(t, std::vector<float>(N, 2.5f));
+    const char* name;  /**< The row name a failure shows. */
+    DataType dtype;    /**< The element type of the tensor. */
+    int64_t size;      /**< The element count. */
+    double value;      /**< The value every element must hold. */
+};
+
+/** @brief Returns one row per dtype at an odd size, and the one-element fill. */
+std::vector<ConstantRow> constant_rows()
+{
+    return {{"Half", DataType::Half, K_ODD_SIZE, K_REAL_VALUE},
+            {"Float32", DataType::Float32, K_ODD_SIZE, K_REAL_VALUE},
+            {"Float64", DataType::Float64, K_ODD_SIZE, K_REAL_VALUE},
+            {"Complex32WithZeroImaginaryPart", DataType::Complex32, K_ODD_SIZE, K_REAL_VALUE},
+            {"Complex64WithZeroImaginaryPart", DataType::Complex64, K_ODD_SIZE, K_REAL_VALUE},
+            {"Int32", DataType::Int32, K_ODD_SIZE, K_INTEGER_VALUE},
+            {"Int64", DataType::Int64, K_ODD_SIZE, K_INTEGER_VALUE},
+            {"SingleElement", DataType::Float32, 1, K_REAL_VALUE}};
 }
 
-TEST_F(Medium_ConstantTest, HalfOddSize)
+/** @brief Runs one row of constant_rows(). */
+class Medium_ConstantFill : public Medium_ConstantTest,
+                            public ::testing::WithParamInterface<ConstantRow>
 {
-    expect_constant_fill(DataType::Half, K_ODD_SIZE, K_REAL_VALUE);
+
+};
+
+TEST_P(Medium_ConstantFill, WritesTheValueToEveryElement)
+{
+    const ConstantRow row = GetParam();
+
+    expect_constant_fill(row.dtype, row.size, row.value);
 }
 
-TEST_F(Medium_ConstantTest, Float32OddSize)
-{
-    expect_constant_fill(DataType::Float32, K_ODD_SIZE, K_REAL_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, Float64OddSize)
-{
-    expect_constant_fill(DataType::Float64, K_ODD_SIZE, K_REAL_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, Complex32OddSizeHasZeroImaginaryPart)
-{
-    expect_constant_fill(DataType::Complex32, K_ODD_SIZE, K_REAL_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, Complex64OddSizeHasZeroImaginaryPart)
-{
-    expect_constant_fill(DataType::Complex64, K_ODD_SIZE, K_REAL_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, Int32OddSize)
-{
-    expect_constant_fill(DataType::Int32, K_ODD_SIZE, K_INTEGER_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, Int64OddSize)
-{
-    expect_constant_fill(DataType::Int64, K_ODD_SIZE, K_INTEGER_VALUE);
-}
-
-TEST_F(Medium_ConstantTest, SingleElement)
-{
-    expect_constant_fill(DataType::Float32, 1, K_REAL_VALUE);
-}
+INSTANTIATE_TEST_SUITE_P(
+    , Medium_ConstantFill, ::testing::ValuesIn(constant_rows()),
+    [](const ::testing::TestParamInfo<ConstantRow>& info) { return std::string(info.param.name); });

@@ -27,15 +27,15 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
-#include <cmath>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include "../random_statistics.hpp"
 using namespace SushiBLAS::Test;
 
 namespace
@@ -49,11 +49,8 @@ namespace
     /// @brief Holds the requested standard deviation.
     constexpr double K_STDDEV = 3.0;
 
-    /// @brief Holds four standard errors of the sample mean: 4 * 3 / sqrt(100000).
-    constexpr double K_MEAN_BOUND = 0.037947;
-
-    /// @brief Holds four standard errors of the sample variance: 4 * 9 * sqrt(2 / 100000).
-    constexpr double K_VARIANCE_BOUND = 0.16100;
+    /// @brief Holds the distance from the mean, in standard deviations, that 100000 draws must reach on each side.
+    constexpr double K_TAIL_REACH = 3.0;
 
     /// @brief Holds the seed the determinism tests share.
     constexpr uint64_t K_SEED = 20261006;
@@ -76,47 +73,45 @@ class Medium_NormalTest : public SushiBLASTest
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
             SushiBLAS::RandomOps(recorder(), engine->rng()).normal(t, K_MEAN, K_STDDEV);
             recording->run().value();
-            const std::vector<T> host = read_tensor<T>(t);
-            return std::vector<double>(host.begin(), host.end());
+            return widened(read_tensor<T>(t));
         }
 
-        /**
-         * @brief Expects the samples' mean, variance and spread to match N(K_MEAN, K_STDDEV^2).
-         */
-        static void expect_normal_statistics(const std::vector<double>& samples)
+        /** @brief Draws K_DRAWS normal samples of the dtype from seed, widened to double. */
+        std::vector<double> draw_as(SushiBLAS::Core::DataType dtype, uint64_t seed)
         {
-            double sum = 0.0;
-            for (double v : samples)
-            {
-                ASSERT_TRUE(std::isfinite(v));
-                sum += v;
-            }
-            const double mean = sum / static_cast<double>(samples.size());
-
-            double squares = 0.0;
-            for (double v : samples)
-                squares += (v - mean) * (v - mean);
-            const double variance = squares / static_cast<double>(samples.size() - 1);
-
-            const auto [lowest, highest] = std::minmax_element(samples.begin(), samples.end());
-
-            EXPECT_NEAR(mean, K_MEAN, K_MEAN_BOUND);
-            EXPECT_NEAR(variance, K_STDDEV * K_STDDEV, K_VARIANCE_BOUND);
-            EXPECT_LT(*lowest, *highest) << "The fill is constant.";
-            EXPECT_LT(*lowest, K_MEAN - 3.0 * K_STDDEV);
-            EXPECT_GT(*highest, K_MEAN + 3.0 * K_STDDEV);
+            if (dtype == SushiBLAS::Core::DataType::Float64)
+                return draw<double>(seed);
+            return draw<float>(seed);
         }
 };
 
-TEST_F(Medium_NormalTest, Float32MomentsMatchTheRequestedDistribution)
+/** @brief Runs one dtype of the moment test. */
+class Medium_NormalMoments : public Medium_NormalTest,
+                             public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
 {
-    expect_normal_statistics(draw<float>(K_SEED));
+
+};
+
+TEST_P(Medium_NormalMoments, MatchTheRequestedDistribution)
+{
+    const std::vector<double> samples = draw_as(GetParam(), K_SEED);
+
+    expect_moments_match(samples, normal_law(K_MEAN, K_STDDEV));
 }
 
-TEST_F(Medium_NormalTest, Float64MomentsMatchTheRequestedDistribution)
+TEST_P(Medium_NormalMoments, SpreadReachesBothTails)
 {
-    expect_normal_statistics(draw<double>(K_SEED));
+    const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
+
+    EXPECT_LT(measured.lowest, K_MEAN - K_TAIL_REACH * K_STDDEV);
+    EXPECT_GT(measured.highest, K_MEAN + K_TAIL_REACH * K_STDDEV);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    , Medium_NormalMoments,
+    ::testing::Values(SushiBLAS::Core::DataType::Float32, SushiBLAS::Core::DataType::Float64),
+    [](const ::testing::TestParamInfo<SushiBLAS::Core::DataType>& info)
+    { return std::string(SushiBLAS::Core::to_string(info.param)); });
 
 TEST_F(Medium_NormalTest, EqualSeedsDrawEqualSamples)
 {

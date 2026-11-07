@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
@@ -38,7 +39,7 @@
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 
@@ -62,32 +63,47 @@ namespace SushiBLAS
             }
         };
 
-        /** @brief Builds tensors for the dtype check on the fixture's engine. */
-        class Medium_RandomDispatch : public SushiBLASTest
-        {
-
-        };
-
         /** @brief Runs the fill on the host CPU queue. */
         class Medium_RandomFill : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Medium_RandomDispatch, DrawingRefusesHalfAndEveryDomainRefusesItsOutsiders)
+        /** @brief Returns a tensor of the dtype with no shape and no storage. */
+        Tensor tensor_of(Core::DataType dtype)
+        {
+            Tensor t;
+            t.dtype = dtype;
+            return t;
+        }
+
+        TEST(Small_RandomAdmits, DrawingRefusesHalf)
         {
             EXPECT_FALSE(Dispatch::random_admits(Domain::Real, Sampling::DrawsValues,
                                                  Core::DataType::Half));
-            EXPECT_TRUE(Dispatch::random_admits(Domain::Real, Sampling::MovesValues,
-                                                Core::DataType::Half));
-            EXPECT_FALSE(Dispatch::random_admits(Domain::RealAndComplex, Sampling::DrawsValues,
-                                                 Core::DataType::Int32));
-            EXPECT_ANY_THROW(Dispatch::require_random_dtype(
-                engine->create_tensor({2}, Core::DataType::Int64), Domain::Real,
-                Sampling::DrawsValues, "draw"));
         }
 
-        TEST_F(Medium_RandomDispatch, TheSeedAndTheOffsetTakeTheLastTwoSlots)
+        TEST(Small_RandomAdmits, MovingValuesAdmitsHalf)
+        {
+            EXPECT_TRUE(Dispatch::random_admits(Domain::Real, Sampling::MovesValues,
+                                                Core::DataType::Half));
+        }
+
+        TEST(Small_RandomAdmits, ARealAndComplexDomainRefusesIntegers)
+        {
+            EXPECT_FALSE(Dispatch::random_admits(Domain::RealAndComplex, Sampling::DrawsValues,
+                                                 Core::DataType::Int32));
+        }
+
+        TEST(Small_RandomDtype, ADtypeOutsideTheDomainIsRefusedWithInvalidArgument)
+        {
+            EXPECT_THROW(Dispatch::require_random_dtype(tensor_of(Core::DataType::Int64),
+                                                        Domain::Real, Sampling::DrawsValues,
+                                                        "draw"),
+                         std::invalid_argument);
+        }
+
+        TEST(Small_RandomSeedSlots, TheSeedAndTheOffsetTakeTheLastTwoSlots)
         {
             TaskDescription description;
 

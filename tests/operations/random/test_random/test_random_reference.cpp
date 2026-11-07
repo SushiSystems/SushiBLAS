@@ -121,25 +121,17 @@ namespace SushiBLAS
             /// @brief Holds the counts a PTRS draw may differ by between the paths: one.
             constexpr double K_PTRS_COUNT_SLACK = 1.0;
 
+            /// @brief Holds the counts a Knuth draw may differ by between the paths: none.
+            constexpr double K_KNUTH_COUNT_SLACK = 0.0;
+
             /// @brief Holds the lower cut of the truncated normal fill, in standard deviations.
             constexpr double K_LOWER_CUT = -2.0;
 
             /// @brief Holds the upper cut of the truncated normal fill, in standard deviations.
             constexpr double K_UPPER_CUT = 2.0;
 
-            /// @brief Holds the gain of the orthogonal fills the two paths are compared on.
-            constexpr double K_GAIN = 1.0;
-
-            /// @brief Holds the gain of the single-vector orthogonal fill.
-            constexpr double K_SINGLE_VECTOR_GAIN = 3.0;
-
-            /// @brief Holds the absolute tolerance: 128 FLOAT32 roundings of a value of order
-            /// one, for a Gram entry at gain 1.
-            constexpr double K_GRAM_TOLERANCE = absolute_tolerance<float>(128);
-
-            /// @brief Holds the absolute tolerance: 128 FLOAT32 roundings of a value of order
-            /// one, for the norm of one vector.
-            constexpr double K_NORM_TOLERANCE = absolute_tolerance<float>(128);
+            /// @brief Holds the FLOAT32 roundings a Gram entry may carry, per unit of gain squared.
+            constexpr std::size_t K_GRAM_OPERATIONS = 128;
 
             /// @brief Holds the largest radius a Box-Muller draw reaches in double.
             constexpr double K_BOX_MULLER_RADIUS = 9.0;
@@ -178,13 +170,15 @@ namespace SushiBLAS
                 const char* name;           /**< The shape, for the failure message. */
                 int64_t rows;               /**< The row count. */
                 int64_t cols;               /**< The column count. */
+                double gain;                /**< The gain the matrix is scaled by. */
                 Kernels::VectorSet vectors; /**< The shorter axis's vectors, row-major. */
             };
 
-            /// @brief Holds the wide and the tall matrix the two orthogonal paths are compared on.
+            /// @brief Holds the wide and the tall matrix the two orthogonal paths are compared on, and one vector at a gain of 3.
             constexpr OrthogonalCase K_ORTHOGONAL_CASES[] = {
-                {"8 by 16", 8, 16, {8, 16, 1, 16}},
-                {"16 by 8", 16, 8, {8, 16, 8, 1}},
+                {"8 by 16", 8, 16, 1.0, {8, 16, 1, 16}},
+                {"16 by 8", 16, 8, 1.0, {8, 16, 8, 1}},
+                {"1 by 4 at gain 3", 1, 4, 3.0, {1, 4, 1, 4}},
             };
 
             /** @brief Returns single for FLOAT32 and wide for FLOAT64. */
@@ -275,16 +269,6 @@ namespace SushiBLAS
                 return count;
             }
 
-            /** @brief Returns the Euclidean norm of the elements, summed in double. */
-            template<typename T>
-            [[nodiscard]] double norm_of(const std::vector<T>& values)
-            {
-                double squares = 0.0;
-                for (const T& value : values)
-                    squares += static_cast<double>(value) * static_cast<double>(value);
-                return std::sqrt(squares);
-            }
-
             /** @brief Expects two results to hold the same bits in every element. */
             template<typename T>
             void expect_equal_bits(const std::vector<T>& reference, const std::vector<T>& device)
@@ -330,31 +314,18 @@ namespace SushiBLAS
                     << ", where the reference holds " << static_cast<double>(reference[worst]);
             }
 
-            /** @brief Expects every element inside [low, high]. */
-            template<typename T>
-            void expect_all_inside(const std::vector<T>& values, double low, double high)
-            {
-                std::size_t outside = 0;
-                for (const T& value : values)
-                {
-                    const double element = static_cast<double>(value);
-                    outside += (element >= low && element <= high) ? 0 : 1;
-                }
-
-                EXPECT_EQ(outside, std::size_t{0})
-                    << "elements lie outside [" << low << ", " << high << "]";
-            }
-
             /** @brief Expects the Gram matrix of set's vectors to be diagonal times identity. */
             template<typename T>
             void expect_orthonormal(const std::vector<T>& matrix, const Kernels::VectorSet& set,
-                                    double diagonal, double tolerance)
+                                    double diagonal)
             {
                 const auto element = [&matrix, &set](int64_t vector, int64_t k)
                 {
                     const int64_t index = vector * set.vec_stride + k * set.elem_stride;
                     return static_cast<double>(matrix[static_cast<std::size_t>(index)]);
                 };
+
+                const double tolerance = absolute_tolerance<float>(K_GRAM_OPERATIONS, diagonal);
 
                 for (int64_t i = 0; i < set.count; ++i)
                 {
@@ -521,24 +492,40 @@ namespace SushiBLAS
                     expect_equal_bits(draws.reference, draws.device);
                 }
 
-                /** @brief Expects the draws that call no math builtin to have equal bits of T. */
+                /** @brief Expects uniform on [K_LOW, K_HIGH) to write equal bits of T on both paths. */
                 template<typename T>
-                void expect_exact_draws_agree()
+                void expect_same_uniform()
                 {
-                    expect_same_shuffle<T>();
-
-                    expect_same_bits<T>("discrete_uniform", K_SEED, [](RandomOps& random, Tensor& t)
-                    {
-                        random.discrete_uniform(t, K_LOWEST_INTEGER, K_HIGHEST_INTEGER);
-                    });
-                    expect_same_bits<T>("bernoulli", K_SEED, [](RandomOps& random, Tensor& t)
-                    {
-                        random.bernoulli(t, K_PROBABILITY);
-                    });
                     expect_same_bits<T>("uniform", K_SEED, [](RandomOps& random, Tensor& t)
                     {
                         random.uniform(t, K_LOW, K_HIGH);
                     });
+                }
+
+                /** @brief Expects discrete_uniform to write equal bits of T on both paths. */
+                template<typename T>
+                void expect_same_discrete_uniform()
+                {
+                    expect_same_bits<T>("discrete_uniform", K_SEED, [](RandomOps& random, Tensor& t)
+                    {
+                        random.discrete_uniform(t, K_LOWEST_INTEGER, K_HIGHEST_INTEGER);
+                    });
+                }
+
+                /** @brief Expects bernoulli to write equal bits of T on both paths. */
+                template<typename T>
+                void expect_same_bernoulli()
+                {
+                    expect_same_bits<T>("bernoulli", K_SEED, [](RandomOps& random, Tensor& t)
+                    {
+                        random.bernoulli(t, K_PROBABILITY);
+                    });
+                }
+
+                /** @brief Expects he_uniform and xavier_uniform to write equal bits of T on both paths. */
+                template<typename T>
+                void expect_same_uniform_initializers()
+                {
                     expect_same_bits<T>("he_uniform", K_SEED, [](RandomOps& random, Tensor& t)
                     {
                         random.he_uniform(t, K_HE_FAN_IN);
@@ -549,22 +536,14 @@ namespace SushiBLAS
                     });
                 }
 
-                /** @brief Expects poisson(lambda) to write equal bits of T on both paths. */
-                template<typename T>
-                void expect_same_poisson(double lambda, uint64_t seed)
-                {
-                    expect_same_bits<T>("poisson", seed, [lambda](RandomOps& random, Tensor& t)
-                    {
-                        random.poisson(t, lambda);
-                    });
-                }
-
                 /**
-                 * @brief Expects poisson(lambda), drawn by PTRS, to agree on both paths within one count.
-                 * @note The device log and lgamma can flip the acceptance test of an element.
+                 * @brief Expects poisson(lambda) to agree on both paths within slack counts.
+                 * @note A PTRS draw may differ by one count, because the device log and lgamma can
+                 *       flip the acceptance test of an element. A Knuth draw calls no such builtin
+                 *       and agrees exactly.
                  */
                 template<typename T>
-                void expect_poisson_counts_agree(double lambda, uint64_t seed)
+                void expect_poisson_counts_agree(double lambda, uint64_t seed, double slack)
                 {
                     SCOPED_TRACE(trace_of<T>("poisson"));
 
@@ -573,27 +552,27 @@ namespace SushiBLAS
                     {
                         random.poisson(t, lambda);
                     });
-                    expect_within(draws.reference, draws.device, Tolerance{K_PTRS_COUNT_SLACK, 0.0});
+                    expect_within(draws.reference, draws.device, Tolerance{slack, 0.0});
                 }
 
-                /** @brief Expects the draws built on a math builtin to agree in T within bounds. */
+                /** @brief Expects normal to agree in T within the Box-Muller allowance. */
                 template<typename T>
-                void expect_normal_draws_agree()
+                void expect_normal_agrees()
                 {
-                    const Tolerance normal_tolerance{
-                        box_muller_allowance<T>(K_NORMAL_MEAN, K_NORMAL_STDDEV), 0.0};
+                    expect_close<T>("normal",
+                                    Tolerance{box_muller_allowance<T>(K_NORMAL_MEAN, K_NORMAL_STDDEV), 0.0},
+                                    [](RandomOps& random, Tensor& t)
+                                    {
+                                        random.normal(t, K_NORMAL_MEAN, K_NORMAL_STDDEV);
+                                    });
+                }
+
+                /** @brief Expects he_normal and xavier_normal to agree in T within the Box-Muller allowance. */
+                template<typename T>
+                void expect_normal_initializers_agree()
+                {
                     const Tolerance fan_tolerance{box_muller_allowance<T>(0.0, K_FAN_STDDEV), 0.0};
-                    const Tolerance exponential_tolerance{0.0, builtin_allowance<T>()};
 
-                    // The error of the normal draw passes through exp as a relative error.
-                    const Tolerance log_normal_tolerance{
-                        0.0, box_muller_allowance<T>(K_LOG_NORMAL_MEAN, K_LOG_NORMAL_STDDEV) +
-                                 builtin_allowance<T>()};
-
-                    expect_close<T>("normal", normal_tolerance, [](RandomOps& random, Tensor& t)
-                    {
-                        random.normal(t, K_NORMAL_MEAN, K_NORMAL_STDDEV);
-                    });
                     expect_close<T>("he_normal", fan_tolerance, [](RandomOps& random, Tensor& t)
                     {
                         random.he_normal(t, K_HE_FAN_IN);
@@ -602,20 +581,34 @@ namespace SushiBLAS
                     {
                         random.xavier_normal(t, K_XAVIER_FAN_IN, K_XAVIER_FAN_OUT);
                     });
-                    expect_close<T>("exponential", exponential_tolerance,
+                }
+
+                /** @brief Expects exponential to agree in T within the relative allowance of one log1p. */
+                template<typename T>
+                void expect_exponential_agrees()
+                {
+                    expect_close<T>("exponential", Tolerance{0.0, builtin_allowance<T>()},
                                     [](RandomOps& random, Tensor& t)
                                     {
                                         random.exponential(t, K_EXPONENTIAL_RATE);
                                     });
-                    expect_close<T>("log_normal", log_normal_tolerance,
-                                    [](RandomOps& random, Tensor& t)
-                                    {
-                                        random.log_normal(t, K_LOG_NORMAL_MEAN,
-                                                          K_LOG_NORMAL_STDDEV);
-                                    });
                 }
 
-                /** @brief Expects truncated_normal to stay inside its cuts and agree in T. */
+                /** @brief Expects log_normal to agree in T; the error of the normal passes through exp as a relative error. */
+                template<typename T>
+                void expect_log_normal_agrees()
+                {
+                    const Tolerance tolerance{
+                        0.0, box_muller_allowance<T>(K_LOG_NORMAL_MEAN, K_LOG_NORMAL_STDDEV) +
+                                 builtin_allowance<T>()};
+
+                    expect_close<T>("log_normal", tolerance, [](RandomOps& random, Tensor& t)
+                    {
+                        random.log_normal(t, K_LOG_NORMAL_MEAN, K_LOG_NORMAL_STDDEV);
+                    });
+                }
+
+                /** @brief Expects truncated_normal to agree in T; the bounds are tested in test_distributions.cpp. */
                 template<typename T>
                 void expect_truncated_normal_agrees()
                 {
@@ -627,8 +620,6 @@ namespace SushiBLAS
                             random.truncated_normal(t, 0.0, 1.0, K_LOWER_CUT, K_UPPER_CUT);
                         });
 
-                    expect_all_inside(draws.reference, K_LOWER_CUT, K_UPPER_CUT);
-                    expect_all_inside(draws.device, K_LOWER_CUT, K_UPPER_CUT);
                     expect_within(draws.reference, draws.device,
                                   Tolerance{by_precision<T>(absolute_tolerance<float>(2048), absolute_tolerance<double>(1048576)), 0.0});
                 }
@@ -640,32 +631,29 @@ namespace SushiBLAS
                     SCOPED_TRACE(trace_of<T>(matrix.name));
 
                     const ModeDraws<T> draws = fill_in_both_modes<T>(
-                        K_SEED, {matrix.rows, matrix.cols}, [](RandomOps& random, Tensor& t)
+                        K_SEED, {matrix.rows, matrix.cols}, [&matrix](RandomOps& random, Tensor& t)
                         {
-                            random.orthogonal(t, K_GAIN);
+                            random.orthogonal(t, matrix.gain);
                         });
 
-                    expect_orthonormal(draws.reference, matrix.vectors, K_GAIN * K_GAIN,
-                                       K_GRAM_TOLERANCE);
-                    expect_orthonormal(draws.device, matrix.vectors, K_GAIN * K_GAIN,
-                                       K_GRAM_TOLERANCE);
+                    expect_orthonormal(draws.reference, matrix.vectors, matrix.gain * matrix.gain);
+                    expect_orthonormal(draws.device, matrix.vectors, matrix.gain * matrix.gain);
                     expect_within(draws.reference, draws.device,
-                                  Tolerance{by_precision<T>(absolute_tolerance<float>(2048), absolute_tolerance<double>(65536)) * K_GAIN, 0.0});
+                                  Tolerance{by_precision<T>(absolute_tolerance<float>(2048), absolute_tolerance<double>(65536)) * matrix.gain, 0.0});
                 }
         };
 
-        /** @brief Tests that the draws that call no math builtin have equal bits on both paths. */
-        TEST_F(Medium_RandomReference, IntegerAndUniformDrawsAreTheSameStream)
+        /** @brief Tests that uniform has equal bits on both paths for real and complex elements. */
+        TEST_F(Medium_RandomReference, UniformDrawsAreTheSameStream)
         {
-            expect_exact_draws_agree<float>();
-            expect_exact_draws_agree<double>();
+            expect_same_uniform<float>();
+            expect_same_uniform<double>();
+            expect_same_uniform<std::complex<float>>();
+        }
 
-            expect_same_bits<std::complex<float>>("uniform", K_SEED,
-                                                  [](RandomOps& random, Tensor& t)
-                                                  {
-                                                      random.uniform(t, K_LOW, K_HIGH);
-                                                  });
-
+        /** @brief Tests that constant has equal bits on both paths for every dtype but HALF. */
+        TEST_F(Medium_RandomReference, ConstantFillsAreTheSameStream)
+        {
             expect_same_constant<float>();
             expect_same_constant<double>();
             expect_same_constant<std::complex<float>>();
@@ -674,54 +662,143 @@ namespace SushiBLAS
             expect_same_constant<int64_t>();
         }
 
-        /** @brief Tests that constant and shuffle leave equal bits in HALF on both paths. */
-        TEST_F(Medium_RandomReference, HalfValuesAreMovedToTheSameBits)
+        /** @brief Tests that discrete_uniform has equal bits on both paths. */
+        TEST_F(Medium_RandomReference, DiscreteUniformDrawsAreTheSameStream)
         {
-            if (!device_has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
+            expect_same_discrete_uniform<float>();
+            expect_same_discrete_uniform<double>();
+        }
 
+        /** @brief Tests that bernoulli has equal bits on both paths. */
+        TEST_F(Medium_RandomReference, BernoulliDrawsAreTheSameStream)
+        {
+            expect_same_bernoulli<float>();
+            expect_same_bernoulli<double>();
+        }
+
+        /** @brief Tests that the uniform initializers have equal bits on both paths. */
+        TEST_F(Medium_RandomReference, UniformInitializersAreTheSameStream)
+        {
+            expect_same_uniform_initializers<float>();
+            expect_same_uniform_initializers<double>();
+        }
+
+        /** @brief Tests that shuffle permutes alike on both paths. */
+        TEST_F(Medium_RandomReference, ShuffleIsTheSamePermutation)
+        {
+            expect_same_shuffle<float>();
+            expect_same_shuffle<double>();
+        }
+
+        /** @brief Runs the cases that need the device to compute in HALF. */
+        class Medium_RandomReferenceHalf : public Medium_RandomReference
+        {
+            protected:
+                /** @brief Builds the engine and skips the case on a device without fp16. */
+                void SetUp() override
+                {
+                    Medium_RandomReference::SetUp();
+
+                    if (!IsSkipped() && !device_has(sycl::aspect::fp16))
+                        GTEST_SKIP() << "the device does not report the fp16 aspect";
+                }
+        };
+
+        /** @brief Tests that constant leaves equal bits in HALF on both paths. */
+        TEST_F(Medium_RandomReferenceHalf, ConstantIsMovedToTheSameBits)
+        {
             expect_same_constant<sycl::half>();
+        }
+
+        /** @brief Tests that shuffle leaves equal bits in HALF on both paths. */
+        TEST_F(Medium_RandomReferenceHalf, ShuffleIsMovedToTheSameBits)
+        {
             expect_same_shuffle<sycl::half>();
         }
 
-        /** @brief Tests that poisson(4), drawn by Knuth's product, has equal bits on both paths. */
-        TEST_F(Medium_RandomReference, SmallLambdaPoissonIsTheSameStream)
+        /** @brief Names a Poisson mean, its seed and the count slack between the paths. */
+        struct PoissonRow
         {
-            expect_same_poisson<float>(K_SMALL_LAMBDA, K_SEED);
-            expect_same_poisson<double>(K_SMALL_LAMBDA, K_SEED);
+            const char* name; /**< The row name a failure shows. */
+            double lambda;    /**< The mean of the draw. */
+            uint64_t seed;    /**< The seed of both runs. */
+            double slack;     /**< The counts the paths may differ by. */
+        };
+
+        /** @brief Returns the Knuth row, which agrees exactly, and the PTRS row, which agrees within one count. */
+        std::vector<PoissonRow> poisson_rows()
+        {
+            return {{"KnuthLambdaFour", K_SMALL_LAMBDA, K_SEED, K_KNUTH_COUNT_SLACK},
+                    {"PtrsLambdaFifty", K_LARGE_LAMBDA, K_LARGE_LAMBDA_SEED, K_PTRS_COUNT_SLACK}};
         }
+
+        /** @brief Runs one row of poisson_rows(). */
+        class Medium_RandomReferencePoisson : public Medium_RandomReference,
+                                              public ::testing::WithParamInterface<PoissonRow>
+        {
+
+        };
 
         /**
-         * @brief Tests that poisson(50), drawn by PTRS, gives both paths counts within one of each other.
-         * @note A failure names an element whose acceptance test sits inside the difference between
-         *       the device's log or lgamma and the host's. It does not show a wrong stream.
+         * @brief Tests that poisson gives both paths counts within the slack of the row.
+         * @note A PTRS failure names an element whose acceptance test sits inside the difference
+         *       between the device log or lgamma and the host one. It does not show a wrong stream.
          */
-        TEST_F(Medium_RandomReference, LargeLambdaPoissonGivesTheSameCounts)
+        TEST_P(Medium_RandomReferencePoisson, BothPathsDrawTheSameCounts)
         {
-            expect_poisson_counts_agree<float>(K_LARGE_LAMBDA, K_LARGE_LAMBDA_SEED);
-            expect_poisson_counts_agree<double>(K_LARGE_LAMBDA, K_LARGE_LAMBDA_SEED);
+            const PoissonRow row = GetParam();
+
+            expect_poisson_counts_agree<float>(row.lambda, row.seed, row.slack);
+            expect_poisson_counts_agree<double>(row.lambda, row.seed, row.slack);
         }
 
-        /** @brief Tests that the draws built on a math builtin agree within their bounds. */
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RandomReferencePoisson, ::testing::ValuesIn(poisson_rows()),
+            [](const ::testing::TestParamInfo<PoissonRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Tests that normal agrees on both paths within its bound. */
         TEST_F(Medium_RandomReference, NormalDrawsAgreeWithinTheirBound)
         {
-            expect_normal_draws_agree<float>();
-            expect_normal_draws_agree<double>();
+            expect_normal_agrees<float>();
+            expect_normal_agrees<double>();
+        }
+
+        /** @brief Tests that he_normal and xavier_normal agree on both paths within their bound. */
+        TEST_F(Medium_RandomReference, NormalInitializersAgreeWithinTheirBound)
+        {
+            expect_normal_initializers_agree<float>();
+            expect_normal_initializers_agree<double>();
+        }
+
+        /** @brief Tests that exponential agrees on both paths within its bound. */
+        TEST_F(Medium_RandomReference, ExponentialDrawsAgreeWithinTheirBound)
+        {
+            expect_exponential_agrees<float>();
+            expect_exponential_agrees<double>();
+        }
+
+        /** @brief Tests that log_normal agrees on both paths within its bound. */
+        TEST_F(Medium_RandomReference, LogNormalDrawsAgreeWithinTheirBound)
+        {
+            expect_log_normal_agrees<float>();
+            expect_log_normal_agrees<double>();
         }
 
         /**
-         * @brief Tests that truncated_normal stays in [-2, 2] on both paths, which differ by at
-         *        most 2048 FLOAT32 roundings or 2^20 FLOAT64 roundings of a value of order one.
+         * @brief Tests that truncated_normal agrees on both paths, which differ by at most 2048
+         *        FLOAT32 roundings or 2^20 FLOAT64 roundings of a value of order one.
          */
-        TEST_F(Medium_RandomReference, TruncatedNormalAgreesInsideItsBounds)
+        TEST_F(Medium_RandomReference, TruncatedNormalAgreesOnBothPaths)
         {
             expect_truncated_normal_agrees<float>();
             expect_truncated_normal_agrees<double>();
         }
 
         /**
-         * @brief Tests that each path of orthogonal is orthonormal, and that the two differ by at
-         *        most 2048 FLOAT32 roundings or 65536 FLOAT64 roundings of a value of order one, scaled by the gain.
+         * @brief Tests that each path of orthogonal is orthonormal at its gain, and that the two
+         *        differ by at most 2048 FLOAT32 roundings or 65536 FLOAT64 roundings of a value of
+         *        order one, scaled by the gain.
          */
         TEST_F(Medium_RandomReference, BothOrthogonalPathsAreOrthonormal)
         {
@@ -732,43 +809,57 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that orthogonal scales the one vector of a 1 by 4 matrix to the gain. */
-        TEST_F(Medium_RandomReference, ASingleVectorIsScaledToTheGain)
+        /** @brief Holds two device-only tensors for the cases that check what a refused call reserves. */
+        class Medium_RandomReferenceDeviceOnly : public Medium_RandomReference
         {
-            const ModeDraws<float> draws =
-                fill_in_both_modes<float>(K_SEED, {1, 4}, [](RandomOps& random, Tensor& t)
+            protected:
+                /** @brief Builds the engine and the tensors, and skips the case on a device without device-only USM. */
+                void SetUp() override
                 {
-                    random.orthogonal(t, K_SINGLE_VECTOR_GAIN);
-                });
+                    Medium_RandomReference::SetUp();
 
-            EXPECT_NEAR(norm_of(draws.reference), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
-                << "ForceReference";
-            EXPECT_NEAR(norm_of(draws.device), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
-                << "ForceSYCL";
-        }
+                    if (IsSkipped())
+                        return;
+
+                    values_ = device_only_tensor({4});
+                    matrix_ = device_only_tensor({3, 3});
+                    if (!values_ || !matrix_)
+                        GTEST_SKIP() << "This device offers no device-only USM.";
+                }
+
+                /** @brief Holds the vector the refused calls are made on. */
+                std::optional<Tensor> values_;
+
+                /** @brief Holds the matrix the refused orthogonal call is made on. */
+                std::optional<Tensor> matrix_;
+        };
 
         /** @brief Tests that a call refused for a device-only tensor reserves no offset. */
-        TEST_F(Medium_RandomReference, ARefusedCallReservesNoOffset)
+        TEST_F(Medium_RandomReferenceDeviceOnly, ARefusedCallReservesNoOffset)
         {
-            std::optional<Tensor> values = device_only_tensor({4});
-            std::optional<Tensor> matrix = device_only_tensor({3, 3});
-            if (!values || !matrix)
-                GTEST_SKIP() << "This device offers no device-only USM.";
-
             RandomOps random(recorder(), engine->rng());
             random.set_seed(K_SEED);
 
             set_mode(ExecutionMode::ForceReference);
             const uint64_t offset_before = engine->rng().reserve(0).offset;
 
-            EXPECT_THROW(random.uniform(*values), std::invalid_argument);
-            EXPECT_THROW(random.shuffle(*values), std::invalid_argument);
-            EXPECT_THROW(random.orthogonal(*matrix), std::invalid_argument);
+            EXPECT_THROW(random.uniform(*values_), std::invalid_argument);
+            EXPECT_THROW(random.shuffle(*values_), std::invalid_argument);
+            EXPECT_THROW(random.orthogonal(*matrix_), std::invalid_argument);
             EXPECT_EQ(offset_before, engine->rng().reserve(0).offset);
+        }
 
-            // The same call reserves one offset once the mode lets it record.
+        /** @brief Tests that an accepted call under ForceSYCL reserves exactly one offset. */
+        TEST_F(Medium_RandomReferenceDeviceOnly, AnAcceptedCallUnderForceSYCLReservesOneOffset)
+        {
+            RandomOps random(recorder(), engine->rng());
+            random.set_seed(K_SEED);
+
             set_mode(ExecutionMode::ForceSYCL);
-            random.uniform(*values);
+            const uint64_t offset_before = engine->rng().reserve(0).offset;
+
+            random.uniform(*values_);
+
             EXPECT_EQ(offset_before + 1, engine->rng().reserve(0).offset);
             recording->run().value();
         }

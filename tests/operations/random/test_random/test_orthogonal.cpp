@@ -27,153 +27,132 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
+#include <cstdint>
+#include <string>
 #include <vector>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
 
-class Medium_OrthogonalTest : public SushiBLASTest
+namespace
 {
-    protected:
-        std::vector<float> read_matrix(const SushiBLAS::Tensor& t)
-        {
-            std::vector<float> host(static_cast<size_t>(t.num_elements));
-            auto& q = TestEnvironment::queue();
-            q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
-            return host;
-        }
+    /// @brief Holds the float roundings a Gram entry of a unit-gain matrix may carry, as the default comparison allows.
+    constexpr std::size_t K_GRAM_OPERATIONS = 128;
 
-        /** @brief Asserts that the vectors' Gram matrix is expected_diag times identity. */
-        void expect_orthonormal(const std::vector<float>& m, int64_t count, int64_t length,
-                                 int64_t elem_stride, int64_t vec_stride,
-                                 float expected_diag, double tol = absolute_tolerance<float>(128))
-        {
-            for (int64_t i = 0; i < count; ++i)
-            {
-                for (int64_t j = i; j < count; ++j)
-                {
-                    double dot = 0.0;
-                    for (int64_t k = 0; k < length; ++k)
-                    {
-                        dot += static_cast<double>(m[static_cast<size_t>(i * vec_stride + k * elem_stride)]) *
-                               static_cast<double>(m[static_cast<size_t>(j * vec_stride + k * elem_stride)]);
-                    }
-                    const float want = (i == j) ? expected_diag : 0.0f;
-                    EXPECT_NEAR(static_cast<float>(dot), want, tol)
-                        << "Gram entry (" << i << "," << j << ") is not " << want;
-                }
-            }
-        }
-};
-
-TEST_F(Medium_OrthogonalTest, TallMatrixHasOrthonormalColumns)
-{
-    // 8 rows cannot all be orthogonal in 4 dimensions, so the four columns are: Q^T Q = I(4).
-    auto t = engine->create_tensor({8, 4});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(2026);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    expect_orthonormal(m, /*count=*/4, /*length=*/8, /*elem_stride=*/4, /*vec_stride=*/1, 1.0f);
-}
-
-TEST_F(Medium_OrthogonalTest, WideMatrixHasOrthonormalRows)
-{
-    // 3x7, row-major: the short axis is the rows, so Q Q^T = I(3).
-    auto t = engine->create_tensor({3, 7});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(7);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    expect_orthonormal(m, /*count=*/3, /*length=*/7, /*elem_stride=*/1, /*vec_stride=*/7, 1.0f);
-}
-
-TEST_F(Medium_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
-{
-    auto t = engine->create_tensor({6, 6});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(31337);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    expect_orthonormal(m, 6, 6, /*elem_stride=*/6, /*vec_stride=*/1, 1.0f);
-}
-
-TEST_F(Medium_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
-{
-    // 64 is the sweep's widest work-group, so every reduction runs the full tree.
-    constexpr int64_t kSide = 64;
-    auto t = engine->create_tensor({kSide, kSide});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(20261006);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    expect_orthonormal(m, kSide, kSide, /*elem_stride=*/kSide, /*vec_stride=*/1, 1.0f);
-}
-
-TEST_F(Medium_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
-{
-    // Q is scaled by gain, so Q^T Q is gain^2 I, the convention of PyTorch's orthogonal_.
-    constexpr float kGain = 2.5f;
-    auto t = engine->create_tensor({5, 5});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(11);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t, kGain);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    expect_orthonormal(m, 5, 5, 5, 1, kGain * kGain, absolute_tolerance<float>(2048));
-}
-
-TEST_F(Medium_OrthogonalTest, ResultIsNotJustAGaussianFill)
-{
-    // A Gaussian 6x6 has column norms near sqrt(6). See tests/operations/random/README.md.
-    auto t = engine->create_tensor({6, 6});
-    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(4242);
-    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t);
-    recording->run().value();
-
-    auto m = read_matrix(t);
-    for (int64_t c = 0; c < 6; ++c)
+    /** @brief Names one matrix shape, its seed and its gain. */
+    struct GramRow
     {
-        double norm_sq = 0.0;
-        for (int64_t r = 0; r < 6; ++r)
-        {
-            const double v = m[static_cast<size_t>(r * 6 + c)];
-            norm_sq += v * v;
-        }
-        EXPECT_NEAR(std::sqrt(norm_sq), 1.0, absolute_tolerance<float>(128)) << "Column " << c << " is not a unit vector.";
+        const char* name; /**< The row name a failure shows. */
+        int64_t rows;     /**< The row count. */
+        int64_t cols;     /**< The column count. */
+        uint64_t seed;    /**< The seed of the fill. */
+        float gain;       /**< The gain the matrix is scaled by. */
+    };
+
+    /** @brief Returns the shapes whose Gram matrix is checked; 64 is the widest work-group of the sweep. */
+    std::vector<GramRow> gram_rows()
+    {
+        return {{"TallHasOrthonormalColumns", 8, 4, 2026, 1.0f},
+                {"WideHasOrthonormalRows", 3, 7, 7, 1.0f},
+                {"SquareIsFullyOrthogonal", 6, 6, 31337, 1.0f},
+                {"SixtyFourSquareIsFullyOrthogonal", 64, 64, 20261006, 1.0f},
+                {"GainScalesTheDiagonalQuadratically", 5, 5, 11, 2.5f},
+                {"SingleVectorIsScaledToTheGain", 1, 4, 99, 3.0f}};
     }
 }
 
-TEST_F(Medium_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
+/** @brief Runs one row of gram_rows(). */
+class Medium_OrthogonalGram : public SushiBLASTest,
+                              public ::testing::WithParamInterface<GramRow>
 {
-    // Each shape or dtype the Gram-Schmidt sweep cannot handle is reported at the call site.
-    auto vec = engine->create_tensor({16});
-    EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-        .orthogonal(vec), std::invalid_argument);
 
-    auto cube = engine->create_tensor({2, 3, 4});
-    EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-        .orthogonal(cube), std::invalid_argument);
+};
 
-    auto half_mat = engine->create_tensor({4, 4}, DataType::Half);
-    EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-        .orthogonal(half_mat), std::invalid_argument);
+TEST_P(Medium_OrthogonalGram, VectorsHaveTheGramMatrixOfTheGainTimesIdentity)
+{
+    const GramRow row = GetParam();
+    auto t = engine->create_tensor({row.rows, row.cols});
+    SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(row.seed);
+    SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t, row.gain);
+    recording->run().value();
 
-    auto complex_mat = engine->create_tensor({4, 4}, DataType::Complex32);
-    EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-        .orthogonal(complex_mat), std::invalid_argument);
+    // The shorter axis holds the vectors: rows of a wide matrix, columns of a tall one, so Q Q^T or Q^T Q is gain^2 I.
+    const std::vector<float> matrix = read_tensor<float>(t);
+    const bool by_rows = row.rows <= row.cols;
+    const int64_t count = by_rows ? row.rows : row.cols;
+    const int64_t length = by_rows ? row.cols : row.rows;
+    const int64_t elem_stride = by_rows ? 1 : row.cols;
+    const int64_t vec_stride = by_rows ? row.cols : 1;
+    const double gain_squared = static_cast<double>(row.gain) * static_cast<double>(row.gain);
+    const double tolerance = absolute_tolerance<float>(K_GRAM_OPERATIONS, gain_squared);
+
+    for (int64_t i = 0; i < count; ++i)
+    {
+        for (int64_t j = i; j < count; ++j)
+        {
+            double dot = 0.0;
+            for (int64_t k = 0; k < length; ++k)
+            {
+                dot += static_cast<double>(matrix[static_cast<size_t>(i * vec_stride + k * elem_stride)]) *
+                       static_cast<double>(matrix[static_cast<size_t>(j * vec_stride + k * elem_stride)]);
+            }
+            EXPECT_NEAR(dot, i == j ? gain_squared : 0.0, tolerance)
+                << "Gram entry (" << i << "," << j << ")";
+        }
+    }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    , Medium_OrthogonalGram, ::testing::ValuesIn(gram_rows()),
+    [](const ::testing::TestParamInfo<GramRow>& info) { return std::string(info.param.name); });
+
+class Medium_OrthogonalTest : public SushiBLASTest
+{
+
+};
+
+/** @brief Names a shape and dtype the sweep cannot orthonormalize. */
+struct RefusedRow
+{
+    const char* name;                 /**< The row name a failure shows. */
+    std::vector<int64_t> dims;        /**< The shape of the tensor. */
+    DataType dtype;                   /**< The dtype of the tensor. */
+};
+
+/** @brief Returns the inputs orthogonal refuses at the call site. */
+std::vector<RefusedRow> refused_rows()
+{
+    return {{"RankOne", {16}, DataType::Float32},
+            {"RankThree", {2, 3, 4}, DataType::Float32},
+            {"Half", {4, 4}, DataType::Half},
+            {"Complex32", {4, 4}, DataType::Complex32}};
+}
+
+/** @brief Runs one row of refused_rows(). */
+class Medium_OrthogonalRefusal : public SushiBLASTest,
+                                 public ::testing::WithParamInterface<RefusedRow>
+{
+
+};
+
+TEST_P(Medium_OrthogonalRefusal, IsRefusedWithInvalidArgument)
+{
+    const RefusedRow row = GetParam();
+    auto t = engine->create_tensor(row.dims, row.dtype);
+
+    EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng()).orthogonal(t),
+                 std::invalid_argument);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    , Medium_OrthogonalRefusal, ::testing::ValuesIn(refused_rows()),
+    [](const ::testing::TestParamInfo<RefusedRow>& info) { return std::string(info.param.name); });
 
 TEST_F(Medium_OrthogonalTest, RejectsAMatrixWithoutStorage)
 {

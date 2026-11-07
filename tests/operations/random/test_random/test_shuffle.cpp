@@ -59,27 +59,31 @@ class Medium_ShuffleTest : public SushiBLASTest
             q.memcpy(out.data(), t.data(), K_N * sizeof(float)).wait();
             return out;
         }
+
+        /** @brief Expects the values to be 0, 1, 2, ... in some order. */
+        static void expect_iota_set(std::vector<float> values)
+        {
+            std::sort(values.begin(), values.end());
+
+            std::vector<float> iota(values.size());
+            std::iota(iota.begin(), iota.end(), 0.0f);
+            EXPECT_EQ(values, iota);
+        }
 };
 
 TEST_F(Medium_ShuffleTest, ResultIsAPermutationOfTheInput)
 {
-    auto out = shuffled_iota(1234);
-
     // The result is a permutation of the input. See tests/operations/random/README.md.
-    auto sorted = out;
-    std::sort(sorted.begin(), sorted.end());
-    for (int i = 0; i < K_N; ++i)
-    {
-        EXPECT_FLOAT_EQ(sorted[i], static_cast<float>(i)) << "Element " << i << " is not a permutation of the input.";
-    }
+    expect_iota_set(shuffled_iota(1234));
+}
 
+TEST_F(Medium_ShuffleTest, ResultIsNotTheIdentity)
+{
     // The identity permutation means the kernel never ran. See tests/operations/random/README.md.
-    bool moved = false;
-    for (int i = 0; i < K_N; ++i)
-    {
-        if (out[i] != static_cast<float>(i)) { moved = true; break; }
-    }
-    EXPECT_TRUE(moved) << "Shuffle left the tensor in its original order.";
+    std::vector<float> iota(K_N);
+    std::iota(iota.begin(), iota.end(), 0.0f);
+
+    EXPECT_NE(shuffled_iota(1234), iota) << "Shuffle left the tensor in its original order.";
 }
 
 TEST_F(Medium_ShuffleTest, SameSeedReproducesTheSamePermutation)
@@ -145,14 +149,5 @@ TEST_F(Medium_ShuffleTest, PermutesHalfPrecisionToo)
     auto& q = TestEnvironment::queue();
     q.memcpy(out.data(), t.data(), kSmall * sizeof(sycl::half)).wait();
 
-    std::vector<float> sorted;
-    sorted.reserve(kSmall);
-    for (auto h : out)
-        sorted.push_back(static_cast<float>(h));
-    std::sort(sorted.begin(), sorted.end());
-
-    for (int i = 0; i < kSmall; ++i)
-    {
-        EXPECT_FLOAT_EQ(sorted[i], static_cast<float>(i));
-    }
+    expect_iota_set(std::vector<float>(out.begin(), out.end()));
 }

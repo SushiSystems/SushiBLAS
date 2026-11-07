@@ -27,15 +27,16 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include "../random_statistics.hpp"
 using namespace SushiBLAS::Test;
 
 namespace
@@ -49,26 +50,20 @@ namespace
     /// @brief Holds the upper bound of the range.
     constexpr double K_MAX = 6.0;
 
-    /// @brief Holds the distribution's mean: (-2 + 6) / 2.
-    constexpr double K_EXPECTED_MEAN = 2.0;
-
-    /// @brief Holds the distribution's variance: 8^2 / 12.
-    constexpr double K_EXPECTED_VARIANCE = 5.333333;
-
-    /// @brief Holds four standard errors of the sample mean: 4 * sqrt(64 / 12) / sqrt(100000).
-    constexpr double K_MEAN_BOUND = 0.029212;
-
-    /// @brief Holds four standard errors of the sample variance: 4 * sqrt((8^4 / 80 - (64 / 12)^2) / 100000).
-    constexpr double K_VARIANCE_BOUND = 0.060340;
-
-    /// @brief Holds the band at each end the samples must reach: 1% of the range width.
-    constexpr double K_EDGE_BAND = 0.08;
+    /// @brief Holds the chance, per edge, that no draw falls in the edge band: (1 - band / width)^draws equals it.
+    constexpr double K_EDGE_FALSE_FAILURE = 1.0e-9;
 
     /// @brief Holds the seed the determinism tests share.
     constexpr uint64_t K_SEED = 20261006;
 
     /// @brief Holds a seed different from K_SEED.
     constexpr uint64_t K_OTHER_SEED = 7;
+
+    /** @brief Returns the band at each end the draws must reach: width * ln(1 / false failure) / draws. */
+    double edge_band()
+    {
+        return (K_MAX - K_MIN) * std::log(1.0 / K_EDGE_FALSE_FAILURE) / static_cast<double>(K_DRAWS);
+    }
 }
 
 class Medium_UniformTest : public SushiBLASTest
@@ -85,48 +80,51 @@ class Medium_UniformTest : public SushiBLASTest
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
             SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, K_MIN, K_MAX);
             recording->run().value();
-            const std::vector<T> host = read_tensor<T>(t);
-            return std::vector<double>(host.begin(), host.end());
+            return widened(read_tensor<T>(t));
         }
 
-        /**
-         * @brief Expects the samples to stay in [K_MIN, K_MAX), fill the range and match its moments.
-         */
-        static void expect_uniform_statistics(const std::vector<double>& samples)
+        /** @brief Draws K_DRAWS uniform samples of the dtype from seed, widened to double. */
+        std::vector<double> draw_as(SushiBLAS::Core::DataType dtype, uint64_t seed)
         {
-            double sum = 0.0;
-            for (double v : samples)
-            {
-                ASSERT_GE(v, K_MIN);
-                ASSERT_LT(v, K_MAX);
-                sum += v;
-            }
-            const double mean = sum / static_cast<double>(samples.size());
-
-            double squares = 0.0;
-            for (double v : samples)
-                squares += (v - mean) * (v - mean);
-            const double variance = squares / static_cast<double>(samples.size() - 1);
-
-            const auto [lowest, highest] = std::minmax_element(samples.begin(), samples.end());
-
-            EXPECT_NEAR(mean, K_EXPECTED_MEAN, K_MEAN_BOUND);
-            EXPECT_NEAR(variance, K_EXPECTED_VARIANCE, K_VARIANCE_BOUND);
-            EXPECT_LT(*lowest, *highest) << "The fill is constant.";
-            EXPECT_LT(*lowest, K_MIN + K_EDGE_BAND);
-            EXPECT_GT(*highest, K_MAX - K_EDGE_BAND);
+            if (dtype == SushiBLAS::Core::DataType::Float64)
+                return draw<double>(seed);
+            return draw<float>(seed);
         }
 };
 
-TEST_F(Medium_UniformTest, Float32StaysInRangeAndMatchesItsMoments)
+/** @brief Runs one dtype of the range and moment tests. */
+class Medium_UniformDraw : public Medium_UniformTest,
+                           public ::testing::WithParamInterface<SushiBLAS::Core::DataType>
 {
-    expect_uniform_statistics(draw<float>(K_SEED));
+
+};
+
+TEST_P(Medium_UniformDraw, StaysInTheHalfOpenRange)
+{
+    const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
+
+    EXPECT_GE(measured.lowest, K_MIN);
+    EXPECT_LT(measured.highest, K_MAX);
 }
 
-TEST_F(Medium_UniformTest, Float64StaysInRangeAndMatchesItsMoments)
+TEST_P(Medium_UniformDraw, FillsTheRangeToBothEdges)
 {
-    expect_uniform_statistics(draw<double>(K_SEED));
+    const SampleMoments measured = measure_moments(draw_as(GetParam(), K_SEED));
+
+    EXPECT_LT(measured.lowest, K_MIN + edge_band());
+    EXPECT_GT(measured.highest, K_MAX - edge_band());
 }
+
+TEST_P(Medium_UniformDraw, MomentsMatchTheUniformLaw)
+{
+    expect_moments_match(draw_as(GetParam(), K_SEED), uniform_law(K_MIN, K_MAX));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    , Medium_UniformDraw,
+    ::testing::Values(SushiBLAS::Core::DataType::Float32, SushiBLAS::Core::DataType::Float64),
+    [](const ::testing::TestParamInfo<SushiBLAS::Core::DataType>& info)
+    { return std::string(SushiBLAS::Core::to_string(info.param)); });
 
 TEST_F(Medium_UniformTest, EqualSeedsDrawEqualSamples)
 {
