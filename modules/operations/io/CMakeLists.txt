@@ -24,6 +24,7 @@ sushiblas_add_test_program(
         test_io_status.cpp
         test_partial_file.cpp
     DEVICE_TESTS
+        test_io/test_host_text.cpp
         test_io/test_host_transfer.cpp
         test_io/test_regression.cpp
     COMPILE_CHECKS

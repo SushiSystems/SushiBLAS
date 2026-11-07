@@ -426,17 +426,33 @@ namespace SushiBLAS
             EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
         }
 
-        TEST_F(Medium_IndexOps, AnUpdateIsOrderedAfterAnEarlierWriterAndBeforeALaterReader)
+        TEST_F(Medium_IndexOps, AnUpdateWaitsForAnEarlierWriter)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
+            IndexOps index(probe.recorder());
+            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+
+            index.for_each(4,
+                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(x)),
+                           OperationOptions{"fill_x", SushiRuntime::Determinism::Bitwise});
+            index.for_each(4,
+                           Dispatch::bind_updates([](std::size_t i, float* p) { p[i] += 1.0f; },
+                                                  Dispatch::update_as<float>(x)),
+                           OperationOptions{"bump_x", SushiRuntime::Determinism::Bitwise});
+
+            const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
+            ASSERT_TRUE(counts);
+            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
+        }
+
+        TEST_F(Medium_IndexOps, ALaterReaderWaitsForAnUpdate)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             IndexOps index(probe.recorder());
             Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
             Tensor sink = engine->create_tensor({4}, Core::DataType::Float32);
 
-            index.for_each(4,
-                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                 Dispatch::write_as<float>(x)),
-                           OperationOptions{"fill_x", SushiRuntime::Determinism::Bitwise});
             index.for_each(4,
                            Dispatch::bind_updates([](std::size_t i, float* p) { p[i] += 1.0f; },
                                                   Dispatch::update_as<float>(x)),
@@ -451,7 +467,7 @@ namespace SushiBLAS
 
             const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
             ASSERT_TRUE(counts);
-            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1, 1}));
+            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
         }
 
         /** @brief Runs one late count of the table of late_count_rows(). */

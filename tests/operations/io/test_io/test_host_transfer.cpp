@@ -393,16 +393,6 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Medium_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
-        {
-            reinit_engine(Core::Layout::ColumnMajor);
-            auto t = engine->create_tensor({2, 2, 2});
-
-            EXPECT_THROW((void)SushiBLAS::IO().load_npy(t, temp_path("column_major.npy")),
-                         std::invalid_argument);
-        }
-
-        /** @brief Runs one shape of shape_rows(). */
         class Medium_HostTransferToStringOfADeviceTensor
             : public Medium_HostTransfer, public ::testing::WithParamInterface<ShapeRow>
         {
@@ -481,13 +471,6 @@ namespace SushiBLAS
 
             EXPECT_EQ(SushiBLAS::IO().to_string(t, 4, 0),
                       "Tensor(shape=[100], dtype=f32):\n[... ]");
-        }
-
-        TEST_F(Medium_HostTransfer, ToStringOfAnEmptyTensorPrintsAnEmptyList)
-        {
-            auto t = engine->create_tensor({0});
-
-            EXPECT_EQ(SushiBLAS::IO().to_string(t), "Tensor(shape=[0], dtype=f32):\n[]");
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -46,6 +46,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
@@ -812,18 +813,21 @@ TEST_F(Medium_ReductionOps, AnEmptyProductIsOneInBothModes)
     EXPECT_TRUE(same_bits(1.0f, products.device[0])) << products.device[0];
 }
 
+/** @brief Runs the host folds on a host engine, which runs ForceReference only. */
+class Small_ReductionOpsOnHost : public HostEngineTest
+{
+};
+
 /**
  * @brief Tests that the host mean of FLOAT32 terms divides its FLOAT64 sum before it narrows.
  */
-TEST_F(Medium_ReductionOps, AHostMeanDividesBeforeItNarrows)
+TEST_F(Small_ReductionOpsOnHost, AHostMeanDividesBeforeItNarrows)
 {
-    set_mode(ExecutionMode::ForceReference);
-
     auto t = create_initialized_tensor<float>({3}, narrowing_terms());
     auto mean = engine->create_tensor({1});
 
     ReductionOps(recorder()).mean(t, mean);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
 
     const float got_mean = read_tensor<float>(mean)[0];
     EXPECT_TRUE(same_bits(K_MEAN_DIVIDED_FIRST, got_mean))
@@ -833,15 +837,13 @@ TEST_F(Medium_ReductionOps, AHostMeanDividesBeforeItNarrows)
 /**
  * @brief Tests that the host mean_spatial of FLOAT32 terms divides its FLOAT64 sum before it narrows.
  */
-TEST_F(Medium_ReductionOps, AHostMeanSpatialDividesBeforeItNarrows)
+TEST_F(Small_ReductionOpsOnHost, AHostMeanSpatialDividesBeforeItNarrows)
 {
-    set_mode(ExecutionMode::ForceReference);
-
     auto image = create_initialized_tensor<float>({1, 3, 1, 1}, narrowing_terms());
     auto spatial_mean = engine->create_tensor({1, 1});
 
     ReductionOps(recorder()).mean_spatial(image, spatial_mean);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
 
     const float got_spatial_mean = read_tensor<float>(spatial_mean)[0];
     EXPECT_TRUE(same_bits(K_MEAN_DIVIDED_FIRST, got_spatial_mean))
