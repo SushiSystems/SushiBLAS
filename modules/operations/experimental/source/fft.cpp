@@ -48,6 +48,7 @@
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/signal_kernels/signal.hpp>
 #include <SushiBLAS/experimental/dense_operand.hpp>
+#include <SushiBLAS/experimental/signal/transforms_operand_check.hpp>
 
 namespace SushiBLAS
 {
@@ -126,28 +127,10 @@ namespace SushiBLAS
                                     Kernels::FftDirection direction, const char* op)
         {
             Dispatch::require_operation_options(options, op);
-            Dispatch::require_operand(shape.rows >= 1 && shape.columns >= 1, op, "shape",
-                                      "has {} rows of {} columns; both must be at least 1",
-                                      shape.rows, shape.columns);
-
             const bool forward = direction == Kernels::FftDirection::Forward;
             const bool real = shape.kind == FftKind::RealToComplex;
-            const Tensor& samples = forward ? input : output;
-            const Tensor& spectrum = forward ? output : input;
-            const char* samples_name = forward ? "input" : "output";
-            const char* spectrum_name = forward ? "output" : "input";
-
-            Internal::require_complex_dtype(spectrum, op, spectrum_name);
-            const Core::DataType scalar = Internal::scalar_dtype_of(spectrum.dtype);
-            Dispatch::require_dtype(samples, real ? scalar : spectrum.dtype, op, samples_name);
-
-            const std::size_t spectrum_columns = real ? shape.columns / 2 + 1 : shape.columns;
-            Internal::require_dense_elements(samples, shape.batch * shape.rows * shape.columns, op,
-                                             samples_name);
-            Internal::require_dense_elements(spectrum, shape.batch * shape.rows * spectrum_columns,
-                                             op, spectrum_name);
-            Dispatch::require_operand(!output.region().overlaps(input.region()), op, "output",
-                                      "overlaps 'input' in memory");
+            const Core::DataType scalar = Internal::check_transform_operands(
+                Dispatch::placed(input), Dispatch::placed(output), shape, forward, op);
 
             const Kernels::FftPairing pairing = real ? Kernels::FftPairing::RealToComplex
                                                      : Kernels::FftPairing::ComplexToComplex;

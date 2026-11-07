@@ -23,6 +23,8 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE experimental
     TESTS
+        lapack/test_linalg_operand_check.cpp
+        signal/test_transforms_operand_check.cpp
         test_dense_operand.cpp
     DEVICE_TESTS
         lapack/test_linalg.cpp

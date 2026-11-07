@@ -23,7 +23,7 @@
 /**
  * @file test_signal_convolve_1d.cpp
  * @brief Tests SignalOps::convolve_1d in both forced modes against hand values, an independent
- * formula and a rounding bound, and its refusals.
+ * formula and a rounding bound, and that it wires the operand check to its tensors.
  * @author Mustafa Garip
  */
 
@@ -31,7 +31,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <functional>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -48,6 +47,7 @@
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include "support/forced_mode_checks.hpp"
 
 namespace SushiBLAS
 {
@@ -55,10 +55,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
-                                                        ExecutionMode::ForceReference};
-
             /// @brief The value an output holds before its operation runs.
             constexpr double K_SENTINEL = 7.0;
 
@@ -106,13 +102,6 @@ namespace SushiBLAS
                     {"taps as long as the row", {4, 6}, 6},
                     {"one output sample per row", {2, 3, 9}, 8},
                 };
-            }
-
-            /** @brief Returns the name a failure message gives a case run in mode. */
-            std::string trace_of(const ConvolutionCase& c, ExecutionMode mode)
-            {
-                return std::string(c.id) +
-                       (mode == ExecutionMode::ForceReference ? " ForceReference" : " ForceSYCL");
             }
 
             /** @brief Returns how many elements a tensor of dims holds. */
@@ -251,50 +240,6 @@ namespace SushiBLAS
                 return rounding_bound(roundings, unit_roundoff<double>(), truth.magnitude) + store;
             }
 
-            /** @brief Returns true when the test device can compute in T. */
-            template<typename T>
-            bool device_computes()
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-
-                if constexpr (std::is_same_v<T, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<T, double>)
-                    return device.has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
-
-            /**
-             * @brief Expects record to throw std::invalid_argument naming the operation and
-             *        operand.
-             * @tparam Record Callable `() -> void` that records one malformed call.
-             */
-            template<typename Record>
-            void expect_refusal(Record&& record, const char* operand)
-            {
-                try
-                {
-                    record();
-                    ADD_FAILURE() << "signal.convolve_1d accepted a malformed '" << operand << "'";
-                }
-                catch (const std::invalid_argument& error)
-                {
-                    const std::string text = error.what();
-                    EXPECT_NE(text.find("signal.convolve_1d"), std::string::npos) << text;
-                    EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
-                        << text;
-                }
-            }
-
-            /** @brief Runs check once for each forced mode. */
-            template<typename Check>
-            void in_each_forced_mode(Check&& check)
-            {
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                    check(mode);
-            }
-
             /** @brief Returns the signal tensor of a case holding the values x. */
             template<typename T>
             Tensor signal_of(Engine& engine, const ConvolutionCase& c, const std::vector<double>& x)
@@ -314,7 +259,7 @@ namespace SushiBLAS
             void expect_hand_values(Engine& engine, ExecutionMode mode)
             {
                 const ConvolutionCase c{"hand", {5}, 2};
-                SCOPED_TRACE(trace_of(c, mode));
+                SCOPED_TRACE(trace_of(c.id, mode));
                 engine.set_mode(mode);
 
                 const Tensor signal = signal_of<T>(engine, c, {1, 2, 3, 4, 5});
@@ -331,7 +276,7 @@ namespace SushiBLAS
             {
                 for (const ConvolutionCase& c : table_cases())
                 {
-                    SCOPED_TRACE(trace_of(c, mode));
+                    SCOPED_TRACE(trace_of(c.id, mode));
                     engine.set_mode(mode);
 
                     const std::vector<double> x =
@@ -365,7 +310,7 @@ namespace SushiBLAS
             template<typename T>
             void expect_within_bound(Engine& engine, const ConvolutionCase& c, ExecutionMode mode)
             {
-                SCOPED_TRACE(trace_of(c, mode));
+                SCOPED_TRACE(trace_of(c.id, mode));
                 engine.set_mode(mode);
 
                 // The library sees the rounded inputs, so the exact sum is formed from those.
@@ -397,23 +342,6 @@ namespace SushiBLAS
             {
                 for (const ConvolutionCase& c : table_cases())
                     expect_within_bound<T>(engine, c, mode);
-            }
-
-            /** @brief Holds one malformed call: the operand it spoils and the call that records it. */
-            struct RefusalRow
-            {
-                const char* operand;                    /**< The operand the refusal names. */
-                std::function<void(SignalOps&)> record; /**< Records the malformed call. */
-            };
-
-            /** @brief Expects every row to be refused naming its operand. */
-            void expect_every_row_refused(SignalOps& ops, const std::vector<RefusalRow>& rows)
-            {
-                for (const RefusalRow& row : rows)
-                {
-                    SCOPED_TRACE(row.operand);
-                    expect_refusal([&] { row.record(ops); }, row.operand);
-                }
             }
 
             /** @brief Expects every options value to be refused when the call carries it. */
@@ -520,38 +448,6 @@ namespace SushiBLAS
                       std::vector<double>(12, 3.0));
         }
 
-        /** @brief Tests that the operation refuses every malformed operand at record time. */
-        TEST_F(Medium_SignalConvolve1D, RefusesMismatchedOperandsAtRecordTime)
-        {
-            RecordingFixture graph(*engine);
-            SignalOps ops(graph.recorder());
-
-            const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
-            const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
-            Tensor out = sentinel_tensor<float>(*engine, {2, 6});
-            const Tensor double_taps = tensor_from<double>(*engine, {3}, {1, 1, 1});
-            Tensor double_out = sentinel_tensor<double>(*engine, {2, 6});
-            const Tensor matrix_taps = tensor_from<float>(*engine, {1, 3}, {1, 1, 1});
-            Tensor flat_out = sentinel_tensor<float>(*engine, {12});
-            Tensor wrong_rows = sentinel_tensor<float>(*engine, {3, 6});
-            Tensor wrong_length = sentinel_tensor<float>(*engine, {2, 7});
-            const Tensor no_taps = tensor_from<float>(*engine, {0}, {});
-            Tensor full_length = sentinel_tensor<float>(*engine, {2, 9});
-            const Tensor long_taps = tensor_from<float>(*engine, {9}, std::vector<double>(9, 1.0));
-            Tensor no_room = sentinel_tensor<float>(*engine, {2, 0});
-
-            expect_every_row_refused(
-                ops,
-                {{"taps", [&](SignalOps& o) { o.convolve_1d(signal, double_taps, out); }},
-                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, double_out); }},
-                 {"taps", [&](SignalOps& o) { o.convolve_1d(signal, matrix_taps, out); }},
-                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, flat_out); }},
-                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, wrong_rows); }},
-                 {"out", [&](SignalOps& o) { o.convolve_1d(signal, taps, wrong_length); }},
-                 {"taps", [&](SignalOps& o) { o.convolve_1d(signal, no_taps, full_length); }},
-                 {"signal", [&](SignalOps& o) { o.convolve_1d(signal, long_taps, no_room); }}});
-        }
-
         /** @brief Tests that a call with options puts the name and the class on the node. */
         TEST_F(Medium_SignalConvolve1D, ACallWithOptionsCarriesTheNameAndTheDeterminismClass)
         {
@@ -614,7 +510,7 @@ namespace SushiBLAS
             const Tensor one_tap = tensor_from<float>(*engine, {1}, {1});
 
             // One tap leaves the output shaped like the signal; one tensor passes every shape check.
-            expect_refusal([&] { ops.convolve_1d(signal, one_tap, signal); }, "out");
+            expect_refusal([&] { ops.convolve_1d(signal, one_tap, signal); }, "signal.convolve_1d", "out");
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -8,6 +8,10 @@ header is included as `<SushiBLAS/blend/blend.hpp>`.
 part of `SpatialOps`, which stays the operations over an NHWC grid. The design is in
 `docs/design/LAYERED_EXECUTION/README.md`.
 
+`blend_operand_check.hpp` holds `Internal::check_blend_operands`, the record-time checks of
+`blend_transforms`. It reads the shape of each tensor and the facts of its storage through
+`Dispatch::PlacedTensor`, so a test can run it on operands built by hand.
+
 ## `blend.hpp`
 
 ### `BlendOps::blend_transforms`

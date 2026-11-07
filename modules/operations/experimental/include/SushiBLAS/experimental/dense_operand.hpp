@@ -41,16 +41,29 @@ namespace SushiBLAS
         /**
          * @brief Throws unless t has storage, is dense, holds @p elements and lives on a device
          *        that computes its dtype.
+         * @param placed The tensor with the facts of its storage.
+         * @throws std::invalid_argument naming op and operand; UnsupportedExecution for fp64.
+         */
+        inline void require_dense_elements(const Dispatch::PlacedTensor& placed,
+                                           std::size_t elements, const char* op,
+                                           const char* operand)
+        {
+            Dispatch::require_storage(placed.tensor, placed.storage, op, operand);
+            Dispatch::require_contiguous(placed.tensor, op, operand);
+            Dispatch::require_extent(placed.tensor.num_elements, static_cast<int64_t>(elements),
+                                     "elements", op, operand);
+            Dispatch::require_device_dtype(placed.tensor, placed.storage, op, operand);
+        }
+
+        /**
+         * @brief Throws unless t has storage, is dense, holds @p elements and lives on a device
+         *        that computes its dtype.
          * @throws std::invalid_argument naming op and operand; UnsupportedExecution for fp64.
          */
         inline void require_dense_elements(const Tensor& t, std::size_t elements, const char* op,
                                            const char* operand)
         {
-            Dispatch::require_storage(t, op, operand);
-            Dispatch::require_contiguous(t, op, operand);
-            Dispatch::require_extent(t.num_elements, static_cast<int64_t>(elements), "elements",
-                                     op, operand);
-            Dispatch::require_device_dtype(t, op, operand);
+            require_dense_elements(Dispatch::placed(t), elements, op, operand);
         }
 
         /** @brief Throws unless t is FLOAT32 or FLOAT64. */

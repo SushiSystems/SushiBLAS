@@ -45,6 +45,7 @@
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/linalg_kernels/linalg.hpp>
 #include <SushiBLAS/experimental/dense_operand.hpp>
+#include <SushiBLAS/experimental/lapack/linalg_operand_check.hpp>
 
 namespace SushiBLAS
 {
@@ -56,29 +57,9 @@ namespace SushiBLAS
         static constexpr const char* NAME = "linalg.gmres";
 
         Dispatch::require_operation_options(options.node, NAME);
-        Internal::require_float_dtype(matrix, NAME, "matrix");
-        Dispatch::require_dtype(rhs, matrix.dtype, NAME, "rhs");
-        Dispatch::require_dtype(solution, matrix.dtype, NAME, "solution");
-        Dispatch::require_dtype(residual, matrix.dtype, NAME, "residual");
-        Dispatch::require_dtype(iterations, Core::DataType::UInt32, NAME, "iterations");
-
-        const std::size_t n = static_cast<std::size_t>(rhs.num_elements);
-        Dispatch::require_operand(n >= 1, NAME, "rhs", "is empty; the system needs one unknown");
-        Dispatch::require_operand(options.restart >= 1, NAME, "options",
-                                  "has restart 0; at least 1 is required");
-        Dispatch::require_operand(options.max_iterations >= 1, NAME, "options",
-                                  "has max_iterations 0; at least 1 is required");
-        Dispatch::require_operand(options.block_size >= 1 && n % options.block_size == 0, NAME,
-                                  "options", "has block_size {}, which does not divide n = {}",
-                                  options.block_size, n);
-        Internal::require_dense_elements(matrix, n * n, NAME, "matrix");
-        Internal::require_dense_elements(rhs, n, NAME, "rhs");
-        Internal::require_dense_elements(solution, n, NAME, "solution");
-        Internal::require_dense_elements(iterations, 1, NAME, "iterations");
-        Internal::require_dense_elements(residual, 1, NAME, "residual");
-        Dispatch::require_operand(!solution.region().overlaps(matrix.region()) &&
-                                      !solution.region().overlaps(rhs.region()),
-                                  NAME, "solution", "overlaps an input in memory");
+        const std::size_t n = Internal::check_gmres_operands(
+            Dispatch::placed(matrix), Dispatch::placed(rhs), Dispatch::placed(solution),
+            Dispatch::placed(iterations), Dispatch::placed(residual), options, NAME);
 
         Kernels::GmresSettings settings;
         settings.restart = options.restart;

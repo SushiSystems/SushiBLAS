@@ -16,5 +16,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE signal
+    TESTS
+        test_convolve_operand_check.cpp
     DEVICE_TESTS
         test_signal/test_signal_convolve_1d.cpp)

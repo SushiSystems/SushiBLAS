@@ -49,6 +49,7 @@
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include "support/forced_mode_checks.hpp"
 
 namespace SushiBLAS
 {
@@ -56,10 +57,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
-                                                        ExecutionMode::ForceReference};
-
             /// @brief The value an output holds before its operation runs.
             constexpr double K_SENTINEL = 7.0;
 
@@ -430,41 +427,6 @@ namespace SushiBLAS
 
                 const std::size_t roundings = std::is_same_v<T, double> ? 5 : terms + 2;
                 return rounding_bound(roundings, unit_roundoff<double>(), truth.magnitude) + store;
-            }
-
-            /** @brief Returns true when the test device can compute in T. */
-            template<typename T>
-            bool device_computes()
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-
-                if constexpr (std::is_same_v<T, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<T, double>)
-                    return device.has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
-
-            /**
-             * @brief Expects record to throw std::invalid_argument naming operation and operand.
-             * @tparam Record Callable `() -> void` that records one malformed call.
-             */
-            template<typename Record>
-            void expect_refusal(Record&& record, const char* operation, const char* operand)
-            {
-                try
-                {
-                    record();
-                    ADD_FAILURE() << operation << " accepted a malformed '" << operand << "'";
-                }
-                catch (const std::invalid_argument& error)
-                {
-                    const std::string text = error.what();
-                    EXPECT_NE(text.find(operation), std::string::npos) << text;
-                    EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
-                        << text;
-                }
             }
         } // namespace
 

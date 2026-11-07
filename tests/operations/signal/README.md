@@ -8,7 +8,8 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_signal/test_signal_convolve_1d.cpp` | Tests SignalOps::convolve_1d in both forced modes against hand values, a formula and a rounding bound, and its refusals |
+| `test_convolve_operand_check.cpp` | Tests that check_convolve_operands accepts a well-formed convolution call and refuses each malformed one naming the operand |
+| `test_signal/test_signal_convolve_1d.cpp` | Tests SignalOps::convolve_1d in both forced modes against hand values, a formula and a rounding bound, and that it wires the operand check to its tensors |
 
 ## test_signal/test_signal_convolve_1d.cpp
 
@@ -25,5 +26,7 @@ fixed `k` order: two device runs on one device write the same bits.
 `ACallWithOptionsCarriesTheNameAndTheDeterminismClass` and
 `ACallWithoutOptionsKeepsTheOperationIdAndUnstated` read the name and the class of a call with
 options and of one without from the runtime plan, and `AnEmptyNameOrAnUnknownClassIsRefused` covers
-the refusals of the options. `AWellFormedCallRecordsAndRuns` is the control of
-`RefusesMismatchedOperandsAtRecordTime`, which walks one row per malformed operand.
+the refusals of the options. The operand rules are tested in `test_convolve_operand_check.cpp`, on
+`HandBuiltOperand` values (`tests/support/hand_built_operand.hpp`) with no runtime and no queue.
+The medium file keeps `RefusesAnOutputThatOverlapsAnInput`, which checks that `convolve_1d` reads
+the regions of real tensors into the check.

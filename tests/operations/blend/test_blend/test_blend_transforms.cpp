@@ -23,7 +23,7 @@
 /**
  * @file test_blend_transforms.cpp
  * @brief Tests BlendOps::blend_transforms in both forced modes against hand values, an
- * independent formula and a rounding bound, and its refusals.
+ * independent formula and a rounding bound, and that it wires the operand check to its tensors.
  * @author Mustafa Garip
  */
 
@@ -49,6 +49,7 @@
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include "support/forced_mode_checks.hpp"
 
 namespace SushiBLAS
 {
@@ -56,10 +57,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
-                                                        ExecutionMode::ForceReference};
-
             /// @brief The value an output holds before its operation runs.
             constexpr double K_SENTINEL = 7.0;
 
@@ -110,13 +107,6 @@ namespace SushiBLAS
                     {"homogeneous, 4x4, J = 1", 5, 4, 4, 2, 1},
                     {"position, 3x4, J = 4", 33, 3, 3, 6, 4},
                 };
-            }
-
-            /** @brief Returns the name a failure message gives a case run in mode. */
-            std::string trace_of(const BlendCase& c, ExecutionMode mode)
-            {
-                return std::string(c.id) +
-                       (mode == ExecutionMode::ForceReference ? " ForceReference" : " ForceSYCL");
             }
 
             /** @brief Returns how many elements a tensor of dims holds. */
@@ -420,51 +410,6 @@ namespace SushiBLAS
                                       truth.magnitude) + store;
             }
 
-            /** @brief Returns true when the test device can compute in T. */
-            template<typename T>
-            bool device_computes()
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-
-                if constexpr (std::is_same_v<T, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<T, double>)
-                    return device.has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
-
-            /**
-             * @brief Expects record to throw std::invalid_argument naming the operation and
-             *        operand.
-             * @tparam Record Callable `() -> void` that records one malformed call.
-             */
-            template<typename Record>
-            void expect_refusal(Record&& record, const char* operand)
-            {
-                try
-                {
-                    record();
-                    ADD_FAILURE() << "blend.blend_transforms accepted a malformed '" << operand
-                                  << "'";
-                }
-                catch (const std::invalid_argument& error)
-                {
-                    const std::string text = error.what();
-                    EXPECT_NE(text.find("blend.blend_transforms"), std::string::npos) << text;
-                    EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
-                        << text;
-                }
-            }
-
-            /** @brief Runs check once for each forced mode. */
-            template<typename Check>
-            void in_each_forced_mode(Check&& check)
-            {
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                    check(mode);
-            }
-
             /** @brief Returns the matrices of a case with an identity in each transform. */
             std::vector<double> identity_matrices(const BlendCase& c)
             {
@@ -501,7 +446,7 @@ namespace SushiBLAS
             {
                 engine.set_mode(mode);
                 const BlendCase positions{"hand positions", 2, 3, 3, 1, 1};
-                SCOPED_TRACE(trace_of(positions, mode));
+                SCOPED_TRACE(trace_of(positions.id, mode));
 
                 EXPECT_EQ(hand_blend<T>(engine, positions, {1, 3, 4},
                                         {1, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 3}, {1, 1, 1, 0, 0, 0}),
@@ -514,7 +459,7 @@ namespace SushiBLAS
             {
                 engine.set_mode(mode);
                 const BlendCase homogeneous{"hand homogeneous", 2, 4, 3, 1, 1};
-                SCOPED_TRACE(trace_of(homogeneous, mode));
+                SCOPED_TRACE(trace_of(homogeneous.id, mode));
 
                 // w = 0 ignores the translation and w = 1 takes it.
                 EXPECT_EQ(hand_blend<T>(engine, homogeneous, {1, 3, 4},
@@ -536,13 +481,13 @@ namespace SushiBLAS
                 const BlendCase homogeneous{"hand 4x4 homogeneous", 1, 4, 4, 1, 1};
 
                 {
-                    SCOPED_TRACE(trace_of(positions, mode));
+                    SCOPED_TRACE(trace_of(positions.id, mode));
                     EXPECT_EQ(hand_blend<T>(engine, positions, {1, 4, 4}, K_SCALING_W_MATRIX,
                                             {1, 1, 1}),
                               (std::vector<double>{2, 3, 4}));
                 }
                 {
-                    SCOPED_TRACE(trace_of(homogeneous, mode));
+                    SCOPED_TRACE(trace_of(homogeneous.id, mode));
                     EXPECT_EQ(hand_blend<T>(engine, homogeneous, {1, 4, 4}, K_SCALING_W_MATRIX,
                                             {1, 1, 1, 5}),
                               (std::vector<double>{6, 11, 16, 10}));
@@ -563,7 +508,7 @@ namespace SushiBLAS
                 const Tensor weights = tensor_from<T>(engine, {1, 2}, {0.5, 0.5});
 
                 const BlendCase c{"hand blend", 1, 3, 3, 2, 2};
-                SCOPED_TRACE(trace_of(c, mode));
+                SCOPED_TRACE(trace_of(c.id, mode));
                 EXPECT_EQ(widened(blend_of<T>(engine, c,
                                               {tensor_from<T>(engine, {1, 3}, {0, 0, 0}),
                                                matrices, indices, weights})),
@@ -581,7 +526,7 @@ namespace SushiBLAS
             {
                 for (const BlendCase& c : table_cases())
                 {
-                    SCOPED_TRACE(trace_of(c, mode));
+                    SCOPED_TRACE(trace_of(c.id, mode));
                     engine.set_mode(mode);
 
                     const BlendData data = data_for<T>(c, kind);
@@ -603,7 +548,7 @@ namespace SushiBLAS
             {
                 for (const BlendCase& c : table_cases())
                 {
-                    SCOPED_TRACE(trace_of(c, mode));
+                    SCOPED_TRACE(trace_of(c.id, mode));
                     engine.set_mode(mode);
 
                     BlendData data = data_for<T>(c, WeightKind::SumToOne);
@@ -618,7 +563,7 @@ namespace SushiBLAS
             template<typename T>
             void expect_case_within_bound(Engine& engine, const BlendCase& c, ExecutionMode mode)
             {
-                SCOPED_TRACE(trace_of(c, mode));
+                SCOPED_TRACE(trace_of(c.id, mode));
                 engine.set_mode(mode);
 
                 // The library sees the rounded inputs, so the exact sum is formed from those.
@@ -678,7 +623,7 @@ namespace SushiBLAS
                 in_each_forced_mode(
                     [&](ExecutionMode mode)
                     {
-                        SCOPED_TRACE(trace_of(c, mode));
+                        SCOPED_TRACE(trace_of(c.id, mode));
                         engine.set_mode(mode);
 
                         const BlendTensors in = tensors_for<float, Index>(engine, c, data);
@@ -732,7 +677,7 @@ namespace SushiBLAS
             void expect_index_types_give_same_bits(Engine& engine, ExecutionMode mode)
             {
                 const BlendCase c{"index types", 9, 3, 4, 4, 4};
-                SCOPED_TRACE(trace_of(c, mode));
+                SCOPED_TRACE(trace_of(c.id, mode));
                 engine.set_mode(mode);
 
                 const BlendData data = data_for<float>(c, WeightKind::Integer);
@@ -770,70 +715,6 @@ namespace SushiBLAS
                 return BaseOperands{filled_tensor<float>(e, {2, 3}), filled_tensor<float>(e, {3, 3, 4}),
                                     zero_indices(e, {2, 2}), filled_tensor<float>(e, {2, 2}),
                                     sentinel_tensor<float>(e, {2, 3})};
-            }
-
-            /** @brief Holds one malformed call: the operand it spoils and the call that records it. */
-            struct RefusalRow
-            {
-                const char* operand;                                   /**< The operand the refusal names. */
-                std::function<void(BlendOps&, Engine&, BaseOperands&)> record; /**< Records the malformed call. */
-            };
-
-            /** @brief Expects every row to be refused naming its operand. */
-            void expect_every_row_refused(Engine& e, BlendOps& ops, BaseOperands& ok,
-                                          const std::vector<RefusalRow>& rows)
-            {
-                for (const RefusalRow& row : rows)
-                {
-                    SCOPED_TRACE(row.operand);
-                    expect_refusal([&] { row.record(ops, e, ok); }, row.operand);
-                }
-            }
-
-            /** @brief Returns the rows of malformed operands against the operands of base_operands. */
-            std::vector<RefusalRow> malformed_operand_rows()
-            {
-                return {
-                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, filled_tensor<double>(e, {3, 3, 4}), ok.indices, ok.weights, ok.out); }},
-                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<double>(e, {2, 2}), ok.out); }},
-                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { Tensor bad = sentinel_tensor<double>(e, {2, 3}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
-                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, filled_tensor<float>(e, {2, 2}), ok.weights, ok.out); }},
-                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(filled_tensor<float>(e, {6}), ok.transforms, ok.indices, ok.weights, ok.out); }},
-                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {12}), ok.indices, ok.weights, ok.out); }},
-                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {4}), ok.weights, ok.out); }},
-                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<float>(e, {4}), ok.out); }},
-                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { Tensor bad = sentinel_tensor<float>(e, {6}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
-                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(filled_tensor<float>(e, {2, 2}), ok.transforms, ok.indices, ok.weights, ok.out); }},
-                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(filled_tensor<float>(e, {2, 5}), ok.transforms, ok.indices, ok.weights, ok.out); }},
-                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {3, 2, 4}), ok.indices, ok.weights, ok.out); }},
-                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {3, 3, 3}), ok.indices, ok.weights, ok.out); }},
-                    {"transforms", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, filled_tensor<float>(e, {0, 3, 4}), ok.indices, ok.weights, ok.out); }},
-                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {3, 2}), ok.weights, ok.out); }},
-                    {"weights", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, filled_tensor<float>(e, {2, 3}), ok.out); }},
-                    {"out", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { Tensor bad = sentinel_tensor<float>(e, {2, 4}); o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights, bad); }},
-                    {"indices", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, zero_indices(e, {2, 0}), filled_tensor<float>(e, {2, 0}), ok.out); }},
-                    {"points", [](BlendOps& o, Engine& e, BaseOperands& ok)
-                     { Tensor none = sentinel_tensor<float>(e, {0, 3}); o.blend_transforms(filled_tensor<float>(e, {0, 3}), ok.transforms, zero_indices(e, {0, 2}), filled_tensor<float>(e, {0, 2}), none); }},
-                    {"weights", [](BlendOps& o, Engine&, BaseOperands& ok)
-                     { o.blend_transforms(ok.points, ok.transforms, ok.indices, ok.weights.transpose(0, 1), ok.out); }}};
             }
 
             /** @brief Expects every options value to be refused when the call carries it. */
@@ -1066,16 +947,6 @@ namespace SushiBLAS
                 {OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}});
         }
 
-        /** @brief Tests that the operation refuses every malformed operand at record time. */
-        TEST_F(Medium_BlendTransforms, RefusesMismatchedOperandsAtRecordTime)
-        {
-            RecordingFixture graph(*engine);
-            BlendOps ops(graph.recorder());
-            BaseOperands ok = base_operands(*engine);
-
-            expect_every_row_refused(*engine, ops, ok, malformed_operand_rows());
-        }
-
         /** @brief Tests that the operation refuses an output that is also an input. */
         TEST_F(Medium_BlendTransforms, RefusesAnOutputThatOverlapsAnInput)
         {
@@ -1092,7 +963,7 @@ namespace SushiBLAS
             const auto overlapping = [&] {
                 ops.blend_transforms(points, transforms, indices, weights, points);
             };
-            expect_refusal(overlapping, "out");
+            expect_refusal(overlapping, "blend.blend_transforms", "out");
         }
     } // namespace Test
 } // namespace SushiBLAS

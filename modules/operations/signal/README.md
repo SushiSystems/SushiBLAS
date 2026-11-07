@@ -9,6 +9,10 @@ row is the last dimension of a tensor and the leading dimensions batch rows. It 
 is `TransformsOps` of [the experimental module](../experimental/README.md); the two share no
 name and no header.
 
+`convolve_operand_check.hpp` holds `Internal::check_convolve_operands`, the record-time checks of
+`convolve_1d`. It reads the shape of each tensor and the facts of its storage through
+`Dispatch::PlacedTensor`, so a test can run it on operands built by hand.
+
 ## `signal.hpp`
 
 ### `SignalOps::convolve_1d`

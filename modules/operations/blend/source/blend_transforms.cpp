@@ -33,6 +33,7 @@
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/blend/blend.hpp>
+#include <SushiBLAS/blend/blend_operand_check.hpp>
 #include <SushiBLAS/blend_kernels/blend.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 
@@ -64,18 +65,6 @@ namespace SushiBLAS
             const void* weights;
             void* out;
         };
-
-        /**
-         * @brief Throws unless a tensor is dense and row-major, so its rows are contiguous.
-         * @throws std::invalid_argument on a view, a slice or a column-major tensor.
-         * @see modules/operations/blend/README.md
-         */
-        void require_dense_row_major(const Tensor& t, const char* name, const char* operand)
-        {
-            Dispatch::require_contiguous(t, name, operand);
-            Dispatch::require_operand(t.layout == Core::Layout::RowMajor, name, operand,
-                                      "is column-major; it must be dense and row-major");
-        }
 
         /**
          * @brief Runs the reference or the SYCL kernel for element type T and index type Index.
@@ -127,72 +116,12 @@ namespace SushiBLAS
         Dispatch::require_operation_options(options, NAME);
         const std::string label(options.name);
 
-        Dispatch::require_dtype(transforms, points.dtype, NAME, "transforms");
-        Dispatch::require_dtype(weights, points.dtype, NAME, "weights");
-        Dispatch::require_dtype(out, points.dtype, NAME, "out");
-        Dispatch::require_operand(indices.dtype == Core::DataType::Int32 ||
-                                      indices.dtype == Core::DataType::Int64 ||
-                                      indices.dtype == Core::DataType::UInt32,
-                                  NAME, "indices",
-                                  "has dtype {}; indices are INT32, INT64 or UINT32",
-                                  Core::to_string(indices.dtype));
+        Internal::check_blend_operands(Dispatch::placed(points), Dispatch::placed(transforms),
+                                       Dispatch::placed(indices), Dispatch::placed(weights),
+                                       Dispatch::placed(out), NAME);
 
-        Dispatch::require_rank(points, 2, NAME, "points");
-        Dispatch::require_rank(transforms, 3, NAME, "transforms");
-        Dispatch::require_rank(indices, 2, NAME, "indices");
-        Dispatch::require_rank(weights, 2, NAME, "weights");
-        Dispatch::require_rank(out, 2, NAME, "out");
-
-        const int64_t point_count = points.shape[0];
-        const int64_t components = points.shape[1];
-        const int64_t transform_count = transforms.shape[0];
-        const int64_t transform_rows = transforms.shape[1];
-        const int64_t influences = indices.shape[1];
-
-        Dispatch::require_operand(components == 3 || components == 4, NAME, "points",
-                                  "has {} values per point; a position has 3 and a homogeneous "
-                                  "point 4", components);
-        Dispatch::require_operand(point_count >= 1, NAME, "points", "holds no points");
-        Dispatch::require_operand(transform_count >= 1, NAME, "transforms", "holds no transforms");
-        Dispatch::require_operand(transform_rows == 3 || transform_rows == 4, NAME, "transforms",
-                                  "has {} rows per transform; a transform has 3 or 4",
-                                  transform_rows);
-        Dispatch::require_extent(transforms.shape[2], 4, "columns per transform", NAME,
-                                 "transforms");
-        Dispatch::require_operand(influences >= 1, NAME, "indices",
-                                  "holds no influences per point; at least 1 is required");
-        Dispatch::require_extent(indices.shape[0], point_count, "rows, one per point", NAME,
-                                 "indices");
-        Dispatch::require_same_shape(weights, indices, NAME, "weights", "indices");
-        Dispatch::require_same_shape(out, points, NAME, "out", "points");
-
-        Dispatch::require_storage(points, NAME, "points");
-        Dispatch::require_storage(transforms, NAME, "transforms");
-        Dispatch::require_storage(indices, NAME, "indices");
-        Dispatch::require_storage(weights, NAME, "weights");
-        Dispatch::require_storage(out, NAME, "out");
-        require_dense_row_major(points, NAME, "points");
-        require_dense_row_major(transforms, NAME, "transforms");
-        require_dense_row_major(indices, NAME, "indices");
-        require_dense_row_major(weights, NAME, "weights");
-        require_dense_row_major(out, NAME, "out");
-        Dispatch::require_device_dtype(points, NAME, "points");
-        Dispatch::require_device_dtype(transforms, NAME, "transforms");
-        Dispatch::require_device_dtype(weights, NAME, "weights");
-        Dispatch::require_device_dtype(out, NAME, "out");
-
-        // Each output point is written while its inputs are read, so no byte may be shared.
-        Dispatch::require_operand(!out.region().overlaps(points.region()), NAME, "out",
-                                  "overlaps 'points' in memory");
-        Dispatch::require_operand(!out.region().overlaps(transforms.region()), NAME, "out",
-                                  "overlaps 'transforms' in memory");
-        Dispatch::require_operand(!out.region().overlaps(indices.region()), NAME, "out",
-                                  "overlaps 'indices' in memory");
-        Dispatch::require_operand(!out.region().overlaps(weights.region()), NAME, "out",
-                                  "overlaps 'weights' in memory");
-
-        const BlendShape shape{point_count, components, transform_rows, influences,
-                               transform_count};
+        const BlendShape shape{points.shape[0], points.shape[1], transforms.shape[1],
+                               indices.shape[1], transforms.shape[0]};
         const BlendPointers data{points.data_or_null(), transforms.data_or_null(),
                                  indices.data_or_null(), weights.data_or_null(),
                                  out.data_or_null()};

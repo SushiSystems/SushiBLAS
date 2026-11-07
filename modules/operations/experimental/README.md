@@ -9,7 +9,9 @@ sources depend on `operands`, `signal_kernels` and `linalg_kernels`.
 | --- | --- |
 | `dense_operand.hpp` | The record-time operand checks the transforms and the dense solvers share |
 | `lapack/linalg.hpp` | `LinalgOps` and `GmresOptions` |
+| `lapack/linalg_operand_check.hpp` | The record-time operand checks of `lu_factor`, `lu_solve` and `gmres`, which run on `Dispatch::PlacedTensor` values |
 | `signal/transforms.hpp` | `TransformsOps`, `FftShape` and `FftKind` |
+| `signal/transforms_operand_check.hpp` | The record-time operand checks of `fft` and `inverse_fft`, which run on `Dispatch::PlacedTensor` values |
 
 ## Backend
 

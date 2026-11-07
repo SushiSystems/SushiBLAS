@@ -8,7 +8,8 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_blend/test_blend_transforms.cpp` | Tests BlendOps::blend_transforms in both forced modes against hand values, an independent formula and a rounding bound, and its refusals |
+| `test_blend_operand_check.cpp` | Tests that check_blend_operands accepts a well-formed blend call and refuses each malformed one naming the operand |
+| `test_blend/test_blend_transforms.cpp` | Tests BlendOps::blend_transforms in both forced modes against hand values, an independent formula and a rounding bound, and that it wires the operand check to its tensors |
 
 ## test_blend/test_blend_transforms.cpp
 
@@ -55,7 +56,11 @@ options.
 A mode loop does not sit in a test body: each typed test calls one `expect_*` helper from
 `in_each_forced_mode`, and the helper walks the shapes of `table_cases()`.
 
-The refusal test records one well-formed call as the control, then one call per malformed operand
-and checks that the message names the operation and the operand. Every malformed operand is a
-dtype, a rank, an extent, a zero count, a transposed view or an overlapping output. A value in the
-indices cannot be refused at record time, which the module README states.
+The operand rules are tested in `test_blend_operand_check.cpp`, on `HandBuiltOperand` values
+(`tests/support/hand_built_operand.hpp`): no runtime, no queue. One call is well formed, and each
+row spoils one operand and expects a refusal that names the operation and the operand. A spoiled
+operand is a dtype, a rank, an extent, a zero count, a missing storage, a strided or column-major
+view, a device without the aspect of the dtype, or an output that shares bytes with an input. The
+medium file keeps one case, `RefusesAnOutputThatOverlapsAnInput`, which checks that `blend_transforms`
+reads the regions of real tensors into the check. A value in the indices cannot be refused at
+record time, which the module README states.

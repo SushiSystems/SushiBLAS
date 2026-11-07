@@ -105,7 +105,10 @@ one place that sees only the installed surface.
 `tests/` is an include root of every test target as well. `tests/support/` holds the headers every
 test may include as `"support/<name>.hpp"`. `tolerance.hpp` is copied from SushiSkills and derives a
 floating-point tolerance from a rounding bound; `tensor_expectations/tolerance_bounds.hpp` builds the
-absolute bounds a comparison takes on it, so no comparison spells a tolerance literal.
+absolute bounds a comparison takes on it, so no comparison spells a tolerance literal. `owned_memory.hpp` holds memory a test owns, `shared_allocator_contract.hpp` the checks every
+`SharedAllocator` adapter passes, `forced_mode_checks.hpp` the forced-mode loop and the refusal checks
+the operation tests share, and `hand_built_operand.hpp` the operand values the `Small_` refusal tests
+build without a queue.
 
 ## Shared reasoning
 

@@ -24,7 +24,7 @@
 /**
  * @file test_linalg.cpp
  * @brief Tests LinalgOps::lu_factor, lu_solve and gmres in both forced modes against P L U
- * reconstruction and a direct solve, and their refusals.
+ * reconstruction and a direct solve, and that each wires its operand check to its tensors.
  * @author Mustafa Garip
  */
 
@@ -47,6 +47,7 @@
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/forced_mode_checks.hpp"
 #include "support/tolerance.hpp"
 namespace SushiBLAS
 {
@@ -54,10 +55,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
-                                                        ExecutionMode::ForceReference};
-
             /// @brief The order of each matrix the factorisation test factors.
             constexpr std::size_t K_FACTOR_ORDER = 9;
 
@@ -189,54 +186,6 @@ namespace SushiBLAS
                 return std::fabs(*std::max_element(in.begin(), in.end(),
                                                    [](double a, double b)
                                                    { return std::fabs(a) < std::fabs(b); }));
-            }
-
-            /** @brief Returns true when the test device can compute in T. */
-            template<typename T>
-            bool device_computes()
-            {
-                if constexpr (std::is_same_v<T, double>)
-                    return TestEnvironment::queue().get_device().has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
-
-            /** @brief Returns the name a failure message gives a mode. */
-            const char* trace_of(ExecutionMode mode)
-            {
-                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSYCL";
-            }
-
-            /** @brief Runs check once for each forced mode. */
-            template<typename Check>
-            void in_each_forced_mode(Check&& check)
-            {
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                {
-                    SCOPED_TRACE(trace_of(mode));
-                    check(mode);
-                }
-            }
-
-            /**
-             * @brief Expects record to throw std::invalid_argument naming op and operand.
-             * @tparam Record Callable `() -> void` that records one malformed call.
-             */
-            template<typename Record>
-            void expect_refusal(Record&& record, const char* op, const char* operand)
-            {
-                try
-                {
-                    record();
-                    ADD_FAILURE() << op << " accepted a malformed '" << operand << "'";
-                }
-                catch (const std::invalid_argument& error)
-                {
-                    const std::string text = error.what();
-                    EXPECT_NE(text.find(op), std::string::npos) << text;
-                    EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
-                        << text;
-                }
             }
 
             /** @brief Holds what lu_factor wrote for the matrices of the factorisation test. */
@@ -529,23 +478,6 @@ namespace SushiBLAS
 
             expect_refusal([&] { LinalgOps(graph.recorder()).lu_solve(a, pivots, rhs, 2, 1, 1); },
                            "linalg.lu_solve", "rhs");
-        }
-
-        TEST_F(Medium_Linalg, GmresRefusesABlockThatDoesNotDivideTheOrder)
-        {
-            Engine& engine = *this->engine;
-            const Tensor a = tensor_of(engine, std::vector<float>(9, 1.0f));
-            const Tensor b = tensor_of(engine, std::vector<float>(3, 1.0f));
-            Tensor x = tensor_of(engine, std::vector<float>(3, 0.0f));
-            Tensor iterations = tensor_of(engine, std::vector<std::uint32_t>(1));
-            Tensor residual = tensor_of(engine, std::vector<float>(1));
-            GmresOptions options;
-            options.block_size = 2;
-            RecordingFixture graph(engine);
-
-            expect_refusal(
-                [&] { LinalgOps(graph.recorder()).gmres(a, b, x, iterations, residual, options); },
-                "linalg.gmres", "options");
         }
 
         TEST_F(Medium_Linalg, GmresRefusesAnIntegerMatrix)

@@ -39,6 +39,7 @@
 #include <SushiBLAS/engine/engine_log_category.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiLog/text/text_format.hpp>
 
 namespace SushiBLAS
@@ -97,15 +98,100 @@ namespace SushiBLAS
         } // namespace Detail
 
         /**
+         * @brief Holds what the storage of a tensor adds to the record-time checks, apart from
+         *        its shape: whether it exists, the bytes it covers and what its device computes.
+         *
+         * A test builds one by hand, so the checks that read it run without a runtime.
+         * @see modules/engine/engine/README.md
+         */
+        struct StorageFacts
+        {
+            bool present = false;                   /**< Whether the tensor has storage. */
+            SushiRuntime::BufferRegion region{};    /**< The bytes the tensor covers; empty without storage. */
+            bool supports_fp64 = true;              /**< Whether the device of the storage computes FLOAT64. */
+            bool supports_fp16 = true;              /**< Whether the device of the storage computes HALF. */
+        };
+
+        /**
+         * @brief Pairs a tensor, which holds the shape, with the facts of its storage.
+         * @note The tensor is held by reference and must outlive the pair.
+         * @see modules/engine/engine/README.md
+         */
+        struct PlacedTensor
+        {
+            const Tensor& tensor;   /**< The dtype, shape, strides and layout the checks read. */
+            StorageFacts storage;   /**< The storage the checks read. */
+        };
+
+        /**
+         * @brief Reads the facts of the storage of a tensor.
+         * @return The facts; the device is asked only for a dtype that needs fp64 or fp16.
+         * @see modules/engine/engine/README.md
+         */
+        inline StorageFacts storage_facts_of(const Tensor& t)
+        {
+            StorageFacts facts;
+            facts.present = static_cast<bool>(t.storage);
+            facts.region = t.region();
+
+            const bool needs_fp64 = t.dtype == Core::DataType::Float64 ||
+                                    t.dtype == Core::DataType::Complex64;
+            const bool needs_fp16 = t.dtype == Core::DataType::Half;
+            if (!facts.present || (!needs_fp64 && !needs_fp16))
+                return facts;
+
+            const Device::Profile& profile = Device::profile_for(t.device());
+            facts.supports_fp64 = profile.supports_fp64;
+            facts.supports_fp16 = profile.supports_fp16;
+            return facts;
+        }
+
+        /** @brief Returns t paired with the facts of its storage. */
+        inline PlacedTensor placed(const Tensor& t)
+        {
+            return PlacedTensor{t, storage_facts_of(t)};
+        }
+
+        /**
+         * @brief Throws unless a tensor holding elements has storage.
+         * @param facts The storage of t.
+         * @throws std::invalid_argument when num_elements > 0 and the storage is absent.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_storage(const Tensor& t, const StorageFacts& facts, const char* op,
+                                    const char* operand)
+        {
+            if (t.num_elements > 0 && !facts.present)
+                Detail::throw_operand_error(op, operand, "holds {} elements but has no storage",
+                                            t.num_elements);
+        }
+
+        /**
          * @brief Throws unless a tensor holding elements has storage.
          * @throws std::invalid_argument when num_elements > 0 and storage is null.
          * @see modules/engine/engine/README.md
          */
         inline void require_storage(const Tensor& t, const char* op, const char* operand)
         {
-            if (t.num_elements > 0 && !t.storage)
-                Detail::throw_operand_error(op, operand, "holds {} elements but has no storage",
-                                            t.num_elements);
+            StorageFacts facts;
+            facts.present = static_cast<bool>(t.storage);
+            require_storage(t, facts, op, operand);
+        }
+
+        /**
+         * @brief Throws unless the bytes of one operand share nothing with the bytes of another.
+         * @param written The operand the message names.
+         * @param other The operand it must not overlap; named in the message.
+         * @throws std::invalid_argument naming both operands.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_disjoint(const StorageFacts& written, const StorageFacts& other,
+                                     const char* op, const char* written_name,
+                                     const char* other_name)
+        {
+            if (written.region.overlaps(other.region))
+                Detail::throw_operand_error(op, written_name, "overlaps '{}' in memory",
+                                            other_name);
         }
 
         /**
@@ -278,29 +364,40 @@ namespace SushiBLAS
 
         /**
          * @brief Throws unless the device a tensor lives on can compute in the tensor's dtype.
+         * @param facts The storage of t, which says what its device computes.
          * @throws UnsupportedExecution for FLOAT64 or COMPLEX64 storage on a device without the
          *         fp64 aspect, and for HALF storage on a device without the fp16 aspect.
          * @see modules/engine/engine/README.md
          */
-        inline void require_device_dtype(const Tensor& t, const char* op, const char* operand)
+        inline void require_device_dtype(const Tensor& t, const StorageFacts& facts, const char* op,
+                                         const char* operand)
         {
             const bool needs_fp64 = t.dtype == Core::DataType::Float64 ||
                                     t.dtype == Core::DataType::Complex64;
             const bool needs_fp16 = t.dtype == Core::DataType::Half;
-            if ((!needs_fp64 && !needs_fp16) || !t.storage)
+            if ((!needs_fp64 && !needs_fp16) || !facts.present)
                 return;
 
-            const Device::Profile& profile = Device::profile_for(t.device());
-            if (needs_fp64 && !profile.supports_fp64)
+            if (needs_fp64 && !facts.supports_fp64)
                 Detail::throw_execution_error(op,
                                               "operand '{}' has dtype {} but lives on a device "
                                               "without the fp64 aspect",
                                               operand, Core::to_string(t.dtype));
-            if (needs_fp16 && !profile.supports_fp16)
+            if (needs_fp16 && !facts.supports_fp16)
                 Detail::throw_execution_error(op,
                                               "operand '{}' has dtype {} but lives on a device "
                                               "without the fp16 aspect",
                                               operand, Core::to_string(t.dtype));
+        }
+
+        /**
+         * @brief Throws unless the device a tensor lives on can compute in the tensor's dtype.
+         * @throws UnsupportedExecution as the overload that takes the facts does.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_device_dtype(const Tensor& t, const char* op, const char* operand)
+        {
+            require_device_dtype(t, storage_facts_of(t), op, operand);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

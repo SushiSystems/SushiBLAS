@@ -43,6 +43,7 @@
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/linalg_kernels/linalg.hpp>
 #include <SushiBLAS/experimental/dense_operand.hpp>
+#include <SushiBLAS/experimental/lapack/linalg_operand_check.hpp>
 
 namespace SushiBLAS
 {
@@ -67,18 +68,8 @@ namespace SushiBLAS
         static constexpr const char* NAME = K_OPERATION;
 
         Dispatch::require_operation_options(options, NAME);
-        Dispatch::require_operand(n >= 1, NAME, "n", "is 0; a matrix needs at least one row");
-        Internal::require_float_dtype(matrices, NAME, "matrices");
-        Dispatch::require_dtype(pivots, Core::DataType::UInt32, NAME, "pivots");
-        Dispatch::require_dtype(singular, Core::DataType::UInt32, NAME, "singular");
-        Internal::require_dense_elements(matrices, batch * n * n, NAME, "matrices");
-        Internal::require_dense_elements(pivots, batch * n, NAME, "pivots");
-        Internal::require_dense_elements(singular, batch, NAME, "singular");
-        Dispatch::require_operand(!pivots.region().overlaps(matrices.region()), NAME, "pivots",
-                                  "overlaps 'matrices' in memory");
-        Dispatch::require_operand(!singular.region().overlaps(matrices.region()) &&
-                                      !singular.region().overlaps(pivots.region()),
-                                  NAME, "singular", "overlaps another operand in memory");
+        Internal::check_lu_factor_operands(Dispatch::placed(matrices), Dispatch::placed(pivots),
+                                           Dispatch::placed(singular), n, batch, NAME);
 
         OperandSet operands;
         operands.updates(matrices).writes(pivots).writes(singular);

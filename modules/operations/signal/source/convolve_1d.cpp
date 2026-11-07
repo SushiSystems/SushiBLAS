@@ -33,6 +33,7 @@
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/signal/signal.hpp>
+#include <SushiBLAS/signal/convolve_operand_check.hpp>
 #include <SushiBLAS/signal_kernels/signal.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 
@@ -44,18 +45,6 @@ namespace SushiBLAS
     {
         /** @brief Holds the operation id, which is also the node's name when a call states none. */
         constexpr const char* K_OPERATION = "signal.convolve_1d";
-
-        /**
-         * @brief Throws unless a tensor is dense and its last dimension runs along memory.
-         * @throws std::invalid_argument on a view, a slice or a column-major tensor of rank 2+.
-         * @see modules/operations/signal/README.md
-         */
-        void require_dense_rows(const Tensor& t, const char* name, const char* operand)
-        {
-            Dispatch::require_contiguous(t, name, operand);
-            Dispatch::require_operand(t.rank < 2 || t.layout == Core::Layout::RowMajor, name,
-                                      operand, "is column-major; its rows must be contiguous");
-        }
     } // namespace
 
     TaskHandle SignalOps::convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out)
@@ -71,47 +60,10 @@ namespace SushiBLAS
         Dispatch::require_operation_options(options, NAME);
         const std::string label(options.name);
 
-        Dispatch::require_dtype(taps, signal.dtype, NAME, "taps");
-        Dispatch::require_dtype(out, signal.dtype, NAME, "out");
-
-        Dispatch::require_rank(taps, 1, NAME, "taps");
-        Dispatch::require_operand(signal.rank >= 1, NAME, "signal",
-                                  "has rank 0; a row needs one dimension");
-        Dispatch::require_rank(out, signal.rank, NAME, "out");
-
+        const int64_t rows = Internal::check_convolve_operands(
+            Dispatch::placed(signal), Dispatch::placed(taps), Dispatch::placed(out), NAME);
         const int64_t signal_length = signal.shape[signal.rank - 1];
         const int64_t tap_count = taps.shape[0];
-        Dispatch::require_operand(tap_count >= 1, NAME, "taps",
-                                  "holds {} taps; at least 1 is required", tap_count);
-        Dispatch::require_operand(signal_length >= tap_count, NAME, "signal",
-                                  "has {} samples per row, fewer than the {} taps", signal_length,
-                                  tap_count);
-
-        int64_t rows = 1;
-        for (int32_t i = 0; i + 1 < signal.rank; ++i)
-        {
-            Dispatch::require_extent(out.shape[i], signal.shape[i], "rows in a leading dimension",
-                                     NAME, "out");
-            rows *= signal.shape[i];
-        }
-        Dispatch::require_extent(out.shape[out.rank - 1], signal_length - tap_count + 1,
-                                 "samples per row", NAME, "out");
-
-        Dispatch::require_storage(signal, NAME, "signal");
-        Dispatch::require_storage(taps, NAME, "taps");
-        Dispatch::require_storage(out, NAME, "out");
-        require_dense_rows(signal, NAME, "signal");
-        require_dense_rows(taps, NAME, "taps");
-        require_dense_rows(out, NAME, "out");
-        Dispatch::require_device_dtype(signal, NAME, "signal");
-        Dispatch::require_device_dtype(taps, NAME, "taps");
-        Dispatch::require_device_dtype(out, NAME, "out");
-
-        // A gather reads its inputs while it writes, so the output may share no byte with them.
-        Dispatch::require_operand(!out.region().overlaps(signal.region()), NAME, "out",
-                                  "overlaps 'signal' in memory");
-        Dispatch::require_operand(!out.region().overlaps(taps.region()), NAME, "out",
-                                  "overlaps 'taps' in memory");
 
         const void* read_signal = signal.data_or_null();
         const void* read_taps = taps.data_or_null();

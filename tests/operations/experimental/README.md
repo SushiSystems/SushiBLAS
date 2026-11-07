@@ -8,8 +8,10 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `lapack/test_linalg.cpp` | Tests lu_factor, lu_solve and gmres in both forced modes against P L U reconstruction and a direct solve, and their refusals |
-| `signal/test_transforms.cpp` | Tests fft and inverse_fft in both forced modes against a direct DFT, and their refusals |
+| `lapack/test_linalg.cpp` | Tests lu_factor, lu_solve and gmres in both forced modes against P L U reconstruction and a direct solve, and that each wires its operand check to its tensors |
+| `lapack/test_linalg_operand_check.cpp` | Tests that the operand checks of lu_factor, lu_solve and gmres accept a well-formed call and refuse each malformed one naming the operand |
+| `signal/test_transforms.cpp` | Tests fft and inverse_fft in both forced modes against a direct DFT, and that each wires its operand check to its tensors |
+| `signal/test_transforms_operand_check.cpp` | Tests that the operand check of fft and inverse_fft accepts a well-formed transform and refuses each malformed one naming the operand |
 | `test_dense_operand.cpp` | Tests the record-time operand checks the transforms and dense solvers share |
 
 ## Tolerances

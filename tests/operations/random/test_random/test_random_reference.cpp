@@ -47,6 +47,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/forced_mode_checks.hpp"
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 namespace SushiBLAS
 {
@@ -206,14 +207,6 @@ namespace SushiBLAS
             [[nodiscard]] double builtin_allowance() noexcept
             {
                 return 8.0 * static_cast<double>(std::numeric_limits<T>::epsilon());
-            }
-
-            /** @brief Returns "<operation> over <the dtype of T>" for a failure message. */
-            template<typename T>
-            [[nodiscard]] std::string trace_of(const char* operation)
-            {
-                const Core::DataType dtype = sushiblas_dtype<T>();
-                return std::string(operation) + " over " + Core::to_string(dtype);
             }
 
             /**

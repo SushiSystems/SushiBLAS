@@ -24,7 +24,7 @@
 /**
  * @file test_transforms.cpp
  * @brief Tests TransformsOps::fft and inverse_fft in both forced modes against a direct DFT, and
- * their refusals.
+ * that each wires its operand check to its tensors.
  * @author Mustafa Garip
  */
 
@@ -45,6 +45,7 @@
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/forced_mode_checks.hpp"
 #include "support/tolerance.hpp"
 namespace SushiBLAS
 {
@@ -52,10 +53,6 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
-                                                        ExecutionMode::ForceReference};
-
             /** @brief Returns count fixed pseudo-random values in [-1, 1) from a seed. */
             std::vector<double> values(std::size_t count, unsigned seed)
             {
@@ -123,56 +120,16 @@ namespace SushiBLAS
                 return t;
             }
 
-            /** @brief Returns true when the test device can compute in T. */
-            template<typename T>
-            bool device_computes()
-            {
-                if constexpr (std::is_same_v<T, double>)
-                    return TestEnvironment::queue().get_device().has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
-
             /** @brief Returns the 1-D, Bluestein, 2-D and batched shapes every mode runs. */
             std::vector<FftShape> shapes(FftKind kind)
             {
                 return {{1, 16, 1, kind}, {1, 12, 2, kind}, {4, 6, 2, kind}, {3, 7, 1, kind}};
             }
 
-            /** @brief Returns the name a failure message gives a shape run in a mode. */
-            std::string trace_of(const FftShape& shape, ExecutionMode mode)
+            /** @brief Returns the label a failure message gives a shape. */
+            std::string shape_label(const FftShape& shape)
             {
-                return std::to_string(shape.rows) + "x" + std::to_string(shape.columns) +
-                       (mode == ExecutionMode::ForceReference ? " ForceReference" : " ForceSYCL");
-            }
-
-            /** @brief Runs check once for each forced mode. */
-            template<typename Check>
-            void in_each_forced_mode(Check&& check)
-            {
-                for (const ExecutionMode mode : K_FORCED_MODES)
-                    check(mode);
-            }
-
-            /**
-             * @brief Expects record to throw std::invalid_argument naming op and operand.
-             * @tparam Record Callable `() -> void` that records one malformed call.
-             */
-            template<typename Record>
-            void expect_refusal(Record&& record, const char* op, const char* operand)
-            {
-                try
-                {
-                    record();
-                    ADD_FAILURE() << op << " accepted a malformed '" << operand << "'";
-                }
-                catch (const std::invalid_argument& error)
-                {
-                    const std::string text = error.what();
-                    EXPECT_NE(text.find(op), std::string::npos) << text;
-                    EXPECT_NE(text.find("'" + std::string(operand) + "'"), std::string::npos)
-                        << text;
-                }
+                return std::to_string(shape.rows) + "x" + std::to_string(shape.columns);
             }
 
             /**
@@ -193,7 +150,7 @@ namespace SushiBLAS
             void expect_complex_forward_of(Engine& engine, const FftShape& shape, ExecutionMode mode)
             {
                 using C = std::complex<T>;
-                SCOPED_TRACE(trace_of(shape, mode));
+                SCOPED_TRACE(trace_of(shape_label(shape), mode));
                 engine.set_mode(mode);
 
                 const std::size_t count = shape.batch * shape.rows * shape.columns;
@@ -278,7 +235,7 @@ namespace SushiBLAS
             {
                 for (const FftShape& shape : shapes(FftKind::RealToComplex))
                 {
-                    SCOPED_TRACE(trace_of(shape, mode));
+                    SCOPED_TRACE(trace_of(shape_label(shape), mode));
                     const RealRun<T> run = run_real<T>(engine, shape, mode);
                     const std::vector<std::complex<double>> full = direct_dft(run.exact, shape);
                     const std::size_t width = shape.columns / 2 + 1;
@@ -303,7 +260,7 @@ namespace SushiBLAS
             {
                 for (const FftShape& shape : shapes(FftKind::RealToComplex))
                 {
-                    SCOPED_TRACE(trace_of(shape, mode));
+                    SCOPED_TRACE(trace_of(shape_label(shape), mode));
                     const RealRun<T> run = run_real<T>(engine, shape, mode);
                     const std::size_t entry = shape.rows * shape.columns;
 
@@ -369,19 +326,6 @@ namespace SushiBLAS
                            "signal.fft", "input");
         }
 
-        TEST_F(Medium_Transforms, RefusesAWrongElementCount)
-        {
-            Engine& engine = *this->engine;
-            const FftShape shape{2, 4, 1, FftKind::RealToComplex};
-            const Tensor in = tensor_of(engine, std::vector<float>(8, 0.0f));
-            Tensor out = tensor_of(engine, std::vector<std::complex<float>>(8));
-            RecordingFixture graph(engine);
-
-            // Two rows of 4 real samples have 2 * 3 half-spectrum elements, not 8.
-            expect_refusal([&] { TransformsOps(graph.recorder()).fft(in, out, shape); },
-                           "signal.fft", "output");
-        }
-
         TEST_F(Medium_Transforms, RefusesAnEmptyShape)
         {
             Engine& engine = *this->engine;
@@ -392,17 +336,6 @@ namespace SushiBLAS
 
             expect_refusal([&] { TransformsOps(graph.recorder()).inverse_fft(in, out, shape); },
                            "signal.inverse_fft", "shape");
-        }
-
-        TEST_F(Medium_Transforms, RefusesAnOutputThatIsTheInput)
-        {
-            Engine& engine = *this->engine;
-            const FftShape shape{1, 4, 1, FftKind::ComplexToComplex};
-            Tensor both = tensor_of(engine, std::vector<std::complex<float>>(4));
-            RecordingFixture graph(engine);
-
-            expect_refusal([&] { TransformsOps(graph.recorder()).fft(both, both, shape); },
-                           "signal.fft", "output");
         }
     } // namespace Test
 } // namespace SushiBLAS
