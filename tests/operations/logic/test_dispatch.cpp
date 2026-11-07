@@ -23,11 +23,12 @@
 
 /**
  * @file test_dispatch.cpp
- * @brief Tests the logic predicates and a unary and a binary logic task in both execution modes.
+ * @brief Tests the logic predicates on the host and a unary and a binary logic task, one instance per execution mode.
  * @author Mustafa Garip
  */
 
 #include <complex>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -64,45 +65,78 @@ namespace SushiBLAS
             }
         };
 
-        /** @brief Records logic tasks on the fixture's engine. */
-        class Medium_LogicDispatch : public SushiBLASTest
+        TEST(Small_LogicPredicates, NotZeroHoldsForAnyNonzeroPartAndFailsForZero)
+        {
+            EXPECT_TRUE(Dispatch::logic_not_zero(std::complex<float>(0.0f, 1.0f)));
+            EXPECT_FALSE(Dispatch::logic_not_zero(0.0));
+        }
+
+        TEST(Small_LogicPredicates, EqualComparesBothPartsOfAComplexValue)
+        {
+            EXPECT_TRUE(Dispatch::logic_equal(std::complex<double>(1, 2),
+                                              std::complex<double>(1, 2)));
+            EXPECT_FALSE(Dispatch::logic_equal(std::complex<double>(1, 2),
+                                               std::complex<double>(1, 3)));
+        }
+
+        TEST(Small_LogicPredicates, LessIsTrueForASmallerLeftValue)
+        {
+            EXPECT_TRUE(Dispatch::logic_less(1, 2));
+        }
+
+        TEST(Small_LogicPredicates, GreaterEqualIsTrueForEqualValues)
+        {
+            EXPECT_TRUE(Dispatch::logic_greater_equal(2, 2));
+        }
+
+        TEST(Small_LogicPredicates, LessEqualIsFalseForALargerLeftValue)
+        {
+            EXPECT_FALSE(Dispatch::logic_less_equal(3, 2));
+        }
+
+        TEST(Small_LogicPredicates, GreaterIsTrueForALargerLeftValue)
+        {
+            EXPECT_TRUE(Dispatch::logic_greater(3, 2));
+        }
+
+        /** @brief Records logic tasks on the fixture's engine, once in each execution mode. */
+        class Medium_LogicDispatch : public SushiBLASTest,
+                                     public ::testing::WithParamInterface<ExecutionMode>
         {
 
         };
 
-        TEST_F(Medium_LogicDispatch, ThePredicatesCompareRealAndComplexValues)
+        TEST_P(Medium_LogicDispatch, UnaryTaskWritesOneWhereTheElementIsNotZero)
         {
-            EXPECT_TRUE(Dispatch::logic_not_zero(std::complex<float>(0.0f, 1.0f)));
-            EXPECT_FALSE(Dispatch::logic_not_zero(0.0));
-            EXPECT_TRUE(Dispatch::logic_equal(std::complex<double>(1, 2),
-                                              std::complex<double>(1, 2)));
-            EXPECT_TRUE(Dispatch::logic_less(1, 2));
-            EXPECT_TRUE(Dispatch::logic_greater_equal(2, 2));
-            EXPECT_FALSE(Dispatch::logic_less_equal(3, 2));
-            EXPECT_TRUE(Dispatch::logic_greater(3, 2));
+            const Tensor a = create_initialized_tensor<float>({4}, {0, 2, -1, 2});
+            Tensor not_zero = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
+            set_mode(GetParam());
+
+            Dispatch::execute_logic_unary(recorder(), a, not_zero, "not_zero",
+                                          SushiRuntime::OperationID(), NotZeroIndicator{});
+            ASSERT_TRUE(recording->run().has_value());
+
+            EXPECT_EQ(read_tensor<float>(not_zero), (std::vector<float>{0, 1, 1, 1}));
         }
 
-        TEST_F(Medium_LogicDispatch, UnaryAndBinaryTasksWriteOneOrZeroInBothModes)
+        TEST_P(Medium_LogicDispatch, BinaryTaskWritesOneWhereThePairIsEqual)
         {
             const Tensor a = create_initialized_tensor<float>({4}, {0, 2, -1, 2});
             const Tensor b = create_initialized_tensor<float>({4}, {0, 1, -1, 3});
+            Tensor equal = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
+            set_mode(GetParam());
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                Tensor not_zero = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
-                Tensor equal = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
-                set_mode(mode);
+            Dispatch::execute_logic_binary<Dispatch::Domain::All>(
+                recorder(), a, b, equal, "equal", SushiRuntime::OperationID(), EqualIndicator{});
+            ASSERT_TRUE(recording->run().has_value());
 
-                Dispatch::execute_logic_unary(recorder(), a, not_zero, "not_zero",
-                                              SushiRuntime::OperationID(), NotZeroIndicator{});
-                Dispatch::execute_logic_binary<Dispatch::Domain::All>(
-                    recorder(), a, b, equal, "equal", SushiRuntime::OperationID(),
-                    EqualIndicator{});
-                ASSERT_TRUE(recording->run().has_value());
-
-                EXPECT_EQ(read_tensor<float>(not_zero), (std::vector<float>{0, 1, 1, 1}));
-                EXPECT_EQ(read_tensor<float>(equal), (std::vector<float>{1, 0, 1, 0}));
-            }
+            EXPECT_EQ(read_tensor<float>(equal), (std::vector<float>{1, 0, 1, 0}));
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_LogicDispatch, ::testing::ValuesIn(K_BOTH_MODES),
+            [](const ::testing::TestParamInfo<ExecutionMode>& info)
+            { return std::string(info.param == ExecutionMode::ForceReference ? "ForceReference"
+                                                                           : "ForceSYCL"); });
     } // namespace Test
 } // namespace SushiBLAS

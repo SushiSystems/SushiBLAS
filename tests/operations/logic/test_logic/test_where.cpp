@@ -35,15 +35,15 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_WhereTest : public SushiBLASTest {};
+class Medium_LogicOpsWhere : public SushiBLASTest {};
 
-TEST_F(Medium_WhereTest, FloatForward) 
+TEST_F(Medium_LogicOpsWhere, PicksTheFirstWhereTheConditionIsNonzeroAndTheSecondElsewhere)
 {
     auto cond = engine->create_tensor({4});
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
     auto c = engine->create_tensor({4});
-    fill_tensor(cond, {1.0f, 0.0f, 3.0f, 0.0f}); // act as cond
+    fill_tensor(cond, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(b, {10.0f, 20.0f, 30.0f, 40.0f});
     SushiBLAS::LogicOps(recorder()).where(cond, a, b, c);

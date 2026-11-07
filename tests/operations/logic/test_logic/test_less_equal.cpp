@@ -35,9 +35,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_Less_equalTest : public SushiBLASTest {};
+class Medium_LogicOpsLessEqual : public SushiBLASTest {};
 
-TEST_F(Medium_Less_equalTest, FloatForward) 
+TEST_F(Medium_LogicOpsLessEqual, WritesOneWhereTheLeftIsLessOrEqual)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});

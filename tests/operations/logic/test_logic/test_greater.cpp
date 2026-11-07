@@ -35,9 +35,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_GreaterTest : public SushiBLASTest {};
+class Medium_LogicOpsGreater : public SushiBLASTest {};
 
-TEST_F(Medium_GreaterTest, FloatForward) 
+TEST_F(Medium_LogicOpsGreater, WritesOneWhereTheLeftIsGreater)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});

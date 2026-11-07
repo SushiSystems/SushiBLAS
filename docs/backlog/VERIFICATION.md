@@ -22,6 +22,7 @@
 | RW-136 | P3 | open | Move the graph_primitives tests onto the program-wide runtime | Only the tests whose runtime settings differ build their own runtime; the README says so |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-138 | P3 | open | Make PoissonAcceptsTheCap fail on a constant fill | The test in test_random_large_lambda.cpp checks the draws vary, so a constant fill fails it |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-149 | P3 | open | Let GraphProbe and the engine fixture record on an injected runtime, so tests run small | The index-ops recording and refusal tests that only read the recorded graph run Small_ with no process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
+| RW-150 | P3 | open | Give the engine fixture a host tensor and host run, so the LogicOps tests run small | The 13 LogicOps tests under tests/operations/logic/test_logic run Small_ on host tensors with no device queue or process-wide runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 

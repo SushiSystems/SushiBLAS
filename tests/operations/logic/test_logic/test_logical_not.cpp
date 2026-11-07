@@ -35,9 +35,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_Logical_notTest : public SushiBLASTest {};
+class Medium_LogicOpsLogicalNot : public SushiBLASTest {};
 
-TEST_F(Medium_Logical_notTest, FloatForward) 
+TEST_F(Medium_LogicOpsLogicalNot, WritesOneWhereTheElementIsZero)
 {
     auto a = engine->create_tensor({4});
     auto c = engine->create_tensor({4});

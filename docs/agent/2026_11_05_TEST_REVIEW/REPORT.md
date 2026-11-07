@@ -81,6 +81,7 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 20. The `SharedAllocatorContract` checks live once in `tests/support/shared_allocator_contract.hpp`; each adapter declares the typed suite under its own size prefix, since the size is read from the suite name.
 21. Ruled 2026-11-07 by the orchestrator on the owner's delegation: `Detail::fold_block_output` stays in `sycl/row_blocks.hpp`. The fold is not host-only, since `fold_blocks` calls it in the device kernel, and its `Accumulator<T>` needs `<sycl/sycl.hpp>` for `sycl::half`, so a header without SYCL could not hold it. The `Small_` fold tests include SYCL headers and touch no device, which the size allows.
 22. Decision 9 wired the same day: `TestEnvironment` makes the host CPU queue in `SetUp()` and hands it out through `cpu_queue()`; `HostDeviceTest` reads it, `host_device` declares the test-only edge to `test_runner`, and `host_queue.hpp` with its function-local queue is deleted. The device-list choice moved to `test_runner/cpu_queue.hpp` as `Detail::make_cpu_queue`, and the test that made a queue of its own is deleted, since the fixture test checks the same queue.
+23. Ruled 2026-11-07 by the orchestrator on the owner's delegation: the log category test of `operations/logic` becomes `compile_logic_log_category.cpp` under `COMPILE_CHECKS`, not a plain deletion, as `launch`, `test_runner` and `sparse_kernels` did, because `rule_untested_unit` refuses a header left with no test or compile check. The 13 `LogicOps` tests stay `Medium_` until the engine fixture offers a host tensor (RW-150), and their suites are named `Medium_LogicOps<Operation>` so a failing name starts with its unit.
 
 ## Risks the final build checks
 
@@ -99,6 +100,7 @@ Nothing below has been compiled beyond `clang -fsyntax-only` on the host pass; t
 - M27, M31, M32: the `TEST_P` row suites of sparse and linalg kernels, the exact `EXPECT_EQ` adjoints of col2im, upsample and the window products, the `absolute_tolerance<T>(8*n)` LU bounds, the `K_MAX_SCATTER_BLOCKS` rows, and the three renamed compile checks.
 - M10, M12, M19: the graph-primitive row suites (counting sort now 2^17 keys, about 1400 lines), the canaries and whole-vector offsets that are stricter than before, `NodeWidths` opening five runtimes, the `Small_` device-policy rows, and `compile_combiners.cpp`.
 - M23: `Medium_TypedSuiteNaming` names its suites `/0` and `/1` by type order.
+- M41: the `Medium_LogicDispatch` instantiation over `K_BOTH_MODES` with its empty prefix and name generator, and the six `Small_LogicPredicates` tests.
 
 ## Dispatches
 
@@ -127,6 +129,7 @@ dispatch: J16 RW-144 RW-145 operand tests and helpers — sonnet medium, 1 round
 dispatch: J16 RW-140 profile reading port — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-147 in part, rung 1
 dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
+dispatch: J16 M41 operations/logic tests — sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
 
 ## Totals
 

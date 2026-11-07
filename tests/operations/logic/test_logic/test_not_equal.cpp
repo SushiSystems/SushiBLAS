@@ -35,9 +35,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_Not_equalTest : public SushiBLASTest {};
+class Medium_LogicOpsNotEqual : public SushiBLASTest {};
 
-TEST_F(Medium_Not_equalTest, FloatForward) 
+TEST_F(Medium_LogicOpsNotEqual, WritesOneWhereTheElementsDiffer)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});

@@ -44,4 +44,4 @@ sushiblas_add_test_program(
         test_logic/test_not_equal.cpp
         test_logic/test_where.cpp
     COMPILE_CHECKS
-        test_logic_log_category.cpp)
+        compile_logic_log_category.cpp)
