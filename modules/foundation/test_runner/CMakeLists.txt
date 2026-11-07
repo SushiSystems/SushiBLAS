@@ -19,7 +19,8 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE test_runner
     TESTS
-        test_log_capture.cpp
+        test_captured_record_count.cpp
+        test_scoped_log_level.cpp
         test_test_environment.cpp
     DEVICE_TESTS
         test_run_observer_capture.cpp

@@ -19,13 +19,16 @@ sushiblas_add_test_program(
         test_errors.cpp
         test_export.cpp
         test_logger.cpp
+        test_memory_log_port.cpp
         test_sparse_types.cpp
+        test_sushilog_port.cpp
         test_traits.cpp
         test_version.cpp
     COMPILE_CHECKS
         compile_blas_types.cpp
         compile_common.cpp
         compile_errors.cpp
+        compile_log_port.cpp
         compile_sparse_types.cpp
         compile_sushiblas_log_project.cpp
         compile_traits.cpp)

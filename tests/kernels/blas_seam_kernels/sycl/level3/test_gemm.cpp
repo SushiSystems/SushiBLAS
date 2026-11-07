@@ -38,7 +38,9 @@
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/packed_product_harness/packed_product_harness.hpp>
-#include <SushiBLAS/test_runner/log_capture.hpp>
+#include <SushiLog/log/log_capture.hpp>
+#include <SushiBLAS/test_runner/captured_record_count.hpp>
+#include <SushiBLAS/test_runner/scoped_log_level.hpp>
 
 namespace SushiBLAS
 {
@@ -86,19 +88,21 @@ namespace SushiBLAS
         {
             const Device::Profile first_device;
             const Device::Profile second_device;
-            LogCapture capture;
+            const SushiLog::LogCapture capture;
 
             Kernels::SYCL::Detail::warn_no_local_fallback(first_device, 65536, 256);
             Kernels::SYCL::Detail::warn_no_local_fallback(first_device, 65536, 256);
             Kernels::SYCL::Detail::warn_no_local_fallback(first_device, 65536, 256);
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "falling back to the no-local variant"),
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn,
+                                    "falling back to the no-local variant"),
                       std::size_t{1});
 
             Kernels::SYCL::Detail::warn_no_local_fallback(second_device, 65536, 256);
             Kernels::SYCL::Detail::warn_no_local_fallback(first_device, 131072, 256);
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "falling back to the no-local variant"),
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn,
+                                    "falling back to the no-local variant"),
                       std::size_t{3});
         }
 
@@ -107,23 +111,27 @@ namespace SushiBLAS
             Kernels::GemmTileChoice choice;
             choice.pin = Kernels::GemmTilePinStatus::Applied;
             choice.role = Kernels::GemmTileRole::Balanced;
-            LogCapture capture;
+            const ScopedLogLevel level(SushiLog::LogLevel::Info);
+            const SushiLog::LogCapture capture;
 
             Kernels::SYCL::Detail::state_applied_gemm_tile_pin(choice, 64, 64, 64);
             Kernels::SYCL::Detail::state_applied_gemm_tile_pin(choice, 128, 128, 128);
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Info, "selects the"), std::size_t{1});
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Info, "selects the"),
+                      std::size_t{1});
         }
 
         TEST(Medium_GemmFallbackLog, APinThatWasNotAppliedStatesNothing)
         {
             Kernels::GemmTileChoice choice;
             choice.pin = Kernels::GemmTilePinStatus::Unknown;
-            LogCapture capture;
+            const ScopedLogLevel level(SushiLog::LogLevel::Info);
+            const SushiLog::LogCapture capture;
 
             Kernels::SYCL::Detail::state_applied_gemm_tile_pin(choice, 64, 64, 64);
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Info, "selects the"), std::size_t{0});
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Info, "selects the"),
+                      std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -13,6 +13,9 @@ logger is a front on SushiLog's. Its headers are included as `<SushiBLAS/core/<n
 | `traits.hpp` | The compile-time type traits the library shares |
 | `export.hpp` | `SUSHIBLAS_API`, the symbol visibility macro of each platform |
 | `logger.hpp` | The `SB_LOG_*` macros on SushiLog, `SB_ASSERT` and `SB_THROW_IF` |
+| `log_port.hpp` | `LogPort`, the seam a unit logs through, and `SB_LOG_VIA` |
+| `sushilog_port.hpp` | `SushiLogPort`, the `LogPort` that hands its records to the process-wide SushiLog |
+| `memory_log_port.hpp` | `MemoryLogPort`, the `LogPort` that keeps its records in memory |
 | `sushiblas_log_project.hpp` | `K_SUSHIBLAS_LOG_PROJECT`, the project of every SushiBLAS log category |
 | `version.hpp` | The `SUSHIBLAS_VERSION_*` macros; `CMakeLists.txt` refuses a value that differs from `project()` |
 
@@ -126,6 +129,16 @@ SushiBLAS re-exports no SushiLog name.
 The `SB_ENABLE_LOGGING` CMake option (`cmake/SushiBLASLogging.cmake`) defaults to ON;
 `sb build -D SB_ENABLE_LOGGING=OFF` compiles out every call below ERROR. The definition is
 PUBLIC, so a consumer compiles the same calls the library does.
+
+### `LogPort`
+
+A unit whose records a test must read takes a `Core::LogPort&` and logs with
+`SB_LOG_VIA(port, level, category, format, ...)`, which honours the same ceiling as `SB_LOG_AT`
+and formats the same way. `SushiLogPort` is the adapter for production: it asks SushiLog's level
+for the category and hands the record to the process-wide logger. `MemoryLogPort` keeps the
+records at or above a level in a vector and touches no process-wide state, so a test that uses
+it runs `Small_`. The `SB_LOG_*` macros stay on `SL_LOG_FRONT_AT` and its cached level slot; the
+port is for a unit that accepts one.
 
 ### `SB_ASSERT`
 

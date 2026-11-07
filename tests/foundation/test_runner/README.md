@@ -8,7 +8,8 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_captured_record_count.cpp` | Tests that `count_records` counts the records of one level whose message holds a text |
+| `test_scoped_log_level.cpp` | Tests that `ScopedLogLevel` sets the level of SushiBLAS while it lives and puts back the level it found |
 | `test_test_environment.cpp` | Tests that TestEnvironment hands out one runtime, its queues and its allocation count |
-| `test_log_capture.cpp` | Tests that `LogCapture` keeps the records written while it lives, counts them by level and text, and restores the logger |
 | `test_run_observer_capture.cpp` | Tests that `RunObserverCapture` keeps one record per dispatch of each run it observed |
 | `compile_test_runner_log_category.cpp` | Checks at compile time that the log category names its module and project; compiled, never run |

@@ -12,7 +12,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_common.cpp` | Tests the names, the element sizes and the kind predicates of DataType, and Layout |
 | `test_errors.cpp` | Tests that UnsupportedExecution is an invalid_argument that keeps its message |
 | `test_export.cpp` | Tests that SUSHIBLAS_API names the symbol visibility of the platform |
-| `test_logger.cpp` | Tests the SB_LOG macros, SB_ASSERT and SB_THROW_IF over SushiLog |
+| `test_logger.cpp` | Tests that `SB_THROW_IF` throws its formatted message only when its condition holds |
+| `test_memory_log_port.cpp` | Tests `MemoryLogPort` and `SB_LOG_VIA`, which touch no process-wide state |
+| `test_sushilog_port.cpp` | Tests `SushiLogPort`, the `SB_LOG` macros, `SB_ASSERT` and `SB_THROW_IF` against the process-wide SushiLog logger, with `SushiLog::LogCapture` |
 | `test_sparse_types.cpp` | Tests the numbers, the validity, the first index and the names of IndexBase |
 | `test_traits.cpp` | Tests that is_complex holds for std::complex and for nothing else |
 | `test_version.cpp` | Tests that the version macros agree with each other and with their encoding |

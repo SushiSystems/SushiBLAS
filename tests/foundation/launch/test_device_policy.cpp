@@ -35,7 +35,9 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/test_runner/log_capture.hpp>
+#include <SushiLog/log/log_capture.hpp>
+#include <SushiBLAS/test_runner/captured_record_count.hpp>
+#include <SushiBLAS/test_runner/scoped_log_level.hpp>
 
 namespace SushiBLAS
 {
@@ -498,11 +500,13 @@ namespace SushiBLAS
         {
             const sycl::device device = TestEnvironment::queue(0).get_device();
             const std::string name = device.get_info<sycl::info::device::name>();
-            LogCapture capture;
+            const ScopedLogLevel level(SushiLog::LogLevel::Info);
+            const SushiLog::LogCapture capture;
 
             static_cast<void>(Device::Detail::probe(device));
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Info, "device '" + name + "'"),
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Info,
+                                    "device '" + name + "'"),
                       std::size_t{1});
         }
 
@@ -516,15 +520,16 @@ namespace SushiBLAS
                 device.get_info<sycl::info::device::sub_group_sizes>());
             const bool no_cache =
                 device.get_info<sycl::info::device::global_mem_cache_size>() == 0;
-            LogCapture capture;
+            const SushiLog::LogCapture capture;
 
             static_cast<void>(Device::Detail::probe(device));
+            const std::vector<SushiLog::CapturedRecord> records = capture.records();
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "lists no sub-group size"),
+            EXPECT_EQ(count_records(records, SushiLog::LogLevel::Warn, "lists no sub-group size"),
                       std::size_t{no_sub_group ? 1U : 0U});
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "reports no cache size"),
+            EXPECT_EQ(count_records(records, SushiLog::LogLevel::Warn, "reports no cache size"),
                       std::size_t{no_cache ? 1U : 0U});
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "'" + name + "'"),
+            EXPECT_EQ(count_records(records, SushiLog::LogLevel::Warn, "'" + name + "'"),
                       std::size_t{(no_sub_group ? 1U : 0U) + (no_cache ? 1U : 0U)});
         }
     } // namespace Test

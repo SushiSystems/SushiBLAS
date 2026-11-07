@@ -33,7 +33,9 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <SushiBLAS/io/partial_file.hpp>
-#include <SushiBLAS/test_runner/log_capture.hpp>
+#include <SushiLog/log/log_capture.hpp>
+#include <SushiBLAS/test_runner/captured_record_count.hpp>
+#include <SushiBLAS/test_runner/scoped_log_level.hpp>
 
 namespace SushiBLAS
 {
@@ -44,7 +46,8 @@ namespace SushiBLAS
             const std::filesystem::path path =
                 std::filesystem::temp_directory_path() / "sushiblas_io_partial_file.bin";
             std::ofstream(path, std::ios::binary) << "partial";
-            LogCapture capture;
+            const ScopedLogLevel level(SushiLog::LogLevel::Trace);
+            const SushiLog::LogCapture capture;
 
             EXPECT_TRUE(IOFiles::remove_partial_file(path.string()));
 
@@ -57,13 +60,15 @@ namespace SushiBLAS
             const std::filesystem::path path =
                 std::filesystem::temp_directory_path() / "sushiblas_io_no_such_partial_file.bin";
             std::filesystem::remove(path);
-            LogCapture capture;
+            const SushiLog::LogCapture capture;
 
             EXPECT_FALSE(IOFiles::remove_partial_file(path.string()));
 
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, "could not remove the partial file"),
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn,
+                                    "could not remove the partial file"),
                       std::size_t{1});
-            EXPECT_EQ(capture.count(SushiLog::LogLevel::Warn, path.string()), std::size_t{1});
+            EXPECT_EQ(count_records(capture.records(), SushiLog::LogLevel::Warn, path.string()),
+                      std::size_t{1});
         }
     } // namespace Test
 } // namespace SushiBLAS
