@@ -116,11 +116,3 @@ rule = "rule_weak_assertion_only"
 path = "tests/operations/experimental/test_dense_operand.cpp"
 count = 1
 backlog = "RW-133"
-
-
-[[finding]]
-checker = "testing/check_test_mirror.py"
-rule = "rule_untested_unit"
-path = "modules/operations/random/include/SushiBLAS/random/random_log_category.hpp"
-count = 1
-backlog = "RW-133"

@@ -20,6 +20,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_random/test_random_refusals.cpp` | Tests, on a host engine, that RandomOps refuses a bad parameter, truncated-normal bound, dtype or shape at record time |
 | `test_random/test_shuffle.cpp` | Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset, `Small_` on a host engine |
 | `test_random/test_uniform.cpp` | Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism, `Small_` on a host engine |
+| `compile_random_log_category.cpp` | Checks that `random_log_category.hpp` compiles on its own and names `K_RANDOM_LOG_CATEGORY`; compiled, never run |
 | `benchmark_random.cpp` | Times the random draws, shuffle and orthogonal and prints Melem/s per length |
 
 ## test_random/test_orthogonal.cpp
