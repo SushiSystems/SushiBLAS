@@ -31,11 +31,8 @@
 #include <cstdio>
 #include <string>
 #include <cstddef>
-#include <algorithm>
 #include <vector>
 #include <cstdint>
-#include <fstream>
-#include <iterator>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -50,15 +47,6 @@ namespace SushiBLAS
         /** @brief Holds the values the recorded copy writes before a load overwrites them. */
         const std::vector<float> K_PENDING_VALUES{7.0f, 7.0f, 7.0f, 7.0f, 7.0f, 7.0f};
 
-        /** @brief Holds the byte offset of the major version in a .npy file. */
-        constexpr size_t K_NPY_MAJOR_OFFSET = 6;
-
-        /** @brief Holds the byte offset of the version 1.0 header length in a .npy file. */
-        constexpr size_t K_NPY_V1_LENGTH_OFFSET = 8;
-
-        /** @brief Holds the byte offset of the version 1.0 header dictionary in a .npy file. */
-        constexpr size_t K_NPY_V1_HEADER_OFFSET = 10;
-
         namespace
         {
             /** @brief Names a file format IO loads after the caller's run. */
@@ -67,10 +55,6 @@ namespace SushiBLAS
                 Npy, ///< The NumPy .npy format.
                 Bin  ///< Raw bytes with no header.
             };
-
-            /** @brief Holds the header dictionary of a .npy file that loads into a 2x3 float tensor. */
-            const char* const K_VALID_NPY_DICT =
-                "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }";
 
             /** @brief Returns count values that rise by one half from -3, the same on every call. */
             std::vector<float> ramp_values(size_t count)
@@ -100,56 +84,6 @@ namespace SushiBLAS
                 {
                     paths_.push_back(::testing::TempDir() + "sushiblas_host_transfer_" + name);
                     return paths_.back();
-                }
-
-                /** @brief Returns the whole content of the file at @p path. */
-                static std::vector<char> read_bytes(const std::string& path)
-                {
-                    std::ifstream ifs(path, std::ios::binary);
-                    return std::vector<char>(std::istreambuf_iterator<char>(ifs),
-                                             std::istreambuf_iterator<char>());
-                }
-
-                /** @brief Replaces the file at @p path with @p bytes. */
-                static void write_bytes(const std::string& path, const std::vector<char>& bytes)
-                {
-                    std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
-                    ofs.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-                }
-
-                /** @brief Replaces the first occurrence of @p from with @p to, of equal length. */
-                static void replace_text(std::vector<char>& bytes, const std::string& from,
-                                         const std::string& to)
-                {
-                    std::string text(bytes.begin(), bytes.end());
-                    const size_t at = text.find(from);
-                    ASSERT_NE(at, std::string::npos) << "'" << from << "' is not in the file.";
-                    ASSERT_EQ(from.size(), to.size());
-                    std::copy(to.begin(), to.end(),
-                              bytes.begin() + static_cast<std::ptrdiff_t>(at));
-                }
-
-                /**
-                 * @brief Writes a .npy file of version @p major with @p dict as its header and
-                 *        K_VALUES, laid out as version 1.0 lays it out.
-                 * @param dict The header dictionary; space padding and a newline are appended.
-                 */
-                static void write_npy(const std::string& path, const std::string& dict,
-                                      char major = 1)
-                {
-                    std::string header = dict + " ";
-                    while ((K_NPY_V1_HEADER_OFFSET + header.size() + 1) % 64 != 0)
-                        header += " ";
-                    header += "\n";
-
-                    std::vector<char> bytes{'\x93', 'N', 'U', 'M', 'P', 'Y', major, 0};
-                    bytes.push_back(static_cast<char>(header.size() & 0xFF));
-                    bytes.push_back(static_cast<char>((header.size() >> 8) & 0xFF));
-                    bytes.insert(bytes.end(), header.begin(), header.end());
-
-                    const char* payload = reinterpret_cast<const char*>(K_VALUES.data());
-                    bytes.insert(bytes.end(), payload, payload + K_VALUES.size() * sizeof(float));
-                    write_bytes(path, bytes);
                 }
 
                 /** @brief Saves a 2x3 FLOAT32 tensor of K_VALUES as .npy and returns the path. */
@@ -324,28 +258,6 @@ namespace SushiBLAS
                 return {{"Npy", Loader::Npy}, {"Bin", Loader::Bin}};
             }
 
-            /** @brief One .npy file with a header that breaks the format. */
-            struct MalformedRow
-            {
-                const char* name;
-                const char* dict;
-                char major;
-            };
-
-            /** @brief Returns the headers that make a .npy file malformed. */
-            std::vector<MalformedRow> malformed_rows()
-            {
-                return {{"VersionFour", K_VALID_NPY_DICT, 4},
-                        {"WithoutAShape",
-                         "{'descr': '<f4', 'fortran_order': False, 'shapf': (2, 3), }", 1},
-                        {"WithoutCommas",
-                         "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }", 1},
-                        {"WithADuplicateKey",
-                         "{'descr': '<f4', 'descr': '<f4', 'fortran_order': False, "
-                         "'shape': (2, 3), }",
-                         1}};
-            }
-
             /** @brief One shape the text of a device tensor is compared at. */
             struct ShapeRow
             {
@@ -474,86 +386,6 @@ namespace SushiBLAS
         TEST_F(Medium_HostTransfer, NpyRoundTripKeepsTheValues)
         {
             const std::string path = save_values_npy("round_trip.npy");
-
-            auto t = engine->create_tensor({2, 3});
-            ASSERT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::Ok);
-
-            EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
-        }
-
-        TEST_F(Medium_HostTransfer, NpyVersionTwoHeaderLoads)
-        {
-            const std::string path = save_values_npy("version_two.npy");
-            const std::vector<char> v1 = read_bytes(path);
-            ASSERT_GT(v1.size(), K_NPY_V1_HEADER_OFFSET);
-
-            const uint8_t low = static_cast<uint8_t>(v1[K_NPY_V1_LENGTH_OFFSET]);
-            const uint8_t high = static_cast<uint8_t>(v1[K_NPY_V1_LENGTH_OFFSET + 1]);
-
-            std::vector<char> v2(v1.begin(), v1.begin() + K_NPY_MAJOR_OFFSET);
-            v2.push_back(2);
-            v2.push_back(0);
-            v2.push_back(static_cast<char>(low));
-            v2.push_back(static_cast<char>(high));
-            v2.push_back(0);
-            v2.push_back(0);
-            v2.insert(v2.end(), v1.begin() + K_NPY_V1_HEADER_OFFSET, v1.end());
-            write_bytes(path, v2);
-
-            auto t = engine->create_tensor({2, 3});
-            ASSERT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::Ok);
-
-            EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
-        }
-
-        TEST_F(Medium_HostTransfer, NpyWithAnotherDtypeIsADtypeMismatch)
-        {
-            const std::string path = save_values_npy("dtype.npy");
-            std::vector<char> bytes = read_bytes(path);
-            replace_text(bytes, "<f4", "<f8");
-            write_bytes(path, bytes);
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::DtypeMismatch);
-        }
-
-        TEST_F(Medium_HostTransfer, NpyWithAnotherShapeIsAShapeMismatch)
-        {
-            const std::string path = save_values_npy("shape.npy");
-            std::vector<char> bytes = read_bytes(path);
-            replace_text(bytes, "(2, 3)", "(3, 2)");
-            write_bytes(path, bytes);
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::ShapeMismatch);
-        }
-
-        /** @brief Runs one header of malformed_rows(). */
-        class Medium_HostTransferMalformedNpy : public Medium_HostTransfer,
-                                                public ::testing::WithParamInterface<MalformedRow>
-        {
-
-        };
-
-        TEST_P(Medium_HostTransferMalformedNpy, LoadsAsAMalformedFile)
-        {
-            const MalformedRow row = GetParam();
-            const std::string path = temp_path(std::string("malformed_") + row.name + ".npy");
-            write_npy(path, row.dict, row.major);
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
-        }
-
-        INSTANTIATE_TEST_SUITE_P(
-            , Medium_HostTransferMalformedNpy, ::testing::ValuesIn(malformed_rows()),
-            [](const ::testing::TestParamInfo<MalformedRow>& info)
-            { return std::string(info.param.name); });
-
-        TEST_F(Medium_HostTransfer, NpyWithNumpyPaddingLoads)
-        {
-            const std::string path = temp_path("numpy_padding.npy");
-            write_npy(path, K_VALID_NPY_DICT);
 
             auto t = engine->create_tensor({2, 3});
             ASSERT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::Ok);

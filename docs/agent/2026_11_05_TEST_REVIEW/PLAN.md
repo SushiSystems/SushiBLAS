@@ -76,7 +76,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | done (H6a to H6e: spatial, blend, sparse, signal, blas_seam, blas, linalg, random orthonormal rules, packed product harness strides) |
 | H7 | RW-155, RW-156: `Engine` and `ScratchPool` hold no nullable runtime; `is_host()` and the throwing `runtime()` go; `RecordingGraph` and its 26 `RecordingGraph(engine)` callers take what they need, not an `Engine` | H6 | done |
 | S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43, H7 | done |
-| S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | todo |
+| S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | done |
 | S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10, H7 | todo |
 | S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39, H7 | todo |
 | S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44, H7 | todo |

@@ -7,6 +7,7 @@ sushiblas_add_module(
     NAME io
     LAYER operations
     SOURCES
+        file_header.cpp
         io.cpp
         print.cpp
     DEPENDS
@@ -18,6 +19,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE io
     TESTS
+        test_file_header.cpp
         test_io_status.cpp
         test_partial_file.cpp
     DEVICE_TESTS

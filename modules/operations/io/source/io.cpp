@@ -29,6 +29,7 @@
  */
 
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/io/file_header.hpp>
 #include <SushiBLAS/io/io_log_category.hpp>
 #include <SushiBLAS/io/partial_file.hpp>
 #include <SushiLog/text/text_format.hpp>
@@ -52,9 +53,6 @@ namespace SushiBLAS
 {
     namespace
     {
-        /** @brief Holds the only .sushi format version this build reads and writes. */
-        constexpr uint32_t K_SUSHI_FORMAT_VERSION = 1;
-
         /** @brief Carries the status of a failed file operation from its site to the IO call. */
         struct IOFailure
         {
@@ -85,6 +83,20 @@ namespace SushiBLAS
             return IOStatus::Ok;
         }
 
+        /** @brief Runs header work and turns the refusal it throws into an IOFailure. */
+        template<typename HeaderWork>
+        void refusals_as_failures(HeaderWork header_work)
+        {
+            try
+            {
+                header_work();
+            }
+            catch (const HeaderRefusal& refusal)
+            {
+                fail_io(refusal.status, "{}", refusal.message);
+            }
+        }
+
         /** @brief Returns the number of bytes the tensor's elements occupy. */
         size_t payload_bytes(const Tensor& t)
         {
@@ -106,14 +118,6 @@ namespace SushiBLAS
             return t.storage->queue();
         }
 
-        /** @brief Holds the fields of a .npy header dictionary. */
-        struct NpyHeader
-        {
-            std::string descr;          /**< The dtype descriptor, such as "<f4". */
-            bool fortran_order = false; /**< Whether the payload is in Fortran order. */
-            std::vector<int64_t> shape; /**< The dimensions, outermost first. */
-        };
-
         /**
          * @brief Returns the .npy descriptor of a dtype.
          * @throws std::runtime_error for a dtype with no descriptor.
@@ -134,225 +138,6 @@ namespace SushiBLAS
                     SB_THROW_IF(true, "Dtype {} has no .npy descriptor.", Core::to_string(dtype));
                     return "";
             }
-        }
-
-        /** @brief Reads a .npy header dictionary, a Python literal, one token at a time. */
-        class NpyHeaderParser
-        {
-            public:
-                /** @brief Binds the parser to the header text and the path its errors name. */
-                NpyHeaderParser(const std::string& text, const std::string& path)
-                    : text_(text), path_(path)
-                {
-
-                }
-
-                /**
-                 * @brief Returns the parsed header.
-                 * @throws IOFailure with MalformedFile on malformed text or a wrong set of keys.
-                 */
-                NpyHeader parse()
-                {
-                    NpyHeader header;
-                    bool has_descr = false;
-                    bool has_order = false;
-                    bool has_shape = false;
-
-                    expect('{');
-                    while (true)
-                    {
-                        skip_space();
-                        if (peek() == '}')
-                            break;
-
-                        const std::string key = read_quoted();
-                        expect(':');
-
-                        if (key == "descr")
-                        {
-                            claim_key(has_descr, key);
-                            header.descr = read_quoted();
-                        }
-                        else if (key == "fortran_order")
-                        {
-                            claim_key(has_order, key);
-                            header.fortran_order = read_bool();
-                        }
-                        else if (key == "shape")
-                        {
-                            claim_key(has_shape, key);
-                            header.shape = read_shape();
-                        }
-                        else
-                            fail("unknown key '" + key + "'");
-
-                        skip_space();
-                        if (peek() == ',')
-                            ++pos_;
-                        else if (peek() != '}')
-                            fail("expected ',' or '}' after the value of '" + key + "'");
-                    }
-
-                    if (!has_descr || !has_order || !has_shape)
-                        fail("descr, fortran_order and shape are all required");
-                    return header;
-                }
-
-            private:
-                /** @brief Fails with MalformedFile, naming the file and the defect. */
-                [[noreturn]] void fail(const std::string& what) const
-                {
-                    fail_io(IOStatus::MalformedFile,
-                            "The .npy header of {} is malformed at byte {}: {}.", path_, pos_,
-                            what);
-                }
-
-                /** @brief Marks a key as seen and fails when it was seen before. */
-                void claim_key(bool& seen, const std::string& key) const
-                {
-                    if (seen)
-                        fail("duplicate key '" + key + "'");
-                    seen = true;
-                }
-
-                /** @brief Advances past spaces, tabs and newlines. */
-                void skip_space()
-                {
-                    while (pos_ < text_.size() &&
-                           (text_[pos_] == ' ' || text_[pos_] == '\t' || text_[pos_] == '\n'))
-                        ++pos_;
-                }
-
-                /** @brief Returns the current character, or '\0' at the end. */
-                char peek() const
-                {
-                    return pos_ < text_.size() ? text_[pos_] : '\0';
-                }
-
-                /** @brief Skips space and consumes @p c; fails when another character is there. */
-                void expect(char c)
-                {
-                    skip_space();
-                    if (peek() != c)
-                        fail(std::string("expected '") + c + "'");
-                    ++pos_;
-                }
-
-                /** @brief Returns the content of a single- or double-quoted string. */
-                std::string read_quoted()
-                {
-                    skip_space();
-                    const char quote = peek();
-                    if (quote != '\'' && quote != '"')
-                        fail("expected a quoted string");
-
-                    const size_t end = text_.find(quote, pos_ + 1);
-                    if (end == std::string::npos)
-                        fail("unterminated string");
-
-                    std::string value = text_.substr(pos_ + 1, end - pos_ - 1);
-                    pos_ = end + 1;
-                    return value;
-                }
-
-                /** @brief Returns the value of a True or False literal. */
-                bool read_bool()
-                {
-                    skip_space();
-                    if (text_.compare(pos_, 4, "True") == 0)
-                    {
-                        pos_ += 4;
-                        return true;
-                    }
-                    if (text_.compare(pos_, 5, "False") == 0)
-                    {
-                        pos_ += 5;
-                        return false;
-                    }
-                    fail("expected True or False");
-                }
-
-                /** @brief Returns the dimensions of a tuple of non-negative integers. */
-                std::vector<int64_t> read_shape()
-                {
-                    std::vector<int64_t> dims;
-                    expect('(');
-                    while (true)
-                    {
-                        skip_space();
-                        if (peek() == ')')
-                        {
-                            ++pos_;
-                            return dims;
-                        }
-
-                        dims.push_back(read_dimension());
-
-                        skip_space();
-                        if (peek() == ',')
-                            ++pos_;
-                        else if (peek() != ')')
-                            fail("expected ',' or ')' in shape");
-                    }
-                }
-
-                /** @brief Returns one non-negative decimal integer. */
-                int64_t read_dimension()
-                {
-                    if (peek() < '0' || peek() > '9')
-                        fail("expected a non-negative integer in shape");
-
-                    int64_t value = 0;
-                    while (peek() >= '0' && peek() <= '9')
-                    {
-                        const int64_t digit = peek() - '0';
-                        if (value > (std::numeric_limits<int64_t>::max() - digit) / 10)
-                            fail("dimension overflows int64");
-                        value = value * 10 + digit;
-                        ++pos_;
-                    }
-                    return value;
-                }
-
-                /// @brief The header text.
-                const std::string& text_;
-
-                /// @brief The path named in error messages.
-                const std::string& path_;
-
-                /// @brief The index of the next unread character.
-                size_t pos_ = 0;
-        };
-
-        /**
-         * @brief Fails unless a parsed .npy header gives exactly the tensor's dtype, order, shape.
-         * @throws IOFailure with the mismatch of the first field that differs.
-         */
-        void require_npy_header_matches(const NpyHeader& header, const Tensor& t,
-                                        const std::string& path)
-        {
-            const std::string expected_descr = npy_descr(t.dtype);
-            if (header.descr != expected_descr)
-                fail_io(IOStatus::DtypeMismatch,
-                        "File {} holds .npy dtype '{}'; the tensor it is loaded into needs '{}'.",
-                        path, header.descr, expected_descr);
-
-            const bool column_major = t.layout == Core::Layout::ColumnMajor;
-
-            // At rank 0 and 1 C and Fortran order lay the elements out identically.
-            if (t.rank >= 2 && header.fortran_order != column_major)
-                fail_io(IOStatus::LayoutMismatch,
-                        "File {} has fortran_order {}; the tensor it is loaded into is {}.", path,
-                        header.fortran_order ? "True" : "False",
-                        column_major ? "ColumnMajor" : "RowMajor");
-
-            bool same_shape = header.shape.size() == static_cast<size_t>(t.rank);
-            for (int i = 0; same_shape && i < t.rank; ++i)
-                same_shape = header.shape[i] == t.shape[i];
-            if (!same_shape)
-                fail_io(IOStatus::ShapeMismatch,
-                        "File {} holds a .npy array of rank {} whose shape differs from the "
-                        "tensor's (rank {}).", path, header.shape.size(), t.rank);
         }
 
         /** @brief Reads exactly @p bytes into @p destination; fails Truncated on a short file. */
@@ -727,43 +512,6 @@ namespace SushiBLAS
                 os << std::endl;
         }
 
-        /** @brief Holds the largest .npy header dictionary this build reads, in bytes. */
-        constexpr size_t K_MAX_NPY_HEADER_BYTES = size_t{1} << 20;
-
-        /**
-         * @brief Reads the .npy version and header length, accepting versions 1.0, 2.0 and 3.0.
-         * @return The header length in bytes.
-         * @throws IOFailure with MalformedFile on any other version or an oversized header, and
-         *         with Truncated on a short file.
-         */
-        size_t read_npy_header_length(std::ifstream& ifs, const std::string& path)
-        {
-            uint8_t version[2];
-            read_exact(ifs, reinterpret_cast<char*>(version), 2, "format version", path);
-
-            const bool known = version[1] == 0 &&
-                               (version[0] == 1 || version[0] == 2 || version[0] == 3);
-            if (!known)
-                fail_io(IOStatus::MalformedFile,
-                        "File {} has .npy format version {}.{}; versions 1.0, 2.0 and 3.0 load.",
-                        path, static_cast<int>(version[0]), static_cast<int>(version[1]));
-
-            // Version 1.0 stores the length in two little-endian bytes, 2.0 and 3.0 in four.
-            const size_t field_bytes = version[0] == 1 ? 2 : 4;
-            uint8_t field[4] = {0, 0, 0, 0};
-            read_exact(ifs, reinterpret_cast<char*>(field), field_bytes, "header length", path);
-
-            size_t length = 0;
-            for (size_t i = field_bytes; i > 0; --i)
-                length = (length << 8) | field[i - 1];
-
-            if (length > K_MAX_NPY_HEADER_BYTES)
-                fail_io(IOStatus::MalformedFile,
-                        "File {} declares a .npy header of {} bytes; at most {} are read.", path,
-                        length, K_MAX_NPY_HEADER_BYTES);
-            return length;
-        }
-
         /**
          * @brief Throws unless the host buffer size equals the tensor's data size.
          * @throws std::invalid_argument naming op on a mismatch.
@@ -776,17 +524,6 @@ namespace SushiBLAS
                     op, "t", "holds {} bytes of data, but the host buffer has {}", expected, bytes);
         }
     } // namespace
-
-    /** @brief Internal header for .sushi files */
-    struct SushiHeader
-    {
-        char magic[6] = "SUSHI";
-        uint32_t version = K_SUSHI_FORMAT_VERSION;
-        int32_t rank;
-        int64_t shape[Core::K_MAX_TENSOR_RANK];
-        int32_t dtype;
-        int32_t layout;
-    };
 
     IOStatus IO::save(const Tensor& t, const std::string& path)
     {
@@ -831,34 +568,13 @@ namespace SushiBLAS
             SushiHeader header;
             read_exact(ifs, reinterpret_cast<char*>(&header), sizeof(SushiHeader), "header", path);
 
-            if (std::string(header.magic, 5) != "SUSHI")
-                fail_io(IOStatus::MalformedFile, "File {} does not start with the .sushi magic.",
-                        path);
-            if (header.version != K_SUSHI_FORMAT_VERSION)
-                fail_io(IOStatus::MalformedFile,
-                        "File {} has .sushi format version {}; this build reads version {} only.",
-                        path, header.version, K_SUSHI_FORMAT_VERSION);
-            if (header.rank != t.rank)
-                fail_io(IOStatus::ShapeMismatch,
-                        "File {} holds rank {}; the tensor it is loaded into has rank {}.", path,
-                        header.rank, t.rank);
-
-            for (int i = 0; i < t.rank; ++i)
-                if (header.shape[i] != t.shape[i])
-                    fail_io(IOStatus::ShapeMismatch,
-                            "File {} holds {} in dimension {}; the tensor it is loaded into "
-                            "has {}.",
-                            path, header.shape[i], i, t.shape[i]);
-
-            if (header.dtype != static_cast<int32_t>(t.dtype))
-                fail_io(IOStatus::DtypeMismatch,
-                        "File {} holds dtype id {}; the tensor it is loaded into is {}.", path,
-                        header.dtype, Core::to_string(t.dtype));
-            if (header.layout != static_cast<int32_t>(t.layout))
-                fail_io(IOStatus::LayoutMismatch,
-                        "File {} holds layout id {}; the tensor it is loaded into has layout "
-                        "id {}.",
-                        path, header.layout, static_cast<int32_t>(t.layout));
+            SushiExpectation expected;
+            expected.rank = t.rank;
+            expected.shape.assign(t.shape.begin(), t.shape.begin() + t.rank);
+            expected.dtype = static_cast<int32_t>(t.dtype);
+            expected.dtype_name = Core::to_string(t.dtype);
+            expected.layout = static_cast<int32_t>(t.layout);
+            refusals_as_failures([&]() { require_sushi_header_matches(header, expected, path); });
 
             read_payload(ifs, t, path);
         });
@@ -956,20 +672,27 @@ namespace SushiBLAS
             if (!ifs.is_open())
                 fail_io(IOStatus::FileUnreadable, "Failed to open file for reading: {}", path);
 
-            char magic[6];
-            read_exact(ifs, magic, 6, "magic string", path);
-            if (std::string(magic, 6) != "\x93NUMPY")
-                fail_io(IOStatus::MalformedFile, "File {} does not start with the .npy magic.",
-                        path);
+            unsigned char prefix_bytes[K_NPY_PREFIX_MAX_BYTES];
+            ifs.read(reinterpret_cast<char*>(prefix_bytes), sizeof(prefix_bytes));
+            const size_t prefix_read = static_cast<size_t>(ifs.gcount());
+            NpyPrefix prefix{};
+            refusals_as_failures(
+                [&]() { prefix = parse_npy_prefix(prefix_bytes, prefix_read, path); });
+            ifs.clear();
+            ifs.seekg(static_cast<std::streamoff>(prefix.prefix_bytes), std::ios::beg);
 
-            const size_t header_len = read_npy_header_length(ifs, path);
+            std::string text(prefix.header_bytes, ' ');
+            if (prefix.header_bytes > 0)
+                read_exact(ifs, &text[0], prefix.header_bytes, "header", path);
 
-            std::string text(header_len, ' ');
-            if (header_len > 0)
-                read_exact(ifs, &text[0], header_len, "header", path);
-
-            const NpyHeader header = NpyHeaderParser(text, path).parse();
-            require_npy_header_matches(header, t, path);
+            NpyExpectation expected;
+            expected.descr = npy_descr(t.dtype);
+            expected.column_major = t.layout == Core::Layout::ColumnMajor;
+            expected.shape.assign(t.shape.begin(), t.shape.begin() + t.rank);
+            refusals_as_failures([&]()
+            {
+                require_npy_header_matches(parse_npy_header(text, path), expected, path);
+            });
 
             read_payload(ifs, t, path);
         });
