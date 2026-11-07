@@ -71,6 +71,11 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 10. Ruled 2026-11-07 by the orchestrator on the owner's delegation: `OperandAccess` gains the `row_cursor`, the cursor `at`, `first_column` and `end_column` the band and packed accesses have, and `Reference::trsv` calls `Detail::triangular_solve`, so one solve loop remains. The interface is internal to the kernels.
 11. Ruled the same day: `OwnedMemory` lives once, in `tests/support/owned_memory.hpp`, and `test_storage.cpp` and `test_task_cost.cpp` include it.
 12. Ruled the same day: `modules/kernels/README.md` names the dense TRSV reference among the users of `triangular_solve`.
+13. RW-142, ruled 2026-11-07 by the orchestrator on the owner's delegation: `Core::LogPort` is the seam a unit logs through with `SB_LOG_VIA`; `SushiLogPort` hands the record to the process-wide SushiLog and `MemoryLogPort` keeps it in memory, so a test of the unit runs `Small_`. The hot-path `SB_LOG_*` macros stay as they are, on SushiLog's cached level slot. `LogPort` is checked in `compile_log_port.cpp`, the adapters in `test_memory_log_port.cpp` and `test_sushilog_port.cpp`.
+14. RW-143, ruled the same day: `test_runner` keeps no log capture of its own. Tests declare SushiLog's `LogCapture`; `ScopedLogLevel` sets SushiBLAS's level for one scope and `count_records` counts captured records by level and text.
+15. RW-141, ruled the same day: `SharedArray` takes its memory through a `SharedAllocator` port, USM by default, with a host adapter that counts what it served; `make_host_queue` gains an overload over a device list, so the queue choice is tested on the host.
+16. RW-144, ruled the same day: an operation checks its operands through `StorageFacts` and `PlacedTensor`, plain values built from a tensor, with `require_disjoint` and one `Internal` check header per operation. The `Tensor` overloads stay, so callers do not change; the checks are tested `Small_` on hand-built values.
+17. RW-140, ruled the same day: SushiProfiler's `SB_ZONE` writes into the process-wide collector, so no port can stand in front of the writing side. The port wraps the reading side only: a test reads the zones through a reader it is given, and the writing side stays `Medium_`.
 
 ## Risks the final build checks
 
@@ -110,6 +115,8 @@ dispatch: J16 M26 M28 M29 M30 kernels tests — sonnet medium, 1 round, passed a
 dispatch: J16 M36 M38 M45 M48 operations and package tests — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 M27 M31 M32 kernels tests — sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
 dispatch: J16 M10 M12 M19 foundation tests — sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
+dispatch: J16 RW-140..143 ports — sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-144..147 seams — sonnet medium, 1 round, stopped early on shutdown, rung 1
 
 ## Totals
 
