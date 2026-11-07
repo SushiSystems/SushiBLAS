@@ -32,6 +32,7 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <cstddef>
@@ -40,6 +41,7 @@
 #include <string_view>
 #include <type_traits>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/cost/cost.hpp>
 #include <SushiBLAS/cost/cost_table.hpp>
@@ -53,6 +55,9 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/pair_body.hpp>
+#include <SushiBLAS/engine/task_sink.hpp>
+#include <SushiBLAS/engine/graph_task_sink.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -93,42 +98,36 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Runs a kernel-pair body with its dispatcher and keeps its operands' storage.
-             * @tparam Body Callable `(const KernelPairDispatcher&, sycl::queue&,
-             *         const std::vector<sycl::event>&)` returning a `sycl::event`, or a
-             *         Device::SubmittedEvents when it submits several kernels.
+             * @brief Wraps a kernel-pair body in the shape a TaskSink keeps.
+             * @tparam Body Callable `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`
+             *         returning a `sycl::event`, or a Device::SubmittedEvents when it submits
+             *         several kernels. A body of the old shape `(const KernelPairDispatcher&,
+             *         sycl::queue&, const std::vector<sycl::event>&)` is also taken.
+             * @deprecated The old body shape is removed in H5 of the test review plan.
              */
             template<typename Body>
             class RecordedPairTask
             {
                 public:
-                    /** @brief Holds the body, its mode router and one reference per operand storage. */
-                    RecordedPairTask(Body body, KernelPairDispatcher dispatcher,
-                                     StorageKeepAlive retained)
-                        : body_(std::move(body)), dispatcher_(dispatcher),
-                          retained_(std::move(retained))
+                    /** @brief Holds the body. */
+                    explicit RecordedPairTask(Body body) : body_(std::make_shared<const Body>(std::move(body)))
                     {
 
                     }
 
                     /**
-                     * @brief Runs the body with the dispatcher fixed at record time.
+                     * @brief Runs the body with the dispatcher the sink built.
                      * @return The event that completes after every kernel the body submitted.
                      */
-                    sycl::event operator()(sycl::queue& q, const std::vector<sycl::event>& deps) const
+                    sycl::event operator()(const KernelPairDispatcher& dispatcher,
+                                           const std::vector<sycl::event>& deps) const
                     {
-                        return runtime_events(body_(dispatcher_, q, deps));
+                        return runtime_events(call_pair_body(*body_, dispatcher, deps));
                     }
 
                 private:
-                    /// @brief The body the operation recorded.
-                    Body body_;
-
-                    /// @brief The mode router handed to the body.
-                    KernelPairDispatcher dispatcher_;
-
-                    /// @brief The storages that stay allocated until the task is destroyed.
-                    StorageKeepAlive retained_;
+                    /// @brief The body the operation recorded; shared so the wrapper copies cheaply.
+                    std::shared_ptr<const Body> body_;
             };
 
             /**
@@ -146,7 +145,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Waits for the events it is given, then runs the callable on the host. */
-                    sycl::event operator()(const KernelPairDispatcher&, sycl::queue&,
+                    sycl::event operator()(const KernelPairDispatcher&,
                                            const std::vector<sycl::event>& deps) const
                     {
                         sycl::event::wait(deps);
@@ -162,8 +161,8 @@ namespace SushiBLAS
     } // namespace Internal
 
     /**
-     * @brief Records tasks on one SushiRuntime::Recorder under one execution mode, one record
-     *        call at a time.
+     * @brief Records tasks through one TaskSink under one execution mode, one record call at a
+     *        time; the sink is a SushiRuntime::Recorder by default.
      * @see modules/engine/engine/README.md
      */
     class TaskRecorder final
@@ -226,10 +225,28 @@ namespace SushiBLAS
             TaskRecorder(SushiRuntime::Recorder& recorder, ScratchPool& scratch_pool,
                          LateCountHold& late_counts,
                          ExecutionMode mode = ExecutionMode::Auto) noexcept
-                : recorder_(&recorder), scratch_pool_(&scratch_pool), late_counts_(&late_counts),
-                  mode_(mode), identity_(Internal::Detail::next_recorder_identity())
+                : own_graph_(std::in_place, recorder), sink_(&*own_graph_),
+                  scratch_pool_(&scratch_pool), late_counts_(&late_counts), mode_(mode),
+                  identity_(Internal::Detail::next_recorder_identity())
             {
 
+            }
+
+            /**
+             * @brief Binds the recorder to a sink it records through.
+             * @param sink Receives every task; it must outlive this recorder.
+             * @param scratch_pool Lends scratch, or null; scratch_pool() then throws.
+             * @param late_counts Keeps late-count storages, or null when the sink has no graph.
+             * @param mode Must be one the sink admits.
+             * @throws UnsupportedExecution when the sink does not admit the mode.
+             */
+            explicit TaskRecorder(TaskSink& sink, ScratchPool* scratch_pool = nullptr,
+                                  LateCountHold* late_counts = nullptr,
+                                  ExecutionMode mode = ExecutionMode::ForceReference)
+                : sink_(&sink), scratch_pool_(scratch_pool), late_counts_(late_counts),
+                  mode_(mode), identity_(Internal::Detail::next_recorder_identity())
+            {
+                require_admitted(mode);
             }
 
             TaskRecorder(const TaskRecorder&) = delete;
@@ -244,8 +261,13 @@ namespace SushiBLAS
             /**
              * @brief Sets the mode every later record call is recorded under.
              * @pre No thread is recording on this recorder.
+             * @throws UnsupportedExecution when the sink does not admit the mode; the mode stays.
              */
-            void set_mode(ExecutionMode mode) noexcept { mode_ = mode; }
+            void set_mode(ExecutionMode mode)
+            {
+                require_admitted(mode);
+                mode_ = mode;
+            }
 
             /**
              * @brief Opens a scope in which every recorded node carries @p label as its origin.
@@ -260,9 +282,18 @@ namespace SushiBLAS
                 return OriginScope(*this, std::move(previous));
             }
 
-            /** @brief Returns the pool recorded tasks lease their device scratch from. */
-            [[nodiscard]] ScratchPool& scratch_pool() const noexcept
+            /**
+             * @brief Returns the pool recorded tasks lease their device scratch from.
+             * @throws UnsupportedExecution when the recorder was built without one.
+             */
+            [[nodiscard]] ScratchPool& scratch_pool() const
             {
+                if (scratch_pool_ == nullptr)
+                {
+                    throw UnsupportedExecution(
+                        "This task recorder has no scratch pool: a recorder on a host sink is "
+                        "built without one.");
+                }
                 return *scratch_pool_;
             }
 
@@ -286,8 +317,9 @@ namespace SushiBLAS
 
             /**
              * @brief Records a task whose body runs a reference and SYCL kernel pair.
-             * @param body Callable `(const KernelPairDispatcher&, sycl::queue&, const
-             *        std::vector<sycl::event>&)` returning a `sycl::event`, or SubmittedEvents.
+             * @param body Callable `(const KernelPairDispatcher&, deps)` returning an event.
+             * @deprecated The old shape `(dispatcher, sycl::queue&, deps)` is still taken;
+             *             H5 of the test review plan removes it.
              * @throws UnsupportedExecution for a device-only tensor under ForceReference, and
              *         std::runtime_error when the runtime refuses; no task is recorded.
              */
@@ -296,10 +328,13 @@ namespace SushiBLAS
                                    const OperandSet& operands, const char* family, Body&& body)
             {
                 require_host_reachable(operands, family, description.name);
-                return insert(description, operands,
-                              Internal::Detail::RecordedPairTask<std::decay_t<Body>>(
-                                  std::forward<Body>(body), KernelPairDispatcher(mode_),
-                                  operands.retained()));
+                return commit(
+                    [&]
+                    {
+                        sink_->add_pair(description, operands, mode_, origin_,
+                                        Internal::Detail::RecordedPairTask<std::decay_t<Body>>(
+                                            std::forward<Body>(body)));
+                    });
             }
 
             /**
@@ -326,17 +361,30 @@ namespace SushiBLAS
                 }
 
                 require_host_reachable(operands, family, description.name);
+                GraphTaskSink* graph = sink_->graph();
+                if (graph == nullptr || late_counts_ == nullptr)
+                {
+                    throw UnsupportedExecution(
+                        std::string(description.name) +
+                        ": a late-count kernel is a graph node, and the sink of this recorder "
+                        "has no graph.");
+                }
                 LateCount late = late_counts_->borrow(operands, count);
-                const TaskHandle handle = insert_node(
-                    description, Cost::uncosted(UncostedReason::DataDependent),
-                    [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
+                const TaskHandle handle = commit(
+                    [&]
                     {
-                        recorder.dynamic_kernel(
-                            SushiRuntime::sized_from_device(
-                                late.words, static_cast<std::size_t>(count.storage_offset)),
-                            capacity,
-                            Internal::task_access(operands), std::forward<Kernel>(kernel),
-                            options);
+                        graph->insert_node(
+                            description, Cost::uncosted(UncostedReason::DataDependent), origin_,
+                            [&](SushiRuntime::Recorder& recorder,
+                                const SushiRuntime::NodeOptions& options)
+                            {
+                                recorder.dynamic_kernel(
+                                    SushiRuntime::sized_from_device(
+                                        late.words,
+                                        static_cast<std::size_t>(count.storage_offset)),
+                                    capacity, Internal::task_access(operands),
+                                    std::forward<Kernel>(kernel), options);
+                            });
                     });
                 late_counts_->keep(std::move(late.owner));
                 return handle;
@@ -357,69 +405,36 @@ namespace SushiBLAS
 
         private:
             /**
-             * @brief Records one task under the name, operation and parameters of description.
-             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` returning the
-             *        event that ends its work.
-             * @note The cost is the table's cost for the operation and shape plus the bytes.
-             * @throws std::runtime_error with the runtime's message when the recorder refuses.
+             * @brief Runs add under the recording mutex and the profile zone, then numbers the task.
+             * @param add Callable with no argument that adds exactly one task to the sink.
+             * @throws std::runtime_error as the sink states; no number is taken then.
              */
-            template<typename Work>
-            TaskHandle insert(const TaskDescription& description,
-                              const OperandSet& operands, Work&& work)
+            template<typename Add>
+            TaskHandle commit(Add&& add)
             {
-                return insert_node(
-                    description,
-                    Internal::task_cost(description.operation, description.shape, operands),
-                    [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
-                    {
-                        recorder.task(Internal::task_access(operands),
-                                      std::forward<Work>(work), options);
-                    });
-            }
-
-            /**
-             * @brief Records one node under the name, the operation, the determinism, the
-             *        parameters and the cost.
-             * @param cost What the node states about its work; an uncosted cost states none.
-             * @param record Callable `(SushiRuntime::Recorder&, const SushiRuntime::NodeOptions&)`
-             *        that adds exactly one node.
-             * @throws std::runtime_error as the overload above.
-             */
-            template<typename Record>
-            TaskHandle insert_node(const TaskDescription& description, const Cost& cost,
-                                   Record&& record)
-            {
-                static_assert(TaskDescription::K_MAX_PARAMETERS <=
-                                  SushiRuntime::NodeOptions::K_MAX_PARAMETERS,
-                              "A task description carries more parameters than a runtime node "
-                              "takes.");
-                SushiRuntime::NodeOptions options;
-                options.name = description.name;
-                options.operation = description.operation;
-                options.determinism = description.determinism;
-                options.parameters = SushiRuntime::span<const std::uint64_t>(
-                    description.parameters, TaskDescription::K_MAX_PARAMETERS);
-                options.cost = Internal::node_cost_of(cost);
-
                 std::uint64_t sequence = 0;
                 Internal::in_recording(recording_mutex_, [&]
                 {
-                    // The count before, the recording and the sequence number are one step.
-                    options.origin = origin_;
-                    const std::size_t recorded_before = recorder_->node_count();
-                    std::forward<Record>(record)(*recorder_, options);
-                    if (recorder_->node_count() == recorded_before)
-                    {
-                        const SushiRuntime::Error* refusal = recorder_->refusal();
-                        SB_THROW_IF(true, "{}: the runtime refused the recording: {}",
-                                    description.name,
-                                    refusal != nullptr ? refusal->message.c_str()
-                                                       : "no reason kept");
-                    }
+                    // The task added to the sink and its sequence number are one step.
+                    std::forward<Add>(add)();
                     sequence = next_sequence_++;
                 });
 
                 return TaskHandle(identity_, sequence);
+            }
+
+            /**
+             * @brief Checks that the sink runs tasks recorded under the mode.
+             * @throws UnsupportedExecution otherwise.
+             */
+            void require_admitted(ExecutionMode mode) const
+            {
+                if (!sink_->admits(mode))
+                {
+                    throw UnsupportedExecution(
+                        "The sink of this task recorder cannot run tasks recorded under the "
+                        "requested execution mode: a host sink runs ForceReference only.");
+                }
             }
 
             /** @brief Sets the label recorded nodes carry; the end of an OriginScope calls it. */
@@ -449,13 +464,16 @@ namespace SushiBLAS
                     SushiRuntime::residency_name(count.storage->residency()));
             }
 
-            /// @brief The graph recorder every record call adds to; never null.
-            SushiRuntime::Recorder* recorder_;
+            /// @brief The graph adapter this recorder owns when built over a SushiRuntime::Recorder.
+            std::optional<GraphTaskSink> own_graph_;
 
-            /// @brief The pool handed to operations that lease scratch; never null.
+            /// @brief The sink every record call adds to; never null.
+            TaskSink* sink_;
+
+            /// @brief The pool handed to operations that lease scratch; null when there is none.
             ScratchPool* scratch_pool_;
 
-            /// @brief The hold late-count tasks are kept in, owned by the graph's owner; never null.
+            /// @brief The hold late-count tasks are kept in, owned by the owner of the graph; null on a sink with no graph.
             LateCountHold* late_counts_;
 
             /// @brief The mode stamped on each task as it is recorded.
@@ -470,7 +488,7 @@ namespace SushiBLAS
             /// @brief The origin every node recorded now carries; empty when no scope is open; guarded by recording_mutex_.
             std::string origin_;
 
-            /// @brief Serialises every use of recorder_, next_sequence_ and origin_.
+            /// @brief Serialises every use of sink_, next_sequence_ and origin_.
             std::mutex recording_mutex_;
     };
 } // namespace SushiBLAS

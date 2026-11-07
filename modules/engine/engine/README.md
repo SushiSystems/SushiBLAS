@@ -18,7 +18,11 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
 | `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
-| `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which runs one kernel of a reference and SYCL pair |
+| `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which routes one kernel of a reference and SYCL pair and holds the queue the SYCL half runs on |
+| `pair_body.hpp` | `Detail::call_pair_body` and `call_scalar_body`, which run a recorded body in its current or its old shape |
+| `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through |
+| `graph_task_sink.hpp` | `GraphTaskSink`, the adapter that adds each task to a `SushiRuntime::Recorder` |
+| `host_task_sink.hpp` | `HostTaskSink`, the adapter that keeps bodies in record order and runs them on the host under `ForceReference` |
 | `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
 | `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
 | `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
@@ -255,11 +259,17 @@ not change a task already recorded.
 
 ## `task_recorder.hpp`
 
-`TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in
-SushiBLAS. It is bound to
+`TaskRecorder` records through a `TaskSink`. The constructor every caller uses is bound to
 the recorder of one `SushiRuntime::Graph`, one `ScratchPool` and one `LateCountHold`, and holds the
-execution mode, in that constructor order. A caller builds one over a graph it owns; the recorder
-may be a local of one record call, since it owns nothing a run needs.
+execution mode, in that constructor order; it builds a `GraphTaskSink` over the graph recorder and
+owns it. A caller builds one over a graph it owns; the recorder
+may be a local of one record call, since it owns nothing a run needs. The other constructor takes a
+`TaskSink&`, an optional `ScratchPool*`, an optional `LateCountHold*` and a mode that defaults to
+`ForceReference`. It throws `UnsupportedExecution` for a mode the sink does not admit, and so does
+`set_mode`. `scratch_pool()` throws `UnsupportedExecution` on a recorder built without a pool.
+
+`GraphTaskSink` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in
+SushiBLAS, and `TaskRecorder` is the only caller of the sink.
 
 Record calls from several threads on one `TaskRecorder` are serialised by one `std::mutex` in it.
 The lock covers reading the recorder's node count, the call of `Recorder::task` and the draw of
@@ -273,15 +283,45 @@ that empties its graph does it through it. Three things are outside the lock:
 - `set_mode`. No thread may be recording while the mode changes.
 - A second `TaskRecorder` bound to the same `SushiRuntime::Recorder`. Each has its own mutex.
 
+### `TaskSink`, `GraphTaskSink` and `HostTaskSink`
+
+`TaskSink` is the port: `admits(mode)`, `graph()` and `add_pair(description, operands, mode, origin,
+body)`, where the body is a `std::function<sycl::event(const KernelPairDispatcher&, const
+std::vector<sycl::event>&)>`. `TaskRecorder` calls it with its recording mutex held.
+
+`GraphTaskSink` admits every mode. `add_pair` records a node with the cost of the table plus the
+bytes, the region access of the operands, and a `Detail::GraphPairTask` that builds
+`KernelPairDispatcher(mode, q)` with the queue the runtime gives the task and keeps one reference to
+each operand storage. `insert_node` holds what `TaskRecorder::insert_node` held: the
+`NodeOptions`, the node count before and after, and the refusal message. `record_late_pair` reaches
+the graph through `TaskSink::graph()`, because a late-count kernel is a graph node with no host form;
+on a sink whose `graph()` is null it throws `UnsupportedExecution`.
+
+`HostTaskSink` admits `ForceReference` only. It keeps the bodies, the task names and the operand
+storages in record order. `run()` runs the bodies in that order, each with
+`KernelPairDispatcher(ForceReference)` that holds no queue and with no dependencies, and then drops
+them all. The first body that throws stops the run and `run()` returns a `HostTaskFailure` with its
+index, name and message; the bodies after it do not run. `discard()` drops the bodies unrun.
+It is not thread-safe beyond the recorder's own serialisation of `add_pair`; `run()` and `discard()`
+take no lock, so a caller does not record while it runs.
+
+Both adapters pass `TaskSinkContract` (`tests/engine/engine/test_task_sink.cpp`): record
+order is run order, the reference half runs under `ForceReference`, a failing body stops the run
+and is reported, and the dispatcher holds a queue exactly when the adapter has one.
+
 ### `TaskRecorder::record_pair`
 
 Takes a `TaskDescription`, an `OperandSet`, the family name for diagnostics, and a body callable as
-`(const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
-sycl::event`. It first calls `require_host_reachable`. It then wraps the body in a
-`Detail::RecordedPairTask` with a dispatcher that holds the current mode and with the set's
-`StorageKeepAlive`, records the task with the set's read and write regions and with the name, the
-operation and the parameters as `SushiRuntime::NodeOptions`, and returns a `TaskHandle` of its own
-identity and the task's sequence number. If the runtime's recorder refuses the recording,
+`(const KernelPairDispatcher&, const std::vector<sycl::event>&) -> sycl::event`; the body reaches
+the queue through `dispatcher.queue()`. A body of the old shape `(const KernelPairDispatcher&,
+sycl::queue&, const std::vector<sycl::event>&)` still compiles: `Detail::call_pair_body` detects
+the shape with `std::is_invocable` and passes `dispatcher.queue()`. The old shape is deprecated and
+H5 of the test review plan removes it with `run(q, deps, ...)`, `call_pair_body`'s queue branch
+and the old `op_func` shape of `execute_typed_task`, once every body outside `engine/engine` has moved.
+`record_pair` first calls `require_host_reachable`. It then wraps the body in a
+`Detail::RecordedPairTask` and hands it, with the description, the operands, the mode and the
+current origin, to `TaskSink::add_pair`, and returns a `TaskHandle` of its own
+identity and the task's sequence number. If the graph adapter's recorder refuses the recording,
 `record_pair` throws `std::runtime_error` whose message is `<name>: the runtime refused the
 recording: <the runtime's message>`, as every other record-time failure throws. The refusal stays
 in the runtime's recorder: the next run returns it and empties the graph, and
@@ -341,9 +381,10 @@ reduction executors before they lease scratch.
 
 ### `Detail::RecordedPairTask`
 
-The callable stored in the graph. It holds the body, the dispatcher and one reference to each
-distinct storage the task declared, so an operand's allocation stays alive until the graph drops
-the task even if the caller's `Tensor` is destroyed first.
+The callable handed to the sink. It holds the body and runs it through `call_pair_body`, then
+`runtime_events` on the result. The sink keeps one reference to each distinct storage the task declared
+(`GraphPairTask` in the graph adapter, `HostTaskSink` on the host), so an operand's allocation stays
+alive until the graph or the sink drops the task even if the caller's `Tensor` is destroyed first.
 
 ### Cost, origin and the events of a body
 
@@ -353,7 +394,7 @@ the task even if the caller's `Tensor` is destroyed first.
 
 `record_pair` takes a body that returns a `sycl::event`, or a `Device::SubmittedEvents` when it submits several kernels. In the second case the recorder calls `SushiRuntime::note_dispatch_event` for each event and returns the last, so the runtime times the whole body.
 
-`insert_node` runs its recording through `Internal::in_recording`, which is the zone `blas.record` and takes the recording mutex with a recorded wait when it was contended. The function is defined in `engine_profile.cpp`, so `task_recorder.hpp` includes no profiler header; with the profiler off the zone and the wait compile out of that one file.
+`TaskRecorder::commit` runs the sink call and the draw of the sequence number through `Internal::in_recording`, which is the zone `blas.record` and takes the recording mutex with a recorded wait when it was contended. The function is defined in `engine_profile.cpp`, so `task_recorder.hpp` includes no profiler header; with the profiler off the zone and the wait compile out of that one file.
 
 ## `task_handle.hpp`
 
@@ -420,11 +461,16 @@ holds it once.
 
 ## `kernel_pair_dispatcher.hpp`
 
-`KernelPairDispatcher` holds the execution mode the recorder had when the task was
-recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Under
+`KernelPairDispatcher` holds the execution mode the recorder had when the task was recorded
+and the queue the task runs on. It is built from the mode and an optional queue: the graph adapter
+builds one per run with the runtime's queue, and the host adapter builds one with none.
+A task body calls `dispatcher.run(deps, reference_fn, sycl_fn)`. Under
 `ForceReference` it waits on the dependencies, calls `reference_fn` on the calling thread and
-returns an empty event; under `Auto` and `ForceSYCL` it returns what `sycl_fn(q, deps)` returns.
-It is the one place the two branches are written.
+returns an empty event; under `Auto` and `ForceSYCL` it returns what `sycl_fn(queue(), deps)`
+returns. It is the one place the two branches are written. `queue()` returns the held queue and
+throws `UnsupportedExecution` when there is none, as on a host engine; `has_queue()` tells which.
+`run(q, deps, reference_fn, sycl_fn)` takes the queue as an argument and is deprecated; it goes
+with the old body shape in H5.
 
 `run` returns what its SYCL function returns: a `sycl::event`, or a `Device::SubmittedEvents` for a function that submits several kernels. Under `ForceReference` it returns an empty value of that type.
 
@@ -503,7 +549,8 @@ Calls `Dispatch::require_domain<Dom>` and then `TaskRecorder::record_pair` with 
 the element type. An unsupported dtype fails at record time (P1 corollary), never silently
 no-ops. Its arguments are the recorder, the `TaskDescription`, the `OperandSet`, the dtype, the
 family and `op_func`, which is callable as `(auto scalar_type, const KernelPairDispatcher&,
-sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`. The BLAS, sparse and spatial
+const std::vector<sycl::event>&) -> sycl::event`; an `op_func` that also takes `sycl::queue&` after
+the dispatcher is still taken (`Detail::call_scalar_body`) until H5 removes that shape. The BLAS, sparse and spatial
 operations record through it, so none of them reads the execution mode: the dispatcher the body
 receives already holds it.
 
@@ -536,6 +583,10 @@ The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practi
 a silent no-op gets in, so it ends in a throw rather than in a default return.
 
 `Detail::TypedTaskBody::operator()` throws `std::runtime_error` from that last statement.
+
+The result type of the call is a trait (`Detail::ScalarBodyResult`, `PairBodyResult`), not a deduced
+return type: a `decltype(auto)` call inside the switch makes this clang instantiate a generic
+`op_func` while it parses the switch and reports "'case' statement not in switch statement".
 
 `TypedTaskBody` returns the type its function returns for every dtype: a `sycl::event`, or a `Device::SubmittedEvents`. The recorded function must return one type for all of them.
 

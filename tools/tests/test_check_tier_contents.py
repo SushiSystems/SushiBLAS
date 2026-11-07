@@ -219,12 +219,13 @@ class OperationEngineCallsTest(unittest.TestCase):
 
 
 class GraphInsertionsTest(unittest.TestCase):
-    """Checks that TaskRecorder and the graph primitives are the only callers of the recording verbs."""
+    """Checks that TaskRecorder, its graph sink and the graph primitives are the only callers of the recording verbs."""
 
-    def test_accepts_the_recorder_header_a_primitive_and_a_comment(self) -> None:
-        """Reports nothing for task in task_recorder.hpp, kernel in a graph primitive, or a comment."""
+    def test_accepts_the_recorder_header_its_graph_sink_a_primitive_and_a_comment(self) -> None:
+        """Reports nothing for task in task_recorder.hpp or graph_task_sink.hpp, kernel in a graph primitive, or a comment."""
         files = {
             "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp": "recorder_->task(access, work, options);\n",
+            "modules/engine/engine/include/SushiBLAS/engine/graph_task_sink.hpp": "recorder_->task(access, work, options);\n",
             "modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/reduce.hpp": "recorder.kernel(count, access, body, options);\n",
             "modules/operations/logic/source/all.cpp": "// recorder.task(access, work) is the recorder's call.\n",
         }

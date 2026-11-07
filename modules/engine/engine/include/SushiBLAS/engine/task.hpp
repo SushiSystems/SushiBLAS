@@ -39,6 +39,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/pair_body.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -53,10 +54,10 @@ namespace SushiBLAS
         {
             /**
              * @brief Calls a task body with a value of the element type its dtype names.
-             * @tparam Func Callable `(T, const KernelPairDispatcher&, sycl::queue&,
-             *         const std::vector<sycl::event>&)` for each T in Dom, returning one result
-             *         type for all of them: a `sycl::event`, or Device::SubmittedEvents when the
-             *         body submits several kernels.
+             * @tparam Func Callable `(T, const KernelPairDispatcher&, deps)` for each T in Dom,
+             *         returning one type for all: a `sycl::event`, or Device::SubmittedEvents.
+             * @deprecated The old shape `(T, dispatcher, sycl::queue&, deps)` is still taken;
+             *             H5 of the test review plan removes it.
              * @see modules/engine/engine/README.md
              */
             template<Dispatch::Domain Dom, typename Func>
@@ -64,9 +65,10 @@ namespace SushiBLAS
             {
                 public:
                     /// @brief What the body returns: the event of its kernel, or the events of all of them.
-                    using Result = std::decay_t<std::invoke_result_t<
-                        const Func&, float, const KernelPairDispatcher&, sycl::queue&,
-                        const std::vector<sycl::event>&>>;
+                    using Result = std::decay_t<decltype(call_scalar_body(
+                        std::declval<const Func&>(), float{},
+                        std::declval<const KernelPairDispatcher&>(),
+                        std::declval<const std::vector<sycl::event>&>()))>;
 
                     /**
                      * @brief Holds everything the body needs at execute time.
@@ -84,33 +86,33 @@ namespace SushiBLAS
                      * @brief Runs the body for the recorded dtype.
                      * @throws std::runtime_error if dtype falls outside Dom.
                      */
-                    Result operator()(const KernelPairDispatcher& dispatcher, sycl::queue& q,
+                    Result operator()(const KernelPairDispatcher& dispatcher,
                                       const std::vector<sycl::event>& deps) const
                     {
                         // The arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
                         switch (dtype_)
                         {
                             case Core::DataType::Half:
-                                return op_func_(sycl::half{}, dispatcher, q, deps);
+                                return call_scalar_body(op_func_, sycl::half{}, dispatcher, deps);
                             case Core::DataType::Float32:
-                                return op_func_(float{}, dispatcher, q, deps);
+                                return call_scalar_body(op_func_, float{}, dispatcher, deps);
                             case Core::DataType::Float64:
-                                return op_func_(double{}, dispatcher, q, deps);
+                                return call_scalar_body(op_func_, double{}, dispatcher, deps);
                             case Core::DataType::Complex32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return op_func_(std::complex<float>{}, dispatcher, q, deps);
+                                    return call_scalar_body(op_func_, std::complex<float>{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Complex64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return op_func_(std::complex<double>{}, dispatcher, q, deps);
+                                    return call_scalar_body(op_func_, std::complex<double>{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Int32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return op_func_(int32_t{}, dispatcher, q, deps);
+                                    return call_scalar_body(op_func_, int32_t{}, dispatcher, deps);
                                 break;
                             case Core::DataType::Int64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return op_func_(int64_t{}, dispatcher, q, deps);
+                                    return call_scalar_body(op_func_, int64_t{}, dispatcher, deps);
                                 break;
                             case Core::DataType::UInt32:
                                 break;
@@ -140,8 +142,8 @@ namespace SushiBLAS
         /**
          * @brief Records one dtype-dispatched task whose body runs a reference and SYCL kernel pair.
          * @param family What kind of operation this is, for diagnostics; a string literal.
-         * @param op_func Callable taking a scalar of the element type, a const
-         *        KernelPairDispatcher&, the queue and the dependencies.
+         * @param op_func Callable `(scalar, const KernelPairDispatcher&, deps)`.
+         * @deprecated An op_func that also takes the queue is still taken until H5 of the plan.
          * @throws std::invalid_argument at record time on a dtype outside Dom; UnsupportedExecution as TaskRecorder::record_pair states.
          * @see modules/engine/engine/README.md
          */

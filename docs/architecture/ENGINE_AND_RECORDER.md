@@ -17,18 +17,25 @@ shows the four lines. The engine is not copyable or movable, and the `Runtime` o
 
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`
 
-`TaskRecorder` (`engine/task_recorder.hpp`) records tasks on one `SushiRuntime::Recorder` under
-one mode, and is the only caller of `SushiRuntime::Recorder::task` in SushiBLAS. It has one
-recording call:
+`TaskRecorder` (`engine/task_recorder.hpp`) records tasks through a `TaskSink` (`engine/task_sink.hpp`)
+under one mode. The sink is a port with two adapters. `GraphTaskSink` adds each task to one
+`SushiRuntime::Recorder` and is the only caller of `SushiRuntime::Recorder::task` in SushiBLAS; the
+recorder builds it itself from the constructor every caller uses. `HostTaskSink` keeps the bodies in
+record order and runs them on the host when told to, under `ForceReference` only; a recorder on a
+host sink refuses any other mode with `UnsupportedExecution`. It has one recording call:
 
 `record_pair(description, operands, family, body)` checks host reachability and adds one task
 whose reads and writes are the operand set's regions, and whose name, operation and parameters
 are those of the `TaskDescription`, handed to the runtime as `SushiRuntime::NodeOptions`. A
 recording the runtime refuses throws `std::runtime_error` with the runtime's message. The body
-is a copyable callable `(const KernelPairDispatcher&, sycl::queue&, const
-std::vector<sycl::event>&) -> sycl::event` that must order its work behind the events it is
-given. On the SYCL side that means every command group calls `h.depends_on(deps)`;
-`check_engine_seams.py` reports a command group without it.
+is a copyable callable `(const KernelPairDispatcher&, const std::vector<sycl::event>&) ->
+sycl::event` that must order its work behind the events it is given. It reaches the queue through
+the dispatcher: `KernelPairDispatcher` holds the mode and the queue the task runs on, and
+`dispatcher.run(deps, reference_fn, sycl_fn)` hands that queue to `sycl_fn`. A dispatcher on a host
+sink holds no queue, and `queue()` throws `UnsupportedExecution`. On the SYCL side every command
+group calls `h.depends_on(deps)`; `check_engine_seams.py` reports a command group without it. The
+old body shape `(const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&)` is
+deprecated and still accepted until every body has moved (H5 of the test review plan).
 
 One mutex in the recorder serialises record calls, so several threads may record on one recorder
 at once; the tasks reach the graph in the order the threads took the lock. A run of the graph and

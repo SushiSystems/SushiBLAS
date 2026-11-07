@@ -23,7 +23,8 @@
 
 /**
  * @file kernel_pair_dispatcher.hpp
- * @brief Declares KernelPairDispatcher, which runs one kernel of a reference and SYCL pair.
+ * @brief Declares KernelPairDispatcher, which routes one kernel of a reference and SYCL pair and
+ *        holds the queue the SYCL half runs on.
  * @author Mustafa Garip
  */
 
@@ -33,30 +34,90 @@
 #include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Runs an operation's reference or SYCL kernel under the mode fixed at record time.
+     * @brief Routes an operation's reference or SYCL kernel by the mode fixed at record time and
+     *        holds the queue the SYCL kernel is submitted to.
+     *
+     * A dispatcher on a host engine holds no queue, so a body reaches the queue only through
+     * queue(), which refuses there.
      * @see modules/engine/engine/README.md
      */
     class KernelPairDispatcher final
     {
         public:
-            /** @brief Fixes the execution mode every run() routes by. */
-            explicit KernelPairDispatcher(ExecutionMode mode) noexcept : mode_(mode)
+            /** @brief Fixes the execution mode every run() routes by and holds no queue. */
+            explicit KernelPairDispatcher(ExecutionMode mode) noexcept
+                : mode_(mode), queue_(nullptr)
             {
 
             }
 
             /**
-             * @brief Runs reference_fn on the host under ForceReference, else sycl_fn.
+             * @brief Fixes the execution mode and the queue the SYCL half runs on.
+             * @param queue Must outlive the dispatcher.
+             */
+            KernelPairDispatcher(ExecutionMode mode, sycl::queue& queue) noexcept
+                : mode_(mode), queue_(&queue)
+            {
+
+            }
+
+            /** @brief Returns the mode every run() routes by. */
+            [[nodiscard]] ExecutionMode mode() const noexcept { return mode_; }
+
+            /** @brief Reports whether the dispatcher holds a queue. */
+            [[nodiscard]] bool has_queue() const noexcept { return queue_ != nullptr; }
+
+            /**
+             * @brief Returns the queue the dispatcher holds.
+             * @throws UnsupportedExecution when the dispatcher holds none, as on a host engine.
+             */
+            [[nodiscard]] sycl::queue& queue() const
+            {
+                if (queue_ == nullptr)
+                {
+                    throw UnsupportedExecution(
+                        "The kernel pair dispatcher holds no queue: a host engine runs no SYCL "
+                        "device.");
+                }
+                return *queue_;
+            }
+
+            /**
+             * @brief Runs reference_fn on the host under ForceReference, else sycl_fn on the held queue.
              * @param reference_fn Callable `() -> void` running the reference kernel.
-             * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&)` returning
-             *        the `sycl::event` of its one kernel, or Device::SubmittedEvents when it
-             *        submits several.
+             * @param sycl_fn Callable `(sycl::queue&, deps)` returning a `sycl::event`, or
+             *        Device::SubmittedEvents for several kernels.
              * @return What sycl_fn returns, or an empty value of its type under ForceReference.
+             * @throws UnsupportedExecution outside ForceReference when no queue is held.
+             */
+            template<typename ReferenceFn, typename SYCLFn>
+            auto run(const std::vector<sycl::event>& deps, ReferenceFn&& reference_fn,
+                     SYCLFn&& sycl_fn) const
+            {
+                using Result = std::decay_t<
+                    std::invoke_result_t<SYCLFn&&, sycl::queue&, const std::vector<sycl::event>&>>;
+
+                if (mode_ == ExecutionMode::ForceReference)
+                {
+                    sycl::event::wait(deps);
+                    std::forward<ReferenceFn>(reference_fn)();
+                    return Result();
+                }
+
+                return std::forward<SYCLFn>(sycl_fn)(queue(), deps);
+            }
+
+            /**
+             * @brief Runs reference_fn on the host under ForceReference, else sycl_fn on @p q.
+             * @deprecated Takes the queue as an argument; use run(deps, reference_fn, sycl_fn),
+             *             which uses the held queue. Removed in H5 of the test review plan, when
+             *             the last body outside modules/engine/engine has moved.
              */
             template<typename ReferenceFn, typename SYCLFn>
             auto run(sycl::queue& q, const std::vector<sycl::event>& deps,
@@ -78,5 +139,8 @@ namespace SushiBLAS
         private:
             /// @brief The recorder's execution mode when the task was recorded.
             ExecutionMode mode_;
+
+            /// @brief The queue the SYCL half runs on; null on a host engine.
+            sycl::queue* queue_;
     };
 } // namespace SushiBLAS

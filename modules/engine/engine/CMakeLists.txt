@@ -31,6 +31,9 @@ sushiblas_add_test_program(
         test_scratch_shelf.cpp
         test_task.cpp
         test_task_cost.cpp
+        test_graph_task_sink.cpp
+        test_host_task_sink.cpp
+        test_pair_body.cpp
         test_task_description.cpp
     DEVICE_TESTS
         test_engine/test_reduce_plans.cpp
@@ -46,5 +49,6 @@ sushiblas_add_test_program(
         test_rng_stream.cpp
         test_task_handle.cpp
         test_task_recorder.cpp
+        test_task_sink.cpp
     COMPILE_CHECKS
         test_engine_log_category.cpp)
