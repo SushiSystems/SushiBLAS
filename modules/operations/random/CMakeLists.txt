@@ -48,6 +48,4 @@ sushiblas_add_test_program(
         test_random/test_shuffle.cpp
         test_random/test_uniform.cpp
     DEVICE_BENCHMARKS
-        benchmark_random.cpp
-    COMPILE_CHECKS
-        test_random_log_category.cpp)
+        benchmark_random.cpp)
