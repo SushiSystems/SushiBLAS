@@ -182,6 +182,74 @@ operations/spatial                            0     76     0      0%
 TOTAL                                       826   1599     2     34%
 ```
 
+### After H6e, H7, S1 and S2
+
+Counted the same way on 2026-11-07 with the head at `9eb150e7` plus the backlog commit: 1127 small, 1629 medium and 2 large, 41% small. S3 to S5 and the remaining M jobs are not done, so the aim of 80% is met by 18 of 57 modules and not by the rest.
+
+```
+module                                    small medium large  small%
+applications/benchmarks                      17      5     0     77%
+applications/examples                         1      3     0     25%
+data/sparse_storage                           0     22     0      0%
+data/tensor                                  60     60     0     50%
+data/tensor_expectations                      5      9     0     36%
+engine/cluster                               11     10     0     52%
+engine/engine                                61    167     0     27%
+engine/engine_fixture                         7      7     0     50%
+engine/execution_mode_sweep                   0      1     0      0%
+engine/functor_map                            1     33     0      3%
+engine/graph_probe                            0      3     0      0%
+engine/operands                               0     33     0      0%
+engine/profiling                             17     12     0     59%
+engine/recording_graph                        0     10     0      0%
+foundation/arithmetic                        47      0     0    100%
+foundation/blas_test_oracle                  22      0     0    100%
+foundation/core                              38      4     0     90%
+foundation/cost                              42      0     0    100%
+foundation/geometry                          52      0     0    100%
+foundation/graph_primitives                  57    105     0     35%
+foundation/host_device                       16      7     0     70%
+foundation/launch                            27     15     1     63%
+foundation/orthonormal                        3      0     0    100%
+foundation/profile                            8      5     0     62%
+foundation/reduction                         20      5     0     80%
+foundation/reference                         18      2     0     90%
+foundation/serial_reductions                 13      0     0    100%
+foundation/small_integers                     4      0     0    100%
+foundation/sparse_assembly                   19      0     0    100%
+foundation/sparse_fixtures                   16      0     0    100%
+foundation/substitution                       6      0     0    100%
+foundation/test_runner                        3      9     0     25%
+foundation/typed_suite_naming                 1      1     0     50%
+kernels/blas_kernels                         70     46     0     60%
+kernels/blas_seam_kernels                   109     41     1     72%
+kernels/blend_kernels                        13      1     0     93%
+kernels/linalg_kernels                       29      6     0     83%
+kernels/packed_product_harness                7      1     0     88%
+kernels/random_kernels                       17      5     0     77%
+kernels/signal_kernels                       32      5     0     86%
+kernels/sparse_kernels                       34     11     0     76%
+kernels/spatial_kernels                      51     16     0     76%
+library/umbrella                              0    110     0      0%
+operations/benchmark_harness                  5      9     0     36%
+operations/blas                               0    322     0      0%
+operations/blend                             10     18     0     36%
+operations/elementwise                       15    102     0     13%
+operations/experimental                      38     18     0     68%
+operations/index                              0     17     0      0%
+operations/io                                28     21     0     57%
+operations/logic                             19      2     0     90%
+operations/nonlinear                          0     23     0      0%
+operations/random                            12     50     0     19%
+operations/reductions                        23    121     0     16%
+operations/signal                            11      9     0     55%
+operations/sparse                            12     71     0     14%
+operations/spatial                            0     76     0      0%
+TOTAL                                      1127   1629     2     41%
+```
+
+Below the 80% aim, each a refactoring finding for the job named in `PLAN.md`: applications/benchmarks (77%), applications/examples (25%), data/sparse_storage (0%), data/tensor (50%), data/tensor_expectations (36%), engine/cluster (52%), engine/engine (27%), engine/engine_fixture (50%), engine/execution_mode_sweep (0%), engine/functor_map (3%), engine/graph_probe (0%), engine/operands (0%), engine/profiling (59%), engine/recording_graph (0%), foundation/graph_primitives (35%), foundation/host_device (70%), foundation/launch (63%), foundation/profile (62%), foundation/test_runner (25%), foundation/typed_suite_naming (50%), kernels/blas_kernels (60%), kernels/blas_seam_kernels (72%), kernels/random_kernels (77%), kernels/sparse_kernels (76%), kernels/spatial_kernels (76%), library/umbrella (0%), operations/benchmark_harness (36%), operations/blas (0%), operations/blend (36%), operations/elementwise (13%), operations/experimental (68%), operations/index (0%), operations/io (57%), operations/nonlinear (0%), operations/random (19%), operations/reductions (16%), operations/signal (55%), operations/sparse (14%), operations/spatial (0%).
+
 ## Dispatches
 
 dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
