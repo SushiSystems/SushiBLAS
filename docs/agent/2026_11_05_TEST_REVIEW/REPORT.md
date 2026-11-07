@@ -390,6 +390,74 @@ TOTAL                                      1245   1536     2     45%
 
 Below the 80% aim, each a refactoring finding for the job named in `PLAN.md`: applications/benchmarks (67%), applications/examples (71%), data/sparse_storage (0%), data/tensor (50%), data/tensor_expectations (36%), engine/cluster (52%), engine/engine (27%), engine/engine_fixture (50%), engine/execution_mode_sweep (0%), engine/functor_map (3%), engine/graph_probe (0%), engine/operands (0%), engine/profiling (59%), engine/recording_graph (0%), foundation/graph_primitives (61%), foundation/host_device (70%), foundation/launch (63%), foundation/profile (62%), foundation/test_runner (25%), foundation/typed_suite_naming (50%), kernels/blas_kernels (60%), kernels/blas_seam_kernels (72%), kernels/random_kernels (77%), kernels/sparse_kernels (76%), kernels/spatial_kernels (76%), library/umbrella (0%), operations/benchmark_harness (36%), operations/blas (0%), operations/blend (36%), operations/elementwise (13%), operations/experimental (68%), operations/index (35%), operations/io (67%), operations/nonlinear (0%), operations/random (71%), operations/reductions (29%), operations/signal (55%), operations/sparse (14%), operations/spatial (0%)
 
+### After the recorder operand type
+
+Counted the same way on 2026-11-07 with the head at `0b203597`: 1251 small, 1536 medium and 2 large, 45% small. The operand type of the `PrimitiveRecorder` port (decision 39) took the runtime out of every `Small_` row of `foundation/graph_primitives`, and `test_host_buffer.cpp` added 6 small rows, so the module went from 109 to 115 small rows and from 61% to 62%; its 70 medium rows are unchanged. `random_log_category.hpp` has a compile check and no test file, which changes no count. The aim of 80% is met by 18 of 57 modules. M2 to M4, M24, M25, M33 to M35, M37, M47, M49, S5 and the one build and test run are not done, and no count here has been run.
+
+```
+module                                  small medium large  small%
+applications/benchmarks                    14      7     0     67%
+applications/examples                       5      2     0     71%
+data/sparse_storage                         0     22     0      0%
+data/tensor                                58     59     0     50%
+data/tensor_expectations                    5      9     0     36%
+engine/cluster                             11     10     0     52%
+engine/engine                              62    167     0     27%
+engine/engine_fixture                       7      7     0     50%
+engine/execution_mode_sweep                 0      1     0      0%
+engine/functor_map                          1     33     0      3%
+engine/graph_probe                          0      3     0      0%
+engine/operands                             0     33     0      0%
+engine/profiling                           17     12     0     59%
+engine/recording_graph                      0     10     0      0%
+foundation/arithmetic                      47      0     0    100%
+foundation/blas_test_oracle                22      0     0    100%
+foundation/core                            38      4     0     90%
+foundation/cost                            42      0     0    100%
+foundation/geometry                        52      0     0    100%
+foundation/graph_primitives               115     70     0     62%
+foundation/host_device                     16      7     0     70%
+foundation/launch                          27     15     1     63%
+foundation/orthonormal                      3      0     0    100%
+foundation/profile                          8      5     0     62%
+foundation/reduction                       20      5     0     80%
+foundation/reference                       18      2     0     90%
+foundation/serial_reductions               13      0     0    100%
+foundation/small_integers                   4      0     0    100%
+foundation/sparse_assembly                 19      0     0    100%
+foundation/sparse_fixtures                 16      0     0    100%
+foundation/substitution                     6      0     0    100%
+foundation/test_runner                      3      9     0     25%
+foundation/typed_suite_naming               1      1     0     50%
+kernels/blas_kernels                       70     46     0     60%
+kernels/blas_seam_kernels                 109     41     1     72%
+kernels/blend_kernels                      13      1     0     93%
+kernels/linalg_kernels                     29      6     0     83%
+kernels/packed_product_harness              7      1     0     88%
+kernels/random_kernels                     17      5     0     77%
+kernels/signal_kernels                     32      5     0     86%
+kernels/sparse_kernels                     34     11     0     76%
+kernels/spatial_kernels                    51     16     0     76%
+library/umbrella                            0    110     0      0%
+operations/benchmark_harness                5      9     0     36%
+operations/blas                             0    322     0      0%
+operations/blend                           10     18     0     36%
+operations/elementwise                     15    102     0     13%
+operations/experimental                    38     18     0     68%
+operations/index                            7     13     0     35%
+operations/io                              36     18     0     67%
+operations/logic                           19      2     0     90%
+operations/nonlinear                        0     23     0      0%
+operations/random                          44     18     0     71%
+operations/reductions                      42    102     0     29%
+operations/signal                          11      9     0     55%
+operations/sparse                          12     71     0     14%
+operations/spatial                          0     76     0      0%
+TOTAL                                    1251   1536     2     45%
+```
+
+Below the 80% aim: applications/benchmarks (67%), applications/examples (71%), data/sparse_storage (0%), data/tensor (50%), data/tensor_expectations (36%), engine/cluster (52%), engine/engine (27%), engine/engine_fixture (50%), engine/execution_mode_sweep (0%), engine/functor_map (3%), engine/graph_probe (0%), engine/operands (0%), engine/profiling (59%), engine/recording_graph (0%), foundation/graph_primitives (62%), foundation/host_device (70%), foundation/launch (63%), foundation/profile (62%), foundation/test_runner (25%), foundation/typed_suite_naming (50%), kernels/blas_kernels (60%), kernels/blas_seam_kernels (72%), kernels/random_kernels (77%), kernels/sparse_kernels (76%), kernels/spatial_kernels (76%), library/umbrella (0%), operations/benchmark_harness (36%), operations/blas (0%), operations/blend (36%), operations/elementwise (13%), operations/experimental (68%), operations/index (35%), operations/io (67%), operations/nonlinear (0%), operations/random (71%), operations/reductions (29%), operations/signal (55%), operations/sparse (14%), operations/spatial (0%).
+
 ## Dispatches
 
 dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
