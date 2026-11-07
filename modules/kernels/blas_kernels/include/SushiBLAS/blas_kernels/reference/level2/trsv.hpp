@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_kernels/reference/level2/triangular_solve.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -50,7 +51,8 @@ namespace SushiBLAS
             void trsv(Core::Layout layout, Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
                       int64_t n, const T* a, int64_t lda, T* x, int64_t incx)
             {
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool op_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                uplo == Core::Uplo::Upper);
                 Detail::triangular_solve(operand_access(layout, trans, lda), op_upper,
                                          diag == Core::Diag::Unit, n, a, x, incx);
             }

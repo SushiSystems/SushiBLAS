@@ -452,7 +452,7 @@ other task touches it.
 The row product has the two shapes `gemv` has. A row of op(A) is contiguous exactly when GEMV's
 row is, row-major without a transpose or column-major with one, and then
 `row_reduction_width` may give each row a work-group that folds its stored columns in a
-fixed-order tree (`Detail::reduce_row_windows_by_group` over a `Detail::TriangleRow`). Otherwise
+fixed-order tree (`Detail::reduce_row_windows_by_group` over an `Indexing::TriangleRow`). Otherwise
 one work-item computes one row in ascending column order. The overload that takes `group_width`
 is there so a test can run both shapes on one input.
 

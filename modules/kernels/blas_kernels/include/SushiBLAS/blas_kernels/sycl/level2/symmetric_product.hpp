@@ -37,6 +37,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/blas_kernels/blend_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/symmetric_row.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp>
@@ -96,10 +97,8 @@ namespace SushiBLAS
                                 },
                                 [=](int64_t i, W sum)
                                 {
-                                    y[i * incy] = (beta == T(0))
-                                        ? T(multiply(W(alpha), sum))
-                                        : T(multiply(W(alpha), sum) +
-                                            multiply(W(beta), W(y[i * incy])));
+                                    y[i * incy] = T(Indexing::blend_with_prior<W, W>(
+                                        multiply(W(alpha), sum), beta, y[i * incy]));
                                 });
                         });
                     }
@@ -118,10 +117,8 @@ namespace SushiBLAS
                                     sum += multiply(W(value), W(x[j * incx]));
                                 });
 
-                                y[i * incy] = (beta == T(0))
-                                    ? T(multiply(W(alpha), sum))
-                                    : T(multiply(W(alpha), sum) +
-                                        multiply(W(beta), W(y[i * incy])));
+                                y[i * incy] = T(Indexing::blend_with_prior<W, W>(
+                                    multiply(W(alpha), sum), beta, y[i * incy]));
                             });
                     });
                 }

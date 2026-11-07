@@ -36,6 +36,7 @@
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 
 namespace SushiBLAS
 {
@@ -65,7 +66,7 @@ namespace SushiBLAS
                 {
                     for (int64_t j = 0; j < n; ++j)
                     {
-                        if ((upper && j < i) || (!upper && j > i))
+                        if (Indexing::outside_triangle(upper, i, j))
                             continue;
 
                         // The second factor is op(A)(j, l), conjugated under Conjugated.
@@ -74,7 +75,8 @@ namespace SushiBLAS
                             sum.add(RW(op_a.at(a, i, l)) * Conj::apply(RW(op_a.at(a, j, l))));
 
                         // A zero beta must not read the prior value of C.
-                        T& out = (layout == Core::Layout::RowMajor) ? c[i * ldc + j] : c[i + j * ldc];
+                        T& out =
+                            c[Indexing::layout_offset(layout == Core::Layout::RowMajor, i, j, ldc)];
                         const RW updated = (beta == Scalar(0))
                             ? RW(RWS(alpha) * sum.value())
                             : RW(RWS(alpha) * sum.value() + RWS(beta) * RW(out));

@@ -40,6 +40,8 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/blend_index.hpp>
+#include <SushiBLAS/blas_kernels/matrix_vector_index.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp>
 
 namespace SushiBLAS
@@ -63,16 +65,18 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 const OperandAccess access = operand_access(layout, trans, lda);
                 const bool transposed = Core::is_transposed(trans);
-                const int64_t out_len = transposed ? n : m;
-                const int64_t in_len = transposed ? m : n;
+                const Indexing::VectorExtents extents = Indexing::vector_extents(transposed, m, n);
+                const int64_t out_len = extents.out_len;
+                const int64_t in_len = extents.in_len;
 
                 const Device::Profile& profile = Device::profile_for(queue);
-                const bool row_contiguous = (layout == Core::Layout::RowMajor) != transposed;
+                const bool row_contiguous =
+                    Indexing::rows_are_contiguous(layout == Core::Layout::RowMajor, transposed);
 
                 // Fewer rows than one work-group per compute unit leave units idle; see kernels/README.md.
                 const bool few_rows = !profile.is_cpu &&
-                    out_len < static_cast<int64_t>(profile.compute_units *
-                                                   Device::work_group_size(profile));
+                    Indexing::rows_underfill_device(out_len, profile.compute_units,
+                                                    Device::work_group_size(profile));
                 const std::size_t width = ((row_contiguous || few_rows) && out_len > 0)
                     ? Detail::row_reduction_width(profile, in_len)
                     : std::size_t{0};
@@ -89,10 +93,8 @@ namespace SushiBLAS
                             },
                             [=](int64_t o, W sum)
                             {
-                                y[o * incy] = (beta == T(0))
-                                    ? T(multiply(W(alpha), sum))
-                                    : T(multiply(W(alpha), sum) +
-                                        multiply(W(beta), W(y[o * incy])));
+                                y[o * incy] = T(Indexing::blend_with_prior<W, W>(
+                                    multiply(W(alpha), sum), beta, y[o * incy]));
                             });
                     });
                 }
@@ -106,9 +108,8 @@ namespace SushiBLAS
                         W sum(0);
                         for (int64_t k = 0; k < in_len; ++k)
                             sum += multiply(W(access.at(a, o, k)), W(x[k * incx]));
-                        y[o * incy] = (beta == T(0))
-                            ? T(multiply(W(alpha), sum))
-                            : T(multiply(W(alpha), sum) + multiply(W(beta), W(y[o * incy])));
+                        y[o * incy] = T(Indexing::blend_with_prior<W, W>(
+                            multiply(W(alpha), sum), beta, y[o * incy]));
                     });
                 });
             }

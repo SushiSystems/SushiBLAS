@@ -32,7 +32,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -47,6 +46,7 @@
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -126,9 +126,10 @@ namespace SushiBLAS
                         {
                             using W = Accumulator<T>;
                             const TriangularSystem& system = block_.system;
-                            const int64_t stream = static_cast<int64_t>(index);
-                            const int64_t batch_id = stream / system.vectors;
-                            const int64_t v = stream % system.vectors;
+                            const Indexing::StreamId stream =
+                                Indexing::split_stream(static_cast<int64_t>(index), system.vectors);
+                            const int64_t batch_id = stream.batch;
+                            const int64_t v = stream.vector;
 
                             const T* A = block_.matrix(batch_id);
                             const T* B = block_.right_hand_side(batch_id);
@@ -202,17 +203,14 @@ namespace SushiBLAS
                         {
                             using W = Accumulator<T>;
                             const TriangularSystem& system = block_.system;
-                            const int64_t per_matrix = trailing_count_ * system.vectors;
-                            const int64_t element = static_cast<int64_t>(index);
-                            const int64_t batch_id = element / per_matrix;
-                            const int64_t within = element % per_matrix;
-
                             // The index that moves one element of B runs innermost.
-                            const int64_t s = trailing_first_ + (step_is_innermost_
-                                                                     ? within % trailing_count_
-                                                                     : within / system.vectors);
-                            const int64_t v = step_is_innermost_ ? within / trailing_count_
-                                                                 : within % system.vectors;
+                            const Indexing::UpdateUnknown unknown = Indexing::update_unknown(
+                                static_cast<int64_t>(index),
+                                Indexing::TrailingRange{trailing_first_, trailing_count_},
+                                system.vectors, step_is_innermost_);
+                            const int64_t batch_id = unknown.batch;
+                            const int64_t s = unknown.step;
+                            const int64_t v = unknown.vector;
 
                             const T* A = block_.matrix(batch_id);
                             const T* B = block_.right_hand_side(batch_id);
@@ -286,9 +284,10 @@ namespace SushiBLAS
 
                 for (int64_t pass = 0; pass < blocks; ++pass)
                 {
-                    const int64_t position = system.forward ? pass : blocks - 1 - pass;
-                    block.first = position * width;
-                    block.last = std::min(system.order, block.first + width);
+                    const Indexing::StepRange range =
+                        Indexing::solve_block(pass, blocks, width, system.order, system.forward);
+                    block.first = range.first;
+                    block.last = range.last;
                     block.opens = (pass == 0);
 
                     const Detail::TriangularBlockSolve<T> solve(block);
@@ -303,16 +302,15 @@ namespace SushiBLAS
                     previous = solved;
                     submitted.append(solved);
 
-                    const int64_t trailing_first = system.forward ? block.last : 0;
-                    const int64_t trailing_count = system.forward ? system.order - block.last
-                                                                  : block.first;
-                    if (trailing_count == 0)
+                    const Indexing::TrailingRange trailing = Indexing::trailing_range(
+                        range, system.order, system.order, system.forward);
+                    if (trailing.count == 0)
                         continue;
 
-                    const Detail::TriangularBlockUpdate<T> update(block, trailing_first,
-                                                                  trailing_count);
+                    const Detail::TriangularBlockUpdate<T> update(block, trailing.first,
+                                                                  trailing.count);
                     const std::size_t elements =
-                        static_cast<std::size_t>(batch_size * trailing_count * system.vectors);
+                        static_cast<std::size_t>(batch_size * trailing.count * system.vectors);
                     previous = queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(solved);

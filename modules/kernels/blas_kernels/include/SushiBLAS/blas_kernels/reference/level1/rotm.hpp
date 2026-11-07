@@ -31,6 +31,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/blas_kernels/rotm_index.hpp>
 
 namespace SushiBLAS
 {
@@ -50,7 +51,7 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
 
                 const W flag = W(param[0]);
-                if (flag == W(-2))
+                if (Indexing::rotm_is_identity(flag))
                     return;
 
                 const W h11 = W(param[1]);
@@ -60,24 +61,10 @@ namespace SushiBLAS
 
                 for (int64_t i = 0; i < n; ++i)
                 {
-                    const W w = W(x[i * incx]);
-                    const W z = W(y[i * incy]);
-
-                    if (flag < W(0))
-                    {
-                        x[i * incx] = T(w * h11 + z * h12);
-                        y[i * incy] = T(w * h21 + z * h22);
-                    }
-                    else if (flag == W(0))
-                    {
-                        x[i * incx] = T(w + z * h12);
-                        y[i * incy] = T(w * h21 + z);
-                    }
-                    else
-                    {
-                        x[i * incx] = T(w * h11 + z);
-                        y[i * incy] = T(-w + z * h22);
-                    }
+                    const Indexing::RotmPair<W> rotated = Indexing::rotm_apply(
+                        flag, h11, h21, h12, h22, W(x[i * incx]), W(y[i * incy]));
+                    x[i * incx] = T(rotated.x);
+                    y[i * incy] = T(rotated.y);
                 }
             }
         } // namespace Reference

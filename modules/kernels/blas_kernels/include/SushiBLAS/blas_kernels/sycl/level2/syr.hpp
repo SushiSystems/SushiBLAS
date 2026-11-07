@@ -40,6 +40,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 
 namespace SushiBLAS
 {
@@ -75,12 +76,14 @@ namespace SushiBLAS
                                                   static_cast<std::size_t>(n));
                     h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
-                        const int64_t i = static_cast<int64_t>(by_columns ? idx[1] : idx[0]);
-                        const int64_t j = static_cast<int64_t>(by_columns ? idx[0] : idx[1]);
-                        if (upper ? (j < i) : (j > i))
+                        const Indexing::GridCoord at = Indexing::element_coord(
+                            static_cast<int64_t>(idx[0]), static_cast<int64_t>(idx[1]), by_columns);
+                        const int64_t i = at.row;
+                        const int64_t j = at.col;
+                        if (Indexing::outside_triangle(upper, i, j))
                             return;
-                        T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
-                                                                     : a[i + j * lda];
+                        T& ref = a[Indexing::layout_offset(layout == Core::Layout::RowMajor, i,
+                                                           j, lda)];
                         const W updated = W(ref) + multiply(multiply(WS(alpha), W(x[i * incx])),
                                                             Conj::apply(W(x[j * incx])));
                         ref = T((i == j) ? Conj::diagonal(updated) : updated);

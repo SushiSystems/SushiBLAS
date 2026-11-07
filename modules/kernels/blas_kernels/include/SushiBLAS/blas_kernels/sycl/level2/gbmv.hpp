@@ -32,7 +32,6 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -43,6 +42,8 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
+#include <SushiBLAS/blas_kernels/blend_index.hpp>
+#include <SushiBLAS/blas_kernels/matrix_vector_index.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp>
 
 namespace SushiBLAS
@@ -68,9 +69,11 @@ namespace SushiBLAS
 
                 const BandAccess access = band_access(layout, trans, kl, ku, lda);
                 const bool transposed = Core::is_transposed(trans);
-                const int64_t out_len = transposed ? n : m;
-                const int64_t in_len = transposed ? m : n;
-                const int64_t longest_row = std::min(in_len, access.lower + access.upper + 1);
+                const Indexing::VectorExtents extents = Indexing::vector_extents(transposed, m, n);
+                const int64_t out_len = extents.out_len;
+                const int64_t in_len = extents.in_len;
+                const int64_t longest_row =
+                    Indexing::band_row_length(in_len, access.lower, access.upper);
 
                 // As in GEMV, the work-group shape serves only rows the storage keeps contiguous.
                 const std::size_t width = (access.col == 1 && out_len > 0)
@@ -92,10 +95,8 @@ namespace SushiBLAS
                             },
                             [=](int64_t o, W sum)
                             {
-                                y[o * incy] = (beta == T(0))
-                                    ? T(multiply(W(alpha), sum))
-                                    : T(multiply(W(alpha), sum) +
-                                        multiply(W(beta), W(y[o * incy])));
+                                y[o * incy] = T(Indexing::blend_with_prior<W, W>(
+                                    multiply(W(alpha), sum), beta, y[o * incy]));
                             });
                     });
                 }
@@ -113,9 +114,8 @@ namespace SushiBLAS
                             for (int64_t k = access.first_column(o); k < end; ++k)
                                 sum += multiply(W(access.at(a, o, k)), W(x[k * incx]));
 
-                            y[o * incy] = (beta == T(0))
-                                ? T(multiply(W(alpha), sum))
-                                : T(multiply(W(alpha), sum) + multiply(W(beta), W(y[o * incy])));
+                            y[o * incy] = T(Indexing::blend_with_prior<W, W>(
+                                multiply(W(alpha), sum), beta, y[o * incy]));
                         });
                 });
             }

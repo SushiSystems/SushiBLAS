@@ -19,6 +19,11 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE blas_kernels
     TESTS
+        test_blend_index.cpp
+        test_matrix_vector_index.cpp
+        test_rank_update_index.cpp
+        test_rotm_index.cpp
+        test_triangular_solve_index.cpp
         reference/level1/test_level1.cpp
         reference/level1/test_rotg.cpp
         reference/level1/test_rotm.cpp

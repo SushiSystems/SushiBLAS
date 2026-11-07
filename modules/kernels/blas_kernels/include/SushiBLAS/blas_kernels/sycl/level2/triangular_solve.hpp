@@ -32,7 +32,6 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -41,6 +40,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/row_cursor.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -79,13 +79,13 @@ namespace SushiBLAS
                     /** @brief Returns the first column of row i that lies in the block. */
                     [[nodiscard]] int64_t first_in_block(int64_t i) const noexcept
                     {
-                        return std::max(first, access.first_column(i));
+                        return Indexing::block_first_column(first, access.first_column(i));
                     }
 
                     /** @brief Returns one past the last column of row i that lies in the block. */
                     [[nodiscard]] int64_t end_in_block(int64_t i) const noexcept
                     {
-                        return std::min(last, access.end_column(i, n));
+                        return Indexing::block_end_column(last, access.end_column(i, n));
                     }
 
                     /**
@@ -254,9 +254,10 @@ namespace SushiBLAS
                     sycl::event last;
                     for (int64_t pass = 0; pass < blocks; ++pass)
                     {
-                        const int64_t position = forward ? pass : blocks - 1 - pass;
-                        block.first = position * width;
-                        block.last = std::min(n, block.first + width);
+                        const Indexing::StepRange range =
+                            Indexing::solve_block(pass, blocks, width, n, forward);
+                        block.first = range.first;
+                        block.last = range.last;
 
                         const VectorSolveSteps<T, Access> steps{block};
                         last = queue.submit([&](sycl::handler& h)
@@ -267,14 +268,13 @@ namespace SushiBLAS
                         previous.assign(1, last);
                         submitted.append(last);
 
-                        const int64_t remaining = forward ? n - block.last : block.first;
-                        const int64_t trailing = std::min(remaining, reach);
-                        if (trailing <= 0)
+                        const Indexing::TrailingRange trailing =
+                            Indexing::trailing_range(range, n, reach, forward);
+                        if (trailing.count <= 0)
                             continue;
 
-                        const VectorSolveUpdate<T, Access> update{
-                            block, forward ? block.last : block.first - trailing};
-                        const std::size_t rows = static_cast<std::size_t>(trailing);
+                        const VectorSolveUpdate<T, Access> update{block, trailing.first};
+                        const std::size_t rows = static_cast<std::size_t>(trailing.count);
                         last = queue.submit([&](sycl::handler& h)
                         {
                             h.depends_on(previous);

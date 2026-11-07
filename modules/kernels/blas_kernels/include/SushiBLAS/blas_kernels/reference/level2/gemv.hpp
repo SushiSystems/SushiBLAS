@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/matrix_vector_index.hpp>
 
 namespace SushiBLAS
 {
@@ -56,8 +57,9 @@ namespace SushiBLAS
 
                 const OperandAccess access = operand_access(layout, trans, lda);
                 const bool transposed = Core::is_transposed(trans);
-                const int64_t out_len = transposed ? n : m;
-                const int64_t in_len = transposed ? m : n;
+                const Indexing::VectorExtents extents = Indexing::vector_extents(transposed, m, n);
+                const int64_t out_len = extents.out_len;
+                const int64_t in_len = extents.in_len;
 
                 for (int64_t o = 0; o < out_len; ++o)
                 {

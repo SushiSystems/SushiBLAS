@@ -46,6 +46,10 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
+#include <SushiBLAS/blas_seam_kernels/gemm_index.hpp>
+#include <SushiBLAS/blas_kernels/blend_index.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp>
@@ -119,7 +123,7 @@ namespace SushiBLAS
                         [[nodiscard]] bool wants(int64_t row0, int64_t rows,
                                                  int64_t col0, int64_t cols) const noexcept
                         {
-                            return upper_ ? (col0 + cols - 1 >= row0) : (row0 + rows - 1 >= col0);
+                            return Indexing::block_touches_triangle(upper_, row0, rows, col0, cols);
                         }
 
                         /**
@@ -131,15 +135,14 @@ namespace SushiBLAS
                             using W = Accumulator<T>;
                             using WS = Accumulator<Scalar>;
 
-                            if (upper_ ? (col < row) : (col > row))
+                            if (Indexing::outside_triangle(upper_, row, col))
                                 return;
 
                             const int64_t c_idx = c_access_.index(row, col);
 
                             // A zero beta must not read C, whose prior value may be uninitialised.
-                            const W updated = (beta_ == Scalar(0))
-                                ? W(multiply(WS(alpha_), sum))
-                                : W(multiply(WS(alpha_), sum) + multiply(WS(beta_), W(c[c_idx])));
+                            const W updated = Indexing::blend_with_prior<W, WS>(
+                                W(multiply(WS(alpha_), sum)), beta_, c[c_idx]);
 
                             c[c_idx] = T((row == col) ? Conj::diagonal(updated) : updated);
                         }
@@ -235,8 +238,8 @@ namespace SushiBLAS
                             demand.local_bytes, demand.work_group_items,
                             profile.local_mem_bytes, profile.max_work_group_size);
 
-                const int64_t n_tiles_m = (n + block_m - 1) / block_m;
-                const int64_t n_tiles_n = (n + block_n - 1) / block_n;
+                const int64_t n_tiles_m = Indexing::ceil_div(n, block_m);
+                const int64_t n_tiles_n = Indexing::ceil_div(n, block_n);
 
                 sycl::range<3> global(static_cast<size_t>(batch_size),
                                        static_cast<size_t>(n_tiles_m * wg_rows),
@@ -253,20 +256,22 @@ namespace SushiBLAS
                     h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
                     {
                         const int64_t batch_id = item.get_group(0);
-                        const int64_t row0 = item.get_group(1) * block_m;
-                        const int64_t col0 = item.get_group(2) * block_n;
+                        const int64_t row0 = Indexing::block_origin(
+                            static_cast<int64_t>(item.get_group(1)), block_m, 0);
+                        const int64_t col0 = Indexing::block_origin(
+                            static_cast<int64_t>(item.get_group(2)), block_n, 0);
                         const int64_t local_row = item.get_local_id(1);
                         const int64_t local_col = item.get_local_id(2);
-                        const int64_t local_linear = local_row * wg_cols + local_col;
+                        const int64_t local_linear =
+                            Indexing::row_major_offset(local_row, wg_cols, local_col);
                         constexpr int64_t wg_size = wg_rows * wg_cols;
 
                         const T* A = a + batch_id * str_a;
                         T* C = c + batch_id * str_c;
 
                         // A block wholly inside the unwanted triangle is skipped.
-                        const bool tile_wanted = upper
-                            ? (col0 + block_n - 1 >= row0)
-                            : (row0 + block_m - 1 >= col0);
+                        const bool tile_wanted =
+                            Indexing::block_touches_triangle(upper, row0, block_m, col0, block_n);
                         if (!tile_wanted)
                             return;
 
@@ -279,15 +284,19 @@ namespace SushiBLAS
                         {
                             for (int64_t idx = local_linear; idx < block_m * tile_k; idx += wg_size)
                             {
-                                const int64_t r = idx / tile_k;
-                                const int64_t kk = idx % tile_k;
+                                const Indexing::GridCoord staged =
+                                    Indexing::stage_coord(idx, block_m, tile_k, false);
+                                const int64_t r = staged.row;
+                                const int64_t kk = staged.col;
                                 tileA[idx] =
                                     Detail::load_operand(A, row0 + r, k0 + kk, n, k, a_access);
                             }
                             for (int64_t idx = local_linear; idx < tile_k * block_n; idx += wg_size)
                             {
-                                const int64_t kk = idx / block_n;
-                                const int64_t cc = idx % block_n;
+                                const Indexing::GridCoord staged =
+                                    Indexing::stage_coord(idx, tile_k, block_n, false);
+                                const int64_t kk = staged.row;
+                                const int64_t cc = staged.col;
                                 tileB[idx] = Conj::apply(
                                     Detail::load_operand(A, k0 + kk, col0 + cc, k, n, b_access));
                             }
@@ -298,9 +307,13 @@ namespace SushiBLAS
                             {
                                 T rega[item_rows], regb[item_cols];
                                 for (int64_t ii = 0; ii < item_rows; ++ii)
-                                    rega[ii] = tileA[(local_row * item_rows + ii) * tile_k + kk];
+                                    rega[ii] = tileA[Indexing::row_major_offset(
+                                        Indexing::block_origin(local_row, item_rows, ii),
+                                        tile_k, kk)];
                                 for (int64_t jj = 0; jj < item_cols; ++jj)
-                                    regb[jj] = tileB[kk * block_n + (local_col * item_cols + jj)];
+                                    regb[jj] = tileB[Indexing::row_major_offset(
+                                        kk, block_n,
+                                        Indexing::block_origin(local_col, item_cols, jj))];
                                 for (int64_t ii = 0; ii < item_rows; ++ii)
                                     for (int64_t jj = 0; jj < item_cols; ++jj)
                                         acc[ii][jj] += multiply(W(rega[ii]), W(regb[jj]));
@@ -311,24 +324,24 @@ namespace SushiBLAS
 
                         for (int64_t ii = 0; ii < item_rows; ++ii)
                         {
-                            const int64_t global_row = row0 + local_row * item_rows + ii;
+                            const int64_t global_row =
+                                row0 + Indexing::block_origin(local_row, item_rows, ii);
                             if (global_row >= n)
                                 continue;
                             for (int64_t jj = 0; jj < item_cols; ++jj)
                             {
-                                const int64_t global_col = col0 + local_col * item_cols + jj;
+                                const int64_t global_col =
+                                    col0 + Indexing::block_origin(local_col, item_cols, jj);
                                 if (global_col >= n)
                                     continue;
                                 // Upper keeps col >= row; lower keeps col <= row.
-                                if (upper ? (global_col < global_row) : (global_col > global_row))
+                                if (Indexing::outside_triangle(upper, global_row, global_col))
                                     continue;
 
                                 const int64_t c_idx = c_access.index(global_row, global_col);
                                 // A zero beta must not read the prior value of C.
-                                const W updated = (beta == Scalar(0))
-                                    ? W(multiply(WS(alpha), acc[ii][jj]))
-                                    : W(multiply(WS(alpha), acc[ii][jj]) +
-                                        multiply(WS(beta), W(C[c_idx])));
+                                const W updated = Indexing::blend_with_prior<W, WS>(
+                                    W(multiply(WS(alpha), acc[ii][jj])), beta, C[c_idx]);
                                 C[c_idx] = T((global_row == global_col) ? Conj::diagonal(updated)
                                                                         : updated);
                             }

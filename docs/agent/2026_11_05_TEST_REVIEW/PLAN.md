@@ -73,7 +73,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | H3 | Seam: `ScratchPool` block source port with a host adapter (RW-153), `Engine` host constructor, a host `RNGStream` path, `engine_fixture` `HostEngineTest` and a host `RecordingFixture`; `EngineContract` | H2 | done |
 | H4 | Bodies onto H2 in `engine/*` and `operations/elementwise`, `logic`, `nonlinear`, `random`, `reductions` | H2 | done |
 | H5 | Bodies onto H2 in `operations/blas`, `sparse`, `spatial`, `signal`, `blend`, `index`, `io`, `experimental` and `library` | H4 | done |
-| H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | running |
+| H6 | Index and tail math out of the SYCL launches of `kernels/*` into host-callable functions, rows `Small_`, one `Medium_` launch per family | H5 | todo (H6a to H6d done: spatial, blend, sparse, signal, blas_seam, blas; left: H6e linalg_kernels, random_kernels, packed_product_harness) |
 | H7 | RW-155, RW-156: `Engine` and `ScratchPool` hold no nullable runtime; `is_host()` and the throwing `runtime()` go; `RecordingGraph` and its 26 `RecordingGraph(engine)` callers take what they need, not an `Engine` | H6 | todo |
 | S1 | RW-150, RW-151: the LogicOps element functors and the RandomOps refusals as host-callable functions, their tests `Small_`, one `Medium_` launch per family | M41, M43, H7 | todo |
 | S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | todo |
@@ -85,6 +85,8 @@ writes each add. Nothing in a module job changes production code except a seam a
 M10, M39, M40, M43 and M44 are `todo` again: each left resize records at `Medium_` for a missing seam, which the owner's order of 2026-11-07 does not accept. The S job that builds the seam applies those records, and the M job turns `done` with it: S1 closes M43, S2 closes M40, S3 closes M10, S4 closes M39, S5 and S6 close M44.
 
 Owner order of 2026-11-07, from SushiSkills `docs/agent/2026_11_03_INDUSTRIAL_TESTING/SPEC.md` ("Rework" steps 3 to 5): the seams H1 to H6 come before the remaining triage. After them, the S jobs and the reopened M jobs move their logic tests onto the seams, and only then the remaining M jobs run. The counts by size per module are recorded in REPORT.md "Suite shape" before H1 and after the last job; the aim is 80% small, and a module below it is a refactoring finding.
+
+Stopped 2026-11-07 by owner order (lead layer closed). Done since 9758072f: H4, H5 (ac537a34), the SOLID review fixes of decision 32 (f3b19299), H6a to H6d. Left in order: H6e; H7 (RW-155, RW-156: the nullable runtime of Engine and ScratchPool and the 26 `RecordingGraph(engine)` callers, the coordinator's order before S1); S1 to S5; the reopened M10, M39, M40, M43, M44 on the host engine; the remaining M jobs; the suite-shape count after; the one build and test. For M25: the 38 `Medium_PackedMicroKernel` and `Medium_PackedPanel` tests are host-only and look `Small_`. For M24: `Medium_RowReduction.TheWindowsCoverAWholeRowOrOneTriangle` now repeats `Small_MatrixVectorIndex` rows. In blas_seam_kernels `sycl/level3/gemm.hpp`, the `Detail::` aliases of `GroupShape`, `group_shape` and `group_count` have no outside user left.
 
 ## Acceptance
 

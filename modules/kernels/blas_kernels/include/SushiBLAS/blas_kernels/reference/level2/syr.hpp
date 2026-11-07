@@ -36,6 +36,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 
 namespace SushiBLAS
 {
@@ -61,7 +62,7 @@ namespace SushiBLAS
 
                 auto A_ref = [&](int64_t r, int64_t c) -> T&
                 {
-                    return (layout == Core::Layout::RowMajor) ? a[r * lda + c] : a[r + c * lda];
+                    return a[Indexing::layout_offset(layout == Core::Layout::RowMajor, r, c, lda)];
                 };
                 const bool upper = (uplo == Core::Uplo::Upper);
 

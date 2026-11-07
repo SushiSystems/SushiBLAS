@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
 #include <SushiBLAS/blas_kernels/reference/level2/triangular_product.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -52,7 +53,8 @@ namespace SushiBLAS
                       int64_t n, int64_t k, const T* a, int64_t lda, T* x, int64_t incx)
             {
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool op_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                uplo == Core::Uplo::Upper);
                 const bool unit_diag = (diag == Core::Diag::Unit);
                 Detail::triangular_product(access, op_upper, unit_diag, n, a, x, incx);
             }

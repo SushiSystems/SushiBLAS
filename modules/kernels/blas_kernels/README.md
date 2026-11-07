@@ -9,6 +9,11 @@ It depends on `core`, `support` and `blas_seam_kernels`. Its headers are include
 | File | Declares |
 | --- | --- |
 | `blas.hpp` | Includes every BLAS kernel, reference and SYCL |
+| `blend_index.hpp` | `blend_with_prior`, the beta blend of an updated value with its prior value that the SYCL matrix-vector and rank-k kernels share, for the host and the device |
+| `matrix_vector_index.hpp` | The output and input lengths, the row contiguity, the underfill test, the band row length and the row windows of the matrix-vector kernels, for the host and the device |
+| `rank_update_index.hpp` | The layout offset, the work-item split and the triangle tests of the rank updates and rank-k updates, for the host and the device |
+| `rotm_index.hpp` | The ROTM identity flag and the pair transformation the reference and the SYCL ROTM share, for the host and the device |
+| `triangular_solve_index.hpp` | The effective triangle, the block walk, the trailing range and the stream split of the blocked triangular solves, for the host and the device |
 | `reference/level1/level1.hpp` | The reference kernels of the BLAS level 1 routines |
 | `reference/level1/rotg.hpp` | The reference kernel of ROTG |
 | `reference/level1/rotm.hpp` | The reference kernel of ROTM |

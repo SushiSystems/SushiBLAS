@@ -31,7 +31,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -39,6 +38,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
+#include <SushiBLAS/blas_kernels/matrix_vector_index.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/symmetric_product.hpp>
 
 namespace SushiBLAS
@@ -63,7 +63,7 @@ namespace SushiBLAS
             {
                 const BandAccess access =
                     triangle_band_access(layout, uplo, Core::Transpose::NoTrans, k, lda);
-                const int64_t longest_row = std::min(n, 2 * k + 1);
+                const int64_t longest_row = Indexing::band_row_length(n, k, k);
                 return Detail::symmetric_product<T, Conj>(queue, access, n, longest_row, alpha, a,
                                                           x, incx, beta, y, incy, deps);
             }

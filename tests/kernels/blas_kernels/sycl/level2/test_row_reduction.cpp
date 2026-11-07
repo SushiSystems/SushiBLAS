@@ -44,6 +44,7 @@ namespace SushiBLAS
     namespace Test
     {
         namespace Rows = Kernels::SYCL::Detail;
+        namespace Indexing = Kernels::Indexing;
 
         /// @brief The rows of the matrix the folds run over.
         constexpr int64_t K_ROWS = 6;
@@ -69,9 +70,9 @@ namespace SushiBLAS
 
         TEST(Medium_RowReduction, TheWindowsCoverAWholeRowOrOneTriangle)
         {
-            const Rows::RowWindow whole = Rows::WholeRow{K_COLUMNS}(3);
-            const Rows::RowWindow upper = Rows::TriangleRow{10, true}(3);
-            const Rows::RowWindow lower = Rows::TriangleRow{10, false}(3);
+            const Indexing::RowWindow whole = Indexing::WholeRow{K_COLUMNS}(3);
+            const Indexing::RowWindow upper = Indexing::TriangleRow{10, true}(3);
+            const Indexing::RowWindow lower = Indexing::TriangleRow{10, false}(3);
 
             EXPECT_EQ(whole.first, int64_t{0});
             EXPECT_EQ(whole.last, K_COLUMNS);
@@ -161,7 +162,7 @@ namespace SushiBLAS
             queue().submit([&](sycl::handler& h)
             {
                 Rows::reduce_row_windows_by_group<double>(
-                    h, order, K_WIDTH, Rows::TriangleRow{order, true},
+                    h, order, K_WIDTH, Indexing::TriangleRow{order, true},
                     [](int64_t, int64_t) { return 1.0; },
                     [=](int64_t row, double sum) { out[row] = sum; });
             }).wait();

@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/blas_kernels/rotm_index.hpp>
 
 namespace SushiBLAS
 {
@@ -61,32 +62,15 @@ namespace SushiBLAS
                     Launch::indexed(h, queue, static_cast<std::size_t>(n), [=](std::size_t item)
                     {
                         const W flag = W(param[0]);
-                        if (flag == W(-2))
+                        if (Indexing::rotm_is_identity(flag))
                             return;
 
                         const int64_t i = static_cast<int64_t>(item);
-                        const W h11 = W(param[1]);
-                        const W h21 = W(param[2]);
-                        const W h12 = W(param[3]);
-                        const W h22 = W(param[4]);
-                        const W w = W(x[i * incx]);
-                        const W z = W(y[i * incy]);
-
-                        if (flag < W(0))
-                        {
-                            x[i * incx] = T(w * h11 + z * h12);
-                            y[i * incy] = T(w * h21 + z * h22);
-                        }
-                        else if (flag == W(0))
-                        {
-                            x[i * incx] = T(w + z * h12);
-                            y[i * incy] = T(w * h21 + z);
-                        }
-                        else
-                        {
-                            x[i * incx] = T(w * h11 + z);
-                            y[i * incy] = T(-w + z * h22);
-                        }
+                        const Indexing::RotmPair<W> rotated = Indexing::rotm_apply(
+                            flag, W(param[1]), W(param[2]), W(param[3]), W(param[4]),
+                            W(x[i * incx]), W(y[i * incy]));
+                        x[i * incx] = T(rotated.x);
+                        y[i * incy] = T(rotated.y);
                     });
                 });
             }

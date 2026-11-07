@@ -63,3 +63,8 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/level3/test_triangular_system.cpp` | Tests the decoding of a TRSM call into the steps and vectors of one substitution |
 | `sycl/level3/test_trsm.cpp` | Tests the blocked SYCL trsm against the reference trsm on the host device |
 | `test_blas.cpp` | Tests that blas.hpp alone reaches a reference and a SYCL kernel of each BLAS level |
+| `test_blend_index.cpp` | Tests the beta blend of an updated value with its prior value, real and complex, against hand-derived values |
+| `test_matrix_vector_index.cpp` | Tests the extent, row-shape and row-window math of the matrix-vector kernels against hand-derived values |
+| `test_rank_update_index.cpp` | Tests the layout offset, work-item split and triangle tests of the rank updates against hand-derived values and an element cover |
+| `test_rotm_index.cpp` | Tests the ROTM flag test and pair transformation against hand-derived values |
+| `test_triangular_solve_index.cpp` | Tests the block walk, trailing range and stream split of the blocked triangular solves against hand-derived values and a cover check |

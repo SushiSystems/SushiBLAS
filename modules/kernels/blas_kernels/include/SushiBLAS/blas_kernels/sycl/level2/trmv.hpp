@@ -43,6 +43,8 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/matrix_vector_index.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/vector_snapshot.hpp>
 
@@ -100,14 +102,14 @@ namespace SushiBLAS
                 struct TrmvRow
                 {
                     TrmvTerm<T> term;    /**< The term of one column. */
-                    TriangleRow columns; /**< The columns a row holds. */
+                    Indexing::TriangleRow columns; /**< The columns a row holds. */
                     TrmvStore<T> store;  /**< Where a finished row goes. */
 
                     /** @brief Computes and stores row index. */
                     void operator()(std::size_t index) const
                     {
                         const int64_t row = static_cast<int64_t>(index);
-                        const RowWindow window = columns(row);
+                        const Indexing::RowWindow window = columns(row);
 
                         Accumulator<T> sum(0);
                         for (int64_t k = window.first; k < window.last; ++k)
@@ -134,11 +136,12 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool eff_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                 uplo == Core::Uplo::Upper);
                 const Detail::VectorSnapshot<T> snapshot{x, incx, work};
                 const Detail::TrmvTerm<T> term{operand_access(layout, trans, lda), a, work,
                                                diag == Core::Diag::Unit};
-                const Detail::TriangleRow columns{n, eff_upper};
+                const Indexing::TriangleRow columns{n, eff_upper};
                 const Detail::TrmvStore<T> store{x, incx};
                 const std::size_t rows = static_cast<std::size_t>(n);
 
@@ -174,8 +177,8 @@ namespace SushiBLAS
                                            T* work, const std::vector<sycl::event>& deps)
             {
                 // A row of op(A) is contiguous exactly when GEMV's row is; see kernels/README.md.
-                const bool row_contiguous =
-                    (layout == Core::Layout::RowMajor) != Core::is_transposed(trans);
+                const bool row_contiguous = Indexing::rows_are_contiguous(
+                    layout == Core::Layout::RowMajor, Core::is_transposed(trans));
                 const std::size_t width = row_contiguous
                     ? Detail::row_reduction_width(Device::profile_for(queue), n)
                     : std::size_t{0};

@@ -41,6 +41,7 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/triangular_solve.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -64,7 +65,8 @@ namespace SushiBLAS
                                            const std::vector<sycl::event>& deps)
             {
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool op_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                uplo == Core::Uplo::Upper);
                 const bool unit_diag = (diag == Core::Diag::Unit);
                 return Detail::triangular_solve(queue, plan, access, op_upper, unit_diag, n, k, a,
                                                 x, incx, work, deps);

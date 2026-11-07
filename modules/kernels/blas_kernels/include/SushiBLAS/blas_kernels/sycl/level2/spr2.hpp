@@ -40,6 +40,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/syr2.hpp>
 
 namespace SushiBLAS
@@ -75,8 +76,11 @@ namespace SushiBLAS
                         sycl::range<2>(static_cast<std::size_t>(n), static_cast<std::size_t>(n)),
                         [=](sycl::id<2> idx)
                         {
-                            const int64_t i = static_cast<int64_t>(by_rows ? idx[0] : idx[1]);
-                            const int64_t j = static_cast<int64_t>(by_rows ? idx[1] : idx[0]);
+                            const Indexing::GridCoord at = Indexing::element_coord(
+                                static_cast<int64_t>(idx[0]), static_cast<int64_t>(idx[1]),
+                                !by_rows);
+                            const int64_t i = at.row;
+                            const int64_t j = at.col;
                             if (!access.holds(i, j))
                                 return;
 

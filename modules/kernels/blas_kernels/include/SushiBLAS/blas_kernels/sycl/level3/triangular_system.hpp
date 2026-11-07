@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -66,7 +67,8 @@ namespace SushiBLAS
                 Core::Diag diag, int64_t m, int64_t n, int64_t lda, int64_t ldb) noexcept
             {
                 const bool left = (side == Core::Side::Left);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool op_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
                 const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
 

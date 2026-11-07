@@ -38,6 +38,7 @@
 #include <SushiBLAS/substitution/running_solution.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/triangular_solve_index.hpp>
 
 namespace SushiBLAS
 {
@@ -59,7 +60,8 @@ namespace SushiBLAS
                 using RW = ReferenceAccumulator<T>;
                 const bool left = (side == Core::Side::Left);
                 const bool unit_diag = (diag == Core::Diag::Unit);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool op_upper = Indexing::effective_upper(Core::is_transposed(trans),
+                                                                uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
                 const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
 

@@ -39,6 +39,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 
 namespace SushiBLAS
 {
@@ -71,10 +72,12 @@ namespace SushiBLAS
                                                                : sycl::range<2>(rows, cols);
                     h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
-                        const int64_t i = static_cast<int64_t>(by_columns ? idx[1] : idx[0]);
-                        const int64_t j = static_cast<int64_t>(by_columns ? idx[0] : idx[1]);
-                        T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
-                                                                     : a[i + j * lda];
+                        const Indexing::GridCoord at = Indexing::element_coord(
+                            static_cast<int64_t>(idx[0]), static_cast<int64_t>(idx[1]), by_columns);
+                        const int64_t i = at.row;
+                        const int64_t j = at.col;
+                        T& ref = a[Indexing::layout_offset(layout == Core::Layout::RowMajor, i,
+                                                           j, lda)];
                         ref = T(W(ref) + multiply(multiply(W(alpha), W(x[i * incx])),
                                                   Conj::apply(W(y[j * incy]))));
                     });

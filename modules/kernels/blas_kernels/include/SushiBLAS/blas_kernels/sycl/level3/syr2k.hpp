@@ -45,6 +45,10 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
+#include <SushiBLAS/blas_seam_kernels/gemm_index.hpp>
+#include <SushiBLAS/blas_kernels/blend_index.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 
 namespace SushiBLAS
@@ -159,8 +163,8 @@ namespace SushiBLAS
                 const OperandAccess c_access =
                     operand_access(layout, Core::Transpose::NoTrans, ldc);
 
-                const int64_t row_groups = Detail::group_count(n, block_m);
-                const int64_t col_groups = Detail::group_count(n, block_n);
+                const int64_t row_groups = Indexing::group_count(n, block_m);
+                const int64_t col_groups = Indexing::group_count(n, block_n);
 
                 const sycl::range<3> global(static_cast<std::size_t>(batch_size),
                                             static_cast<std::size_t>(row_groups * wg_rows),
@@ -182,19 +186,22 @@ namespace SushiBLAS
                     h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
                     {
                         const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
-                        const int64_t row0 = static_cast<int64_t>(item.get_group(1)) * block_m;
-                        const int64_t col0 = static_cast<int64_t>(item.get_group(2)) * block_n;
+                        const int64_t row0 = Indexing::block_origin(
+                            static_cast<int64_t>(item.get_group(1)), block_m, 0);
+                        const int64_t col0 = Indexing::block_origin(
+                            static_cast<int64_t>(item.get_group(2)), block_n, 0);
                         const int64_t local_row = static_cast<int64_t>(item.get_local_id(1));
                         const int64_t local_col = static_cast<int64_t>(item.get_local_id(2));
-                        const int64_t local_linear = local_row * wg_cols + local_col;
+                        const int64_t local_linear =
+                            Indexing::row_major_offset(local_row, wg_cols, local_col);
 
                         const T* A = a + batch_id * str_a;
                         const T* B = b + batch_id * str_b;
                         T* C = c + batch_id * str_c;
 
                         // Every item of a group shares this test, so none waits at a barrier alone.
-                        const bool tile_wanted = upper ? (col0 + block_n - 1 >= row0)
-                                                       : (row0 + block_m - 1 >= col0);
+                        const bool tile_wanted =
+                            Indexing::block_touches_triangle(upper, row0, block_m, col0, block_n);
                         if (!tile_wanted)
                             return;
 
@@ -214,8 +221,10 @@ namespace SushiBLAS
                             for (int64_t idx = local_linear; idx < block_m * tile_k;
                                  idx += wg_items)
                             {
-                                const int64_t r = idx / tile_k;
-                                const int64_t kk = idx % tile_k;
+                                const Indexing::GridCoord staged =
+                                    Indexing::stage_coord(idx, block_m, tile_k, false);
+                                const int64_t r = staged.row;
+                                const int64_t kk = staged.col;
                                 tile_a_rows[idx] =
                                     Detail::load_operand(A, row0 + r, k0 + kk, n, k, a_rows);
                                 tile_b_rows[idx] =
@@ -224,8 +233,10 @@ namespace SushiBLAS
                             for (int64_t idx = local_linear; idx < tile_k * block_n;
                                  idx += wg_items)
                             {
-                                const int64_t kk = idx / block_n;
-                                const int64_t cc = idx % block_n;
+                                const Indexing::GridCoord staged =
+                                    Indexing::stage_coord(idx, tile_k, block_n, false);
+                                const int64_t kk = staged.row;
+                                const int64_t cc = staged.col;
                                 tile_a_cols[idx] = Conj::apply(
                                     Detail::load_operand(A, k0 + kk, col0 + cc, k, n, a_cols));
                                 tile_b_cols[idx] = Conj::apply(
@@ -243,13 +254,17 @@ namespace SushiBLAS
                                 T col_b[item_cols];
                                 for (int64_t ii = 0; ii < item_rows; ++ii)
                                 {
-                                    const int64_t at = (local_row * item_rows + ii) * tile_k + kk;
+                                    const int64_t at = Indexing::row_major_offset(
+                                        Indexing::block_origin(local_row, item_rows, ii),
+                                        tile_k, kk);
                                     row_a[ii] = tile_a_rows[at];
                                     row_b[ii] = tile_b_rows[at];
                                 }
                                 for (int64_t jj = 0; jj < item_cols; ++jj)
                                 {
-                                    const int64_t at = kk * block_n + (local_col * item_cols + jj);
+                                    const int64_t at = Indexing::row_major_offset(
+                                        kk, block_n,
+                                        Indexing::block_origin(local_col, item_cols, jj));
                                     col_a[jj] = tile_a_cols[at];
                                     col_b[jj] = tile_b_cols[at];
                                 }
@@ -268,16 +283,18 @@ namespace SushiBLAS
 
                         for (int64_t ii = 0; ii < item_rows; ++ii)
                         {
-                            const int64_t global_row = row0 + local_row * item_rows + ii;
+                            const int64_t global_row =
+                                row0 + Indexing::block_origin(local_row, item_rows, ii);
                             if (global_row >= n)
                                 continue;
 
                             for (int64_t jj = 0; jj < item_cols; ++jj)
                             {
-                                const int64_t global_col = col0 + local_col * item_cols + jj;
+                                const int64_t global_col =
+                                    col0 + Indexing::block_origin(local_col, item_cols, jj);
                                 if (global_col >= n)
                                     continue;
-                                if (upper ? (global_col < global_row) : (global_col > global_row))
+                                if (Indexing::outside_triangle(upper, global_row, global_col))
                                     continue;
 
                                 const int64_t c_idx = c_access.index(global_row, global_col);
@@ -286,9 +303,8 @@ namespace SushiBLAS
                                     multiply(Conj::apply(W(alpha)), acc_ba[ii][jj]);
 
                                 // A zero beta must not read the prior value of C.
-                                const W updated = (beta == Scalar(0))
-                                    ? scaled
-                                    : W(scaled + multiply(WS(beta), W(C[c_idx])));
+                                const W updated =
+                                    Indexing::blend_with_prior<W, WS>(scaled, beta, C[c_idx]);
                                 C[c_idx] = T((global_row == global_col) ? Conj::diagonal(updated)
                                                                         : updated);
                             }

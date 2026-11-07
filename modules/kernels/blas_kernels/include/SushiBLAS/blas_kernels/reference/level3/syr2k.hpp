@@ -36,6 +36,7 @@
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_kernels/rank_update_index.hpp>
 
 namespace SushiBLAS
 {
@@ -68,7 +69,7 @@ namespace SushiBLAS
                 {
                     for (int64_t j = 0; j < n; ++j)
                     {
-                        if ((upper && j < i) || (!upper && j > i))
+                        if (Indexing::outside_triangle(upper, i, j))
                             continue;
 
                         ReferenceSum<T> first;
