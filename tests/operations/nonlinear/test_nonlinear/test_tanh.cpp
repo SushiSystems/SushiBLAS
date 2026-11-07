@@ -37,7 +37,7 @@ using namespace SushiBLAS::Test;
 
 class Medium_TanhTest : public SushiBLASTest {};
 
-TEST_F(Medium_TanhTest, Forward) 
+TEST_F(Medium_TanhTest, ForwardIsTheHyperbolicTangent) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, -1.0f, 2.0f});
@@ -48,7 +48,7 @@ TEST_F(Medium_TanhTest, Forward)
     expect_tensor(t, {0.0f, 0.761594f, -0.761594f, 0.964028f});
 }
 
-TEST_F(Medium_TanhTest, Backward) 
+TEST_F(Medium_TanhTest, BackwardIsTheGradientTimesOneMinusYSquared) 
 {
     auto dy = engine->create_tensor({4});
     auto y = engine->create_tensor({4});

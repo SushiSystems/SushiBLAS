@@ -19,12 +19,19 @@ exact and a bit-for-bit match proves the order, not the rounding. The expectatio
 written beside the test, and a second test compares the `ForceReference` run to it, so the
 `ForceSYCL` comparison does not rest on two runs that agree by sharing a defect.
 
-The late-count tests record two nodes: one writes the count, one marks indices. The count tensor
-starts at capacity plus one, so a task that read it before the first node wrote it would mark
-everything. A count of 0 and a count equal to the capacity run on both paths. A count above the
-capacity and a negative count fail the run on `ForceSYCL`, where the runtime's dynamic node reports
-them; the host body's refusal is tested in `test_index_task.cpp`. The ordering cases assert on
-`dependency_count`, not on a value, on both paths. The determinism cases read
-`PlanNode::determinism` from the runtime's plan, for a fixed and a late node, and a node that
-states no class reads `Unstated`. A fixed count of zero over an update that overlaps a read is
-refused, so a declaration error does not hide behind an empty count.
+The late-count tests are tables of rows, one test body per promise. A row names the execution
+mode, the type of the count tensor (`Int32` or `UInt32`), who sets the count (a recorded node or
+the host) and its value. The count tensor starts at capacity plus one when a node writes it, so a
+task that read it before the node wrote it would mark everything. A count of 0 and a count equal
+to the capacity run on both paths. A count above the capacity, a negative count and a count above
+a capacity of zero fail the run on `ForceSYCL`, where the runtime's dynamic node reports them; the
+host body's refusal is tested in `test_index_task.cpp`. The refused count tensors (a float or an
+`Int64` count in host memory, an `Int32` or `UInt32` count in shared memory) are one table over
+both modes, and the overlapping declarations, also at a count of zero, are another. The ordering
+cases assert on `dependency_count`, not on a value; the node's name and operation id, its reads
+and writes and the order around an update are one test each. The determinism case reads
+`PlanNode::determinism` from the runtime's plan, for a fixed and a late node; the default
+`Unstated` class is tested in `tests/engine/engine/test_operation_options.cpp`, and so is the
+refusal of an empty name. A fixed count of zero over an update that overlaps a read is refused, so
+a declaration error does not hide behind an empty count. The tests that build a `GraphProbe`, or
+that record on the fixture's engine, stay `Medium_`: both reach the process-wide runtime.

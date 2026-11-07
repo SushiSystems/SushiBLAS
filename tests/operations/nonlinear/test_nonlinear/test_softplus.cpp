@@ -37,7 +37,7 @@ using namespace SushiBLAS::Test;
 
 class Medium_SoftplusTest : public SushiBLASTest {};
 
-TEST_F(Medium_SoftplusTest, Forward) 
+TEST_F(Medium_SoftplusTest, ForwardIsLogOnePlusExpX) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
@@ -48,7 +48,7 @@ TEST_F(Medium_SoftplusTest, Forward)
     expect_tensor(t, {0.313262f, 0.693147f, 1.313262f, 2.126928f});
 }
 
-TEST_F(Medium_SoftplusTest, Backward) 
+TEST_F(Medium_SoftplusTest, BackwardIsTheGradientTimesSigmoidOfX) 
 {
     auto dy = engine->create_tensor({4});
     auto x = engine->create_tensor({4});

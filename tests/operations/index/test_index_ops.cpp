@@ -27,6 +27,7 @@
  */
 
 #include <array>
+#include <string>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -38,6 +39,7 @@
 #include <SushiBLAS/index/index_ops.hpp>
 #include <SushiRuntime/core/determinism.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -126,6 +128,191 @@ namespace SushiBLAS
 
                 return x;
             }
+
+            /// @brief Returns the marks of K_CAPACITY indices when the first count of them ran.
+            std::vector<float> marks_of_the_first(std::int64_t count)
+            {
+                std::vector<float> marks(static_cast<std::size_t>(K_CAPACITY), 0.0f);
+                for (std::int64_t i = 0; i < count; ++i)
+                    marks[static_cast<std::size_t>(i)] = 1.0f;
+                return marks;
+            }
+
+            /// @brief Returns the name a test instance carries for an execution mode.
+            std::string mode_name(ExecutionMode mode)
+            {
+                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSYCL";
+            }
+
+            /// @brief Says who sets the count tensor a late-count task reads.
+            enum class CountSource
+            {
+                WrittenByANode, ///< A recorded node writes it before the task runs.
+                WrittenOnTheHost ///< The caller stores it before the graph runs.
+            };
+
+            /// @brief One late count: the mode, the count tensor's type and source, and its value.
+            struct LateCountRow
+            {
+                const char* name;
+                ExecutionMode mode;
+                Core::DataType type;
+                CountSource source;
+                std::int32_t written;
+            };
+
+            /// @brief Returns the late counts that run exactly the indices below the count.
+            std::vector<LateCountRow> late_count_rows()
+            {
+                return {
+                    {"ReferenceInt32FromANode", ExecutionMode::ForceReference, Core::DataType::Int32,
+                     CountSource::WrittenByANode, K_WRITTEN},
+                    {"SyclInt32FromANode", ExecutionMode::ForceSYCL, Core::DataType::Int32,
+                     CountSource::WrittenByANode, K_WRITTEN},
+                    {"ReferenceUInt32FromANode", ExecutionMode::ForceReference,
+                     Core::DataType::UInt32, CountSource::WrittenByANode, K_WRITTEN},
+                    {"SyclUInt32FromANode", ExecutionMode::ForceSYCL, Core::DataType::UInt32,
+                     CountSource::WrittenByANode, K_WRITTEN},
+                    {"SyclUInt32FromTheHost", ExecutionMode::ForceSYCL, Core::DataType::UInt32,
+                     CountSource::WrittenOnTheHost, K_WRITTEN},
+                    {"ReferenceZero", ExecutionMode::ForceReference, Core::DataType::Int32,
+                     CountSource::WrittenByANode, 0},
+                    {"SyclZero", ExecutionMode::ForceSYCL, Core::DataType::Int32,
+                     CountSource::WrittenByANode, 0},
+                    {"ReferenceTheCapacity", ExecutionMode::ForceReference, Core::DataType::Int32,
+                     CountSource::WrittenByANode, static_cast<std::int32_t>(K_CAPACITY)},
+                    {"SyclTheCapacity", ExecutionMode::ForceSYCL, Core::DataType::Int32,
+                     CountSource::WrittenByANode, static_cast<std::int32_t>(K_CAPACITY)}};
+            }
+
+            /// @brief One count the runtime refuses to run: the capacity and the count read.
+            struct OutOfRangeRow
+            {
+                const char* name;
+                std::size_t capacity;
+                std::int32_t written;
+            };
+
+            /// @brief Returns the counts outside [0, capacity].
+            std::vector<OutOfRangeRow> out_of_range_rows()
+            {
+                return {{"AboveTheCapacity", static_cast<std::size_t>(K_CAPACITY),
+                         static_cast<std::int32_t>(K_CAPACITY + 5)},
+                        {"Negative", static_cast<std::size_t>(K_CAPACITY), std::int32_t{-3}},
+                        {"AboveACapacityOfZero", std::size_t{0}, std::int32_t{2}}};
+            }
+
+            /// @brief One count tensor for_each refuses: where it lives and what it holds.
+            struct CountRefusalRow
+            {
+                std::string name;
+                ExecutionMode mode;
+                Core::DataType type;
+                SushiRuntime::Residency residency;
+                std::size_t capacity;
+            };
+
+            /// @brief Returns the refused count tensors: each in both modes, then a float count
+            ///        at a capacity of zero.
+            std::vector<CountRefusalRow> count_refusal_rows()
+            {
+                struct Refused
+                {
+                    const char* name;
+                    Core::DataType type;
+                    SushiRuntime::Residency residency;
+                };
+                const std::array<Refused, 4> refused = {
+                    {{"FloatInHostMemory", Core::DataType::Float32, SushiRuntime::Residency::Host},
+                     {"Int64InHostMemory", Core::DataType::Int64, SushiRuntime::Residency::Host},
+                     {"Int32InSharedMemory", Core::DataType::Int32, SushiRuntime::Residency::Shared},
+                     {"UInt32InSharedMemory", Core::DataType::UInt32,
+                      SushiRuntime::Residency::Shared}}};
+
+                std::vector<CountRefusalRow> rows;
+                for (const Refused& kind : refused)
+                {
+                    for (const ExecutionMode mode : K_BOTH_MODES)
+                        rows.push_back({std::string(kind.name) + "Under" + mode_name(mode), mode,
+                                        kind.type, kind.residency, std::size_t{4}});
+                }
+                rows.push_back({"FloatInHostMemoryAtACapacityOfZero", ExecutionMode::ForceSYCL,
+                                Core::DataType::Float32, SushiRuntime::Residency::Host,
+                                std::size_t{0}});
+                return rows;
+            }
+
+            /// @brief The operands an update declares twice.
+            enum class Overlap
+            {
+                ReadsWhatItUpdates,        ///< A read of the tensor the task updates.
+                WritesWhatItUpdates,       ///< A write of the tensor the task updates.
+                WritesAViewOfWhatItUpdates, ///< A write of a view into the updated tensor.
+                UpdatesAViewOfWhatItUpdates ///< A second update of a view into the tensor.
+            };
+
+            /// @brief One overlapping declaration and the count the task is recorded with.
+            struct OverlapRow
+            {
+                const char* name;
+                Overlap overlap;
+                std::size_t count;
+            };
+
+            /// @brief Returns the overlapping declarations, and one at a count of zero.
+            std::vector<OverlapRow> overlap_rows()
+            {
+                return {{"ReadOfTheUpdatedTensor", Overlap::ReadsWhatItUpdates, 4},
+                        {"WriteOfTheUpdatedTensor", Overlap::WritesWhatItUpdates, 4},
+                        {"WriteOfAViewOfTheUpdatedTensor", Overlap::WritesAViewOfWhatItUpdates, 2},
+                        {"UpdateOfAViewOfTheUpdatedTensor", Overlap::UpdatesAViewOfWhatItUpdates, 2},
+                        {"ReadOfTheUpdatedTensorAtACountOfZero", Overlap::ReadsWhatItUpdates, 0}};
+            }
+
+            /// @brief Records one for_each whose operands overlap as the row says.
+            void record_overlap(IndexOps& index, const OverlapRow& row, Tensor& x,
+                                Tensor& head)
+            {
+                const OperationOptions options{"overlap", SushiRuntime::Determinism::Bitwise};
+                switch (row.overlap)
+                {
+                    case Overlap::ReadsWhatItUpdates:
+                        index.for_each(row.count,
+                                       Dispatch::bind_updates(
+                                           Dispatch::bind_reads(
+                                               [](std::size_t, const float*, float*) {},
+                                               Dispatch::read_as<float>(x)),
+                                           Dispatch::update_as<float>(x)),
+                                       options);
+                        break;
+                    case Overlap::WritesWhatItUpdates:
+                        index.for_each(row.count,
+                                       Dispatch::bind_writes(
+                                           Dispatch::bind_updates(
+                                               [](std::size_t, float*, float*) {},
+                                               Dispatch::update_as<float>(x)),
+                                           Dispatch::write_as<float>(x)),
+                                       options);
+                        break;
+                    case Overlap::WritesAViewOfWhatItUpdates:
+                        index.for_each(row.count,
+                                       Dispatch::bind_writes(
+                                           Dispatch::bind_updates(
+                                               [](std::size_t, float*, float*) {},
+                                               Dispatch::update_as<float>(x)),
+                                           Dispatch::write_as<float>(head)),
+                                       options);
+                        break;
+                    case Overlap::UpdatesAViewOfWhatItUpdates:
+                        index.for_each(row.count,
+                                       Dispatch::bind_updates(
+                                           [](std::size_t, float*, float*) {},
+                                           Dispatch::update_as<float>(x),
+                                           Dispatch::update_as<float>(head)),
+                                       options);
+                        break;
+                }
+            }
         } // namespace
 
         /** @brief Gives each test the fixture's engine and the per-index view over its recorder. */
@@ -189,30 +376,37 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Records a node that writes written into a count tensor of Count, then a
-                 *        task over K_CAPACITY indices that marks index i with 1, runs both under
-                 *        mode and returns the marks.
+                 * @brief Records a count tensor of Count and a task over K_CAPACITY indices that
+                 *        marks index i with 1, runs them under mode and returns the marks.
                  * @tparam Count The element type of the count tensor: std::int32_t or std::uint32_t.
+                 * @param source Whether a recorded node writes written into the count or the host
+                 *        stores it before the run.
                  */
                 template<typename Count>
-                std::vector<float> marks_under_count(ExecutionMode mode, Count written)
+                std::vector<float> marks_under_count(ExecutionMode mode, Count written,
+                                                     CountSource source)
                 {
                     set_mode(mode);
                     IndexOps index(recorder());
 
-                    Tensor count = engine->create_tensor({1}, Detail::HostDataType<Count>::K_VALUE,
+                    Tensor count = engine->create_tensor({1}, ::SushiBLAS::Detail::HostDataType<Count>::K_VALUE,
                                                          SushiRuntime::Residency::Host);
-                    count.data_as<Count>()[0] = static_cast<Count>(K_CAPACITY + 1);
+                    count.data_as<Count>()[0] = source == CountSource::WrittenByANode
+                                                    ? static_cast<Count>(K_CAPACITY + 1)
+                                                    : written;
                     Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
                     for (std::int64_t i = 0; i < K_CAPACITY; ++i)
                         marks.data_as<float>()[i] = 0.0f;
 
-                    index.for_each(
-                        1,
-                        Dispatch::bind_writes(
-                            [written](std::size_t, Count* slot) { slot[0] = written; },
-                            Dispatch::write_as<Count>(count)),
-                        OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
+                    if (source == CountSource::WrittenByANode)
+                    {
+                        index.for_each(
+                            1,
+                            Dispatch::bind_writes(
+                                [written](std::size_t, Count* slot) { slot[0] = written; },
+                                Dispatch::write_as<Count>(count)),
+                            OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
+                    }
 
                     index.for_each(
                         static_cast<std::size_t>(K_CAPACITY), count,
@@ -225,10 +419,48 @@ namespace SushiBLAS
                     return read_tensor<float>(marks);
                 }
 
-                /** @brief Runs marks_under_count over an INT32 count. */
-                std::vector<float> marks_under(ExecutionMode mode, std::int32_t written)
+                /** @brief Runs marks_under_count over the count type and source the row names. */
+                std::vector<float> marks_under(const LateCountRow& row)
                 {
-                    return marks_under_count<std::int32_t>(mode, written);
+                    if (row.type == Core::DataType::UInt32)
+                    {
+                        return marks_under_count<std::uint32_t>(
+                            row.mode, static_cast<std::uint32_t>(row.written), row.source);
+                    }
+                    return marks_under_count<std::int32_t>(row.mode, row.written, row.source);
+                }
+
+                /**
+                 * @brief Records a late for_each over count and marks through recorder, then lets
+                 *        the recorder go before the graph runs.
+                 */
+                void record_late_for_each_and_drop_its_recorder(SushiRuntime::Graph& graph,
+                                                                ScratchPool& scratch_pool,
+                                                                LateCountHold& late_counts,
+                                                                const Tensor& count,
+                                                                Tensor& marks)
+                {
+                    TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts,
+                                          ExecutionMode::ForceSYCL);
+                    IndexOps(recorder).for_each(
+                        static_cast<std::size_t>(K_CAPACITY), count,
+                        Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                              Dispatch::write_as<float>(marks)),
+                        OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
+                }
+
+                /** @brief Stores live in count, clears marks, runs graph once and returns the marks. */
+                std::vector<float> run_over_live_count(SushiRuntime::Graph& graph, Tensor& count,
+                                                       Tensor& marks, std::int32_t live)
+                {
+                    count.data_as<std::int32_t>()[0] = live;
+                    for (std::int64_t i = 0; i < K_CAPACITY; ++i)
+                        marks.data_as<float>()[i] = 0.0f;
+
+                    SushiRuntime::RunReport report;
+                    const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+                    EXPECT_TRUE(ran) << "run over a count of " << live;
+                    return read_tensor<float>(marks);
                 }
         };
 
@@ -247,134 +479,6 @@ namespace SushiBLAS
             EXPECT_EQ(bits_of(by_reference), bits_of(scattered_on_the_host()));
         }
 
-        TEST_F(Medium_IndexOps, ALateCountRunsOnlyTheCountAPreviousNodeWrote)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                const std::vector<float> marks = marks_under(mode, K_WRITTEN);
-
-                for (std::int64_t i = 0; i < K_CAPACITY; ++i)
-                    EXPECT_EQ(marks[static_cast<std::size_t>(i)], i < K_WRITTEN ? 1.0f : 0.0f)
-                        << "index " << i;
-            }
-        }
-
-        TEST_F(Medium_IndexOps, ALateCountOfTypeUInt32RunsOnlyTheCountAPreviousNodeWrote)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                const std::vector<float> marks =
-                    marks_under_count<std::uint32_t>(mode, static_cast<std::uint32_t>(K_WRITTEN));
-
-                for (std::int64_t i = 0; i < K_CAPACITY; ++i)
-                    EXPECT_EQ(marks[static_cast<std::size_t>(i)], i < K_WRITTEN ? 1.0f : 0.0f)
-                        << "index " << i;
-            }
-        }
-
-        TEST_F(Medium_IndexOps, ALateCountOfTypeUInt32WrittenOnTheHostIsRead)
-        {
-            Tensor count = engine->create_tensor({1}, Core::DataType::UInt32,
-                                                 SushiRuntime::Residency::Host);
-            count.data_as<std::uint32_t>()[0] = static_cast<std::uint32_t>(K_WRITTEN);
-            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
-            for (std::int64_t i = 0; i < K_CAPACITY; ++i)
-                marks.data_as<float>()[i] = 0.0f;
-
-            set_mode(ExecutionMode::ForceSYCL);
-            IndexOps(recorder()).for_each(
-                static_cast<std::size_t>(K_CAPACITY), count,
-                Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
-                                      Dispatch::write_as<float>(marks)),
-                OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
-
-            EXPECT_TRUE(recording->run_succeeds());
-            EXPECT_EQ(marks.data_as<float>()[K_WRITTEN - 1], 1.0f);
-            EXPECT_EQ(marks.data_as<float>()[K_WRITTEN], 0.0f);
-        }
-
-        TEST_F(Medium_IndexOps, ALateCountOfZeroRunsNothing)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                const std::vector<float> marks = marks_under(mode, 0);
-
-                for (const float mark : marks)
-                    EXPECT_EQ(mark, 0.0f);
-            }
-        }
-
-        TEST_F(Medium_IndexOps, ALateCountOfTheCapacityRunsEveryIndex)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                const std::vector<float> marks =
-                    marks_under(mode, static_cast<std::int32_t>(K_CAPACITY));
-
-                for (const float mark : marks)
-                    EXPECT_EQ(mark, 1.0f);
-            }
-        }
-
-        TEST_F(Medium_IndexOps, Regression_ALateCountAboveACapacityOfZeroFailsTheRun)
-        {
-            set_mode(ExecutionMode::ForceSYCL);
-            IndexOps index(recorder());
-            Tensor count =
-                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Host);
-            count.data_as<std::int32_t>()[0] = 2;
-            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
-
-            index.for_each(std::size_t{0}, count,
-                           Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
-                                                 Dispatch::write_as<float>(marks)),
-                           OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
-
-            EXPECT_FALSE(recording->run_succeeds());
-        }
-
-        TEST_F(Medium_IndexOps, Regression_ALateCountOfAWrongTypeIsRefusedAtACapacityOfZero)
-        {
-            set_mode(ExecutionMode::ForceSYCL);
-            IndexOps index(recorder());
-            Tensor count =
-                engine->create_tensor({1}, Core::DataType::Float32, SushiRuntime::Residency::Host);
-            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
-
-            EXPECT_THROW(
-                index.for_each(std::size_t{0}, count,
-                               Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
-                                                     Dispatch::write_as<float>(marks)),
-                               OperationOptions{"mark", SushiRuntime::Determinism::Bitwise}),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_IndexOps, ALateCountOutsideTheCapacityFailsTheRun)
-        {
-            for (const std::int32_t written :
-                 {static_cast<std::int32_t>(K_CAPACITY + 5), std::int32_t{-3}})
-            {
-                set_mode(ExecutionMode::ForceSYCL);
-                IndexOps index(recorder());
-                Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
-                                                     SushiRuntime::Residency::Host);
-                count.data_as<std::int32_t>()[0] = written;
-                Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
-
-                index.for_each(static_cast<std::size_t>(K_CAPACITY), count,
-                               Dispatch::bind_writes(
-                                   [](std::size_t i, float* out) { out[i] = 1.0f; },
-                                   Dispatch::write_as<float>(marks)),
-                               OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
-
-                EXPECT_FALSE(recording->run_succeeds()) << "count " << written;
-            }
-        }
-
         TEST_F(Medium_IndexOps, ACountOfZeroRecordsNothing)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
@@ -390,25 +494,25 @@ namespace SushiBLAS
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
         }
 
-        TEST_F(Medium_IndexOps, Regression_ACountOfZeroWithOverlappingOperandsIsRefused)
+        TEST_F(Medium_IndexOps, TheNodeCarriesTheNameOfItsOptionsAndTheOperationId)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             IndexOps index(probe.recorder());
-            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
-            const OperationOptions options{"overlap_at_zero", SushiRuntime::Determinism::Bitwise};
+            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
 
-            EXPECT_THROW(index.for_each(0,
-                                        Dispatch::bind_updates(
-                                            Dispatch::bind_reads(
-                                                [](std::size_t, const float*, float*) {},
-                                                Dispatch::read_as<float>(x)),
-                                            Dispatch::update_as<float>(x)),
-                                        options),
-                         std::invalid_argument);
-            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+            index.for_each(4,
+                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(out)),
+                           OperationOptions{"fill_out", SushiRuntime::Determinism::Tolerant});
+
+            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks);
+            ASSERT_EQ(tasks->size(), std::size_t{1});
+            EXPECT_EQ((*tasks)[0].name, "fill_out");
+            EXPECT_EQ((*tasks)[0].operation, "index.for_each"_op);
         }
 
-        TEST_F(Medium_IndexOps, TheNodeCarriesTheOptionsNameAndOrdersALaterReader)
+        TEST_F(Medium_IndexOps, ATaskThatReadsWhatAnEarlierNodeWroteWaitsForIt)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             IndexOps index(probe.recorder());
@@ -427,14 +531,9 @@ namespace SushiBLAS
                                Dispatch::write_as<float>(sink)),
                            OperationOptions{"copy_out", SushiRuntime::Determinism::Cosmetic});
 
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{2});
-            EXPECT_EQ((*tasks)[0].name, "fill_out");
-            EXPECT_EQ((*tasks)[0].operation, "index.for_each"_op);
-            EXPECT_EQ((*tasks)[0].dependency_count, std::size_t{0});
-            EXPECT_EQ((*tasks)[1].name, "copy_out");
-            EXPECT_EQ((*tasks)[1].dependency_count, std::size_t{1});
+            const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
+            ASSERT_TRUE(counts);
+            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
         }
 
         TEST_F(Medium_IndexOps, AnUpdateIsOrderedAfterAnEarlierWriterAndBeforeALaterReader)
@@ -460,184 +559,27 @@ namespace SushiBLAS
                                Dispatch::write_as<float>(sink)),
                            OperationOptions{"copy_x", SushiRuntime::Determinism::Bitwise});
 
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{3});
-            EXPECT_EQ((*tasks)[1].name, "bump_x");
-            EXPECT_EQ((*tasks)[1].reads.size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[1].writes.size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].dependency_count, std::size_t{0});
-            EXPECT_EQ((*tasks)[1].dependency_count, std::size_t{1});
-            EXPECT_EQ((*tasks)[2].dependency_count, std::size_t{1});
+            const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
+            ASSERT_TRUE(counts);
+            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1, 1}));
         }
 
-        TEST_F(Medium_IndexOps, AnUpdateHandsTheFunctorThePreviousContentsBetweenReadsAndWrites)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                set_mode(mode);
-                IndexOps index(recorder());
-                Tensor w = engine->create_tensor({4}, Core::DataType::Float32);
-                Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
-                Tensor before = engine->create_tensor({4}, Core::DataType::Float32);
-                for (std::int64_t i = 0; i < 4; ++i)
-                {
-                    w.data_as<float>()[i] = 0.25f;
-                    x.data_as<float>()[i] = 0.5f * static_cast<float>(i);
-                    before.data_as<float>()[i] = -1.0f;
-                }
-
-                const auto step = [](std::size_t i, const float* weight, auto* value, float* old)
-                {
-                    using Element = std::remove_pointer_t<decltype(value)>;
-                    const float current = static_cast<float>(value[i]);
-                    old[i] = current;
-                    value[i] = static_cast<Element>(2.0f * current + weight[i]);
-                };
-                index.for_each(4,
-                               Dispatch::bind_writes(
-                                   Dispatch::bind_updates(
-                                       Dispatch::bind_reads(step, Dispatch::read_as<float>(w)),
-                                       Dispatch::update_as_element(x)),
-                                   Dispatch::write_as<float>(before)),
-                               OperationOptions{"step_x", SushiRuntime::Determinism::Bitwise});
-
-                EXPECT_TRUE(recording->run_succeeds());
-                EXPECT_EQ(bits_of(read_tensor<float>(before)),
-                          bits_of(std::vector<float>{0.0f, 0.5f, 1.0f, 1.5f}));
-                EXPECT_EQ(bits_of(read_tensor<float>(x)),
-                          bits_of(std::vector<float>{0.25f, 1.25f, 2.25f, 3.25f}));
-            }
-        }
-
-        TEST_F(Medium_IndexOps, AnUpdateThatOverlapsAnotherOperandIsRefused)
+        TEST_F(Medium_IndexOps, AnUpdateDeclaresOneReadAndOneWrite)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             IndexOps index(probe.recorder());
             Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
-            Tensor head = x.slice(0, 0, 2);
-            const OperationOptions options{"overlap", SushiRuntime::Determinism::Bitwise};
 
-            EXPECT_THROW(index.for_each(4,
-                                        Dispatch::bind_updates(
-                                            Dispatch::bind_reads(
-                                                [](std::size_t, const float*, float*) {},
-                                                Dispatch::read_as<float>(x)),
-                                            Dispatch::update_as<float>(x)),
-                                        options),
-                         std::invalid_argument);
-            EXPECT_THROW(index.for_each(4,
-                                        Dispatch::bind_writes(
-                                            Dispatch::bind_updates(
-                                                [](std::size_t, float*, float*) {},
-                                                Dispatch::update_as<float>(x)),
-                                            Dispatch::write_as<float>(x)),
-                                        options),
-                         std::invalid_argument);
-            EXPECT_THROW(index.for_each(2,
-                                        Dispatch::bind_writes(
-                                            Dispatch::bind_updates(
-                                                [](std::size_t, float*, float*) {},
-                                                Dispatch::update_as<float>(x)),
-                                            Dispatch::write_as<float>(head)),
-                                        options),
-                         std::invalid_argument);
-            EXPECT_THROW(index.for_each(2,
-                                        Dispatch::bind_updates(
-                                            [](std::size_t, float*, float*) {},
-                                            Dispatch::update_as<float>(x),
-                                            Dispatch::update_as<float>(head)),
-                                        options),
-                         std::invalid_argument);
-            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
-        }
+            index.for_each(4,
+                           Dispatch::bind_updates([](std::size_t i, float* p) { p[i] += 1.0f; },
+                                                  Dispatch::update_as<float>(x)),
+                           OperationOptions{"bump_x", SushiRuntime::Determinism::Bitwise});
 
-        TEST_F(Medium_IndexOps, ALateCountTaskWaitsForTheNodeThatWritesTheCount)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                GraphProbe probe(mode);
-                IndexOps index(probe.recorder());
-                Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
-                                                     SushiRuntime::Residency::Host);
-                Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-
-                index.for_each(1,
-                               Dispatch::bind_writes(
-                                   [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
-                                   Dispatch::write_as<std::int32_t>(count)),
-                               OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
-                index.for_each(4, count,
-                               Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                     Dispatch::write_as<float>(out)),
-                               OperationOptions{"use_count", SushiRuntime::Determinism::Bitwise});
-
-                const SushiRuntime::Result<std::vector<std::size_t>> counts =
-                    probe.dependency_counts();
-                ASSERT_TRUE(counts);
-                EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
-            }
-        }
-
-        TEST_F(Medium_IndexOps, TheRuntimePlanReadsTheDeterminismClassOfEachNode)
-        {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                set_mode(mode);
-                IndexOps index(recorder());
-                Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
-                                                     SushiRuntime::Residency::Host);
-                Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-
-                index.for_each(1,
-                               Dispatch::bind_writes(
-                                   [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
-                                   Dispatch::write_as<std::int32_t>(count)),
-                               OperationOptions{"fixed", SushiRuntime::Determinism::Tolerant});
-                index.for_each(4, count,
-                               Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                     Dispatch::write_as<float>(out)),
-                               OperationOptions{"late", SushiRuntime::Determinism::Cosmetic});
-
-                SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
-                ASSERT_TRUE(plan);
-                ASSERT_EQ(plan->nodes.size(), std::size_t{2});
-                EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Tolerant);
-                EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Cosmetic);
-
-                EXPECT_TRUE(recording->run_succeeds());
-            }
-        }
-
-        TEST_F(Medium_IndexOps, ACountTensorThatIsNeitherUInt32NorInt32InHostMemoryIsRefused)
-        {
-            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
-            IndexOps index(recorder());
-
-            const std::array<Tensor, 4> refused = {
-                engine->create_tensor({1}, Core::DataType::Float32, SushiRuntime::Residency::Host),
-                engine->create_tensor({1}, Core::DataType::Int64, SushiRuntime::Residency::Host),
-                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Shared),
-                engine->create_tensor({1}, Core::DataType::UInt32, SushiRuntime::Residency::Shared)};
-
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
-            {
-                set_mode(mode);
-                for (const Tensor& count : refused)
-                {
-                    EXPECT_THROW(index.for_each(4, count,
-                                                Dispatch::bind_writes(
-                                                    [](std::size_t i, float* p) { p[i] = 1.0f; },
-                                                    Dispatch::write_as<float>(out)),
-                                                OperationOptions{"bad_count",
-                                                             SushiRuntime::Determinism::Bitwise}),
-                                 std::invalid_argument);
-                }
-            }
+            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks);
+            ASSERT_EQ(tasks->size(), std::size_t{1});
+            EXPECT_EQ((*tasks)[0].reads.size(), std::size_t{1});
+            EXPECT_EQ((*tasks)[0].writes.size(), std::size_t{1});
         }
 
         TEST_F(Medium_IndexOps, ATaskThatWritesItsOwnCountIsRefused)
@@ -655,6 +597,198 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
+        /** @brief Runs one late count of the table of late_count_rows(). */
+        class Medium_IndexOpsLateCount : public Medium_IndexOps,
+                                         public ::testing::WithParamInterface<LateCountRow>
+        {
+
+        };
+
+        TEST_P(Medium_IndexOpsLateCount, RunsOnlyTheIndicesBelowTheCountItReads)
+        {
+            const LateCountRow row = GetParam();
+
+            EXPECT_EQ(marks_under(row), marks_of_the_first(row.written));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IndexOpsLateCount, ::testing::ValuesIn(late_count_rows()),
+            [](const ::testing::TestParamInfo<LateCountRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Runs one count outside the capacity of the table of out_of_range_rows(). */
+        class Medium_IndexOpsLateCountOutOfRange
+            : public Medium_IndexOps, public ::testing::WithParamInterface<OutOfRangeRow>
+        {
+
+        };
+
+        TEST_P(Medium_IndexOpsLateCountOutOfRange, FailsTheRun)
+        {
+            const OutOfRangeRow row = GetParam();
+            set_mode(ExecutionMode::ForceSYCL);
+            IndexOps index(recorder());
+            Tensor count =
+                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = row.written;
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
+
+            index.for_each(row.capacity, count,
+                           Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(marks)),
+                           OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
+
+            EXPECT_FALSE(recording->run_succeeds());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IndexOpsLateCountOutOfRange, ::testing::ValuesIn(out_of_range_rows()),
+            [](const ::testing::TestParamInfo<OutOfRangeRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Runs one count tensor of the table of count_refusal_rows(). */
+        class Medium_IndexOpsCountRefusal : public Medium_IndexOps,
+                                            public ::testing::WithParamInterface<CountRefusalRow>
+        {
+
+        };
+
+        TEST_P(Medium_IndexOpsCountRefusal, IsRefusedWhenItIsNotAHostInt32OrUInt32)
+        {
+            const CountRefusalRow row = GetParam();
+            set_mode(row.mode);
+            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
+            Tensor count = engine->create_tensor({1}, row.type, row.residency);
+            IndexOps index(recorder());
+
+            EXPECT_THROW(index.for_each(row.capacity, count,
+                                        Dispatch::bind_writes(
+                                            [](std::size_t i, float* p) { p[i] = 1.0f; },
+                                            Dispatch::write_as<float>(out)),
+                                        OperationOptions{"bad_count",
+                                                         SushiRuntime::Determinism::Bitwise}),
+                         std::invalid_argument);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IndexOpsCountRefusal, ::testing::ValuesIn(count_refusal_rows()),
+            [](const ::testing::TestParamInfo<CountRefusalRow>& info) { return info.param.name; });
+
+        /** @brief Runs one overlapping declaration of the table of overlap_rows(). */
+        class Medium_IndexOpsOverlap : public Medium_IndexOps,
+                                       public ::testing::WithParamInterface<OverlapRow>
+        {
+
+        };
+
+        TEST_P(Medium_IndexOpsOverlap, IsRefusedAndRecordsNothing)
+        {
+            const OverlapRow row = GetParam();
+            GraphProbe probe(ExecutionMode::ForceReference);
+            IndexOps index(probe.recorder());
+            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+            Tensor head = x.slice(0, 0, 2);
+
+            EXPECT_THROW(record_overlap(index, row, x, head), std::invalid_argument);
+            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IndexOpsOverlap, ::testing::ValuesIn(overlap_rows()),
+            [](const ::testing::TestParamInfo<OverlapRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Runs one test in each execution mode. */
+        class Medium_IndexOpsInEachMode : public Medium_IndexOps,
+                                          public ::testing::WithParamInterface<ExecutionMode>
+        {
+
+        };
+
+        TEST_P(Medium_IndexOpsInEachMode, AnUpdateHandsTheFunctorThePreviousContentsBetweenReadsAndWrites)
+        {
+            set_mode(GetParam());
+            IndexOps index(recorder());
+            Tensor w = create_initialized_tensor<float>({4}, {0.25f, 0.25f, 0.25f, 0.25f});
+            Tensor x = create_initialized_tensor<float>({4}, {0.0f, 0.5f, 1.0f, 1.5f});
+            Tensor before = create_initialized_tensor<float>({4}, {-1.0f, -1.0f, -1.0f, -1.0f});
+
+            const auto step = [](std::size_t i, const float* weight, auto* value, float* old)
+            {
+                using Element = std::remove_pointer_t<decltype(value)>;
+                const float current = static_cast<float>(value[i]);
+                old[i] = current;
+                value[i] = static_cast<Element>(2.0f * current + weight[i]);
+            };
+            index.for_each(4,
+                           Dispatch::bind_writes(
+                               Dispatch::bind_updates(
+                                   Dispatch::bind_reads(step, Dispatch::read_as<float>(w)),
+                                   Dispatch::update_as_element(x)),
+                               Dispatch::write_as<float>(before)),
+                           OperationOptions{"step_x", SushiRuntime::Determinism::Bitwise});
+
+            EXPECT_TRUE(recording->run_succeeds());
+            EXPECT_EQ(bits_of(read_tensor<float>(before)),
+                      bits_of(std::vector<float>{0.0f, 0.5f, 1.0f, 1.5f}));
+            EXPECT_EQ(bits_of(read_tensor<float>(x)),
+                      bits_of(std::vector<float>{0.25f, 1.25f, 2.25f, 3.25f}));
+        }
+
+        TEST_P(Medium_IndexOpsInEachMode, ALateCountTaskWaitsForTheNodeThatWritesTheCount)
+        {
+            GraphProbe probe(GetParam());
+            IndexOps index(probe.recorder());
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
+
+            index.for_each(1,
+                           Dispatch::bind_writes(
+                               [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
+                               Dispatch::write_as<std::int32_t>(count)),
+                           OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
+            index.for_each(4, count,
+                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(out)),
+                           OperationOptions{"use_count", SushiRuntime::Determinism::Bitwise});
+
+            const SushiRuntime::Result<std::vector<std::size_t>> counts = probe.dependency_counts();
+            ASSERT_TRUE(counts);
+            EXPECT_EQ(*counts, (std::vector<std::size_t>{0, 1}));
+        }
+
+        TEST_P(Medium_IndexOpsInEachMode, TheRuntimePlanReadsTheDeterminismClassOfEachNode)
+        {
+            set_mode(GetParam());
+            IndexOps index(recorder());
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
+
+            index.for_each(1,
+                           Dispatch::bind_writes(
+                               [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
+                               Dispatch::write_as<std::int32_t>(count)),
+                           OperationOptions{"fixed", SushiRuntime::Determinism::Tolerant});
+            index.for_each(4, count,
+                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(out)),
+                           OperationOptions{"late", SushiRuntime::Determinism::Cosmetic});
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Tolerant);
+            EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Cosmetic);
+
+            EXPECT_TRUE(recording->run_succeeds());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IndexOpsInEachMode, ::testing::ValuesIn(K_BOTH_MODES),
+            [](const ::testing::TestParamInfo<ExecutionMode>& info) { return mode_name(info.param); });
+
         /** @brief Runs the IndexOps tests that guard who owns a late count's storages. */
         class Medium_Regression_IndexOps : public Medium_IndexOps
         {
@@ -663,10 +797,9 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that a late for_each recorded through a recorder gone before the graph
-         *        runs replays twice on the live count while its caller keeps the hold, and that
-         *        releasing the hold leaves the tensors the only owners of their storages.
+         *        runs replays twice on the live count while its caller keeps the hold.
          */
-        TEST_F(Medium_Regression_IndexOps, AReplayedLateForEachOutlivesItsRecorder)
+        TEST_F(Medium_Regression_IndexOps, AReplayedLateForEachRunsOnTheLiveCountOfEachRun)
         {
             SushiRuntime::Runtime& runtime = engine->runtime();
             SushiRuntime::Graph graph = runtime.graph();
@@ -676,31 +809,33 @@ namespace SushiBLAS
                                                  SushiRuntime::Residency::Host);
             Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32,
                                                  SushiRuntime::Residency::Shared);
-            {
-                TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts,
-                                      ExecutionMode::ForceSYCL);
-                IndexOps(recorder).for_each(
-                    static_cast<std::size_t>(K_CAPACITY), count,
-                    Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
-                                          Dispatch::write_as<float>(marks)),
-                    OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
-            }
+            record_late_for_each_and_drop_its_recorder(graph, scratch_pool, late_counts, count,
+                                                       marks);
 
-            for (const std::int32_t live : {3, 5})
-            {
-                count.data_as<std::int32_t>()[0] = live;
-                for (std::int64_t i = 0; i < K_CAPACITY; ++i)
-                    marks.data_as<float>()[i] = 0.0f;
-                SushiRuntime::RunReport report;
-                const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+            EXPECT_EQ(run_over_live_count(graph, count, marks, 3), marks_of_the_first(3));
+            EXPECT_EQ(run_over_live_count(graph, count, marks, 5), marks_of_the_first(5));
+        }
 
-                ASSERT_TRUE(ran) << "run over a count of " << live;
-                EXPECT_EQ(marks.data_as<float>()[live - 1], 1.0f) << "count " << live;
-                EXPECT_EQ(marks.data_as<float>()[live], 0.0f) << "count " << live;
-            }
+        /**
+         * @brief Tests that releasing the hold of a late for_each leaves the tensors the only
+         *        owners of their storages.
+         */
+        TEST_F(Medium_Regression_IndexOps, ReleasingTheHoldOfALateForEachLeavesTheTensorsTheirOwners)
+        {
+            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Graph graph = runtime.graph();
+            ScratchPool scratch_pool(runtime);
+            LateCountHold late_counts(runtime);
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32,
+                                                 SushiRuntime::Residency::Shared);
+            record_late_for_each_and_drop_its_recorder(graph, scratch_pool, late_counts, count,
+                                                       marks);
 
             graph.clear();
             late_counts.release();
+
             EXPECT_EQ(late_counts.held_count(), std::size_t{0});
             EXPECT_EQ(count.storage->ref_count(), 1);
             EXPECT_EQ(marks.storage->ref_count(), 1);

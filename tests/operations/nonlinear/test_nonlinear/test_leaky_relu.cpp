@@ -37,7 +37,7 @@ using namespace SushiBLAS::Test;
 
 class Medium_LeakyReLUTest : public SushiBLASTest {};
 
-TEST_F(Medium_LeakyReLUTest, Forward) 
+TEST_F(Medium_LeakyReLUTest, ForwardScalesNegativeInputsBySlopeAndKeepsTheRest) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-2.0f, -0.5f, 0.0f, 3.5f});
@@ -48,7 +48,7 @@ TEST_F(Medium_LeakyReLUTest, Forward)
     expect_tensor(t, {-0.02f, -0.005f, 0.0f, 3.5f});
 }
 
-TEST_F(Medium_LeakyReLUTest, Backward) 
+TEST_F(Medium_LeakyReLUTest, BackwardScalesTheGradientBySlopeWhereTheInputIsNegative) 
 {
     auto dy = engine->create_tensor({4});
     auto x = engine->create_tensor({4});

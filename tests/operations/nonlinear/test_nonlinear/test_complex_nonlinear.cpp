@@ -28,6 +28,7 @@
  */
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <complex>
 #include <stdexcept>
@@ -150,11 +151,11 @@ TEST_F(Medium_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
     recording->run().value();
 
     const std::vector<C> got = read_tensor<C>(t);
-    for (const C& z : got)
-    {
-        EXPECT_TRUE(std::isinf(z.real()) && z.real() > 0.0);
-        EXPECT_TRUE(std::isinf(z.imag()) && z.imag() > 0.0);
-    }
+    ASSERT_EQ(got.size(), std::size_t{2});
+    EXPECT_TRUE(std::isinf(got[0].real()) && got[0].real() > 0.0);
+    EXPECT_TRUE(std::isinf(got[0].imag()) && got[0].imag() > 0.0);
+    EXPECT_TRUE(std::isinf(got[1].real()) && got[1].real() > 0.0);
+    EXPECT_TRUE(std::isinf(got[1].imag()) && got[1].imag() > 0.0);
 }
 
 /**

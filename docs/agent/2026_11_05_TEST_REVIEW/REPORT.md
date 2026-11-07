@@ -126,6 +126,7 @@ dispatch: J16 RW-141 finish host_device — sonnet medium, 1 round, passed after
 dispatch: J16 RW-144 RW-145 operand tests and helpers — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 RW-140 profile reading port — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-147 in part, rung 1
+dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
 
 ## Totals
 

@@ -8,13 +8,17 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_dispatch.cpp` | Tests a forward task in place and a backward task with a bound scalar in both modes |
+| `test_dispatch.cpp` | Tests a forward task in place and a backward task with a bound scalar, one instance per execution mode |
 | `test_nonlinear/test_complex_nonlinear.cpp` | Tests complex sigmoid, tanh, sqrt and log against hand values, and elu's refusal |
 | `test_nonlinear/test_elu.cpp` | Tests NonLinearOps::elu and elu_backward against fixed expected values |
-| `test_nonlinear/test_gelu.cpp` | Tests NonLinearOps::gelu and gelu_backward against fixed expected values |
+| `test_nonlinear/test_gelu.cpp` | Tests NonLinearOps::gelu and gelu_backward against the tanh form the header documents, evaluated on the host |
 | `test_nonlinear/test_leaky_relu.cpp` | Tests NonLinearOps::leaky_relu and leaky_relu_backward against fixed expected values |
 | `test_nonlinear/test_relu.cpp` | Tests NonLinearOps::relu and relu_backward against fixed expected values |
 | `test_nonlinear/test_sigmoid.cpp` | Tests NonLinearOps::sigmoid and sigmoid_backward against fixed expected values |
 | `test_nonlinear/test_silu.cpp` | Tests NonLinearOps::silu and silu_backward against fixed expected values |
 | `test_nonlinear/test_softplus.cpp` | Tests NonLinearOps::softplus and softplus_backward against fixed expected values |
 | `test_nonlinear/test_tanh.cpp` | Tests NonLinearOps::tanh and tanh_backward against fixed expected values |
+
+Each test is named for the promise it holds, not for a direction. Tests that record on the
+fixture's engine stay `Medium_`: the engine reaches the process-wide runtime and a device queue, and
+the complex `elu` refusal is no exception, because the fixture offers no host tensor.

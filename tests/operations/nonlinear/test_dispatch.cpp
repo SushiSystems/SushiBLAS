@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -64,46 +65,44 @@ namespace SushiBLAS
             }
         };
 
-        /** @brief Records nonlinear tasks on the fixture's engine. */
-        class Medium_NonlinearDispatch : public SushiBLASTest
+        /** @brief Records nonlinear tasks on the fixture's engine, once in each execution mode. */
+        class Medium_NonlinearDispatch : public SushiBLASTest,
+                                         public ::testing::WithParamInterface<ExecutionMode>
         {
 
         };
 
-        TEST_F(Medium_NonlinearDispatch, ForwardRewritesTheTensorInPlace)
+        TEST_P(Medium_NonlinearDispatch, ForwardRewritesTheTensorInPlace)
         {
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                Tensor t = create_initialized_tensor<float>({4}, {-2, -1, 0, 3});
-                set_mode(mode);
+            Tensor t = create_initialized_tensor<float>({4}, {-2, -1, 0, 3});
+            set_mode(GetParam());
 
-                Dispatch::execute_nonlinear_forward(
-                    recorder(), t, "scale_negative", SushiRuntime::OperationID(),
-                    Dispatch::bind_scalars(ScaleNegative{}, Dispatch::ElementScalar(0.5)),
-                    {0.5});
-                ASSERT_TRUE(recording->run().has_value());
+            Dispatch::execute_nonlinear_forward(
+                recorder(), t, "scale_negative", SushiRuntime::OperationID(),
+                Dispatch::bind_scalars(ScaleNegative{}, Dispatch::ElementScalar(0.5)), {0.5});
+            ASSERT_TRUE(recording->run().has_value());
 
-                EXPECT_EQ(read_tensor<float>(t), (std::vector<float>{-1, -0.5f, 0, 3}));
-            }
+            EXPECT_EQ(read_tensor<float>(t), (std::vector<float>{-1, -0.5f, 0, 3}));
         }
 
-        TEST_F(Medium_NonlinearDispatch, BackwardGatesTheGradientByTheInput)
+        TEST_P(Medium_NonlinearDispatch, BackwardGatesTheGradientByTheInput)
         {
             const Tensor dy = create_initialized_tensor<double>({3}, {4, 5, 6});
             const Tensor x = create_initialized_tensor<double>({3}, {-1, 2, 0});
+            Tensor dx = create_initialized_tensor<double>({3}, {9, 9, 9});
+            set_mode(GetParam());
 
-            for (const ExecutionMode mode : K_BOTH_MODES)
-            {
-                Tensor dx = create_initialized_tensor<double>({3}, {9, 9, 9});
-                set_mode(mode);
+            Dispatch::execute_nonlinear_backward(recorder(), dy, x, dx, "gate",
+                                                 SushiRuntime::OperationID(), PositiveGate{});
+            ASSERT_TRUE(recording->run().has_value());
 
-                Dispatch::execute_nonlinear_backward(
-                    recorder(), dy, x, dx, "gate", SushiRuntime::OperationID(),
-                    PositiveGate{});
-                ASSERT_TRUE(recording->run().has_value());
-
-                EXPECT_EQ(read_tensor<double>(dx), (std::vector<double>{0, 5, 0}));
-            }
+            EXPECT_EQ(read_tensor<double>(dx), (std::vector<double>{0, 5, 0}));
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_NonlinearDispatch, ::testing::ValuesIn(K_BOTH_MODES),
+            [](const ::testing::TestParamInfo<ExecutionMode>& info)
+            { return std::string(info.param == ExecutionMode::ForceReference ? "ForceReference"
+                                                                           : "ForceSYCL"); });
     } // namespace Test
 } // namespace SushiBLAS

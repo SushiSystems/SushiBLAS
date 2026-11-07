@@ -59,6 +59,29 @@ namespace SushiBLAS
         /** @brief Holds the byte offset of the version 1.0 header dictionary in a .npy file. */
         constexpr size_t K_NPY_V1_HEADER_OFFSET = 10;
 
+        namespace
+        {
+            /** @brief Names a file format IO loads after the caller's run. */
+            enum class Loader
+            {
+                Npy, ///< The NumPy .npy format.
+                Bin  ///< Raw bytes with no header.
+            };
+
+            /** @brief Holds the header dictionary of a .npy file that loads into a 2x3 float tensor. */
+            const char* const K_VALID_NPY_DICT =
+                "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }";
+
+            /** @brief Returns count values that rise by one half from -3, the same on every call. */
+            std::vector<float> ramp_values(size_t count)
+            {
+                std::vector<float> values(count);
+                for (size_t i = 0; i < values.size(); ++i)
+                    values[i] = 0.5f * static_cast<float>(i) - 3.0f;
+                return values;
+            }
+        } // namespace
+
         /** @brief Supplies an engine and temporary files that are removed after each test. */
         class Medium_HostTransfer : public SushiBLASTest
         {
@@ -107,17 +130,19 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Writes a version 1.0 .npy file with @p dict as its header and K_VALUES.
+                 * @brief Writes a .npy file of version @p major with @p dict as its header and
+                 *        K_VALUES, laid out as version 1.0 lays it out.
                  * @param dict The header dictionary; space padding and a newline are appended.
                  */
-                static void write_npy_v1(const std::string& path, const std::string& dict)
+                static void write_npy(const std::string& path, const std::string& dict,
+                                      char major = 1)
                 {
                     std::string header = dict + " ";
                     while ((K_NPY_V1_HEADER_OFFSET + header.size() + 1) % 64 != 0)
                         header += " ";
                     header += "\n";
 
-                    std::vector<char> bytes{'\x93', 'N', 'U', 'M', 'P', 'Y', 1, 0};
+                    std::vector<char> bytes{'\x93', 'N', 'U', 'M', 'P', 'Y', major, 0};
                     bytes.push_back(static_cast<char>(header.size() & 0xFF));
                     bytes.push_back(static_cast<char>((header.size() >> 8) & 0xFF));
                     bytes.insert(bytes.end(), header.begin(), header.end());
@@ -136,6 +161,26 @@ namespace SushiBLAS
                     EXPECT_EQ(SushiBLAS::IO().save_npy(source, path),
                               SushiBLAS::IOStatus::Ok);
                     return path;
+                }
+
+                /** @brief Saves K_VALUES of a 2x3 tensor in the format and returns the path. */
+                std::string save_values(Loader loader, const std::string& name)
+                {
+                    if (loader == Loader::Npy)
+                        return save_values_npy(name + ".npy");
+
+                    const std::string path = temp_path(name + ".bin");
+                    auto source = engine->create_tensor({2, 3});
+                    SushiBLAS::IO().from_vector(source, K_VALUES);
+                    EXPECT_EQ(SushiBLAS::IO().save_bin(source, path), SushiBLAS::IOStatus::Ok);
+                    return path;
+                }
+
+                /** @brief Loads the file at path into t in the format. */
+                static SushiBLAS::IOStatus load(Loader loader, Tensor& t, const std::string& path)
+                {
+                    return loader == Loader::Npy ? SushiBLAS::IO().load_npy(t, path)
+                                                 : SushiBLAS::IO().load_bin(t, path);
                 }
 
                 /**
@@ -187,29 +232,203 @@ namespace SushiBLAS
             EXPECT_EQ(out, K_VALUES);
         }
 
-        TEST_F(Medium_HostTransfer, SizeMismatchThrows)
+        namespace
+        {
+            /** @brief Names a call that refuses a buffer of the wrong size. */
+            enum class SizeCall
+            {
+                FromVector, ///< from_vector with fewer values than the tensor holds.
+                Write,      ///< write with more bytes than the tensor holds.
+                Read        ///< read with more bytes than the tensor holds.
+            };
+
+            /** @brief One call of the size table. */
+            struct SizeRow
+            {
+                const char* name;
+                SizeCall call;
+            };
+
+            /** @brief Returns the calls that take a size. */
+            std::vector<SizeRow> size_rows()
+            {
+                return {{"FromVector", SizeCall::FromVector},
+                        {"Write", SizeCall::Write},
+                        {"Read", SizeCall::Read}};
+            }
+
+            /** @brief Calls IO with a buffer whose size is not the tensor's. */
+            void call_with_a_wrong_size(SizeCall call, Tensor& t)
+            {
+                const std::vector<float> short_values{1.0f, 2.0f};
+                std::vector<float> out(K_VALUES.size() + 1);
+                switch (call)
+                {
+                    case SizeCall::FromVector:
+                        SushiBLAS::IO().from_vector(t, short_values);
+                        break;
+                    case SizeCall::Write:
+                        SushiBLAS::IO().write(t, out.data(), out.size() * sizeof(float));
+                        break;
+                    case SizeCall::Read:
+                        SushiBLAS::IO().read(t, out.data(), out.size() * sizeof(float));
+                        break;
+                }
+            }
+
+            /** @brief Names a call that refuses an element type other than the tensor's. */
+            enum class TypeCall
+            {
+                ToVectorOfDouble, ///< to_vector of double over a float tensor.
+                FromVectorOfInt32 ///< from_vector of int32 into a float tensor.
+            };
+
+            /** @brief One call of the element type table. */
+            struct TypeRow
+            {
+                const char* name;
+                TypeCall call;
+            };
+
+            /** @brief Returns the calls that take an element type. */
+            std::vector<TypeRow> type_rows()
+            {
+                return {{"ToVectorOfDouble", TypeCall::ToVectorOfDouble},
+                        {"FromVectorOfInt32", TypeCall::FromVectorOfInt32}};
+            }
+
+            /** @brief Calls IO with an element type other than the tensor's. */
+            void call_with_another_element_type(TypeCall call, Tensor& t)
+            {
+                switch (call)
+                {
+                    case TypeCall::ToVectorOfDouble:
+                        (void)SushiBLAS::IO().to_vector<double>(t);
+                        break;
+                    case TypeCall::FromVectorOfInt32:
+                        SushiBLAS::IO().from_vector(t, std::vector<int32_t>(6, 1));
+                        break;
+                }
+            }
+
+            /** @brief One loader of the table of loaders. */
+            struct LoaderRow
+            {
+                const char* name;
+                Loader loader;
+            };
+
+            /** @brief Returns the loaders. */
+            std::vector<LoaderRow> loader_rows()
+            {
+                return {{"Npy", Loader::Npy}, {"Bin", Loader::Bin}};
+            }
+
+            /** @brief One .npy file with a header that breaks the format. */
+            struct MalformedRow
+            {
+                const char* name;
+                const char* dict;
+                char major;
+            };
+
+            /** @brief Returns the headers that make a .npy file malformed. */
+            std::vector<MalformedRow> malformed_rows()
+            {
+                return {{"VersionFour", K_VALID_NPY_DICT, 4},
+                        {"WithoutAShape",
+                         "{'descr': '<f4', 'fortran_order': False, 'shapf': (2, 3), }", 1},
+                        {"WithoutCommas",
+                         "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }", 1},
+                        {"WithADuplicateKey",
+                         "{'descr': '<f4', 'descr': '<f4', 'fortran_order': False, "
+                         "'shape': (2, 3), }",
+                         1}};
+            }
+
+            /** @brief One shape the text of a device tensor is compared at. */
+            struct ShapeRow
+            {
+                const char* name;
+                std::vector<int64_t> dims;
+            };
+
+            /**
+             * @brief Returns shapes of rank one to three; with the default three edge items the
+             *        second shape of each rank is elided.
+             */
+            std::vector<ShapeRow> shape_rows()
+            {
+                return {{"RankOneShort", {5}},         {"RankOneElided", {20}},
+                        {"RankTwoShort", {2, 3}},      {"RankTwoElided", {8, 9}},
+                        {"RankThreeShort", {2, 2, 3}}, {"RankThreeElided", {7, 8, 9}}};
+            }
+
+            /** @brief Names a strided view of a 3x4 tensor. */
+            enum class View
+            {
+                Transposed, ///< The tensor with its two dimensions swapped.
+                Sliced      ///< Columns one and two of the tensor.
+            };
+
+            /** @brief One view of the table of views. */
+            struct ViewRow
+            {
+                const char* name;
+                View view;
+            };
+
+            /** @brief Returns the views. */
+            std::vector<ViewRow> view_rows()
+            {
+                return {{"Transposed", View::Transposed}, {"Sliced", View::Sliced}};
+            }
+
+            /** @brief Returns the strided view of a 3x4 tensor the row names. */
+            Tensor view_of(const Tensor& device, View view)
+            {
+                return view == View::Transposed ? device.transpose(0, 1) : device.slice(1, 1, 3);
+            }
+        } // namespace
+
+        /** @brief Runs one call of size_rows(). */
+        class Medium_HostTransferSizeMismatch : public Medium_HostTransfer,
+                                                public ::testing::WithParamInterface<SizeRow>
+        {
+
+        };
+
+        TEST_P(Medium_HostTransferSizeMismatch, IsRefused)
         {
             auto t = engine->create_tensor({2, 3});
-            const std::vector<float> short_values{1.0f, 2.0f};
-            std::vector<float> out(K_VALUES.size() + 1);
 
-            EXPECT_THROW(
-                SushiBLAS::IO().from_vector(t, short_values),
-                std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::IO().write(t, out.data(), out.size() * sizeof(float)),
-                         std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::IO().read(t, out.data(), out.size() * sizeof(float)),
+            EXPECT_THROW(call_with_a_wrong_size(GetParam().call, t), std::invalid_argument);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferSizeMismatch, ::testing::ValuesIn(size_rows()),
+            [](const ::testing::TestParamInfo<SizeRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Runs one call of type_rows(). */
+        class Medium_HostTransferElementTypeMismatch
+            : public Medium_HostTransfer, public ::testing::WithParamInterface<TypeRow>
+        {
+
+        };
+
+        TEST_P(Medium_HostTransferElementTypeMismatch, IsRefused)
+        {
+            auto t = engine->create_tensor({2, 3});
+
+            EXPECT_THROW(call_with_another_element_type(GetParam().call, t),
                          std::invalid_argument);
         }
 
-        TEST_F(Medium_HostTransfer, ElementTypeMismatchThrows)
-        {
-            auto t = engine->create_tensor({2, 3});
-
-            EXPECT_THROW((void)SushiBLAS::IO().to_vector<double>(t), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::IO().from_vector(t, std::vector<int32_t>(6, 1)),
-                         std::invalid_argument);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferElementTypeMismatch, ::testing::ValuesIn(type_rows()),
+            [](const ::testing::TestParamInfo<TypeRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_HostTransfer, ReadSeesTheWriteTheCallerRan)
         {
@@ -224,9 +443,17 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Medium_HostTransfer, LoadNpyOverwritesTheWriteTheCallerRan)
+        /** @brief Runs one loader of loader_rows(). */
+        class Medium_HostTransferLoadAfterTheRun : public Medium_HostTransfer,
+                                                   public ::testing::WithParamInterface<LoaderRow>
         {
-            const std::string path = save_values_npy("ordering.npy");
+
+        };
+
+        TEST_P(Medium_HostTransferLoadAfterTheRun, OverwritesTheWriteTheCallerRan)
+        {
+            const Loader loader = GetParam().loader;
+            const std::string path = save_values(loader, "ordering");
 
             auto pending = engine->create_tensor({2, 3});
             auto t = engine->create_tensor({2, 3});
@@ -234,30 +461,15 @@ namespace SushiBLAS
 
             SushiBLAS::BLASOps(recorder()).copy(pending, t);
             recording->run().value();
-            ASSERT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::Ok);
+            ASSERT_EQ(load(loader, t, path), SushiBLAS::IOStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Medium_HostTransfer, LoadBinOverwritesTheWriteTheCallerRan)
-        {
-            const std::string path = temp_path("ordering.bin");
-            {
-                auto source = engine->create_tensor({2, 3});
-                SushiBLAS::IO().from_vector(source, K_VALUES);
-                ASSERT_EQ(SushiBLAS::IO().save_bin(source, path), SushiBLAS::IOStatus::Ok);
-            }
-
-            auto pending = engine->create_tensor({2, 3});
-            auto t = engine->create_tensor({2, 3});
-            SushiBLAS::IO().from_vector(pending, K_PENDING_VALUES);
-
-            SushiBLAS::BLASOps(recorder()).copy(pending, t);
-            recording->run().value();
-            ASSERT_EQ(SushiBLAS::IO().load_bin(t, path), SushiBLAS::IOStatus::Ok);
-
-            EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferLoadAfterTheRun, ::testing::ValuesIn(loader_rows()),
+            [](const ::testing::TestParamInfo<LoaderRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_HostTransfer, NpyRoundTripKeepsTheValues)
         {
@@ -316,59 +528,37 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::ShapeMismatch);
         }
 
-        TEST_F(Medium_HostTransfer, NpyWithVersionFourIsMalformed)
+        /** @brief Runs one header of malformed_rows(). */
+        class Medium_HostTransferMalformedNpy : public Medium_HostTransfer,
+                                                public ::testing::WithParamInterface<MalformedRow>
         {
-            const std::string path = save_values_npy("version_four.npy");
-            std::vector<char> bytes = read_bytes(path);
-            ASSERT_GT(bytes.size(), K_NPY_MAJOR_OFFSET);
-            ASSERT_EQ(bytes[K_NPY_MAJOR_OFFSET], 1)
-                << "The file does not hold version 1 where expected.";
-            bytes[K_NPY_MAJOR_OFFSET] = 4;
-            write_bytes(path, bytes);
+
+        };
+
+        TEST_P(Medium_HostTransferMalformedNpy, LoadsAsAMalformedFile)
+        {
+            const MalformedRow row = GetParam();
+            const std::string path = temp_path(std::string("malformed_") + row.name + ".npy");
+            write_npy(path, row.dict, row.major);
 
             auto t = engine->create_tensor({2, 3});
             EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Medium_HostTransfer, NpyWithoutAShapeIsMalformed)
-        {
-            const std::string path = save_values_npy("no_shape.npy");
-            std::vector<char> bytes = read_bytes(path);
-            replace_text(bytes, "'shape'", "'shapf'");
-            write_bytes(path, bytes);
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferMalformedNpy, ::testing::ValuesIn(malformed_rows()),
+            [](const ::testing::TestParamInfo<MalformedRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_HostTransfer, NpyWithNumpyPaddingLoads)
         {
             const std::string path = temp_path("numpy_padding.npy");
-            write_npy_v1(path, "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }");
+            write_npy(path, K_VALID_NPY_DICT);
 
             auto t = engine->create_tensor({2, 3});
             ASSERT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO().to_vector<float>(t), K_VALUES);
-        }
-
-        TEST_F(Medium_HostTransfer, NpyWithoutCommasIsMalformed)
-        {
-            const std::string path = temp_path("no_commas.npy");
-            write_npy_v1(path, "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }");
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
-        }
-
-        TEST_F(Medium_HostTransfer, NpyWithADuplicateKeyIsMalformed)
-        {
-            const std::string path = temp_path("duplicate_key.npy");
-            write_npy_v1(path, "{'descr': '<f4', 'descr': '<f4', 'fortran_order': False, "
-                               "'shape': (2, 3), }");
-
-            auto t = engine->create_tensor({2, 3});
-            EXPECT_EQ(SushiBLAS::IO().load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
         TEST_F(Medium_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
@@ -380,61 +570,83 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Medium_HostTransfer, ToStringOfADeviceTensorMatchesItsSharedTwin)
+        /** @brief Runs one shape of shape_rows(). */
+        class Medium_HostTransferToStringOfADeviceTensor
+            : public Medium_HostTransfer, public ::testing::WithParamInterface<ShapeRow>
         {
-            // With the default three edge items, the second shape of each rank is elided.
-            const std::vector<std::vector<int64_t>> shapes{
-                {5}, {20}, {2, 3}, {8, 9}, {2, 2, 3}, {7, 8, 9}};
 
-            for (const std::vector<int64_t>& dims : shapes)
-            {
-                SCOPED_TRACE("rank " + std::to_string(dims.size()) + ", first dimension " +
-                             std::to_string(dims.front()));
-                const SushiRuntime::span<const int64_t> span(dims.data(), dims.size());
-                auto shared = engine->create_tensor(span, Core::DataType::Float32,
-                                                    SushiRuntime::Residency::Shared);
-                auto device = engine->create_tensor(span, Core::DataType::Float32,
-                                                    SushiRuntime::Residency::Device);
+        };
 
-                std::vector<float> values(static_cast<size_t>(shared.num_elements));
-                for (size_t i = 0; i < values.size(); ++i)
-                    values[i] = 0.5f * static_cast<float>(i) - 3.0f;
-                SushiBLAS::IO().from_vector(shared, values);
-                SushiBLAS::IO().from_vector(device, values);
+        TEST_P(Medium_HostTransferToStringOfADeviceTensor, MatchesItsSharedTwin)
+        {
+            const std::vector<int64_t>& dims = GetParam().dims;
+            const SushiRuntime::span<const int64_t> span(dims.data(), dims.size());
+            auto shared = engine->create_tensor(span, Core::DataType::Float32,
+                                                SushiRuntime::Residency::Shared);
+            auto device = engine->create_tensor(span, Core::DataType::Float32,
+                                                SushiRuntime::Residency::Device);
+            const std::vector<float> values =
+                ramp_values(static_cast<size_t>(shared.num_elements));
+            SushiBLAS::IO().from_vector(shared, values);
+            SushiBLAS::IO().from_vector(device, values);
 
-                EXPECT_EQ(SushiBLAS::IO().to_string(device),
-                          SushiBLAS::IO().to_string(shared));
-            }
+            EXPECT_EQ(SushiBLAS::IO().to_string(device), SushiBLAS::IO().to_string(shared));
         }
 
-        TEST_F(Medium_HostTransfer, ToStringReadsAStridedViewThroughItsStrides)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferToStringOfADeviceTensor, ::testing::ValuesIn(shape_rows()),
+            [](const ::testing::TestParamInfo<ShapeRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Runs one view of view_rows(). */
+        class Medium_HostTransferToStringOfAStridedView
+            : public Medium_HostTransfer, public ::testing::WithParamInterface<ViewRow>
         {
-            const std::vector<float> values{0.0f, 1.0f, 2.0f, 3.0f, 4.0f,  5.0f,
-                                            6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
+
+        };
+
+        TEST_P(Medium_HostTransferToStringOfAStridedView, ReadsTheViewThroughItsStrides)
+        {
+            const std::vector<float> values = ramp_values(12);
             auto device = engine->create_tensor({3, 4}, Core::DataType::Float32,
                                                 SushiRuntime::Residency::Device);
             SushiBLAS::IO().from_vector(device, values);
 
-            const Tensor transposed = device.transpose(0, 1);
-            EXPECT_EQ(SushiBLAS::IO().to_string(transposed),
-                      dense_twin_text(transposed, values));
+            const Tensor view = view_of(device, GetParam().view);
 
-            const Tensor sliced = device.slice(1, 1, 3);
-            EXPECT_EQ(SushiBLAS::IO().to_string(sliced), dense_twin_text(sliced, values));
+            EXPECT_EQ(SushiBLAS::IO().to_string(view), dense_twin_text(view, values));
         }
 
-        TEST_F(Medium_HostTransfer, ToStringOfAnElidedTensorIsUnchanged)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HostTransferToStringOfAStridedView, ::testing::ValuesIn(view_rows()),
+            [](const ::testing::TestParamInfo<ViewRow>& info)
+            { return std::string(info.param.name); });
+
+        /**
+         * @brief Tests that the default of three edge items prints the first three and the last
+         *        three of 100 values around an ellipsis: 0, 1, 2, then 97, 98, 99.
+         */
+        TEST_F(Medium_HostTransfer, ToStringKeepsThreeItemsAtEachEdgeOfALongRun)
         {
             std::vector<float> values(100);
             for (size_t i = 0; i < values.size(); ++i)
                 values[i] = static_cast<float>(i);
-
             auto t = engine->create_tensor({100});
             SushiBLAS::IO().from_vector(t, values);
 
             EXPECT_EQ(SushiBLAS::IO().to_string(t),
                       "Tensor(shape=[100], dtype=f32):\n"
                       "[0.0000, 1.0000, 2.0000, ... 97.0000, 98.0000, 99.0000]");
+        }
+
+        /**
+         * @brief Tests that zero edge items leave only the ellipsis of a run of 100 values.
+         */
+        TEST_F(Medium_HostTransfer, ToStringWithZeroEdgeItemsPrintsOnlyTheEllipsis)
+        {
+            auto t = engine->create_tensor({100});
+            SushiBLAS::IO().from_vector(t, std::vector<float>(100, 1.0f));
+
             EXPECT_EQ(SushiBLAS::IO().to_string(t, 4, 0),
                       "Tensor(shape=[100], dtype=f32):\n[... ]");
         }
@@ -442,7 +654,6 @@ namespace SushiBLAS
         TEST_F(Medium_HostTransfer, ToStringOfAnEmptyTensorPrintsAnEmptyList)
         {
             auto t = engine->create_tensor({0});
-            ASSERT_FALSE(t.storage) << "A zero-element tensor is expected to have no storage.";
 
             EXPECT_EQ(SushiBLAS::IO().to_string(t), "Tensor(shape=[0], dtype=f32):\n[]");
         }

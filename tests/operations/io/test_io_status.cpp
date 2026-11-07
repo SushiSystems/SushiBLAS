@@ -27,9 +27,9 @@
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <set>
 #include <string>
+#include <vector>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/io/io_status.hpp>
 
@@ -39,21 +39,45 @@ namespace SushiBLAS
     {
         static_assert(static_cast<std::uint8_t>(IOStatus::Ok) == 0, "Ok is the zero value.");
 
-        TEST(Small_IOStatus, EveryStatusHasItsOwnName)
+        namespace
         {
-            const IOStatus statuses[] = {
-                IOStatus::Ok,            IOStatus::FileUnreadable, IOStatus::FileUnwritable,
-                IOStatus::MalformedFile, IOStatus::Truncated,      IOStatus::ShapeMismatch,
-                IOStatus::DtypeMismatch, IOStatus::LayoutMismatch,
+            /** @brief One status and the name it prints. */
+            struct StatusRow
+            {
+                IOStatus status;
+                const char* name;
             };
-            std::set<std::string> names;
 
-            for (const IOStatus status : statuses)
-                names.insert(to_string(status));
+            /** @brief Returns every status with its name. */
+            std::vector<StatusRow> status_rows()
+            {
+                return {{IOStatus::Ok, "Ok"},
+                        {IOStatus::FileUnreadable, "FileUnreadable"},
+                        {IOStatus::FileUnwritable, "FileUnwritable"},
+                        {IOStatus::MalformedFile, "MalformedFile"},
+                        {IOStatus::Truncated, "Truncated"},
+                        {IOStatus::ShapeMismatch, "ShapeMismatch"},
+                        {IOStatus::DtypeMismatch, "DtypeMismatch"},
+                        {IOStatus::LayoutMismatch, "LayoutMismatch"}};
+            }
+        } // namespace
 
-            EXPECT_EQ(names.size(), sizeof(statuses) / sizeof(statuses[0]));
-            EXPECT_EQ(std::string(to_string(IOStatus::Truncated)), "Truncated");
-            EXPECT_EQ(names.count("Unknown"), std::size_t{0});
+        /** @brief Runs one status of status_rows(). */
+        class Small_IOStatus : public ::testing::TestWithParam<StatusRow>
+        {
+
+        };
+
+        TEST_P(Small_IOStatus, IsNamedAfterItsEnumerator)
+        {
+            const StatusRow row = GetParam();
+
+            EXPECT_EQ(std::string(to_string(row.status)), row.name);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_IOStatus, ::testing::ValuesIn(status_rows()),
+            [](const ::testing::TestParamInfo<StatusRow>& info)
+            { return std::string(info.param.name); });
     } // namespace Test
 } // namespace SushiBLAS

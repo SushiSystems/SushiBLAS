@@ -37,7 +37,7 @@ using namespace SushiBLAS::Test;
 
 class Medium_ReLUTest : public SushiBLASTest {};
 
-TEST_F(Medium_ReLUTest, Forward) 
+TEST_F(Medium_ReLUTest, ForwardZeroesNegativeInputsAndKeepsTheRest) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-2.0f, -0.5f, 0.0f, 3.5f});
@@ -48,7 +48,7 @@ TEST_F(Medium_ReLUTest, Forward)
     expect_tensor(t, {0.0f, 0.0f, 0.0f, 3.5f});
 }
 
-TEST_F(Medium_ReLUTest, Backward) 
+TEST_F(Medium_ReLUTest, BackwardPassesTheGradientOnlyWhereTheInputIsPositive) 
 {
     auto dy = engine->create_tensor({4});
     auto x = engine->create_tensor({4});

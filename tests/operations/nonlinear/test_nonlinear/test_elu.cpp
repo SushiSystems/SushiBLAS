@@ -37,7 +37,7 @@ using namespace SushiBLAS::Test;
 
 class Medium_ELUTest : public SushiBLASTest {};
 
-TEST_F(Medium_ELUTest, Forward) 
+TEST_F(Medium_ELUTest, ForwardIsAlphaTimesExpXMinusOneBelowZeroAndTheInputFromZeroUp) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
@@ -48,7 +48,7 @@ TEST_F(Medium_ELUTest, Forward)
     expect_tensor(t, {-0.632121f, 0.0f, 1.0f, 2.0f});
 }
 
-TEST_F(Medium_ELUTest, Backward) 
+TEST_F(Medium_ELUTest, BackwardScalesTheGradientByAlphaExpXBelowZeroAndPassesItFromZeroUp) 
 {
     auto dy = engine->create_tensor({4});
     auto x = engine->create_tensor({4});

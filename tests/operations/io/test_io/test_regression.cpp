@@ -93,19 +93,6 @@ namespace SushiBLAS
                 std::vector<std::string> paths_;
         };
 
-        TEST_F(Medium_IO, LoadRejectsATruncatedPayloadAndKeepsTheTensor)
-        {
-            const std::string path = temp_path("truncated_payload.sushi");
-            auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            ASSERT_EQ(SushiBLAS::IO().save(source, path), SushiBLAS::IOStatus::Ok);
-            drop_tail(path, 2 * sizeof(float));
-
-            const std::vector<float> before{7.0f, 7.0f, 7.0f, 7.0f};
-            auto target = create_initialized_tensor<float>({4}, before);
-            EXPECT_EQ(SushiBLAS::IO().load(target, path), SushiBLAS::IOStatus::Truncated);
-            expect_tensor_equal(target, before);
-        }
-
         TEST_F(Medium_IO, LoadRejectsAnotherDtype)
         {
             const std::string path = temp_path("dtype.sushi");
@@ -151,37 +138,145 @@ namespace SushiBLAS
                       SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Medium_IO, LoadBinRejectsAShortFileAndKeepsTheTensor)
+        namespace
         {
-            const std::string path = temp_path("short.bin");
-            auto source = create_initialized_tensor<float>({2}, {1.0f, 2.0f});
-            ASSERT_EQ(SushiBLAS::IO().save_bin(source, path), SushiBLAS::IOStatus::Ok);
+            /** @brief Names a file format IO loads whole or refuses. */
+            enum class Format
+            {
+                Sushi, ///< The native .sushi format.
+                Bin,   ///< Raw bytes with no header.
+                Npy    ///< The NumPy .npy format.
+            };
 
-            const std::vector<float> before{7.0f, 7.0f, 7.0f, 7.0f};
-            auto target = create_initialized_tensor<float>({4}, before);
-            EXPECT_EQ(SushiBLAS::IO().load_bin(target, path),
-                      SushiBLAS::IOStatus::Truncated);
-            expect_tensor_equal(target, before);
+            /** @brief Returns the name a test instance carries for a format. */
+            std::string format_name(Format format)
+            {
+                switch (format)
+                {
+                    case Format::Sushi: return "Sushi";
+                    case Format::Bin:   return "Bin";
+                    case Format::Npy:   return "Npy";
+                }
+                return "Unknown";
+            }
+
+            /** @brief Returns the name a test instance carries for a residency. */
+            std::string memory_name(SushiRuntime::Residency residency)
+            {
+                return residency == SushiRuntime::Residency::Device ? "Device" : "Shared";
+            }
+
+            /** @brief One short file: its format, how much it lacks and where the target lives. */
+            struct ShortFileRow
+            {
+                std::string name;
+                Format format;
+                size_t bytes_missing;
+                SushiRuntime::Residency residency;
+            };
+
+            /** @brief Returns every format cut by one byte and by two elements, into each residency. */
+            std::vector<ShortFileRow> short_file_rows()
+            {
+                std::vector<ShortFileRow> rows;
+                for (const Format format : {Format::Sushi, Format::Bin, Format::Npy})
+                {
+                    for (const SushiRuntime::Residency residency :
+                         {SushiRuntime::Residency::Shared, SushiRuntime::Residency::Device})
+                    {
+                        rows.push_back({format_name(format) + "OneByteShortInto" +
+                                            memory_name(residency),
+                                        format, 1, residency});
+                        rows.push_back({format_name(format) + "TwoElementsShortInto" +
+                                            memory_name(residency),
+                                        format, 2 * sizeof(float), residency});
+                    }
+                }
+                return rows;
+            }
+
+            /** @brief Returns the values a payload of count elements holds, the same on every call. */
+            std::vector<float> chunk_values(size_t count)
+            {
+                std::vector<float> values(count);
+                for (size_t i = 0; i < values.size(); ++i)
+                    values[i] = static_cast<float>(i % 8191) - 4095.0f;
+                return values;
+            }
+        } // namespace
+
+        /** @brief Runs one short file of short_file_rows(). */
+        class Medium_IOShortFile : public Medium_IO, public ::testing::WithParamInterface<ShortFileRow>
+        {
+            protected:
+                /** @brief Saves four elements in the row's format and cuts the row's bytes off. */
+                std::string short_file(const ShortFileRow& row)
+                {
+                    const std::string path = temp_path("short_" + row.name);
+                    auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
+                    const SushiBLAS::IOStatus saved =
+                        row.format == Format::Sushi ? SushiBLAS::IO().save(source, path)
+                        : row.format == Format::Bin ? SushiBLAS::IO().save_bin(source, path)
+                                                    : SushiBLAS::IO().save_npy(source, path);
+                    EXPECT_EQ(saved, SushiBLAS::IOStatus::Ok);
+                    drop_tail(path, row.bytes_missing);
+                    return path;
+                }
+
+                /** @brief Loads the file at path into target in the row's format. */
+                static SushiBLAS::IOStatus load(const ShortFileRow& row, Tensor& target,
+                                                const std::string& path)
+                {
+                    return row.format == Format::Sushi ? SushiBLAS::IO().load(target, path)
+                           : row.format == Format::Bin ? SushiBLAS::IO().load_bin(target, path)
+                                                       : SushiBLAS::IO().load_npy(target, path);
+                }
+        };
+
+        TEST_P(Medium_IOShortFile, IsRefusedAsTruncated)
+        {
+            const ShortFileRow row = GetParam();
+            const std::string path = short_file(row);
+            auto target = engine->create_tensor({4}, Core::DataType::Float32, row.residency);
+
+            EXPECT_EQ(load(row, target, path), SushiBLAS::IOStatus::Truncated);
         }
 
-        TEST_F(Medium_IO, LoadNpyRejectsATruncatedPayload)
+        TEST_P(Medium_IOShortFile, LeavesTheTensorUntouched)
         {
-            const std::string path = temp_path("truncated_payload.npy");
-            auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            ASSERT_EQ(SushiBLAS::IO().save_npy(source, path), SushiBLAS::IOStatus::Ok);
-            drop_tail(path, sizeof(float));
+            const ShortFileRow row = GetParam();
+            const std::string path = short_file(row);
+            const std::vector<float> sentinel{7.0f, 7.0f, 7.0f, 7.0f};
+            auto target = engine->create_tensor({4}, Core::DataType::Float32, row.residency);
+            fill_tensor(target, sentinel);
 
-            auto target = engine->create_tensor({4}, Core::DataType::Float32);
-            EXPECT_EQ(SushiBLAS::IO().load_npy(target, path),
-                      SushiBLAS::IOStatus::Truncated);
+            static_cast<void>(load(row, target, path));
+
+            expect_tensor_equal(target, sentinel);
         }
 
-        TEST_F(Medium_IO, BinRoundTripsDeviceAllocatedStorage)
-        {
-            if (!TestEnvironment::queue().get_device().is_gpu())
-                GTEST_SKIP() << "Device USM is host-readable on this device; "
-                                "the test proves nothing here.";
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IOShortFile, ::testing::ValuesIn(short_file_rows()),
+            [](const ::testing::TestParamInfo<ShortFileRow>& info) { return info.param.name; });
 
+        /** @brief Skips a test on a device whose device memory the host can read. */
+        class Medium_IODevice : public Medium_IO
+        {
+            protected:
+                /** @brief Skips when device allocations are host-readable, as the test proves nothing there. */
+                void SetUp() override
+                {
+                    Medium_IO::SetUp();
+                    if (!TestEnvironment::queue().get_device().is_gpu())
+                    {
+                        GTEST_SKIP() << "Device USM is host-readable on this device; "
+                                        "the test proves nothing here.";
+                    }
+                }
+        };
+
+        TEST_F(Medium_IODevice, BinRoundTripsDeviceAllocatedStorage)
+        {
             const auto device = SushiRuntime::Residency::Device;
             const std::vector<float> values{1.0f, 2.0f, 3.0f, 4.0f};
 
@@ -197,73 +292,40 @@ namespace SushiBLAS
             expect_tensor_equal(target, values);
         }
 
-        TEST_F(Medium_IO, AShortFileLeavesTheTensorUntouched)
+        /** @brief Runs the chunked payload in one residency. */
+        class Medium_IOChunks : public Medium_IO,
+                                public ::testing::WithParamInterface<SushiRuntime::Residency>
         {
-            const std::string bin_path = temp_path("one_byte_short.bin");
-            const std::string sushi_path = temp_path("one_byte_short.sushi");
-            const std::string npy_path = temp_path("one_byte_short.npy");
 
-            auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            ASSERT_EQ(SushiBLAS::IO().save_bin(source, bin_path), SushiBLAS::IOStatus::Ok);
-            ASSERT_EQ(SushiBLAS::IO().save(source, sushi_path), SushiBLAS::IOStatus::Ok);
-            ASSERT_EQ(SushiBLAS::IO().save_npy(source, npy_path), SushiBLAS::IOStatus::Ok);
-            drop_tail(bin_path, 1);
-            drop_tail(sushi_path, 1);
-            drop_tail(npy_path, 1);
+        };
 
-            const std::vector<float> sentinel{7.0f, 7.0f, 7.0f, 7.0f};
-            for (const auto residency : {SushiRuntime::Residency::Shared,
-                                         SushiRuntime::Residency::Device})
-            {
-                SCOPED_TRACE(residency == SushiRuntime::Residency::Device ? "Device"
-                                                                               : "Shared");
-                auto target = engine->create_tensor({4}, Core::DataType::Float32, residency);
-                fill_tensor(target, sentinel);
-
-                EXPECT_EQ(SushiBLAS::IO().load_bin(target, bin_path),
-                          SushiBLAS::IOStatus::Truncated);
-                expect_tensor_equal(target, sentinel);
-
-                EXPECT_EQ(SushiBLAS::IO().load(target, sushi_path),
-                          SushiBLAS::IOStatus::Truncated);
-                expect_tensor_equal(target, sentinel);
-
-                EXPECT_EQ(SushiBLAS::IO().load_npy(target, npy_path),
-                          SushiBLAS::IOStatus::Truncated);
-                expect_tensor_equal(target, sentinel);
-            }
-        }
-
-        TEST_F(Medium_IO, APayloadLargerThanOneChunkRoundTrips)
+        /**
+         * @brief Tests that 3 x 2^20 FLOAT32 elements, 12 MiB and three of the 4 MiB chunks IO
+         *        stages, save and load back unchanged.
+         */
+        TEST_P(Medium_IOChunks, ALargePayloadRoundTrips)
         {
-            // 3 x 2^20 FLOAT32 elements are 12 MiB, three of the 4 MiB chunks IO stages.
             constexpr int64_t K_ELEMENTS = int64_t{3} << 20;
+            const SushiRuntime::Residency residency = GetParam();
+            const std::vector<float> values = chunk_values(static_cast<size_t>(K_ELEMENTS));
+            const std::string path = temp_path("chunks_" + memory_name(residency) + ".bin");
 
-            std::vector<float> values(static_cast<size_t>(K_ELEMENTS));
-            for (size_t i = 0; i < values.size(); ++i)
-                values[i] = static_cast<float>(i % 8191) - 4095.0f;
+            auto source = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32, residency);
+            SushiBLAS::IO().from_vector(source, values);
+            ASSERT_EQ(SushiBLAS::IO().save_bin(source, path), SushiBLAS::IOStatus::Ok);
 
-            for (const auto residency : {SushiRuntime::Residency::Device,
-                                         SushiRuntime::Residency::Shared})
-            {
-                const bool on_device = residency == SushiRuntime::Residency::Device;
-                SCOPED_TRACE(on_device ? "Device" : "Shared");
-                const std::string path =
-                    temp_path(on_device ? "chunks_device.bin" : "chunks_shared.bin");
+            auto target = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32, residency);
+            ASSERT_EQ(SushiBLAS::IO().load_bin(target, path), SushiBLAS::IOStatus::Ok);
 
-                auto source = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32,
-                                                    residency);
-                SushiBLAS::IO().from_vector(source, values);
-                ASSERT_EQ(SushiBLAS::IO().save_bin(source, path), SushiBLAS::IOStatus::Ok);
-
-                auto target = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32,
-                                                    residency);
-                ASSERT_EQ(SushiBLAS::IO().load_bin(target, path), SushiBLAS::IOStatus::Ok);
-
-                EXPECT_TRUE(SushiBLAS::IO().to_vector<float>(target) == values)
-                    << "The loaded elements differ from the saved ones.";
-            }
+            EXPECT_TRUE(SushiBLAS::IO().to_vector<float>(target) == values)
+                << "The loaded elements differ from the saved ones.";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_IOChunks,
+            ::testing::Values(SushiRuntime::Residency::Device, SushiRuntime::Residency::Shared),
+            [](const ::testing::TestParamInfo<SushiRuntime::Residency>& info)
+            { return memory_name(info.param); });
 
         TEST_F(Medium_IO, ALongerFileStillLoadsItsPrefix)
         {

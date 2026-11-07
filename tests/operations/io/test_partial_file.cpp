@@ -41,17 +41,26 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_IoLog, ARemovedPartialFileIsGoneAndStatesNothing)
+        TEST(Medium_IoLog, ARemovedPartialFileIsGone)
         {
             const std::filesystem::path path =
                 std::filesystem::temp_directory_path() / "sushiblas_io_partial_file.bin";
             std::ofstream(path, std::ios::binary) << "partial";
+
+            EXPECT_TRUE(IOFiles::remove_partial_file(path.string()));
+            EXPECT_FALSE(std::filesystem::exists(path));
+        }
+
+        TEST(Medium_IoLog, ARemovedPartialFileStatesNothing)
+        {
+            const std::filesystem::path path =
+                std::filesystem::temp_directory_path() / "sushiblas_io_partial_file_quiet.bin";
+            std::ofstream(path, std::ios::binary) << "partial";
             const ScopedLogLevel level(SushiLog::LogLevel::Trace);
             const SushiLog::LogCapture capture;
 
-            EXPECT_TRUE(IOFiles::remove_partial_file(path.string()));
+            static_cast<void>(IOFiles::remove_partial_file(path.string()));
 
-            EXPECT_FALSE(std::filesystem::exists(path));
             EXPECT_TRUE(capture.records().empty());
         }
 
