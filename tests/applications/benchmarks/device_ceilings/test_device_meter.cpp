@@ -52,25 +52,39 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Medium_DeviceMeter, TheF32ComputeCeilingIsPositiveAndFinite)
+        TEST(Medium_DeviceMeter, TheF32ComputeCeilingTakesTheProtocolRuns)
         {
             Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
 
-            const Ceilings::Measurement measurement = meter.measure_compute(Ceilings::ComputeKind::F32);
-
-            EXPECT_EQ(measurement.runs, 3U);
-            EXPECT_TRUE(std::isfinite(measurement.rate));
-            EXPECT_GT(measurement.rate, 0.0);
+            EXPECT_EQ(meter.measure_compute(Ceilings::ComputeKind::F32).runs, 3U);
         }
 
-        TEST(Medium_DeviceMeter, TheBandwidthIsPositiveAndFinite)
+        TEST(Medium_DeviceMeter, TheF32ComputeCeilingIsFinite)
         {
             Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
 
-            const Ceilings::Measurement measurement = meter.measure_bandwidth();
+            EXPECT_TRUE(std::isfinite(meter.measure_compute(Ceilings::ComputeKind::F32).rate));
+        }
 
-            EXPECT_TRUE(std::isfinite(measurement.rate));
-            EXPECT_GT(measurement.rate, 0.0);
+        TEST(Medium_DeviceMeter, TheF32ComputeCeilingIsPositive)
+        {
+            Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
+
+            EXPECT_GT(meter.measure_compute(Ceilings::ComputeKind::F32).rate, 0.0);
+        }
+
+        TEST(Medium_DeviceMeter, TheBandwidthIsFinite)
+        {
+            Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
+
+            EXPECT_TRUE(std::isfinite(meter.measure_bandwidth().rate));
+        }
+
+        TEST(Medium_DeviceMeter, TheBandwidthIsPositive)
+        {
+            Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
+
+            EXPECT_GT(meter.measure_bandwidth().rate, 0.0);
         }
 
         TEST(Medium_DeviceMeter, TheLaunchFloorIsNotNegative)
@@ -85,13 +99,6 @@ namespace SushiBLAS
             Ceilings::DeviceMeter meter(TestEnvironment::runtime(), short_protocol());
 
             EXPECT_TRUE(meter.supports(Ceilings::ComputeKind::F32));
-        }
-
-        TEST(Medium_DeviceMeter, EveryComputeKindHasAName)
-        {
-            EXPECT_STREQ(Ceilings::compute_name(Ceilings::ComputeKind::F16), "f16");
-            EXPECT_STREQ(Ceilings::compute_name(Ceilings::ComputeKind::F32), "f32");
-            EXPECT_STREQ(Ceilings::compute_name(Ceilings::ComputeKind::F64), "f64");
         }
     } // namespace Test
 } // namespace SushiBLAS

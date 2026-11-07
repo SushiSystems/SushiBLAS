@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <set>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
@@ -37,35 +36,85 @@ namespace HostProgram
 {
     namespace Test
     {
-        TEST(Small_HostProgram, EveryStatusCodeHasItsOwnName)
+        /** @brief Names one status code and the text to_string gives it. */
+        struct StatusNameRow
         {
-            const StatusCode codes[] = {StatusCode::Ok, StatusCode::InvalidRequest,
-                                        StatusCode::Unsupported, StatusCode::OutOfMemory,
-                                        StatusCode::BackendFailed};
-            std::set<std::string> names;
+            const char* name;  /**< The row name a failure shows. */
+            StatusCode code;   /**< The status code. */
+            const char* text;  /**< The name of the enumerator, which to_string returns. */
+        };
 
-            for (const StatusCode code : codes)
-                names.insert(to_string(code));
+        /** @brief Returns one row per status code. */
+        std::vector<StatusNameRow> status_name_rows()
+        {
+            return {{"Ok", StatusCode::Ok, "Ok"},
+                    {"InvalidRequest", StatusCode::InvalidRequest, "InvalidRequest"},
+                    {"Unsupported", StatusCode::Unsupported, "Unsupported"},
+                    {"OutOfMemory", StatusCode::OutOfMemory, "OutOfMemory"},
+                    {"BackendFailed", StatusCode::BackendFailed, "BackendFailed"}};
+        }
 
-            EXPECT_EQ(names.size(), sizeof(codes) / sizeof(codes[0]));
+        /** @brief Runs one row of status_name_rows(). */
+        class Small_HostProgramStatusName : public ::testing::TestWithParam<StatusNameRow>
+        {
+
+        };
+
+        TEST_P(Small_HostProgramStatusName, IsTheNameOfTheCode)
+        {
+            const StatusNameRow row = GetParam();
+
+            EXPECT_STREQ(to_string(row.code), row.text);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_HostProgramStatusName, ::testing::ValuesIn(status_name_rows()),
+            [](const ::testing::TestParamInfo<StatusNameRow>& info)
+            { return std::string(info.param.name); });
+
+        TEST(Small_HostProgram, ADefaultStatusIsOkWithNoMessage)
+        {
             EXPECT_EQ(Status{}.code, StatusCode::Ok);
             EXPECT_TRUE(Status{}.message.empty());
         }
 
-        TEST(Medium_HostProgram, MultiplyAddGivesTheShiftedProductAndItsSum)
+        /** @brief Runs multiply_add on a 2 by 2 product with an all-ones offset. */
+        class Medium_HostProgramMultiplyAdd : public ::testing::Test
         {
-            BackendHandle backend;
-            ASSERT_EQ(create_backend(backend).code, StatusCode::Ok);
-            const Matrix a{2, 2, {1, 2, 3, 4}};
-            const Matrix b{2, 2, {0, 1, 1, 0}};
-            const Matrix offset{2, 2, {1, 1, 1, 1}};
-            Matrix result;
-            float sum = 0;
+            protected:
+                /** @brief Holds the shifted product of the run. */
+                Matrix result;
 
-            const Status status = multiply_add(*backend, a, b, offset, result, sum);
+                /** @brief Holds the sum of the shifted product of the run. */
+                float sum = 0;
+
+                /** @brief Runs the call and returns its status. */
+                Status run()
+                {
+                    BackendHandle backend;
+                    const Status created = create_backend(backend);
+                    if (created.code != StatusCode::Ok)
+                        return created;
+                    const Matrix a{2, 2, {1, 2, 3, 4}};
+                    const Matrix b{2, 2, {0, 1, 1, 0}};
+                    const Matrix offset{2, 2, {1, 1, 1, 1}};
+                    return multiply_add(*backend, a, b, offset, result, sum);
+                }
+        };
+
+        TEST_F(Medium_HostProgramMultiplyAdd, GivesTheShiftedProduct)
+        {
+            const Status status = run();
 
             ASSERT_EQ(status.code, StatusCode::Ok) << status.message;
             EXPECT_EQ(result.values, (std::vector<float>{3, 2, 5, 4}));
+        }
+
+        TEST_F(Medium_HostProgramMultiplyAdd, GivesTheSumOfTheShiftedProduct)
+        {
+            const Status status = run();
+
+            ASSERT_EQ(status.code, StatusCode::Ok) << status.message;
             EXPECT_EQ(sum, 14.0f);
         }
     } // namespace Test

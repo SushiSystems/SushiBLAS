@@ -28,6 +28,7 @@
  * @see tests/applications/benchmarks/device_ceilings/README.md
  */
 
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <ceilings_options.hpp>
@@ -77,7 +78,7 @@ namespace SushiBLAS
             EXPECT_EQ(result.options.stream_mib, std::size_t{64});
         }
 
-        TEST(Small_CeilingsOptions, HelpIsNotAnError)
+        TEST(Small_CeilingsOptions, AHelpRequestIsNotARunButSetsTheHelpFlag)
         {
             const Ceilings::ParseResult result = parse({"--help"});
 
@@ -102,16 +103,40 @@ namespace SushiBLAS
             EXPECT_NE(result.message.find("needs a value"), std::string::npos);
         }
 
-        TEST(Small_CeilingsOptions, RefusesAValueOutsideTheRange)
+        /** @brief Names one option and the value the parser refuses for it. */
+        struct RefusedValueRow
         {
-            EXPECT_FALSE(parse({"--runs", "0"}).ok);
-            EXPECT_FALSE(parse({"--device", "-1"}).ok);
-            EXPECT_FALSE(parse({"--device", "one"}).ok);
-            EXPECT_FALSE(parse({"--min-span-ms", "0"}).ok);
-            EXPECT_FALSE(parse({"--spread-limit", "-0.1"}).ok);
-            EXPECT_FALSE(parse({"--stream-mib", "0"}).ok);
-            EXPECT_FALSE(parse({"--out", ""}).ok);
+            const char* name;                    /**< The row name a failure shows. */
+            std::vector<const char*> arguments;  /**< The arguments after the program name. */
+        };
+
+        /** @brief Returns one row per option value outside its range. */
+        std::vector<RefusedValueRow> refused_value_rows()
+        {
+            return {{"RunsOfZero", {"--runs", "0"}},
+                    {"NegativeDevice", {"--device", "-1"}},
+                    {"NonNumericDevice", {"--device", "one"}},
+                    {"MinSpanOfZero", {"--min-span-ms", "0"}},
+                    {"NegativeSpreadLimit", {"--spread-limit", "-0.1"}},
+                    {"StreamOfZeroMiB", {"--stream-mib", "0"}},
+                    {"EmptyOutFolder", {"--out", ""}}};
         }
+
+        /** @brief Runs one row of refused_value_rows(). */
+        class Small_CeilingsRefusedValue : public ::testing::TestWithParam<RefusedValueRow>
+        {
+
+        };
+
+        TEST_P(Small_CeilingsRefusedValue, IsRefused)
+        {
+            EXPECT_FALSE(parse(GetParam().arguments).ok);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsRefusedValue, ::testing::ValuesIn(refused_value_rows()),
+            [](const ::testing::TestParamInfo<RefusedValueRow>& info)
+            { return std::string(info.param.name); });
 
         TEST(Small_CeilingsOptions, AWarmupOfZeroIsAccepted)
         {

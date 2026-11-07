@@ -27,9 +27,11 @@
  * @author Mustafa Garip
  */
 
+#include <functional>
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/error.hpp>
 #include <SushiBLAS/core/errors.hpp>
@@ -84,27 +86,94 @@ namespace HostProgram
             return Detail::guarded(Thrower<Exception>{}).code;
         }
 
-        TEST(Medium_StatusMapping, EveryRuntimeErrorHasAHostStatus)
+        /** @brief Names one runtime error code and the status code the adapter gives it. */
+        struct ErrorCodeRow
         {
-            EXPECT_EQ(code_for(SushiRuntime::ErrorCode::InvalidGraph), StatusCode::InvalidRequest);
-            EXPECT_EQ(code_for(SushiRuntime::ErrorCode::InvalidState), StatusCode::InvalidRequest);
-            EXPECT_EQ(code_for(SushiRuntime::ErrorCode::Unsupported), StatusCode::Unsupported);
-            EXPECT_EQ(code_for(SushiRuntime::ErrorCode::AllocationFailed),
-                      StatusCode::OutOfMemory);
-            EXPECT_EQ(code_for(SushiRuntime::ErrorCode::KernelFailed), StatusCode::BackendFailed);
-            EXPECT_EQ(Detail::status_of_error(
-                          SushiRuntime::Error(SushiRuntime::ErrorCode::DeviceLost, "lost"))
-                          .message,
-                      "lost");
+            const char* name;                /**< The row name a failure shows. */
+            SushiRuntime::ErrorCode error;   /**< The runtime error code. */
+            StatusCode status;               /**< The host status code it maps to. */
+        };
+
+        /** @brief Returns one row per runtime error code. */
+        std::vector<ErrorCodeRow> error_code_rows()
+        {
+            using Error = SushiRuntime::ErrorCode;
+            return {{"InvalidGraph", Error::InvalidGraph, StatusCode::InvalidRequest},
+                    {"InvalidAccess", Error::InvalidAccess, StatusCode::InvalidRequest},
+                    {"DanglingResource", Error::DanglingResource, StatusCode::InvalidRequest},
+                    {"InvalidState", Error::InvalidState, StatusCode::InvalidRequest},
+                    {"InvalidArgument", Error::InvalidArgument, StatusCode::InvalidRequest},
+                    {"Unsupported", Error::Unsupported, StatusCode::Unsupported},
+                    {"AllocationFailed", Error::AllocationFailed, StatusCode::OutOfMemory},
+                    {"CompileFailed", Error::CompileFailed, StatusCode::BackendFailed},
+                    {"KernelFailed", Error::KernelFailed, StatusCode::BackendFailed},
+                    {"DeviceLost", Error::DeviceLost, StatusCode::BackendFailed},
+                    {"ProtocolMismatch", Error::ProtocolMismatch, StatusCode::BackendFailed}};
         }
 
-        TEST(Medium_StatusMapping, TheGuardNamesTheExceptionItCaught)
+        /** @brief Runs one row of error_code_rows(). */
+        class Small_StatusMappingErrorCode : public ::testing::TestWithParam<ErrorCodeRow>
         {
-            EXPECT_EQ(code_of_throw<SushiBLAS::UnsupportedExecution>(), StatusCode::Unsupported);
-            EXPECT_EQ(code_of_throw<std::invalid_argument>(), StatusCode::InvalidRequest);
-            EXPECT_EQ(code_of_throw<std::runtime_error>(), StatusCode::BackendFailed);
-            EXPECT_EQ(Detail::guarded(AllocationFailure{}).code, StatusCode::OutOfMemory);
-            EXPECT_EQ(Detail::guarded(Success{}).code, StatusCode::Ok);
+
+        };
+
+        TEST_P(Small_StatusMappingErrorCode, MapsToItsHostStatus)
+        {
+            const ErrorCodeRow row = GetParam();
+
+            EXPECT_EQ(code_for(row.error), row.status);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_StatusMappingErrorCode, ::testing::ValuesIn(error_code_rows()),
+            [](const ::testing::TestParamInfo<ErrorCodeRow>& info)
+            { return std::string(info.param.name); });
+
+        TEST(Small_StatusMapping, ARuntimeErrorKeepsItsMessage)
+        {
+            const Status status = Detail::status_of_error(
+                SushiRuntime::Error(SushiRuntime::ErrorCode::DeviceLost, "lost"));
+
+            EXPECT_EQ(status.message, "lost");
+        }
+
+        /** @brief Names one body and the status code the guard gives its outcome. */
+        struct GuardRow
+        {
+            const char* name;                 /**< The row name a failure shows. */
+            std::function<StatusCode()> run;  /**< Runs the guard over the body. */
+            StatusCode status;                /**< The code the guard returns. */
+        };
+
+        /** @brief Returns one row per exception the guard names, a bad allocation and a success. */
+        std::vector<GuardRow> guard_rows()
+        {
+            return {{"UnsupportedExecution", code_of_throw<SushiBLAS::UnsupportedExecution>,
+                     StatusCode::Unsupported},
+                    {"InvalidArgument", code_of_throw<std::invalid_argument>,
+                     StatusCode::InvalidRequest},
+                    {"RuntimeError", code_of_throw<std::runtime_error>, StatusCode::BackendFailed},
+                    {"BadAllocation", []() { return Detail::guarded(AllocationFailure{}).code; },
+                     StatusCode::OutOfMemory},
+                    {"NoException", []() { return Detail::guarded(Success{}).code; },
+                     StatusCode::Ok}};
+        }
+
+        /** @brief Runs one row of guard_rows(). */
+        class Small_StatusMappingGuard : public ::testing::TestWithParam<GuardRow>
+        {
+
+        };
+
+        TEST_P(Small_StatusMappingGuard, NamesTheOutcomeItSaw)
+        {
+            const GuardRow row = GetParam();
+
+            EXPECT_EQ(row.run(), row.status);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_StatusMappingGuard, ::testing::ValuesIn(guard_rows()),
+            [](const ::testing::TestParamInfo<GuardRow>& info) { return std::string(info.param.name); });
     } // namespace Test
 } // namespace HostProgram

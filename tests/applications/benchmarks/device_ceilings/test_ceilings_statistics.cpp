@@ -28,6 +28,8 @@
  * @see tests/applications/benchmarks/device_ceilings/README.md
  */
 
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <ceilings_statistics.hpp>
 
@@ -35,47 +37,77 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_CeilingsStatistics, TheMedianOfAnOddCountIsTheMiddleValue)
+        /** @brief Names the runs of one summary and the median they give. */
+        struct MedianRow
         {
-            const Ceilings::RunStatistics statistics = Ceilings::summarize({30.0, 10.0, 20.0});
+            const char* name;           /**< The row name a failure shows. */
+            std::vector<double> runs;   /**< The measured runs, in any order. */
+            double median;              /**< The median the summary reports. */
+        };
 
-            EXPECT_DOUBLE_EQ(statistics.median, 20.0);
+        /** @brief Returns an odd count, an even count and one run. */
+        std::vector<MedianRow> median_rows()
+        {
+            return {{"OddCountIsTheMiddleValue", {30.0, 10.0, 20.0}, 20.0},
+                    {"EvenCountIsTheMeanOfTheMiddlePair", {40.0, 10.0, 20.0, 30.0}, 25.0},
+                    {"SingleRunIsThatRun", {42.0}, 42.0}};
         }
 
-        TEST(Small_CeilingsStatistics, TheMedianOfAnEvenCountIsTheMeanOfTheMiddlePair)
+        /** @brief Runs one row of median_rows(). */
+        class Small_CeilingsMedian : public ::testing::TestWithParam<MedianRow>
         {
-            const Ceilings::RunStatistics statistics = Ceilings::summarize({40.0, 10.0, 20.0, 30.0});
 
-            EXPECT_DOUBLE_EQ(statistics.median, 25.0);
+        };
+
+        TEST_P(Small_CeilingsMedian, IsTheMiddleOfTheSortedRuns)
+        {
+            const MedianRow row = GetParam();
+
+            EXPECT_DOUBLE_EQ(Ceilings::summarize(row.runs).median, row.median);
         }
 
-        TEST(Small_CeilingsStatistics, TheSpreadIsTheRangeOverTheMedian)
-        {
-            const Ceilings::RunStatistics statistics = Ceilings::summarize({90.0, 100.0, 110.0});
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsMedian, ::testing::ValuesIn(median_rows()),
+            [](const ::testing::TestParamInfo<MedianRow>& info) { return std::string(info.param.name); });
 
-            EXPECT_DOUBLE_EQ(statistics.spread, 0.2);
+        /** @brief Names the runs of one summary and the spread they give. */
+        struct SpreadRow
+        {
+            const char* name;           /**< The row name a failure shows. */
+            std::vector<double> runs;   /**< The measured runs. */
+            double spread;              /**< The range over the median the summary reports. */
+        };
+
+        /** @brief Returns a spread, a single run and a zero median. */
+        std::vector<SpreadRow> spread_rows()
+        {
+            return {{"IsTheRangeOverTheMedian", {90.0, 100.0, 110.0}, 0.2},
+                    {"OfASingleRunIsZero", {42.0}, 0.0},
+                    {"OfAZeroMedianIsZero", {0.0, 0.0, 0.0}, 0.0}};
         }
 
-        TEST(Small_CeilingsStatistics, ASingleRunHasNoSpread)
+        /** @brief Runs one row of spread_rows(). */
+        class Small_CeilingsSpread : public ::testing::TestWithParam<SpreadRow>
         {
-            const Ceilings::RunStatistics statistics = Ceilings::summarize({42.0});
 
-            EXPECT_DOUBLE_EQ(statistics.median, 42.0);
-            EXPECT_DOUBLE_EQ(statistics.spread, 0.0);
+        };
+
+        TEST_P(Small_CeilingsSpread, IsTheRangeOverTheMedianOrZero)
+        {
+            const SpreadRow row = GetParam();
+
+            EXPECT_DOUBLE_EQ(Ceilings::summarize(row.runs).spread, row.spread);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsSpread, ::testing::ValuesIn(spread_rows()),
+            [](const ::testing::TestParamInfo<SpreadRow>& info) { return std::string(info.param.name); });
 
         TEST(Small_CeilingsStatistics, NoRunGivesAZeroResult)
         {
             const Ceilings::RunStatistics statistics = Ceilings::summarize({});
 
             EXPECT_DOUBLE_EQ(statistics.median, 0.0);
-            EXPECT_DOUBLE_EQ(statistics.spread, 0.0);
-        }
-
-        TEST(Small_CeilingsStatistics, AZeroMedianHasNoSpread)
-        {
-            const Ceilings::RunStatistics statistics = Ceilings::summarize({0.0, 0.0, 0.0});
-
             EXPECT_DOUBLE_EQ(statistics.spread, 0.0);
         }
     } // namespace Test
