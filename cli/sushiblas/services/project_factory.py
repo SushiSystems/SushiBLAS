@@ -12,7 +12,7 @@ from sushicore.proc import Runner
 from ..config import PROFILE, find_project_root, load_config
 from ..env import create_build_env
 from .discovery import create_executable_index
-from .package_source import StorePackageSource
+from .package_source_store import StorePackageSource
 from .project import ProjectService
 
 

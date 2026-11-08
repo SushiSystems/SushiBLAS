@@ -4,12 +4,13 @@
 # Licensed under the Apache License 2.0. See LICENSE.
 """Builds the real project service over a scratch checkout, a recording runner and a recording console.
 
-A command test hands the context this module builds to ``command_context.using`` and reads
-what the service handed cmake, ctest and the programs from ``runner.commands``.
+A command test hands the context built here to ``command_context.using`` and reads what the
+service handed cmake, ctest and the programs from ``runner.commands``. See cli/tests/README.md.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,30 +22,16 @@ from typer.testing import CliRunner, Result
 from sushiblas import cli, command_context
 from sushiblas.command_context import CommandContext
 from sushiblas.config import Config
-from sushiblas.services.package_source import MemoryPackageSource, PackageSource
+from sushiblas.services.build_environment_memory import MemoryBuildEnvironment
+from sushiblas.services.executable_lookup_memory import MemoryExecutableLookup
+from sushiblas.services.package_source import PackageSource
+from sushiblas.services.package_source_memory import MemoryPackageSource
 from sushiblas.services.project import ProjectService
 
 K_EXECUTABLE = "quickstart_demo"
 #: The trees a plain build and a benchmark find, below the checkout.
 K_DEBUG_TREE = Path("build") / "default-debug"
 K_RELEASE_TREE = Path("build") / "default-release"
-
-
-class StubIndex:
-    """Finds one executable, named K_EXECUTABLE, directly under the build tree."""
-
-    def match(self, build_root: Path, query: str) -> Path | None:
-        """Returns the executable when *query* names it."""
-        exe = build_root / K_EXECUTABLE
-        return exe if query == K_EXECUTABLE and exe.is_file() else None
-
-
-class StubBuildEnv:
-    """Returns an empty environment without running a shell."""
-
-    def load(self, cfg, build_dir: Path) -> dict[str, str]:
-        """Returns no variables."""
-        return {}
 
 
 def make_config(**fields) -> Config:
@@ -80,11 +67,14 @@ class Commands:
             return CliRunner().invoke(cli.app, list(arguments))
 
 
-def make_service(root: Path, config: Config | None = None, packages: PackageSource | None = None
+def make_service(root: Path, config: Config | None = None, packages: PackageSource | None = None,
+                 environment: Mapping[str, str] | None = None,
                  ) -> tuple[RecordingRunner, RecordingConsole, ProjectService]:
     """Returns a recording runner and console and the real service, with its real CMake driver, on them.
 
-    The packages are those of *packages*, none when it is not given.
+    The service finds one executable, K_EXECUTABLE, directly under any tree. The packages are those
+    of *packages*, none when it is not given, and every tree's subprocesses run under
+    *environment*, an empty one when it is not given.
     """
     console = RecordingConsole()
     runner = RecordingRunner(console)
@@ -93,8 +83,8 @@ def make_service(root: Path, config: Config | None = None, packages: PackageSour
         console=console,
         runner=runner,
         driver=CMakeDriver(console, runner),
-        index=StubIndex(),
-        build_env=StubBuildEnv(),
+        index=MemoryExecutableLookup((K_EXECUTABLE,)),
+        build_env=MemoryBuildEnvironment(dict(environment or {})),
         find_root=lambda: root,
         load_config=lambda: settings,
         packages=packages or MemoryPackageSource(),

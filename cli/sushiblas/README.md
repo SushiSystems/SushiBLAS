@@ -123,11 +123,21 @@ Decides which packages `build` asks for: `package_type` maps the build type and 
 package build type, and `package_options` maps `--distributed` and a ThreadSanitizer tree to the
 extra `build` arguments of each library. `--distributed` becomes `--distributed` of the SushiRuntime
 package. The packages themselves come through the `PackageSource` port of
-`services/package_source.py`: `StorePackageSource` resolves them through `cfg.sushi_packages` and
-returns the `-D<Package>_DIR` arguments of the configure, and `MemoryPackageSource` keeps the
-requests and answers with a fixed set, so a test of `build` runs with no package store. `build` writes the run-time folders of the packages to
+`services/package_source.py`: `StorePackageSource` (`package_source_store.py`) resolves them
+through `cfg.sushi_packages` and returns the `-D<Package>_DIR` arguments of the configure, and
+`MemoryPackageSource` (`package_source_memory.py`) keeps the requests and answers with a fixed
+set, so a test of `build` runs with no package store. `build` writes the run-time folders of the packages to
 `.sushiblas_package_dirs.json` in its tree, and `test`, `bench` and `run` prepend them to the
 search path without resolving again.
+
+## services/build_environment.py and services/executable_lookup.py
+
+`ProjectService` reads the environment of a tree through the `BuildEnvironment` port and finds a
+built program through the `ExecutableLookup` port. sushicore's `StackBuildEnv` and
+`ExecutableIndex` are the real adapters, wired by `services/project_factory.py`.
+`MemoryBuildEnvironment` hands back fixed variables and `MemoryExecutableLookup` answers from a
+list of names, each in its own `_memory.py` file beside its port, so the tests of the service run
+no shell and walk no tree.
 
 ## services/project.py
 

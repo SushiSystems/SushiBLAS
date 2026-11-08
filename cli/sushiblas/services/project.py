@@ -20,12 +20,10 @@ from sushicore.build_admission import (
     refuse_a_stopped_gate,
     state_dir,
 )
-from sushicore.build_env import StackBuildEnv
 from sushicore.build_report import ninja_log_offset, of_build
 from sushicore.build_tree import refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
-from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
 from sushicore.provision.sushi_packages import configure_arguments
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
@@ -43,6 +41,8 @@ from .errors import (
     TreeNotRemovedError,
 )
 from . import library_packages
+from .build_environment import BuildEnvironment
+from .executable_lookup import ExecutableLookup
 from .package_source import PackageSource
 from .sanitizer import Sanitizer, sanitize_flags
 from .tree_choice import TreeChoice
@@ -169,8 +169,8 @@ class ProjectService:
         console,
         runner: Runner,
         driver: CMakeDriver,
-        index: ExecutableIndex,
-        build_env: StackBuildEnv,
+        index: ExecutableLookup,
+        build_env: BuildEnvironment,
         find_root: Callable[[], Path],
         load_config: Callable[[], Config],
         packages: PackageSource,

@@ -6,14 +6,9 @@
 
 from __future__ import annotations
 
-import ast
-import re
-from pathlib import Path
-
 import pytest
 from typer.testing import CliRunner
 
-import sushiblas
 from sushiblas.cli import app
 
 pytestmark = pytest.mark.small
@@ -23,8 +18,6 @@ K_GROUPS = {
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
     "Documentation": ["docs", "backlog", "design"],
 }
-K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)\b")
-K_PACKAGE_DIR = Path(sushiblas.__file__).parent
 
 
 def _run(*args: str) -> str:
@@ -50,14 +43,9 @@ def _commands_by_heading(page: str) -> dict[str, list[str]]:
     return grouped
 
 
-def _string_literals(path: Path) -> list[tuple[int, str]]:
-    """Return every string literal of a Python file with its line, f-string parts included."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return [
-        (node.lineno, node.value)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    ]
+def _last_heading(page: str) -> str:
+    """Return the last line of *page* that starts in the first column: the heading of its last section."""
+    return [line.rstrip() for line in page.splitlines() if line and not line.startswith(" ")][-1]
 
 
 def test_root_help_lists_the_three_groups_in_order():
@@ -67,25 +55,8 @@ def test_root_help_lists_the_three_groups_in_order():
 
 
 @pytest.mark.parametrize("heading", list(K_GROUPS))
-def test_every_command_sits_under_its_own_group(heading):
-    listed = _commands_by_heading(_run("--help"))[heading]
-    assert [name for name in listed if name in K_GROUPS[heading]] == K_GROUPS[heading]
-
-
-def test_no_command_is_listed_under_a_group_it_does_not_belong_to():
-    grouped = _commands_by_heading(_run("--help"))
-    for heading, names in K_GROUPS.items():
-        assert set(grouped[heading]) == set(names)
-
-
-def test_a_command_help_carries_examples():
-    out = _run("build", "--help")
-    assert "Examples" in out and "sb build --type release" in out
-
-
-def test_a_command_with_arguments_carries_examples():
-    out = _run("run", "--help")
-    assert "Examples" in out and "sb run quickstart_demo" in out
+def test_no_command_is_listed_under_a_group_it_does_not_belong_to(heading):
+    assert set(_commands_by_heading(_run("--help"))[heading]) == set(K_GROUPS[heading])
 
 
 @pytest.mark.parametrize(
@@ -93,14 +64,5 @@ def test_a_command_with_arguments_carries_examples():
     [name for names in K_GROUPS.values() for name in names if name not in ("backlog", "design")],
 )
 def test_every_command_help_ends_with_examples(name):
-    assert "Examples" in _run(name, "--help")
+    assert _last_heading(_run(name, "--help")) == "Examples"
 
-
-def test_no_source_string_names_a_raw_colour():
-    offenders = {
-        f"{path.relative_to(K_PACKAGE_DIR).as_posix()}:{line}"
-        for path in K_PACKAGE_DIR.rglob("*.py")
-        for line, text in _string_literals(path)
-        if K_RAW_COLOUR.search(text)
-    }
-    assert sorted(offenders) == []

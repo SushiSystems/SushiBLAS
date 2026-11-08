@@ -20,7 +20,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T7 | The device-math float and double rows taken from SushiEngine `Small_KernelMath` |  | done |
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
 | M1 | the tests of `applications` (6 files): 3 rewrite, 5 split, 4 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M2 | the tests of `cli` (8 files): 56 rewrite, 18 resize, 1 split, 13 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M2 | the tests of `cli` (8 files): 56 rewrite, 18 resize, 1 split, 13 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M3 | the tests of `data` (12 files): 12 rewrite, 17 resize, 22 split, 3 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M4 | the tests of `engine` (56 files): 67 rewrite, 70 resize, 31 split, 43 merge, 35 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M5 | the tests of `foundation/arithmetic` (6 files): 19 rewrite, 1 resize, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -95,6 +95,8 @@ Resume note, 2026-11-07, after `0b203597`: the `PrimitiveRecorder` port carries 
 Resume note, 2026-11-07, after `feee1d3d`: M10 is done (decision 39, `PrimitiveRecorder` port with `RuntimePrimitiveRecorder` and `HostPrimitiveRecorder`) and `test_random_log_category.cpp` is deleted with its registration (`compile_random_log_category.cpp` is a compile check in its place and the mirror finding is gone from `tools/known_findings.toml`). Left, in order: M2 to M4, M24, M25, M33 to M35, M37, M47, M49, S5 and the one build and test run. The suite shape is in REPORT.md "After M10 and the random log category".
 
 Resume note, 2026-11-07, after the M2 start: M2 is partly applied and stays `todo`. Done: `PackageSource` port with `StorePackageSource` and `MemoryPackageSource` (`services/package_source.py`), `library_packages.package_type`, the pure `caller_flags` and `refuse_lean_benchmarks`, `command_harness` on a real `Config` (`make_config`), `test_console_lazy.py`, `test_aliases.py`, `test_config.py` and `test_cli.py` per their records, and the new `test_cli_settings.py`. Left in M2: `test_project.py` and `test_library_packages.py` still carry the `_Driver`, `_Config` and parts stand-ins and the service-level flag tests; the small rows (`test_build_flags.py`: defines, benchmark, sanitizer, distributed and lean flags, `caller_flags` order, the lean refusal, `TreeChoice.directory` with the override row, `package_type` and `package_options` rows) are not written; `test_help_screen.py` records (three merges, the rename of the examples test, the raw-colour scan moved to a checker) are not applied; `test_provision_commands.py` (two help rows small, the `ProvisionSettings` field check) is not applied. Not doable in this repository: the malformed-config row of `test_main_reports_a_malformed_config_file_as_one_line` stays `Medium_`, since sushicore's `load_appearance` reads TOML from disk with no port. M3, M4, M24, M25, M33 to M35, M37, M47 and M49 are untouched.
+
+Resume note, 2026-11-09, after M2: M2 is done (decision 40). Every `cli` record is applied but one: the malformed-config row of `test_main_reports_a_malformed_config_file_as_one_line` stays medium until SushiCore gives `load_appearance` a port (RW-157). Left, in order: M3, M4, M24, M25, M33 to M35, M37, M47, M49, S5 and the one build and test run.
 
 ## Acceptance
 

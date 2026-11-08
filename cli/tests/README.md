@@ -1,7 +1,7 @@
 # CLI tests
 
-The pytest suite of the `sushiblas` package. Run it with `sb test --cli`. Every test file carries
-one size marker, `small` or `medium`, and `conftest.py` fails collection when a test has none or
+The pytest suite of the `sushiblas` package. Run it with `sb test --cli`. Every test carries
+one size marker, `small` or `medium`, on its file or on its class, and `conftest.py` fails collection when a test has none or
 more than one, and gives each the timeout of its size.
 
 ## conftest.py
@@ -18,13 +18,23 @@ next door, and the tests use it.
 ## command_harness.py
 
 A command test builds the real `ProjectService` and sushicore's `CMakeDriver` over a scratch
-checkout, a `RecordingRunner` and a `RecordingConsole`, wraps them in a `CommandContext` and hands
+checkout, a `RecordingRunner` and a `RecordingConsole`, wraps them in a `CommandContext` and
 runs the command inside `command_context.using(context)`. It then reads what the service gave cmake, ctest and the
 programs from `runner.commands`, and what the command printed from the console. No test replaces a
-function of `sushiblas`. The `commands` fixture in `conftest.py` makes one; the doubles that stand
-in for the compiler configuration, the executable index and the build environment live in the same
-module. Three tests still patch the standard library, because a removal that fails and a Ctrl+C in
-a child cannot be scripted on the recording runner.
+function of `sushiblas`. The `commands` fixture in `conftest.py` makes one. The executable lookup,
+the build environment and the package source are the in-memory adapters that ship beside their
+ports in `sushiblas/services/` (`MemoryExecutableLookup`, `MemoryBuildEnvironment`,
+`MemoryPackageSource`); the harness holds no double of its own. Three tests still patch the
+standard library, because a removal that fails and a Ctrl+C in a child cannot be scripted on the
+recording runner.
+
+## test_build_flags.py
+
+The `-D` flags, the tree and the package request of a build are decided from its options alone,
+by plain functions of `services/project.py`, `services/sanitizer.py`, `services/tree_choice.py` and
+`services/library_packages.py`. Their rows run small, with no service and no checkout;
+`test_project.py` and `test_library_packages.py` check only that the service hands those
+decisions to cmake and to the package source.
 
 ## test_console_lazy.py
 
