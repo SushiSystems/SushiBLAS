@@ -98,6 +98,8 @@ Resume note, 2026-11-07, after the M2 start: M2 is partly applied and stays `tod
 
 Resume note, 2026-11-09, after M2: M2 is done (decision 40). Every `cli` record is applied but one: the malformed-config row of `test_main_reports_a_malformed_config_file_as_one_line` stays medium until SushiCore gives `load_appearance` a port (RW-157). Left, in order: M3, M4, M24, M25, M33 to M35, M37, M47, M49, S5 and the one build and test run.
 
+Resume note, 2026-11-09, after M3: M3 is done (decision 41, commit `83d12f17`). Left, in order: M4, M24, M25, M33 (partly started, see the umbrella note), M34, M35, M37, M47, M49, S5 and the one build and test run. M4 is untouched. Seams ready for it: `HostEngineTest`, `HostTaskSink`, `make_host_storage`, `TensorFactory::Host{}` and `Tensor::make_shape_only`; the pattern M3 used is a typed or row suite for each value axis, host storage for everything the logic reads, and a few `Medium_` tests on the runtime factory for the device boundary. Syntax check: build the command of a sibling entry of `build/default-debug/compile_commands.json` with the file swapped and `-fsyntax-only`; one TU takes 2 to 5 s.
+
 ## Acceptance
 
 - **T1.** No comparison spells a tolerance literal, and an exact comparison is spelled as equality. Build: the repository's test command over the touched tests.
