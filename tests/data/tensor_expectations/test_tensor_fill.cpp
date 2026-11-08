@@ -29,61 +29,99 @@
 
 #include <complex>
 #include <cstdint>
+#include <random>
+#include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Returns a rank-one tensor of four elements of dtype.
+        /// @brief Returns a rank-one tensor of host memory with four elements of dtype.
         static Tensor four_of(Core::DataType dtype)
         {
-            const TensorFactory factory(TestEnvironment::runtime());
+            const TensorFactory factory(TensorFactory::Host{});
             const int64_t dims[1] = {4};
             return factory.create(SushiRuntime::span<const int64_t>(dims, 1), dtype);
         }
 
-        TEST(Medium_TensorFill, ConvertsTheValuesToTheTensorsDtype)
+        /// @brief Returns the four values the conversion tests fill, all non-negative.
+        static std::vector<float> filled_values()
         {
-            const std::vector<float> values{1.5f, -2.0f, 0.25f, 7.0f};
-            Tensor doubles = four_of(Core::DataType::Float64);
-            Tensor complexes = four_of(Core::DataType::Complex32);
-            Tensor integers = four_of(Core::DataType::Int32);
-
-            fill_tensor(doubles, values);
-            fill_tensor(complexes, values);
-            fill_tensor(integers, values);
-
-            EXPECT_EQ(read_tensor<double>(doubles), (std::vector<double>{1.5, -2.0, 0.25, 7.0}));
-            EXPECT_EQ(read_tensor<std::complex<float>>(complexes)[0],
-                      std::complex<float>(1.5f, 0.0f));
-            EXPECT_EQ(read_tensor<int32_t>(integers), (std::vector<int32_t>{1, -2, 0, 7}));
+            return {1.5f, 2.0f, 0.25f, 7.0f};
         }
 
-        TEST(Medium_TensorFill, FillRandomStaysInRangeAndRepeatsFromItsSeed)
+        /// @brief Returns filled_values() as T holds them: an integer drops the fraction.
+        template<typename T>
+        static std::vector<T> filled_as()
         {
-            Tensor first = four_of(Core::DataType::Float32);
-            Tensor second = four_of(Core::DataType::Float32);
+            if constexpr (std::is_integral_v<T>)
+                return {T(1), T(2), T(0), T(7)};
+            else if constexpr (Core::is_complex_v<T>)
+                return {T(1.5, 0.0), T(2.0, 0.0), T(0.25, 0.0), T(7.0, 0.0)};
+            else
+                return {T(1.5f), T(2.0f), T(0.25f), T(7.0f)};
+        }
 
-            reset_fill_random_generator();
-            fill_random<float>(first, 2.0f, 3.0f);
-            reset_fill_random_generator();
-            fill_random<float>(second, 2.0f, 3.0f);
+        template<typename T>
+        class Small_TensorFill : public ::testing::Test
+        {
+        };
 
-            const std::vector<float> values = read_tensor<float>(first);
-            EXPECT_EQ(values, read_tensor<float>(second));
+        using FillTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
+                                           std::complex<double>, int32_t, int64_t, uint32_t>;
+        SB_TYPED_TEST_SUITE(Small_TensorFill, FillTypes);
+
+        TYPED_TEST(Small_TensorFill, ConvertsTheValuesToTheTensorsDtype)
+        {
+            Tensor tensor = four_of(sushiblas_dtype<TypeParam>());
+
+            fill_tensor(tensor, filled_values());
+
+            EXPECT_EQ(read_tensor<TypeParam>(tensor), filled_as<TypeParam>());
+        }
+
+        /// @brief Expects every value to lie in [min_val, max_val).
+        static void expect_in_half_open_range(const std::vector<float>& values, float min_val,
+                                              float max_val)
+        {
             for (float value : values)
             {
-                EXPECT_GE(value, 2.0f);
-                EXPECT_LT(value, 3.0f);
+                EXPECT_GE(value, min_val);
+                EXPECT_LT(value, max_val);
             }
+        }
+
+        /// @brief Returns four floats drawn in [2, 3) from a generator seeded with seed.
+        static std::vector<float> drawn_from(std::uint32_t seed)
+        {
+            std::mt19937 generator(seed);
+            Tensor tensor = four_of(Core::DataType::Float32);
+            fill_random<float>(tensor, generator, 2.0f, 3.0f);
+            return read_tensor<float>(tensor);
+        }
+
+        /// @brief The seed of the fill_random tests.
+        constexpr std::uint32_t K_SEED = 20261006u;
+
+        TEST(Small_TensorFillRandom, StaysInTheRangeItIsGiven)
+        {
+            expect_in_half_open_range(drawn_from(K_SEED), 2.0f, 3.0f);
+        }
+
+        TEST(Small_TensorFillRandom, RepeatsFromTheSameSeed)
+        {
+            EXPECT_EQ(drawn_from(K_SEED), drawn_from(K_SEED));
         }
     } // namespace Test
 } // namespace SushiBLAS

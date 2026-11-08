@@ -26,4 +26,4 @@ sushiblas_add_test_program(
         test_tensor_factory/test_tensor_factory.cpp
         test_tensor_factory/test_tensor_factory_contract.cpp
     COMPILE_CHECKS
-        test_tensor_log_category.cpp)
+        compile_tensor_log_category.cpp)

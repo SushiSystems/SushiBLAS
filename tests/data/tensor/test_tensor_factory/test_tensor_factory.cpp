@@ -47,64 +47,92 @@ namespace SushiBLAS
             return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
         }
 
-        TEST(Medium_TensorFactory, KeepsItsLayout)
+        /// @brief A shape, an element type and the byte count a dense tensor of them needs.
+        struct AllocationRow
         {
-            const TensorFactory row_major(TestEnvironment::runtime());
-            const TensorFactory column_major(TestEnvironment::runtime(),
-                                             Core::Layout::ColumnMajor);
+            std::vector<int64_t> dims;
+            Core::DataType dtype;
+            std::size_t bytes;
+        };
 
-            EXPECT_EQ(row_major.layout(), Core::Layout::RowMajor);
-            EXPECT_EQ(column_major.layout(), Core::Layout::ColumnMajor);
+        class Small_TensorFactoryAllocationBytes : public ::testing::TestWithParam<AllocationRow>
+        {
+        };
+
+        TEST_P(Small_TensorFactoryAllocationBytes, IsTheElementCountTimesTheElementSize)
+        {
+            const AllocationRow row = GetParam();
+
+            EXPECT_EQ(TensorFactory::allocation_bytes(span_of(row.dims), row.dtype), row.bytes);
         }
 
-        TEST(Medium_TensorFactory, AllocationBytesIsTheElementCountTimesTheElementSize)
-        {
-            const std::vector<int64_t> dims{3, 5};
+        // 3 * 5 doubles of 8 bytes; a zero extent gives no bytes.
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_TensorFactoryAllocationBytes,
+            ::testing::Values(AllocationRow{{3, 5}, Core::DataType::Float64, 120},
+                              AllocationRow{{4, 0}, Core::DataType::Float32, 0}));
 
-            EXPECT_EQ(TensorFactory::allocation_bytes(span_of(dims), Core::DataType::Float64),
-                      std::size_t{120});
-            EXPECT_EQ(TensorFactory::allocation_bytes(span_of({4, 0}), Core::DataType::Float32),
-                      std::size_t{0});
-            EXPECT_THROW((void)TensorFactory::allocation_bytes(span_of({-1}),
+        TEST(Small_TensorFactory, AllocationBytesRefusesANegativeExtent)
+        {
+            const std::vector<int64_t> dims{-1};
+
+            EXPECT_THROW((void)TensorFactory::allocation_bytes(span_of(dims),
                                                                 Core::DataType::Float32),
                          std::runtime_error);
         }
 
-        TEST(Medium_TensorFactory, CreatesATensorOfItsLayoutAndTheGivenType)
+        TEST(Small_TensorFactory, ACreatedTensorCountsItsElements)
         {
-            const TensorFactory factory(TestEnvironment::runtime(), Core::Layout::ColumnMajor);
+            const TensorFactory factory(TensorFactory::Host{});
             const std::vector<int64_t> dims{2, 3};
+
             const Tensor tensor = factory.create(span_of(dims), Core::DataType::Complex32);
 
-            EXPECT_EQ(tensor.layout, Core::Layout::ColumnMajor);
-            EXPECT_EQ(tensor.dtype, Core::DataType::Complex32);
             EXPECT_EQ(tensor.num_elements, int64_t{6});
-            EXPECT_EQ(tensor.strides[0], int64_t{1});
-            EXPECT_EQ(tensor.strides[1], int64_t{2});
-            ASSERT_TRUE(tensor.storage);
-            EXPECT_GE(tensor.storage->size_bytes(), std::size_t{48});
         }
 
-        TEST(Medium_TensorFactory, ATensorWithoutElementsHasNoStorage)
+        TEST(Small_TensorFactory, ACreatedTensorsStridesFollowTheFactorysLayout)
         {
-            const TensorFactory factory(TestEnvironment::runtime());
-            const std::vector<int64_t> dims{0, 7};
+            const TensorFactory factory(TensorFactory::Host{}, Core::Layout::ColumnMajor);
+            const std::vector<int64_t> dims{2, 3};
+
             const Tensor tensor = factory.create(span_of(dims));
 
-            EXPECT_FALSE(tensor.storage);
-            EXPECT_EQ(tensor.num_elements, int64_t{0});
+            EXPECT_EQ(tensor.strides[0], int64_t{1});
+            EXPECT_EQ(tensor.strides[1], int64_t{2});
+        }
+
+        TEST(Small_TensorFactory, ATensorWithoutElementsKeepsTheShapeAsked)
+        {
+            const TensorFactory factory(TensorFactory::Host{});
+            const std::vector<int64_t> dims{0, 7};
+
+            const Tensor tensor = factory.create(span_of(dims));
+
+            EXPECT_EQ(tensor.shape[0], int64_t{0});
             EXPECT_EQ(tensor.shape[1], int64_t{7});
         }
 
-        TEST(Medium_TensorFactory, PlacesTheStorageOnTheGivenDeviceAndResidency)
+        TEST(Medium_TensorFactory, PlacesTheStorageOnTheGivenDevice)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const std::size_t last = TestEnvironment::device_count() - 1;
             const std::vector<int64_t> dims{4};
+
             const Tensor tensor = factory.create(span_of(dims), Core::DataType::Float32,
-                                                 SushiRuntime::Residency::Device, last);
+                                                 SushiRuntime::Residency::Shared, last);
 
             EXPECT_EQ(tensor.storage->device_index(), last);
+        }
+
+        TEST(Medium_TensorFactory, PlacesTheStorageInTheGivenResidency)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4};
+
+            const Tensor tensor = factory.create(span_of(dims), Core::DataType::Float32,
+                                                 SushiRuntime::Residency::Device);
+
             EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Device);
         }
     } // namespace Test

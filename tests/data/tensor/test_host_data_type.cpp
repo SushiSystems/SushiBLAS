@@ -33,35 +33,48 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/host_data_type.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_HostDataType, EachHostTypeHasItsDataType)
+        /// @brief A host element type and the DataType it maps to.
+        template<typename Host, Core::DataType Expected>
+        struct HostMapping
         {
-            EXPECT_EQ(Detail::HostDataType<float>::K_VALUE, Core::DataType::Float32);
-            EXPECT_EQ(Detail::HostDataType<double>::K_VALUE, Core::DataType::Float64);
-            EXPECT_EQ(Detail::HostDataType<sycl::half>::K_VALUE, Core::DataType::Half);
-            EXPECT_EQ(Detail::HostDataType<std::complex<float>>::K_VALUE,
-                      Core::DataType::Complex32);
-            EXPECT_EQ(Detail::HostDataType<std::complex<double>>::K_VALUE,
-                      Core::DataType::Complex64);
-            EXPECT_EQ(Detail::HostDataType<int32_t>::K_VALUE, Core::DataType::Int32);
-            EXPECT_EQ(Detail::HostDataType<int64_t>::K_VALUE, Core::DataType::Int64);
-            EXPECT_EQ(Detail::HostDataType<uint32_t>::K_VALUE, Core::DataType::UInt32);
+            /// @brief The host element type.
+            using HostType = Host;
+            /// @brief The DataType the host type must map to.
+            static constexpr Core::DataType K_EXPECTED = Expected;
+        };
+
+        template<typename Mapping>
+        class Small_HostDataType : public ::testing::Test
+        {
+        };
+
+        using Mappings = ::testing::Types<
+            HostMapping<float, Core::DataType::Float32>,
+            HostMapping<double, Core::DataType::Float64>,
+            HostMapping<sycl::half, Core::DataType::Half>,
+            HostMapping<std::complex<float>, Core::DataType::Complex32>,
+            HostMapping<std::complex<double>, Core::DataType::Complex64>,
+            HostMapping<int32_t, Core::DataType::Int32>,
+            HostMapping<int64_t, Core::DataType::Int64>,
+            HostMapping<uint32_t, Core::DataType::UInt32>>;
+        SB_TYPED_TEST_SUITE(Small_HostDataType, Mappings);
+
+        TYPED_TEST(Small_HostDataType, EachHostTypeHasItsDataType)
+        {
+            EXPECT_EQ(Detail::HostDataType<typename TypeParam::HostType>::K_VALUE,
+                      TypeParam::K_EXPECTED);
         }
 
-        TEST(Medium_HostDataType, TheDataTypeHasTheSizeOfItsHostType)
+        TYPED_TEST(Small_HostDataType, TheDataTypeHasTheSizeOfItsHostType)
         {
-            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<sycl::half>::K_VALUE),
-                      sizeof(sycl::half));
-            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<std::complex<double>>::K_VALUE),
-                      sizeof(std::complex<double>));
-            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<int64_t>::K_VALUE),
-                      sizeof(int64_t));
-            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<uint32_t>::K_VALUE),
-                      sizeof(uint32_t));
+            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<typename TypeParam::HostType>::K_VALUE),
+                      sizeof(typename TypeParam::HostType));
         }
     } // namespace Test
 } // namespace SushiBLAS

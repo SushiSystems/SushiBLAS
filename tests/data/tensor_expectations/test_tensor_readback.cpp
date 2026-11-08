@@ -33,33 +33,68 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/tensor_subjects.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_TensorReadback, CopiesTheElementsOut)
+        /** @brief Reads tensors a subject's factory made on the host. */
+        template<typename Subject>
+        class Small_TensorReadback : public ::testing::Test
         {
-            const TensorFactory factory(TestEnvironment::runtime());
-            const int64_t dims[1] = {3};
-            Tensor tensor = factory.create(SushiRuntime::span<const int64_t>(dims, 1),
-                                           Core::DataType::Int64);
-            const std::vector<int64_t> values{5, -6, 7};
-            TestEnvironment::queue()
-                .memcpy(tensor.data(), values.data(), values.size() * sizeof(int64_t))
-                .wait();
+            protected:
+                /// @brief The adapter under test.
+                Subject subject;
+        };
 
-            EXPECT_EQ(read_tensor<int64_t>(tensor), values);
+        /** @brief Reads tensors a subject's factory made on the shared runtime. */
+        template<typename Subject>
+        class Medium_TensorReadback : public ::testing::Test
+        {
+            protected:
+                /// @brief The adapter under test.
+                Subject subject;
+        };
+
+        using HostSubjects = ::testing::Types<HostTensorSubject>;
+        using RuntimeSubjects = ::testing::Types<RuntimeTensorSubject>;
+        SB_TYPED_TEST_SUITE(Small_TensorReadback, HostSubjects);
+        SB_TYPED_TEST_SUITE(Medium_TensorReadback, RuntimeSubjects);
+
+        /// @brief Returns a three-element INT64 tensor of the subject's factory holding 5, -6, 7.
+        template<typename Subject>
+        static Tensor filled_tensor(const Subject& subject)
+        {
+            const int64_t dims[1] = {3};
+            Tensor tensor = subject.factory.create(SushiRuntime::span<const int64_t>(dims, 1),
+                                                   Core::DataType::Int64);
+            fill_tensor(tensor, {5.0f, -6.0f, 7.0f});
+            return tensor;
         }
 
-        TEST(Medium_TensorReadback, RefusesATypeThatIsNotTheDtype)
+        TYPED_TEST(Small_TensorReadback, CopiesTheElementsOut)
         {
-            const TensorFactory factory(TestEnvironment::runtime());
-            const int64_t dims[1] = {3};
-            const Tensor tensor = factory.create(SushiRuntime::span<const int64_t>(dims, 1));
+            EXPECT_EQ(read_tensor<int64_t>(filled_tensor(this->subject)),
+                      (std::vector<int64_t>{5, -6, 7}));
+        }
+
+        TYPED_TEST(Medium_TensorReadback, CopiesTheElementsOut)
+        {
+            EXPECT_EQ(read_tensor<int64_t>(filled_tensor(this->subject)),
+                      (std::vector<int64_t>{5, -6, 7}));
+        }
+
+        TEST(Small_TensorReadbackRefusal, ATypeThatIsNotTheDtype)
+        {
+            const std::vector<int64_t> dims{3};
+            const Tensor tensor = Tensor::make_shape_only(SushiRuntime::span<const int64_t>(
+                dims.data(), dims.size()));
 
             EXPECT_THROW((void)read_tensor<double>(tensor), std::invalid_argument);
         }

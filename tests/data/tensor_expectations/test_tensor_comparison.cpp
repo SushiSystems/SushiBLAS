@@ -37,35 +37,48 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_copy.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Returns a FLOAT32 tensor holding values.
+        /// @brief The comparison with no room for rounding.
+        constexpr double K_EXACTLY = 0.0;
+
+        /// @brief Returns a FLOAT32 tensor of host memory holding values.
         static Tensor float_tensor(const std::vector<float>& values)
         {
-            const TensorFactory factory(TestEnvironment::runtime());
+            const TensorFactory factory(TensorFactory::Host{});
             const int64_t dims[1] = {static_cast<int64_t>(values.size())};
             Tensor tensor = factory.create(SushiRuntime::span<const int64_t>(dims, 1));
-            TestEnvironment::queue()
-                .memcpy(tensor.data(), values.data(), values.size() * sizeof(float))
-                .wait();
+            copy_host_to_tensor(tensor, values.data(), values.size() * sizeof(float));
             return tensor;
         }
 
-        TEST(Medium_TensorComparison, AcceptsValuesWithinTheTolerance)
+        /// @brief Returns a value that lies half the default tolerance above two.
+        static float two_within_the_default_tolerance()
+        {
+            return 2.0f + static_cast<float>(K_DEFAULT_TOLERANCE / 2.0);
+        }
+
+        TEST(Small_TensorComparison, ExpectTensorAcceptsValuesWithinTheTolerance)
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f, 3.0f});
 
-            EXPECT_TENSOR_NEAR(tensor, (std::vector<float>{1.0f, 2.00001f, 3.0f}),
+            EXPECT_TENSOR_NEAR(tensor,
+                               (std::vector<float>{1.0f, two_within_the_default_tolerance(), 3.0f}),
                                K_DEFAULT_TOLERANCE);
-            SB_ASSERT_TENSOR_NEAR(tensor, float_tensor({1.0f, 2.0f, 3.0f}), K_DEFAULT_TOLERANCE,
-                                  float);
         }
 
-        TEST(Medium_TensorComparison, ReportsAValueOutsideTheTolerance)
+        TEST(Small_TensorComparison, AssertTensorNearAcceptsEqualTensorsAtNoTolerance)
+        {
+            const Tensor tensor = float_tensor({1.0f, 2.0f, 3.0f});
+
+            SB_ASSERT_TENSOR_NEAR(tensor, float_tensor({1.0f, 2.0f, 3.0f}), K_EXACTLY, float);
+        }
+
+        TEST(Small_TensorComparison, ReportsAValueOutsideTheToleranceWithItsIndex)
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f});
 
@@ -73,22 +86,33 @@ namespace SushiBLAS
                                     "Mismatch (value) at index 1");
         }
 
-        TEST(Medium_TensorComparison, ANaNMatchesOnlyANaN)
+        TEST(Small_TensorComparison, ANaNExpectationAcceptsANaN)
         {
             const float nan = std::numeric_limits<float>::quiet_NaN();
-            const Tensor tensor = float_tensor({nan, 1.0f});
 
-            expect_tensor_equal(tensor, std::vector<float>{nan, 1.0f});
+            expect_tensor_equal(float_tensor({nan, 1.0f}), std::vector<float>{nan, 1.0f});
+        }
+
+        TEST(Small_TensorComparison, ANaNExpectationRefusesANumber)
+        {
+            const float nan = std::numeric_limits<float>::quiet_NaN();
+
             EXPECT_NONFATAL_FAILURE(expect_tensor_equal(float_tensor({0.0f, 1.0f}),
                                                         std::vector<float>{nan, 1.0f}),
                                     "Expected NaN");
         }
 
-        TEST(Medium_TensorComparison, AnInfinityMatchesOnlyItself)
+        TEST(Small_TensorComparison, AnInfinityExpectationAcceptsTheSameInfinity)
         {
             const float infinity = std::numeric_limits<float>::infinity();
 
             expect_tensor_equal(float_tensor({infinity}), std::vector<float>{infinity});
+        }
+
+        TEST(Small_TensorComparison, AnInfinityExpectationRefusesTheOppositeInfinity)
+        {
+            const float infinity = std::numeric_limits<float>::infinity();
+
             EXPECT_NONFATAL_FAILURE(expect_tensor_equal(float_tensor({-infinity}),
                                                         std::vector<float>{infinity}),
                                     "Infinity mismatch");

@@ -42,7 +42,8 @@ wants and the tensor's dtype decides how they are stored. Filling an integer ten
 
 `fill_random` draws from one `std::mt19937` seeded with `K_FILL_RANDOM_SEED`. `SushiBLASTest`
 restarts it in `SetUp`, so a test sees the same inputs whether ctest runs it alone or the test
-binary runs the whole suite. Two calls in one test draw different values.
+binary runs the whole suite. Two calls in one test draw different values. A test that must not
+depend on that shared state passes its own seeded `std::mt19937` as the second argument.
 
 A complex element takes two draws, the real part first and the imaginary part second.
 

@@ -33,20 +33,41 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_ScalarDtype, NamesEveryElementType)
+        /// @brief A C++ element type and the DataType that names it.
+        template<typename Element, Core::DataType Expected>
+        struct ScalarMapping
         {
-            EXPECT_EQ(sushiblas_dtype<sycl::half>(), Core::DataType::Half);
-            EXPECT_EQ(sushiblas_dtype<float>(), Core::DataType::Float32);
-            EXPECT_EQ(sushiblas_dtype<double>(), Core::DataType::Float64);
-            EXPECT_EQ(sushiblas_dtype<std::complex<float>>(), Core::DataType::Complex32);
-            EXPECT_EQ(sushiblas_dtype<std::complex<double>>(), Core::DataType::Complex64);
-            EXPECT_EQ(sushiblas_dtype<int32_t>(), Core::DataType::Int32);
-            EXPECT_EQ(sushiblas_dtype<int64_t>(), Core::DataType::Int64);
+            /// @brief The element type.
+            using ElementType = Element;
+            /// @brief The DataType the element type must map to.
+            static constexpr Core::DataType K_EXPECTED = Expected;
+        };
+
+        template<typename Mapping>
+        class Small_ScalarDtype : public ::testing::Test
+        {
+        };
+
+        using Mappings = ::testing::Types<
+            ScalarMapping<sycl::half, Core::DataType::Half>,
+            ScalarMapping<float, Core::DataType::Float32>,
+            ScalarMapping<double, Core::DataType::Float64>,
+            ScalarMapping<std::complex<float>, Core::DataType::Complex32>,
+            ScalarMapping<std::complex<double>, Core::DataType::Complex64>,
+            ScalarMapping<int32_t, Core::DataType::Int32>,
+            ScalarMapping<int64_t, Core::DataType::Int64>,
+            ScalarMapping<uint32_t, Core::DataType::UInt32>>;
+        SB_TYPED_TEST_SUITE(Small_ScalarDtype, Mappings);
+
+        TYPED_TEST(Small_ScalarDtype, NamesTheElementType)
+        {
+            EXPECT_EQ(sushiblas_dtype<typename TypeParam::ElementType>(), TypeParam::K_EXPECTED);
         }
     } // namespace Test
 } // namespace SushiBLAS

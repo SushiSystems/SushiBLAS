@@ -35,21 +35,17 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/tensor/runtime_block.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/owned_memory.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Returns a storage of n_bytes on the shared runtime's first device.
-        static SushiRuntime::sushi_ptr<Storage> bytes(std::size_t n_bytes)
-        {
-            return make_runtime_storage(TestEnvironment::runtime(), n_bytes);
-        }
-
         /// @brief Returns the strides of dims in layout, rank entries long.
         static std::vector<int64_t> strides_of(std::vector<int64_t> dims, Core::Layout layout)
         {
@@ -58,96 +54,288 @@ namespace SushiBLAS
             return std::vector<int64_t>(all.begin(), all.begin() + dims.size());
         }
 
-        TEST(Medium_Tensor, RowMajorStridesRunFromTheLastAxis)
+        /// @brief A shape, a layout and the strides they give.
+        struct StridesRow
         {
-            EXPECT_EQ(strides_of({2, 3, 4}, Core::Layout::RowMajor),
-                      (std::vector<int64_t>{12, 4, 1}));
+            std::vector<int64_t> dims;
+            Core::Layout layout;
+            std::vector<int64_t> strides;
+        };
+
+        class Small_TensorStrides : public ::testing::TestWithParam<StridesRow>
+        {
+        };
+
+        TEST_P(Small_TensorStrides, FollowTheShapeUnderTheLayout)
+        {
+            const StridesRow row = GetParam();
+
+            EXPECT_EQ(strides_of(row.dims, row.layout), row.strides);
         }
 
-        TEST(Medium_Tensor, ColumnMajorTransposesTheMatrixAxesOnly)
-        {
-            EXPECT_EQ(strides_of({3, 4}, Core::Layout::ColumnMajor), (std::vector<int64_t>{1, 3}));
-            EXPECT_EQ(strides_of({2, 3, 4}, Core::Layout::ColumnMajor),
-                      (std::vector<int64_t>{12, 1, 3}));
-            EXPECT_EQ(strides_of({5}, Core::Layout::ColumnMajor), (std::vector<int64_t>{1}));
-        }
+        // Row major runs from the last axis; column major swaps the two matrix axes.
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_TensorStrides,
+            ::testing::Values(
+                StridesRow{{2, 3, 4}, Core::Layout::RowMajor, {12, 4, 1}},
+                StridesRow{{3, 4}, Core::Layout::ColumnMajor, {1, 3}},
+                StridesRow{{2, 3, 4}, Core::Layout::ColumnMajor, {12, 1, 3}},
+                StridesRow{{5}, Core::Layout::ColumnMajor, {1}}));
 
-        TEST(Medium_Tensor, StridesRefuseANegativeDimensionAndTooManyAxes)
+        TEST(Small_Tensor, StridesRefuseANegativeDimension)
         {
             EXPECT_THROW((void)strides_of({2, -1}, Core::Layout::RowMajor), std::runtime_error);
-            EXPECT_THROW((void)strides_of({1, 1, 1, 1, 1, 1, 1}, Core::Layout::RowMajor),
+        }
+
+        TEST(Small_Tensor, StridesRefuseMoreAxesThanTheLimit)
+        {
+            EXPECT_THROW((void)strides_of(std::vector<int64_t>(Core::K_MAX_TENSOR_RANK + 1, 1),
+                                          Core::Layout::RowMajor),
                          std::runtime_error);
         }
 
-        TEST(Medium_Tensor, CountsItsElementsAndChecksItsCapacity)
+        /// @brief A tensor over a storage of one alignment unit: its element count and its offset.
+        struct CapacityRow
         {
-            const Tensor fits(bytes(24), {2, 3}, Core::DataType::Float32);
+            int64_t elements;
+            int64_t offset;
+            bool accepted;
+        };
 
-            EXPECT_EQ(fits.rank, 2);
-            EXPECT_EQ(fits.num_elements, int64_t{6});
-            EXPECT_TRUE(fits.is_contiguous());
-            EXPECT_TRUE(fits.is_aligned());
-            EXPECT_THROW(Tensor(bytes(128), {2, 3}, Core::DataType::Float64, 11),
-                         std::runtime_error);
+        /// @brief Returns the Float32 element count that fills one alignment unit.
+        static int64_t unit_elements()
+        {
+            return static_cast<int64_t>(K_STORAGE_ALIGNMENT / sizeof(float));
         }
 
-        TEST(Medium_Tensor, ATransposeSwapsShapeAndStridesAndIsNotContiguous)
+        /// @brief Returns the rows of a tensor over a storage of one alignment unit.
+        static std::vector<CapacityRow> capacity_rows()
         {
-            const Tensor matrix(bytes(24), {2, 3});
+            return {{unit_elements(), 0, true},
+                    {unit_elements() + 1, 0, false},
+                    {unit_elements() - 1, 1, true},
+                    {unit_elements(), 1, false}};
+        }
+
+        /// @brief Returns whether a Float32 tensor of the row fits the storage.
+        static bool fits(const SushiRuntime::sushi_ptr<Storage>& storage, const CapacityRow& row)
+        {
+            try
+            {
+                const Tensor tensor(storage, {row.elements}, Core::DataType::Float32, row.offset);
+                return true;
+            }
+            catch (const std::runtime_error&)
+            {
+                return false;
+            }
+        }
+
+        class Small_TensorCapacity : public ::testing::TestWithParam<CapacityRow>
+        {
+        };
+
+        TEST_P(Small_TensorCapacity, IsHeldToTheSizeOfAHostStorage)
+        {
+            const CapacityRow row = GetParam();
+
+            EXPECT_EQ(fits(make_host_storage(K_STORAGE_ALIGNMENT), row), row.accepted);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_TensorCapacity, ::testing::ValuesIn(capacity_rows()));
+
+        class Medium_TensorCapacityOverABorrowedStorage : public ::testing::TestWithParam<CapacityRow>
+        {
+        };
+
+        TEST_P(Medium_TensorCapacityOverABorrowedStorage, IsHeldToTheSizeOfTheBuffer)
+        {
+            const OwnedMemory memory(K_STORAGE_ALIGNMENT);
+            const auto storage = borrow_runtime_storage(
+                TestEnvironment::runtime(), memory.borrow(0, K_STORAGE_ALIGNMENT));
+            const CapacityRow row = GetParam();
+
+            EXPECT_EQ(fits(storage, row), row.accepted);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_TensorCapacityOverABorrowedStorage,
+                                 ::testing::ValuesIn(capacity_rows()));
+
+        TEST(Small_Tensor, CountsItsRankAndElements)
+        {
+            const Tensor tensor(make_host_storage(24), {2, 3}, Core::DataType::Float32);
+
+            EXPECT_EQ(tensor.rank, 2);
+            EXPECT_EQ(tensor.num_elements, int64_t{6});
+        }
+
+        TEST(Small_Tensor, AFreshTensorIsContiguous)
+        {
+            const Tensor tensor(make_host_storage(24), {2, 3}, Core::DataType::Float32);
+
+            EXPECT_TRUE(tensor.is_contiguous());
+        }
+
+        TEST(Small_Tensor, AFreshTensorOverAHostStorageIsAligned)
+        {
+            const Tensor tensor(make_host_storage(24), {2, 3}, Core::DataType::Float32);
+
+            EXPECT_TRUE(tensor.is_aligned());
+        }
+
+        TEST(Small_Tensor, ATransposeSwapsTheShape)
+        {
+            const Tensor matrix(make_host_storage(24), {2, 3});
+
             const Tensor transposed = matrix.transpose(0, 1);
 
             EXPECT_EQ(transposed.shape[0], int64_t{3});
+            EXPECT_EQ(transposed.shape[1], int64_t{2});
+        }
+
+        TEST(Small_Tensor, ATransposeSwapsTheStrides)
+        {
+            const Tensor matrix(make_host_storage(24), {2, 3});
+
+            const Tensor transposed = matrix.transpose(0, 1);
+
             EXPECT_EQ(transposed.strides[0], int64_t{1});
             EXPECT_EQ(transposed.strides[1], int64_t{3});
-            EXPECT_FALSE(transposed.is_contiguous());
-            EXPECT_EQ(transposed.data(), matrix.data());
+        }
+
+        TEST(Small_Tensor, ATransposeIsNotContiguous)
+        {
+            const Tensor matrix(make_host_storage(24), {2, 3});
+
+            EXPECT_FALSE(matrix.transpose(0, 1).is_contiguous());
+        }
+
+        TEST(Small_Tensor, ATransposeViewsTheSameData)
+        {
+            const Tensor matrix(make_host_storage(24), {2, 3});
+
+            EXPECT_EQ(matrix.transpose(0, 1).data(), matrix.data());
+        }
+
+        TEST(Small_Tensor, ATransposeRefusesAnAxisPastTheRank)
+        {
+            const Tensor matrix(make_host_storage(24), {2, 3});
+
             EXPECT_THROW((void)matrix.transpose(0, 2), std::runtime_error);
         }
 
-        TEST(Medium_Tensor, ASliceMovesTheOffsetAndKeepsTheStrides)
+        TEST(Small_Tensor, ASliceOfRowsMovesTheOffsetByWholeRows)
         {
-            const Tensor matrix(bytes(48), {3, 4});
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
             const Tensor rows = matrix.slice(0, 1, 3);
-            const Tensor columns = matrix.slice(1, -2, 4);
 
             EXPECT_EQ(rows.storage_offset, int64_t{4});
+        }
+
+        TEST(Small_Tensor, ASliceCutsTheAxisToTheRange)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            const Tensor rows = matrix.slice(0, 1, 3);
+
             EXPECT_EQ(rows.shape[0], int64_t{2});
+        }
+
+        TEST(Small_Tensor, ASliceWithANegativeStartCountsFromTheEnd)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            const Tensor columns = matrix.slice(1, -2, 4);
+
             EXPECT_EQ(columns.storage_offset, int64_t{2});
             EXPECT_EQ(columns.shape[1], int64_t{2});
+        }
+
+        TEST(Small_Tensor, ASliceKeepsTheStrides)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            const Tensor columns = matrix.slice(1, 2, 4);
+
             EXPECT_EQ(columns.strides[0], int64_t{4});
-            EXPECT_FALSE(columns.is_contiguous());
+            EXPECT_EQ(columns.strides[1], int64_t{1});
+        }
+
+        TEST(Small_Tensor, ASliceOfColumnsIsNotContiguous)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            EXPECT_FALSE(matrix.slice(1, 2, 4).is_contiguous());
+        }
+
+        TEST(Small_Tensor, ASlicesDataIsTheBaseMovedByTheOffset)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            const Tensor rows = matrix.slice(0, 1, 3);
+
             EXPECT_EQ(rows.data_as<float>(), matrix.data_as<float>() + 4);
         }
 
-        TEST(Medium_Tensor, AReshapeKeepsTheElementsOfAContiguousTensor)
+        TEST(Small_Tensor, AReshapeGivesTheNewRankAndElementCount)
         {
-            const Tensor matrix(bytes(48), {3, 4});
-            const Tensor flat = matrix.reshape({12});
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
             const Tensor cube = matrix.reshape(std::vector<int64_t>{2, 2, 3});
 
-            EXPECT_EQ(flat.rank, 1);
-            EXPECT_EQ(flat.num_elements, int64_t{12});
             EXPECT_EQ(cube.rank, 3);
-            EXPECT_EQ(cube.data(), matrix.data());
+            EXPECT_EQ(cube.num_elements, int64_t{12});
+        }
+
+        TEST(Small_Tensor, AReshapeViewsTheSameData)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
+            EXPECT_EQ(matrix.reshape({12}).data(), matrix.data());
+        }
+
+        TEST(Small_Tensor, AReshapeRefusesAChangeOfElementCount)
+        {
+            const Tensor matrix(make_host_storage(48), {3, 4});
+
             EXPECT_THROW((void)matrix.reshape({5}), std::runtime_error);
         }
 
-        TEST(Medium_Tensor, TheElementSpanOfAViewReachesItsLastElement)
+        TEST(Small_Tensor, TheElementSpanOfAContiguousTensorIsItsElementCount)
         {
-            const Tensor matrix(bytes(48), {3, 4});
-            const Tensor column = matrix.slice(1, 1, 2);
+            const Tensor matrix = Tensor::make_shape_only(std::vector<int64_t>{3, 4});
 
             EXPECT_EQ(matrix.element_span(), int64_t{12});
-            EXPECT_EQ(column.num_elements, int64_t{3});
+        }
+
+        TEST(Small_Tensor, TheElementSpanOfAViewReachesItsLastElement)
+        {
+            const Tensor matrix = Tensor::make_shape_only(std::vector<int64_t>{3, 4});
+
+            const Tensor column = matrix.slice(1, 1, 2);
+
             EXPECT_EQ(column.element_span(), int64_t{9});
         }
 
-        TEST(Medium_Tensor, ATensorWithoutStorageHasNoData)
+        TEST(Small_Tensor, ATensorWithoutStorageHasNoDataPointer)
         {
             const Tensor empty;
 
             EXPECT_EQ(empty.data_or_null(), nullptr);
+        }
+
+        TEST(Small_Tensor, ATensorWithoutStorageHasNoElements)
+        {
+            const Tensor empty;
+
             EXPECT_EQ(empty.num_elements, int64_t{0});
+        }
+
+        TEST(Small_Tensor, ATensorWithoutStorageRefusesItsDevice)
+        {
+            const Tensor empty;
+
             EXPECT_THROW((void)empty.device(), std::runtime_error);
         }
     } // namespace Test

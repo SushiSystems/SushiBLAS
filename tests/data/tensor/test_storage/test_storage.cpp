@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -59,107 +60,30 @@ namespace SushiBLAS
                                           memory.borrow(offset, count));
         }
 
-        TEST(Medium_Storage, RoundsItsSizeUpToTheAlignment)
+        /// @brief A requested size and the size a storage reports for it.
+        struct RoundingRow
         {
-            EXPECT_EQ(storage_of(1)->size_bytes(), K_STORAGE_ALIGNMENT);
-            EXPECT_EQ(storage_of(K_STORAGE_ALIGNMENT)->size_bytes(), K_STORAGE_ALIGNMENT);
-            EXPECT_EQ(storage_of(K_STORAGE_ALIGNMENT + 1)->size_bytes(), 2 * K_STORAGE_ALIGNMENT);
+            std::size_t requested;
+            std::size_t reported;
+        };
+
+        class Small_StorageRounding : public ::testing::TestWithParam<RoundingRow>
+        {
+        };
+
+        TEST_P(Small_StorageRounding, ReportsTheRequestRoundedUpToTheAlignment)
+        {
+            const RoundingRow row = GetParam();
+
+            EXPECT_EQ(make_host_storage(row.requested)->size_bytes(), row.reported);
         }
 
-        TEST(Medium_Storage, ItsAllocationIsAligned)
-        {
-            const auto storage = storage_of(1000);
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_StorageRounding,
+            ::testing::Values(RoundingRow{1, K_STORAGE_ALIGNMENT},
+                              RoundingRow{K_STORAGE_ALIGNMENT, K_STORAGE_ALIGNMENT},
+                              RoundingRow{K_STORAGE_ALIGNMENT + 1, 2 * K_STORAGE_ALIGNMENT}));
 
-            EXPECT_EQ(reinterpret_cast<std::uintptr_t>(storage->allocation_base()) %
-                          K_STORAGE_ALIGNMENT,
-                      std::uintptr_t{0});
-        }
-
-        TEST(Medium_Storage, ReportsItsResidencyDeviceAndQueue)
-        {
-            const auto storage = storage_of(64);
-
-            EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
-            EXPECT_EQ(storage->device_index(), std::size_t{0});
-            EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
-        }
-
-        TEST(Medium_Storage, RefusesAnEmptyRequestAndADeviceItDoesNotHave)
-        {
-            EXPECT_THROW((void)storage_of(0), std::runtime_error);
-            EXPECT_THROW((void)make_runtime_storage(
-                             TestEnvironment::runtime(), 64, SushiRuntime::Residency::Shared,
-                             TestEnvironment::device_count()),
-                         std::runtime_error);
-        }
-
-        TEST(Medium_Storage, ReturnsItsAllocationWhenTheLastHandleGoes)
-        {
-            const std::size_t before = TestEnvironment::live_allocation_count();
-            {
-                const auto storage = storage_of(256);
-                EXPECT_EQ(TestEnvironment::live_allocation_count(), before + 1);
-            }
-
-            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
-        }
-
-        TEST(Medium_Storage, ABorrowedStorageViewsTheOwnersMemoryWithoutAllocating)
-        {
-            const OwnedMemory memory(256);
-            const std::size_t before = TestEnvironment::live_allocation_count();
-
-            const auto storage = borrowed_of(memory, 0, 200);
-
-            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
-            EXPECT_TRUE(names_an_owner(storage->owner_liveness()));
-            EXPECT_EQ(storage->allocation_base(), static_cast<void*>(memory.data()));
-            EXPECT_EQ(storage->size_bytes(), std::size_t{200});
-            EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
-            EXPECT_EQ(storage->device_index(), std::size_t{0});
-            EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
-        }
-
-        TEST(Medium_Storage, AnOwnedStorageIsNotBorrowedAndWatchesNoOwner)
-        {
-            const auto storage = storage_of(64);
-
-            EXPECT_FALSE(names_an_owner(storage->owner_liveness()));
-            EXPECT_TRUE(storage->owner_liveness().expired());
-        }
-
-        TEST(Medium_Storage, ABorrowedStorageWatchesTheOwnerAndLeavesItsMemoryAlone)
-        {
-            OwnedMemory memory(64);
-            memory.data()[0] = std::byte{7};
-            {
-                const auto storage = borrowed_of(memory, 0, 64);
-                EXPECT_FALSE(storage->owner_liveness().expired());
-
-                memory.release();
-                EXPECT_TRUE(storage->owner_liveness().expired());
-            }
-
-            EXPECT_EQ(memory.data()[0], std::byte{7});
-        }
-
-        TEST(Medium_Storage, ABorrowedStorageRefusesAnEmptyOrMisalignedBuffer)
-        {
-            const OwnedMemory memory(64);
-
-            EXPECT_THROW((void)borrowed_of(memory, 0, 0), std::runtime_error);
-            EXPECT_THROW((void)borrowed_of(memory, 1, 32), std::runtime_error);
-        }
-
-        TEST(Medium_Storage, ATensorOverABorrowedStorageIsHeldToTheBufferSize)
-        {
-            const OwnedMemory memory(64);
-            const auto storage = borrowed_of(memory, 0, 64);
-
-            const Tensor fits(storage, {16}, Core::DataType::Float32);
-            EXPECT_EQ(fits.region().base, static_cast<void*>(memory.data()));
-            EXPECT_THROW((void)Tensor(storage, {17}, Core::DataType::Float32), std::runtime_error);
-        }
         TEST(Small_Storage, ForwardsEveryQuestionToItsBlock)
         {
             const auto storage = make_host_storage(64);
@@ -204,5 +128,146 @@ namespace SushiBLAS
 
             EXPECT_EQ(tensor.data(), storage->allocation_base());
         }
+
+        TEST(Medium_Storage, ItsAllocationIsAligned)
+        {
+            const auto storage = storage_of(1000);
+
+            EXPECT_EQ(reinterpret_cast<std::uintptr_t>(storage->allocation_base()) %
+                          K_STORAGE_ALIGNMENT,
+                      std::uintptr_t{0});
+        }
+
+        TEST(Medium_Storage, ReportsItsResidencyDeviceAndQueue)
+        {
+            const auto storage = storage_of(64);
+
+            EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
+            EXPECT_EQ(storage->device_index(), std::size_t{0});
+            EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
+        }
+
+        TEST(Medium_Storage, RefusesAnEmptyRequest)
+        {
+            EXPECT_THROW((void)storage_of(0), std::runtime_error);
+        }
+
+        TEST(Medium_Storage, RefusesADeviceItDoesNotHave)
+        {
+            EXPECT_THROW((void)make_runtime_storage(
+                             TestEnvironment::runtime(), 64, SushiRuntime::Residency::Shared,
+                             TestEnvironment::device_count()),
+                         std::runtime_error);
+        }
+
+        TEST(Medium_Storage, ReturnsItsAllocationWhenTheLastHandleGoes)
+        {
+            const std::size_t before = TestEnvironment::live_allocation_count();
+            {
+                const auto storage = storage_of(256);
+                EXPECT_EQ(TestEnvironment::live_allocation_count(), before + 1);
+            }
+
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageAllocatesNothing)
+        {
+            const OwnedMemory memory(256);
+            const std::size_t before = TestEnvironment::live_allocation_count();
+
+            const auto storage = borrowed_of(memory, 0, 200);
+
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageViewsTheOwnersMemory)
+        {
+            const OwnedMemory memory(256);
+
+            const auto storage = borrowed_of(memory, 0, 200);
+
+            EXPECT_EQ(storage->allocation_base(), static_cast<void*>(memory.data()));
+            EXPECT_EQ(storage->size_bytes(), std::size_t{200});
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageReportsTheResidencyDeviceAndQueueOfTheBuffer)
+        {
+            const OwnedMemory memory(256);
+
+            const auto storage = borrowed_of(memory, 0, 200);
+
+            EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
+            EXPECT_EQ(storage->device_index(), std::size_t{0});
+            EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
+        }
+
+        TEST(Medium_Storage, AnOwnedStorageIsNotBorrowed)
+        {
+            const auto storage = storage_of(64);
+
+            EXPECT_FALSE(names_an_owner(storage->owner_liveness()));
+        }
+
+        TEST(Medium_Storage, AnOwnedStorageWatchesNoOwner)
+        {
+            const auto storage = storage_of(64);
+
+            EXPECT_TRUE(storage->owner_liveness().expired());
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageNamesItsOwner)
+        {
+            const OwnedMemory memory(64);
+            const auto storage = borrowed_of(memory, 0, 64);
+
+            EXPECT_TRUE(names_an_owner(storage->owner_liveness()));
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageSeesTheOwnerLetGo)
+        {
+            OwnedMemory memory(64);
+            const auto storage = borrowed_of(memory, 0, 64);
+            EXPECT_FALSE(storage->owner_liveness().expired());
+
+            memory.release();
+
+            EXPECT_TRUE(storage->owner_liveness().expired());
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageLeavesTheOwnersMemoryAlone)
+        {
+            OwnedMemory memory(64);
+            memory.data()[0] = std::byte{7};
+
+            {
+                const auto storage = borrowed_of(memory, 0, 64);
+            }
+
+            EXPECT_EQ(memory.data()[0], std::byte{7});
+        }
+
+        /// @brief A buffer a borrowed storage refuses: where it starts and how long it is.
+        struct BadBufferRow
+        {
+            std::size_t offset;
+            std::size_t count;
+        };
+
+        class Medium_StorageBorrowRefusal : public ::testing::TestWithParam<BadBufferRow>
+        {
+        };
+
+        TEST_P(Medium_StorageBorrowRefusal, ABorrowedStorageRefusesTheBuffer)
+        {
+            const OwnedMemory memory(64);
+            const BadBufferRow row = GetParam();
+
+            EXPECT_THROW((void)borrowed_of(memory, row.offset, row.count), std::runtime_error);
+        }
+
+        // An empty buffer, and a buffer that starts one byte off the alignment.
+        INSTANTIATE_TEST_SUITE_P(, Medium_StorageBorrowRefusal,
+                                 ::testing::Values(BadBufferRow{0, 0}, BadBufferRow{1, 32}));
     } // namespace Test
 } // namespace SushiBLAS

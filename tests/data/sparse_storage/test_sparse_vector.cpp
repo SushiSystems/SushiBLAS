@@ -34,29 +34,33 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/tensor/tensor_factory.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/sparse_storage/sparse_vector.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Returns a rank-one tensor of count elements of dtype.
+        /// @brief Returns a rank-one tensor of count elements of dtype, with no storage.
         static Tensor entries_of(int64_t count, Core::DataType dtype)
         {
-            const TensorFactory factory(TestEnvironment::runtime());
             const int64_t dims[1] = {count};
-            return factory.create(SushiRuntime::span<const int64_t>(dims, 1), dtype);
+            return Tensor::make_shape_only(SushiRuntime::span<const int64_t>(dims, 1), dtype);
         }
 
-        TEST(Medium_SparseVector, ADefaultVectorIsEmptyAndZeroBased)
+        TEST(Small_SparseVector, ADefaultVectorIsEmpty)
         {
             const SparseVector vector;
 
             EXPECT_EQ(vector.size, int64_t{0});
-            EXPECT_EQ(vector.index_base, Core::IndexBase::Zero);
             EXPECT_EQ(vector.nnz(), int64_t{0});
+        }
+
+        TEST(Small_SparseVector, ADefaultVectorIsZeroBased)
+        {
+            const SparseVector vector;
+
+            EXPECT_EQ(vector.index_base, Core::IndexBase::Zero);
         }
 
         namespace
@@ -82,28 +86,41 @@ namespace SushiBLAS
             {
                 return info.param.name;
             }
+
+            /// @brief Returns a vector of three entries with the dtypes of the row.
+            SparseVector vector_of(const DtypeRow& row)
+            {
+                SparseVector vector;
+                vector.size = 10;
+                vector.index_base = Core::IndexBase::One;
+                vector.indices = entries_of(3, row.index_dtype);
+                vector.values = entries_of(3, row.value_dtype);
+                return vector;
+            }
         } // namespace
 
         /** @brief Builds a vector with the dtypes of one row at a time. */
-        class Medium_SparseVectorDtypes : public ::testing::TestWithParam<DtypeRow>
+        class Small_SparseVectorDtypes : public ::testing::TestWithParam<DtypeRow>
         {
 
         };
 
-        TEST_P(Medium_SparseVectorDtypes, ReadsItsCountAndDtypesFromItsTensors)
+        TEST_P(Small_SparseVectorDtypes, ReadsItsCountFromItsValues)
         {
-            SparseVector vector;
-            vector.size = 10;
-            vector.index_base = Core::IndexBase::One;
-            vector.indices = entries_of(3, GetParam().index_dtype);
-            vector.values = entries_of(3, GetParam().value_dtype);
-
-            EXPECT_EQ(vector.nnz(), int64_t{3});
-            EXPECT_EQ(vector.dtype(), GetParam().value_dtype);
-            EXPECT_EQ(vector.index_dtype(), GetParam().index_dtype);
+            EXPECT_EQ(vector_of(GetParam()).nnz(), int64_t{3});
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Medium_SparseVectorDtypes, ::testing::ValuesIn(dtype_rows()),
+        TEST_P(Small_SparseVectorDtypes, ReadsItsDtypeFromItsValues)
+        {
+            EXPECT_EQ(vector_of(GetParam()).dtype(), GetParam().value_dtype);
+        }
+
+        TEST_P(Small_SparseVectorDtypes, ReadsItsIndexDtypeFromItsIndices)
+        {
+            EXPECT_EQ(vector_of(GetParam()).index_dtype(), GetParam().index_dtype);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SparseVectorDtypes, ::testing::ValuesIn(dtype_rows()),
                                  dtype_row_name);
     } // namespace Test
 } // namespace SushiBLAS

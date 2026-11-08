@@ -133,11 +133,13 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Fills a dense tensor with uniform values drawn from fill_random_generator().
+         * @brief Fills a dense tensor with uniform values drawn from the generator it is given.
+         * @param generator The source of the draws; two generators seeded alike fill alike.
          * @see modules/data/tensor_expectations/README.md
          */
         template <typename T>
-        void fill_random(Tensor& tensor, float min_val = -1.0f, float max_val = 1.0f)
+        void fill_random(Tensor& tensor, std::mt19937& generator, float min_val = -1.0f,
+                         float max_val = 1.0f)
         {
             size_t size = static_cast<size_t>(tensor.num_elements);
 
@@ -147,7 +149,7 @@ namespace SushiBLAS
             {
                 auto get_rand = [&]()
                 {
-                    return distribution(fill_random_generator());
+                    return distribution(generator);
                 };
 
                 if constexpr (std::is_same_v<T, sycl::half>)
@@ -165,6 +167,16 @@ namespace SushiBLAS
             }
 
             copy_host_to_tensor(tensor, host_data.data(), size * sizeof(T));
+        }
+
+        /**
+         * @brief Fills a dense tensor with uniform values drawn from fill_random_generator().
+         * @see modules/data/tensor_expectations/README.md
+         */
+        template <typename T>
+        void fill_random(Tensor& tensor, float min_val = -1.0f, float max_val = 1.0f)
+        {
+            fill_random<T>(tensor, fill_random_generator(), min_val, max_val);
         }
     } // namespace Test
 } // namespace SushiBLAS
