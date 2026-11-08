@@ -28,6 +28,8 @@
  */
 
 #include <complex>
+#include <functional>
+#include <string>
 #include <vector>
 #include <stdexcept>
 #include <gtest/gtest.h>
@@ -37,197 +39,241 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
+namespace sb = SushiBLAS;
 
 using cf = std::complex<float>;
 
-class Medium_DispatchComplexTest : public SushiBLASTest {};
-
-TEST_F(Medium_DispatchComplexTest, BinaryArithmeticOnComplex32)
+class Medium_DispatchComplexTest : public SushiBLASTest
 {
-    const std::vector<cf> av = {cf(1.0f, 2.0f), cf(3.0f, -1.0f)};
-    const std::vector<cf> bv = {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)};
+protected:
+    /** @brief Builds a COMPLEX32 tensor of @p values. */
+    sb::Tensor complex_tensor(const std::vector<cf>& values)
+    {
+        return create_initialized_tensor<cf>({static_cast<int64_t>(values.size())}, values);
+    }
 
-    auto a = create_initialized_tensor<cf>({2}, av);
-    auto b = create_initialized_tensor<cf>({2}, bv);
-    auto c = engine->create_tensor({2}, DataType::Complex32);
+    /** @brief Records @p record on two inputs and a COMPLEX32 result, runs it and compares the result. */
+    void expect_binary(const std::function<void(sb::Tensor&, sb::Tensor&, sb::Tensor&)>& record,
+                       const std::vector<cf>& av, const std::vector<cf>& bv, const std::vector<cf>& expected)
+    {
+        auto a = complex_tensor(av);
+        auto b = complex_tensor(bv);
+        auto c = engine->create_tensor({static_cast<int64_t>(expected.size())}, DataType::Complex32);
+        record(a, b, c);
+        recording->run().value();
+        expect_tensor(c, expected);
+    }
 
-    SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
-    recording->run().value();
-    auto add_expected = create_initialized_tensor<cf>({2}, {cf(3.0f, 3.0f), cf(2.0f, 3.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, add_expected, K_DEFAULT_TOLERANCE, cf);
+    /** @brief Records the in-place @p record on @p values, runs it and compares the tensor. */
+    void expect_in_place(const std::function<void(sb::Tensor&)>& record, const std::vector<cf>& values,
+                         const std::vector<cf>& expected)
+    {
+        auto t = complex_tensor(values);
+        record(t);
+        recording->run().value();
+        expect_tensor(t, expected);
+    }
+};
 
-    SushiBLAS::ElementwiseOps(recorder()).sub(a, b, c);
-    recording->run().value();
-    auto sub_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, sub_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/library/umbrella/README.md.
-    SushiBLAS::ElementwiseOps(recorder()).mul(a, b, c);
-    recording->run().value();
-    auto mul_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, mul_expected, K_DEFAULT_TOLERANCE, cf);
-
-    SushiBLAS::ElementwiseOps(recorder()).div(a, b, c);
-    recording->run().value();
-    auto div_expected = create_initialized_tensor<cf>({2}, {cf(0.8f, 0.6f), cf(-7.0f / 17.0f, -11.0f / 17.0f)});
-    SB_ASSERT_TENSOR_NEAR(c, div_expected, K_DEFAULT_TOLERANCE, cf);
+TEST_F(Medium_DispatchComplexTest, AddOnComplex32)
+{
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::ElementwiseOps(recorder()).add(a, b, c); },
+                  {cf(1.0f, 2.0f), cf(3.0f, -1.0f)}, {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)},
+                  {cf(3.0f, 3.0f), cf(2.0f, 3.0f)});
 }
 
-TEST_F(Medium_DispatchComplexTest, UnaryArithmeticOnComplex32)
+TEST_F(Medium_DispatchComplexTest, SubOnComplex32)
 {
-    auto neg = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(-3.0f, 4.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).neg(neg);
-    recording->run().value();
-    auto neg_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, -2.0f), cf(3.0f, -4.0f)});
-    SB_ASSERT_TENSOR_NEAR(neg, neg_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // (1+2i)^2 = -3+4i ; i^2 = -1
-    auto square = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).square(square);
-    recording->run().value();
-    auto square_expected = create_initialized_tensor<cf>({2}, {cf(-3.0f, 4.0f), cf(-1.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(square, square_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // 1/i = -i
-    auto recip = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 1.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).reciprocal(recip);
-    recording->run().value();
-    auto recip_expected = create_initialized_tensor<cf>({2}, {cf(0.5f, 0.0f), cf(0.0f, -1.0f)});
-    SB_ASSERT_TENSOR_NEAR(recip, recip_expected, K_DEFAULT_TOLERANCE, cf);
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::ElementwiseOps(recorder()).sub(a, b, c); },
+                  {cf(1.0f, 2.0f), cf(3.0f, -1.0f)}, {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)},
+                  {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
 }
 
-TEST_F(Medium_DispatchComplexTest, TranscendentalsOnComplex32)
+// (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/library/umbrella/README.md.
+TEST_F(Medium_DispatchComplexTest, MulOnComplex32)
 {
-    // |3+4i| = 5 and |-5+12i| = 13, returned in complex storage with a zero imaginary part.
-    auto abs_t = create_initialized_tensor<cf>({2}, {cf(3.0f, 4.0f), cf(-5.0f, 12.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).abs(abs_t);
-    recording->run().value();
-    auto abs_expected = create_initialized_tensor<cf>({2}, {cf(5.0f, 0.0f), cf(13.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(abs_t, abs_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // sqrt(-9) = 3i - the principal branch, not a NaN and not a silently untouched -9.
-    auto sqrt_t = create_initialized_tensor<cf>({2}, {cf(4.0f, 0.0f), cf(-9.0f, 0.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).sqrt(sqrt_t);
-    recording->run().value();
-    auto sqrt_expected = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 3.0f)});
-    SB_ASSERT_TENSOR_NEAR(sqrt_t, sqrt_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // Euler: exp(i*pi/2) = i.
-    auto exp_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.5707963f)});
-    SushiBLAS::ElementwiseOps(recorder()).exp(exp_t);
-    recording->run().value();
-    auto exp_expected = create_initialized_tensor<cf>({2}, {cf(2.7182818f, 0.0f), cf(0.0f, 1.0f)});
-    SB_ASSERT_TENSOR_NEAR(exp_t, exp_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // log(i) = i*pi/2.
-    auto log_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.0f)});
-    SushiBLAS::ElementwiseOps(recorder()).log(log_t);
-    recording->run().value();
-    auto log_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 0.0f), cf(0.0f, 1.5707963f)});
-    SB_ASSERT_TENSOR_NEAR(log_t, log_expected, K_DEFAULT_TOLERANCE, cf);
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::ElementwiseOps(recorder()).mul(a, b, c); },
+                  {cf(1.0f, 2.0f), cf(3.0f, -1.0f)}, {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)},
+                  {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
 }
 
-TEST_F(Medium_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
+TEST_F(Medium_DispatchComplexTest, DivOnComplex32)
 {
-    auto a = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
-    auto b = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::ElementwiseOps(recorder()).div(a, b, c); },
+                  {cf(1.0f, 2.0f), cf(3.0f, -1.0f)}, {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)},
+                  {cf(0.8f, 0.6f), cf(-7.0f / 17.0f, -11.0f / 17.0f)});
+}
+
+TEST_F(Medium_DispatchComplexTest, NegOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).neg(t); },
+                    {cf(1.0f, 2.0f), cf(-3.0f, 4.0f)}, {cf(-1.0f, -2.0f), cf(3.0f, -4.0f)});
+}
+
+// (1+2i)^2 = -3+4i ; i^2 = -1
+TEST_F(Medium_DispatchComplexTest, SquareOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).square(t); },
+                    {cf(1.0f, 2.0f), cf(0.0f, 1.0f)}, {cf(-3.0f, 4.0f), cf(-1.0f, 0.0f)});
+}
+
+// 1/i = -i
+TEST_F(Medium_DispatchComplexTest, ReciprocalOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).reciprocal(t); },
+                    {cf(2.0f, 0.0f), cf(0.0f, 1.0f)}, {cf(0.5f, 0.0f), cf(0.0f, -1.0f)});
+}
+
+// |3+4i| = 5 and |-5+12i| = 13, returned in complex storage with a zero imaginary part.
+TEST_F(Medium_DispatchComplexTest, AbsOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).abs(t); },
+                    {cf(3.0f, 4.0f), cf(-5.0f, 12.0f)}, {cf(5.0f, 0.0f), cf(13.0f, 0.0f)});
+}
+
+// sqrt(-9) = 3i - the principal branch, not a NaN and not a silently untouched -9.
+TEST_F(Medium_DispatchComplexTest, SqrtOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).sqrt(t); },
+                    {cf(4.0f, 0.0f), cf(-9.0f, 0.0f)}, {cf(2.0f, 0.0f), cf(0.0f, 3.0f)});
+}
+
+// Euler: exp(i*pi/2) = i.
+TEST_F(Medium_DispatchComplexTest, ExpOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).exp(t); },
+                    {cf(1.0f, 0.0f), cf(0.0f, 1.5707963f)}, {cf(2.7182818f, 0.0f), cf(0.0f, 1.0f)});
+}
+
+// log(i) = i*pi/2.
+TEST_F(Medium_DispatchComplexTest, LogOnComplex32)
+{
+    expect_in_place([&](auto& t) { sb::ElementwiseOps(recorder()).log(t); },
+                    {cf(1.0f, 0.0f), cf(0.0f, 1.0f)}, {cf(0.0f, 0.0f), cf(0.0f, 1.5707963f)});
+}
+
+namespace
+{
+
+const std::vector<cf> K_LOGIC_A = {cf(1.0f, 2.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)};
+const std::vector<cf> K_LOGIC_B = {cf(1.0f, 2.0f), cf(0.0f, 1.0f), cf(1.0f, 1.0f)};
+
+} // namespace
+
+// Equality is component-wise, so (1,0) != (1,1) although the real parts match.
+TEST_F(Medium_DispatchComplexTest, EqualOnComplex32)
+{
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::LogicOps(recorder()).equal(a, b, c); },
+                  K_LOGIC_A, K_LOGIC_B, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 0.0f)});
+}
+
+// Truthiness is "either component nonzero": a[1] is the only zero operand.
+TEST_F(Medium_DispatchComplexTest, LogicalAndOnComplex32)
+{
+    expect_binary([&](auto& a, auto& b, auto& c) { sb::LogicOps(recorder()).logical_and(a, b, c); },
+                  K_LOGIC_A, K_LOGIC_B, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
+}
+
+TEST_F(Medium_DispatchComplexTest, LogicalNotOnComplex32)
+{
+    auto a = complex_tensor(K_LOGIC_A);
     auto r = engine->create_tensor({3}, DataType::Complex32);
-
-    // Equality is component-wise, so (1,0) != (1,1) although the real parts match.
-    SushiBLAS::LogicOps(recorder()).equal(a, b, r);
+    sb::LogicOps(recorder()).logical_not(a, r);
     recording->run().value();
-    auto eq_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, eq_expected, K_DEFAULT_TOLERANCE, cf);
-
-    // Truthiness is "either component nonzero": a[1] is the only zero operand.
-    SushiBLAS::LogicOps(recorder()).logical_and(a, b, r);
-    recording->run().value();
-    auto and_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, and_expected, K_DEFAULT_TOLERANCE, cf);
-
-    SushiBLAS::LogicOps(recorder()).logical_not(a, r);
-    recording->run().value();
-    auto not_expected = create_initialized_tensor<cf>({3}, {cf(0.0f, 0.0f), cf(1.0f, 0.0f), cf(0.0f, 0.0f)});
-    SB_ASSERT_TENSOR_NEAR(r, not_expected, K_DEFAULT_TOLERANCE, cf);
+    expect_tensor(r, std::vector<cf>{cf(0.0f, 0.0f), cf(1.0f, 0.0f), cf(0.0f, 0.0f)});
 }
 
 TEST_F(Medium_DispatchComplexTest, WhereSelectsOnComplex32)
 {
-    auto cond = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 2.0f)});
-    auto a = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(7.0f, 7.0f), cf(7.0f, 7.0f)});
-    auto b = create_initialized_tensor<cf>({3}, {cf(-1.0f, -1.0f), cf(-1.0f, -1.0f), cf(-1.0f, -1.0f)});
+    auto cond = complex_tensor({cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 2.0f)});
+    auto a = complex_tensor(std::vector<cf>(3, cf(7.0f, 7.0f)));
+    auto b = complex_tensor(std::vector<cf>(3, cf(-1.0f, -1.0f)));
     auto out = engine->create_tensor({3}, DataType::Complex32);
 
-    SushiBLAS::LogicOps(recorder()).where(cond, a, b, out);
+    sb::LogicOps(recorder()).where(cond, a, b, out);
     recording->run().value();
 
-    auto expected = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(-1.0f, -1.0f), cf(7.0f, 7.0f)});
-    SB_ASSERT_TENSOR_NEAR(out, expected, K_DEFAULT_TOLERANCE, cf);
+    expect_tensor(out, std::vector<cf>{cf(7.0f, 7.0f), cf(-1.0f, -1.0f), cf(7.0f, 7.0f)});
 }
 
 // Operations with no complex meaning fail at record time. See tests/library/umbrella/README.md.
 
-TEST_F(Medium_DispatchComplexTest, OrderingComparisonsRejectComplex32)
+namespace
 {
-    auto a = engine->create_tensor({2}, DataType::Complex32);
-    auto b = engine->create_tensor({2}, DataType::Complex32);
-    auto r = engine->create_tensor({2}, DataType::Complex32);
 
-    // C is not an ordered field. See tests/library/umbrella/README.md.
-    EXPECT_THROW(SushiBLAS::LogicOps(recorder()).less(a, b, r), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::LogicOps(recorder()).less_equal(a, b, r), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::LogicOps(recorder()).greater(a, b, r), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::LogicOps(recorder()).greater_equal(a, b, r), std::invalid_argument);
+/** @brief One operation COMPLEX32 must refuse: its name and the call that records it. */
+struct RefusalRow
+{
+    std::string name;
+    std::function<void(sb::TaskRecorder&, sb::Tensor&, sb::Tensor&, sb::Tensor&)> record;
+};
+
+std::string row_name(const ::testing::TestParamInfo<RefusalRow>& info)
+{
+    return info.param.name;
 }
 
-TEST_F(Medium_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
+} // namespace
+
+/** @brief Records one COMPLEX32 operation per row; every row must be refused. */
+class Medium_DispatchComplexRefusalTest : public SushiBLASTest, public ::testing::WithParamInterface<RefusalRow> {};
+
+// C is not an ordered field; complex trigonometry and pow are unimplemented.
+TEST_P(Medium_DispatchComplexRefusalTest, RefusesComplex32AtRecordTime)
 {
     auto a = engine->create_tensor({2}, DataType::Complex32);
     auto b = engine->create_tensor({2}, DataType::Complex32);
     auto c = engine->create_tensor({2}, DataType::Complex32);
 
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).max(a, b, c), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).min(a, b, c), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).fmod(a, b, c), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).remainder(a, b, c), std::invalid_argument);
+    EXPECT_THROW(GetParam().record(recorder(), a, b, c), std::invalid_argument);
 }
 
-TEST_F(Medium_DispatchComplexTest, RoundingAndClampRejectComplex32)
+INSTANTIATE_TEST_SUITE_P(
+    Operations, Medium_DispatchComplexRefusalTest,
+    ::testing::Values(
+        RefusalRow{"Less", [](auto& r, auto& a, auto& b, auto& c) { sb::LogicOps(r).less(a, b, c); }},
+        RefusalRow{"LessEqual", [](auto& r, auto& a, auto& b, auto& c) { sb::LogicOps(r).less_equal(a, b, c); }},
+        RefusalRow{"Greater", [](auto& r, auto& a, auto& b, auto& c) { sb::LogicOps(r).greater(a, b, c); }},
+        RefusalRow{"GreaterEqual",
+                   [](auto& r, auto& a, auto& b, auto& c) { sb::LogicOps(r).greater_equal(a, b, c); }},
+        RefusalRow{"Max", [](auto& r, auto& a, auto& b, auto& c) { sb::ElementwiseOps(r).max(a, b, c); }},
+        RefusalRow{"Min", [](auto& r, auto& a, auto& b, auto& c) { sb::ElementwiseOps(r).min(a, b, c); }},
+        RefusalRow{"Fmod", [](auto& r, auto& a, auto& b, auto& c) { sb::ElementwiseOps(r).fmod(a, b, c); }},
+        RefusalRow{"Remainder",
+                   [](auto& r, auto& a, auto& b, auto& c) { sb::ElementwiseOps(r).remainder(a, b, c); }},
+        RefusalRow{"Floor", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).floor(a); }},
+        RefusalRow{"Ceil", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).ceil(a); }},
+        RefusalRow{"Round", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).round(a); }},
+        RefusalRow{"Clamp", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).clamp(a, -1.0f, 1.0f); }},
+        RefusalRow{"Sin", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).sin(a); }},
+        RefusalRow{"Cos", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).cos(a); }},
+        RefusalRow{"Tan", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).tan(a); }},
+        RefusalRow{"Pow", [](auto& r, auto& a, auto&, auto&) { sb::ElementwiseOps(r).pow(a, 2.0f); }}),
+    row_name);
+
+// max and min are Domain::RealAndIntegral and must still work on a FLOAT32 tensor.
+TEST_F(Medium_DispatchComplexTest, MaxOnFloat32IsUnaffected)
 {
-    auto t = engine->create_tensor({2}, DataType::Complex32);
-
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).floor(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).ceil(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).round(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder())
-        .clamp(t, -1.0f, 1.0f), std::invalid_argument);
-}
-
-TEST_F(Medium_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
-{
-    // Complex trigonometry and pow are not implemented. See tests/library/umbrella/README.md.
-    auto t = engine->create_tensor({2}, DataType::Complex32);
-
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).sin(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).cos(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).tan(t), std::invalid_argument);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).pow(t, 2.0f), std::invalid_argument);
-}
-
-TEST_F(Medium_DispatchComplexTest, RealDtypesAreUnaffected)
-{
-    // max and min are Domain::RealAndIntegral and must still work on a FLOAT32 tensor.
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
     auto c = engine->create_tensor({4});
     fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
 
-    SushiBLAS::ElementwiseOps(recorder()).max(a, b, c);
+    sb::ElementwiseOps(recorder()).max(a, b, c);
     recording->run().value();
-    expect_tensor(c, {2.0f, 2.0f, 4.0f, 0.5f});
+    expect_tensor_equal(c, {2.0f, 2.0f, 4.0f, 0.5f});
+}
 
-    SushiBLAS::ElementwiseOps(recorder()).min(a, b, c);
+TEST_F(Medium_DispatchComplexTest, MinOnFloat32IsUnaffected)
+{
+    auto a = engine->create_tensor({4});
+    auto b = engine->create_tensor({4});
+    auto c = engine->create_tensor({4});
+    fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
+    fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
+
+    sb::ElementwiseOps(recorder()).min(a, b, c);
     recording->run().value();
-    expect_tensor(c, {1.0f, 0.5f, -3.0f, -1.5f});
+    expect_tensor_equal(c, {1.0f, 0.5f, -3.0f, -1.5f});
 }

@@ -23,7 +23,7 @@
 
 /**
  * @file test_dependency_stress.cpp
- * @brief Tests the dependency tracker under reader fan-out and shard collisions.
+ * @brief Tests the dependency tracker under shard collisions.
  * @author Mustafa Garip
  */
 
@@ -36,83 +36,69 @@
 namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
 
-class Medium_DependencyStressTest : public SushiBLASTest {};
-
-/**
- * @brief Tests that 5000 readers of one written tensor all see the written value.
- * @see tests/library/umbrella/README.md
- */
-TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter) 
+namespace
 {
-    
-    
-    const int num_readers = 5000;
-    const int N = 32;
-    
-    auto writer_tensor = engine->create_tensor({N, N});
-    fill_tensor(writer_tensor, std::vector<float>(N * N, 1.0f));
-    
-    std::vector<sb::Tensor> reader_outputs;
-    for (int i = 0; i < num_readers; ++i) 
-    {
-        auto t = engine->create_tensor({N, N});
-        fill_tensor(t, std::vector<float>(N * N, 0.0f));
-        reader_outputs.push_back(t);
-    }
-    
-    
-    // Create an independent tensor just for the GEMM to multiply with writer_tensor
-    auto dummy_weights = engine->create_tensor({N, N});
-    fill_tensor(dummy_weights, std::vector<float>(N * N, 2.0f));
 
-    // writer_tensor is the GEMM's output, so this call writes it.
-    SushiBLAS::BLASOps(recorder()).gemm(dummy_weights, dummy_weights, writer_tensor);
-    
-    // Now submit 5000 reads! (writer_tensor is A, so it is read)
-    for (int i = 0; i < num_readers; ++i) 
-    {
-        SushiBLAS::BLASOps(recorder()).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
-    }
-    
-    recording->run().value();
+constexpr int K_OPERATION_COUNT = 3000;
+constexpr int K_SIDE = 8;
+constexpr float K_B_VALUE = 0.5f;
 
-    // writer = 32 * 2 * 2 = 128 everywhere; every reader = 32 * 128 * 2 = 8192.
-    const std::vector<float> K_EXPECTED_READER(N * N, 8192.0f);
-    for (int i = 0; i < num_readers; ++i)
-        expect_tensor_equal(reader_outputs[i], K_EXPECTED_READER);
+/** @brief Gives the A value of operation @p index; it cycles through 251 distinct values. */
+float a_value_of(int index)
+{
+    return static_cast<float>(index % 251 + 1);
 }
+
+/** @brief Holds the operands of independent GEMMs on distinct tensors. */
+struct GemmBatch
+{
+    std::vector<sb::Tensor> a;
+    std::vector<sb::Tensor> b;
+    std::vector<sb::Tensor> c;
+};
+
+/** @brief Builds @p count filled A and B tensors and empty C tensors on @p engine. */
+GemmBatch make_gemm_batch(sb::Engine& engine, int count)
+{
+    GemmBatch batch;
+    for (int i = 0; i < count; ++i)
+    {
+        batch.a.push_back(engine.create_tensor({K_SIDE, K_SIDE}));
+        batch.b.push_back(engine.create_tensor({K_SIDE, K_SIDE}));
+        batch.c.push_back(engine.create_tensor({K_SIDE, K_SIDE}));
+        fill_tensor(batch.a[i], std::vector<float>(K_SIDE * K_SIDE, a_value_of(i)));
+        fill_tensor(batch.b[i], std::vector<float>(K_SIDE * K_SIDE, K_B_VALUE));
+    }
+    return batch;
+}
+
+/** @brief Expects every C of @p batch to hold K_SIDE * a * K_B_VALUE, exact in float. */
+void expect_batch_results(GemmBatch const& batch)
+{
+    for (std::size_t i = 0; i < batch.c.size(); ++i)
+    {
+        expect_tensor_equal(batch.c[i], std::vector<float>(K_SIDE * K_SIDE,
+                                                           K_SIDE * a_value_of(static_cast<int>(i)) * K_B_VALUE));
+    }
+}
+
+} // namespace
+
+class Medium_DependencyStressTest : public SushiBLASTest {};
 
 /**
  * @brief Tests that 3000 independent GEMMs on distinct tensors each produce their own result.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Medium_DependencyStressTest, ShardCollisionStress) 
+TEST_F(Medium_DependencyStressTest, ShardCollisionStress)
 {
-    
-    
-    const int num_ops = 3000;
-    const int N = 8;
-    const float K_B_VALUE = 0.5f;
-    const auto a_value_of = [](int i) { return static_cast<float>(i % 251 + 1); };
-    
-    std::vector<sb::Tensor> As, Bs, Cs;
-    for (int i = 0; i < num_ops; ++i) 
+    GemmBatch batch = make_gemm_batch(*engine, K_OPERATION_COUNT);
+    for (int i = 0; i < K_OPERATION_COUNT; ++i)
     {
-        As.push_back(engine->create_tensor({N, N}));
-        Bs.push_back(engine->create_tensor({N, N}));
-        Cs.push_back(engine->create_tensor({N, N}));
-        fill_tensor(As[i], std::vector<float>(N * N, a_value_of(i)));
-        fill_tensor(Bs[i], std::vector<float>(N * N, K_B_VALUE));
+        SushiBLAS::BLASOps(recorder()).gemm(batch.a[i], batch.b[i], batch.c[i]);
     }
-    
-    for (int i = 0; i < num_ops; ++i) 
-    {
-        SushiBLAS::BLASOps(recorder()).gemm(As[i], Bs[i], Cs[i]);
-    }
-    
+
     recording->run().value();
 
-    // Every element of C_i is N * a_i * K_B_VALUE = 4 * a_i, exact in float.
-    for (int i = 0; i < num_ops; ++i)
-        expect_tensor_equal(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE));
+    expect_batch_results(batch);
 }

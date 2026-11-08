@@ -27,215 +27,251 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
+#include <cstdint>
+#include <functional>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Runs the empty-operand cases.
-        class Medium_EmptyTensorTest : public SushiBLASTest
+        namespace
+        {
+            /** @brief Returns a FLOAT32 tensor of shape {0, 3} with no storage. */
+            Tensor empty_tensor()
+            {
+                return Tensor(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
+            }
+
+            /** @brief One call that takes empty operands: its name and the call that records it. */
+            struct NoOpRow
+            {
+                std::string name;
+                std::function<void(TaskRecorder&)> record;
+            };
+
+            /** @brief One reduction without an identity and the call that records it on an empty operand. */
+            struct RefusalRow
+            {
+                std::string name;
+                std::function<void(TaskRecorder&, const Tensor& empty, Tensor& scalar, Tensor& index)> record;
+            };
+
+            /** @brief Names a row by its name, which gtest takes as the test's suffix. */
+            template<typename Row>
+            std::string row_name(const ::testing::TestParamInfo<Row>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /// @brief Runs the empty-operand cases on a host engine; the record-time decision is made on the shape.
+        class Small_EmptyTensorTest : public HostEngineTest
         {
             protected:
-                /** @brief Returns a FLOAT32 tensor of shape {0, 3} with no storage. */
-                static Tensor empty_tensor()
+                /** @brief Returns a FLOAT32 scalar tensor that starts from @p value. */
+                Tensor scalar_of(float value)
                 {
-                    return Tensor(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
+                    Tensor scalar = engine->create_tensor({1});
+                    fill_tensor(scalar, {value});
+                    return scalar;
                 }
-
-                /** @brief Returns whether the probe holds no recorded task, and clears it. */
-                bool graph_is_empty()
-                {
-                    return probe.take_recorded_count() == 0;
-                }
-
-                /// @brief The graph the tests of this suite record on and read.
-                GraphProbe probe;
         };
 
-        /**
-         * @brief Tests that exp of an empty tensor records no task and does not throw.
-         */
-        TEST_F(Medium_EmptyTensorTest, ExpOfAnEmptyTensorIsANoOp)
-        {
-            Tensor t = empty_tensor();
+        /// @brief Records one call per row over empty operands.
+        class Small_EmptyTensorNoOp : public Small_EmptyTensorTest, public ::testing::WithParamInterface<NoOpRow> {};
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).exp(t));
-            EXPECT_TRUE(graph_is_empty());
+        /// @brief Tests that an operation over empty tensors records no task and does not throw.
+        TEST_P(Small_EmptyTensorNoOp, RecordsNothingAndDoesNotThrow)
+        {
+            EXPECT_NO_THROW(GetParam().record(recorder()));
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        /**
-         * @brief Tests that relu of an empty tensor records no task and does not throw.
-         */
-        TEST_F(Medium_EmptyTensorTest, ReLUOfAnEmptyTensorIsANoOp)
-        {
-            Tensor t = empty_tensor();
+        INSTANTIATE_TEST_SUITE_P(
+            Operations, Small_EmptyTensorNoOp,
+            ::testing::Values(
+                NoOpRow{"Exp", [](TaskRecorder& r) { Tensor t = empty_tensor(); ElementwiseOps(r).exp(t); }},
+                NoOpRow{"ReLU", [](TaskRecorder& r) { Tensor t = empty_tensor(); NonLinearOps(r).relu(t); }},
+                NoOpRow{"LogicalAnd",
+                        [](TaskRecorder& r)
+                        {
+                            Tensor a = empty_tensor();
+                            Tensor b = empty_tensor();
+                            Tensor out = empty_tensor();
+                            LogicOps(r).logical_and(a, b, out);
+                        }},
+                NoOpRow{"Equal",
+                        [](TaskRecorder& r)
+                        {
+                            Tensor a = empty_tensor();
+                            Tensor b = empty_tensor();
+                            Tensor out = empty_tensor();
+                            LogicOps(r).equal(a, b, out);
+                        }},
+                NoOpRow{"Convert",
+                        [](TaskRecorder& r)
+                        {
+                            Tensor src = empty_tensor();
+                            Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::Float64);
+                            ElementwiseOps(r).convert(src, dst);
+                        }}),
+            row_name<NoOpRow>);
 
-            EXPECT_NO_THROW(SushiBLAS::NonLinearOps(probe.recorder()).relu(t));
-            EXPECT_TRUE(graph_is_empty());
-        }
-
-        /**
-         * @brief Tests that logical_and and equal over empty tensors record no task.
-         */
-        TEST_F(Medium_EmptyTensorTest, LogicOfEmptyTensorsIsANoOp)
-        {
-            Tensor a = empty_tensor();
-            Tensor b = empty_tensor();
-            Tensor r = empty_tensor();
-
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.recorder()).logical_and(a, b, r));
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.recorder()).equal(a, b, r));
-            EXPECT_TRUE(graph_is_empty());
-        }
-
-        /**
-         * @brief Tests that all of a storage-less empty tensor writes the identity 1.
-         */
-        TEST_F(Medium_EmptyTensorTest, AllOfAnEmptyTensorWritesOne)
-        {
-            Tensor t = empty_tensor();
-            Tensor out = engine->create_tensor({1});
-            fill_tensor(out, {0.5f});
-
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).all(t, out));
-            recording->run().value();
-            expect_tensor(out, {1.0f});
-        }
-
-        /**
-         * @brief Tests that any of a storage-less empty tensor writes the identity 0.
-         */
-        TEST_F(Medium_EmptyTensorTest, AnyOfAnEmptyTensorWritesZero)
-        {
-            Tensor t = empty_tensor();
-            Tensor out = engine->create_tensor({1});
-            fill_tensor(out, {0.5f});
-
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).any(t, out));
-            recording->run().value();
-            expect_tensor(out, {0.0f});
-        }
-
-        /**
-         * @brief Tests that convert between empty tensors records no task.
-         */
-        TEST_F(Medium_EmptyTensorTest, ConvertOfEmptyTensorsIsANoOp)
-        {
-            Tensor src = empty_tensor();
-            Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::Float64);
-
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst));
-            EXPECT_TRUE(graph_is_empty());
-        }
-
-        /**
-         * @brief Tests that empty operands of different shapes still throw.
-         */
-        TEST_F(Medium_EmptyTensorTest, EmptyOperandsMustStillAgreeInShape)
+        /// @brief Tests that empty operands of different shapes still throw.
+        TEST_F(Small_EmptyTensorTest, EmptyOperandsMustStillAgreeInShape)
         {
             Tensor a = empty_tensor();
             Tensor b(SushiRuntime::sushi_ptr<Storage>(), {3, 0});
             Tensor c = empty_tensor();
 
-            EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c),
-                std::invalid_argument);
-            EXPECT_TRUE(graph_is_empty());
+            EXPECT_THROW(ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        /**
-         * @brief Tests that the five reductions with an identity write it for an empty tensor.
-         */
-        TEST_F(Medium_EmptyTensorTest, IdentityReductionsOfNothingWriteTheirIdentity)
+        /// @brief Tests that all of a storage-less empty tensor writes the identity 1.
+        TEST_F(Small_EmptyTensorTest, AllOfAnEmptyTensorWritesOne)
         {
             Tensor t = empty_tensor();
-            SushiBLAS::ReductionOps reductions(recorder());
+            Tensor out = scalar_of(0.5f);
 
-            Tensor sum = engine->create_tensor({1});
-            Tensor asum = engine->create_tensor({1});
-            Tensor nrm2 = engine->create_tensor({1});
-            Tensor prod = engine->create_tensor({1});
+            EXPECT_NO_THROW(LogicOps(recorder()).all(t, out));
+            ASSERT_TRUE(recording->run_succeeds());
+            expect_tensor_equal(out, {1.0f});
+        }
+
+        /// @brief Tests that any of a storage-less empty tensor writes the identity 0.
+        TEST_F(Small_EmptyTensorTest, AnyOfAnEmptyTensorWritesZero)
+        {
+            Tensor t = empty_tensor();
+            Tensor out = scalar_of(0.5f);
+
+            EXPECT_NO_THROW(LogicOps(recorder()).any(t, out));
+            ASSERT_TRUE(recording->run_succeeds());
+            expect_tensor_equal(out, {0.0f});
+        }
+
+        /// @brief Records one reduction with an identity over an empty tensor and the identity it must write.
+        struct IdentityRow
+        {
+            std::string name;
+            std::function<void(ReductionOps&, const Tensor& empty, Tensor& out)> record;
+            float identity;
+        };
+
+        /// @brief Runs the reductions that have an identity over an empty tensor.
+        class Small_EmptyTensorIdentity : public Small_EmptyTensorTest, public ::testing::WithParamInterface<IdentityRow> {};
+
+        /// @brief Tests that a reduction with an identity writes it for an empty tensor.
+        TEST_P(Small_EmptyTensorIdentity, WritesItsIdentity)
+        {
+            Tensor t = empty_tensor();
+            Tensor out = scalar_of(0.5f);
+            ReductionOps reductions(recorder());
+
+            EXPECT_NO_THROW(GetParam().record(reductions, t, out));
+            ASSERT_TRUE(recording->run_succeeds());
+            expect_tensor_equal(out, {GetParam().identity});
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            Reductions, Small_EmptyTensorIdentity,
+            ::testing::Values(
+                IdentityRow{"Sum", [](ReductionOps& r, const Tensor& t, Tensor& o) { r.sum(t, o); }, 0.0f},
+                IdentityRow{"Asum", [](ReductionOps& r, const Tensor& t, Tensor& o) { r.asum(t, o); }, 0.0f},
+                IdentityRow{"Nrm2", [](ReductionOps& r, const Tensor& t, Tensor& o) { r.nrm2(t, o); }, 0.0f},
+                IdentityRow{"Prod", [](ReductionOps& r, const Tensor& t, Tensor& o) { r.prod(t, o); }, 1.0f}),
+            row_name<IdentityRow>);
+
+        /// @brief Tests that count_nonfinite of an empty tensor writes the count 0 into an INT64 result.
+        TEST_F(Small_EmptyTensorTest, CountNonfiniteOfNothingWritesZero)
+        {
+            Tensor t = empty_tensor();
             Tensor count = engine->create_tensor({1}, Core::DataType::Int64);
-
-            // Each result starts from a value that is not its identity.
-            fill_tensor(sum, {0.5f});
-            fill_tensor(asum, {0.5f});
-            fill_tensor(nrm2, {0.5f});
-            fill_tensor(prod, {0.5f});
             fill_tensor(count, {7.0f});
 
-            EXPECT_NO_THROW(reductions.sum(t, sum));
-            EXPECT_NO_THROW(reductions.asum(t, asum));
-            EXPECT_NO_THROW(reductions.nrm2(t, nrm2));
-            EXPECT_NO_THROW(reductions.prod(t, prod));
-            EXPECT_NO_THROW(reductions.count_nonfinite(t, count));
-            recording->run().value();
-
-            expect_tensor(sum, {0.0f});
-            expect_tensor(asum, {0.0f});
-            expect_tensor(nrm2, {0.0f});
-            expect_tensor(prod, {1.0f});
-            expect_tensor(count, {0.0f});
+            EXPECT_NO_THROW(ReductionOps(recorder()).count_nonfinite(t, count));
+            ASSERT_TRUE(recording->run_succeeds());
+            expect_tensor_equal(count, {0.0f});
         }
 
-        /**
-         * @brief Tests that every reduction without an identity refuses an empty tensor.
-         */
-        TEST_F(Medium_EmptyTensorTest, OrderedReductionsOfNothingAreRefused)
+        /// @brief Records one reduction without an identity over an empty tensor.
+        class Small_EmptyTensorRefusal : public Small_EmptyTensorTest, public ::testing::WithParamInterface<RefusalRow> {};
+
+        /// @brief Tests that a reduction without an identity refuses an empty tensor and records nothing.
+        TEST_P(Small_EmptyTensorRefusal, IsRefused)
         {
             Tensor t = empty_tensor();
-            Tensor image(SushiRuntime::sushi_ptr<Storage>(), {0, 2, 2, 3});
-            SushiBLAS::ReductionOps reductions(probe.recorder());
-
             Tensor scalar = engine->create_tensor({1});
             Tensor index = engine->create_tensor({1}, Core::DataType::Int64);
-            Tensor per_column = engine->create_tensor({3});
-            Tensor per_channel = engine->create_tensor({1, 3});
 
-            EXPECT_THROW(reductions.mean(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.max(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.min(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.var(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.std(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.logsumexp(t, scalar), std::invalid_argument);
-            EXPECT_THROW(reductions.argmax(t, index), std::invalid_argument);
-            EXPECT_THROW(reductions.argmin(t, index), std::invalid_argument);
-            EXPECT_THROW(reductions.max_along(t, 0, per_column), std::invalid_argument);
-            EXPECT_THROW(reductions.min_along(t, 0, per_column), std::invalid_argument);
-            EXPECT_THROW(reductions.mean_spatial(image, per_channel), std::invalid_argument);
-            EXPECT_TRUE(graph_is_empty());
+            EXPECT_THROW(GetParam().record(recorder(), t, scalar, index), std::invalid_argument);
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        /**
-         * @brief Tests sum_along over an axis of length zero and into a result of length zero.
-         */
-        TEST_F(Medium_EmptyTensorTest, SumAlongOfAnEmptyAxisWritesZeros)
+        INSTANTIATE_TEST_SUITE_P(
+            Reductions, Small_EmptyTensorRefusal,
+            ::testing::Values(
+                RefusalRow{"Mean", [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).mean(t, o); }},
+                RefusalRow{"Max", [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).max(t, o); }},
+                RefusalRow{"Min", [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).min(t, o); }},
+                RefusalRow{"Var", [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).var(t, o); }},
+                RefusalRow{"Std", [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).std(t, o); }},
+                RefusalRow{"Logsumexp",
+                           [](TaskRecorder& r, const Tensor& t, Tensor& o, Tensor&) { ReductionOps(r).logsumexp(t, o); }},
+                RefusalRow{"Argmax",
+                           [](TaskRecorder& r, const Tensor& t, Tensor&, Tensor& i) { ReductionOps(r).argmax(t, i); }},
+                RefusalRow{"Argmin",
+                           [](TaskRecorder& r, const Tensor& t, Tensor&, Tensor& i) { ReductionOps(r).argmin(t, i); }},
+                RefusalRow{"MaxAlong",
+                           [](TaskRecorder& r, const Tensor& t, Tensor&, Tensor&)
+                           {
+                               Tensor per_column = Tensor(SushiRuntime::sushi_ptr<Storage>(), {3});
+                               ReductionOps(r).max_along(t, 0, per_column);
+                           }},
+                RefusalRow{"MinAlong",
+                           [](TaskRecorder& r, const Tensor& t, Tensor&, Tensor&)
+                           {
+                               Tensor per_column = Tensor(SushiRuntime::sushi_ptr<Storage>(), {3});
+                               ReductionOps(r).min_along(t, 0, per_column);
+                           }},
+                RefusalRow{"MeanSpatial",
+                           [](TaskRecorder& r, const Tensor&, Tensor&, Tensor&)
+                           {
+                               Tensor image(SushiRuntime::sushi_ptr<Storage>(), {0, 2, 2, 3});
+                               Tensor per_channel(SushiRuntime::sushi_ptr<Storage>(), {1, 3});
+                               ReductionOps(r).mean_spatial(image, per_channel);
+                           }}),
+            row_name<RefusalRow>);
+
+        /// @brief Tests sum_along over an axis of length zero: five sums of nothing.
+        TEST_F(Small_EmptyTensorTest, SumAlongOfAnEmptyAxisWritesZeros)
         {
-            // Folding axis 0 of a [0, 5] tensor leaves five sums of nothing.
             Tensor no_rows(SushiRuntime::sushi_ptr<Storage>(), {0, 5});
             Tensor sums = engine->create_tensor({5});
             fill_tensor(sums, std::vector<float>(5, 0.5f));
 
-            EXPECT_NO_THROW(SushiBLAS::ReductionOps(recorder()).sum_along(no_rows, 0, sums));
-            recording->run().value();
-            expect_tensor(sums, std::vector<float>(5, 0.0f));
+            EXPECT_NO_THROW(ReductionOps(recorder()).sum_along(no_rows, 0, sums));
+            ASSERT_TRUE(recording->run_succeeds());
+            expect_tensor_equal(sums, std::vector<float>(5, 0.0f));
+        }
 
-            // Folding axis 0 of a [5, 0] tensor leaves no position to write.
+        /// @brief Tests sum_along into a result of length zero: no position to write, so no task.
+        TEST_F(Small_EmptyTensorTest, SumAlongIntoAnEmptyResultRecordsNothing)
+        {
             Tensor no_columns(SushiRuntime::sushi_ptr<Storage>(), {5, 0});
             Tensor nothing(SushiRuntime::sushi_ptr<Storage>(), {0});
 
-            EXPECT_NO_THROW(
-                SushiBLAS::ReductionOps(probe.recorder()).sum_along(no_columns, 0, nothing));
-            EXPECT_TRUE(graph_is_empty());
+            EXPECT_NO_THROW(ReductionOps(recorder()).sum_along(no_columns, 0, nothing));
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
     } // namespace Test
 } // namespace SushiBLAS

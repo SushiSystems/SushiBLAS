@@ -21,7 +21,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
 | M1 | the tests of `applications` (6 files): 3 rewrite, 5 split, 4 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M2 | the tests of `cli` (8 files): 56 rewrite, 18 resize, 1 split, 13 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M3 | the tests of `data` (12 files): 12 rewrite, 17 resize, 22 split, 3 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M3 | the tests of `data` (12 files): 12 rewrite, 17 resize, 22 split, 3 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M4 | the tests of `engine` (56 files): 67 rewrite, 70 resize, 31 split, 43 merge, 35 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M5 | the tests of `foundation/arithmetic` (6 files): 19 rewrite, 1 resize, 3 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M6 | the tests of `foundation/blas_test_oracle` (4 files): 6 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -115,3 +115,5 @@ Resume note, 2026-11-09, after M2: M2 is done (decision 40). Every `cli` record 
 - **S jobs.** Owner order of 2026-11-07: a test a record resizes to small runs `Small_` on a seam the job builds; `Medium_` stays only for a kernel against its host reference, an adapter's bytes or a thread handover.
 
 The owner chooses inline or parallel mode.
+
+Resume note, 2026-11-09, M33 started: M33 stays `todo`. Done: `test_dependency_stress.cpp` (the 5000-reader test deleted, loops in named helpers), `test_dispatch_complex.cpp` (one test per operation, the refusals as `TEST_P` rows), `test_dispatch_seam.cpp` (one-task assertions, rows for the operand refusals and the six read seams, helpers for AdamW, per-dtype scalar tests, the device-USM skip in a fixture), `test_empty_tensors.cpp` (now `Small_` on `HostEngineTest`, registered under `TESTS`) and the new `Small_` `test_dispatch_checks.cpp` (the real-only domain check and the parameter capacity, moved off the runtime). The tolerance records of these files were already applied by T1. Left in M33: `test_integer_dtypes.cpp`, `test_math_validation.cpp`, `test_operand_lifetime.cpp`, `test_pack_ordered_sum.cpp`, `test_regression.cpp`, `test_spatial_random_io_validation.cpp`, `test_storage_offset.cpp`, `test_task_dependencies.cpp`, `test_framework_sim.cpp`; then M34, M35, M37, M47, M49 are untouched. Syntax checked with clang -fsyntax-only through compile_commands.json; nothing built.

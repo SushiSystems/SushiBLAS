@@ -14,10 +14,11 @@ the benchmark section of `tests/README.md` describes them.
 | File | Tests |
 | --- | --- |
 | `benchmark_elementwise.cpp` | Times add, in-place exp and in-place relu and prints GB/s per element count |
-| `test_SushiBLAS/test_dependency_stress.cpp` | Tests the dependency tracker under reader fan-out and shard collisions |
+| `test_SushiBLAS/test_dependency_stress.cpp` | Tests the dependency tracker under shard collisions |
 | `test_SushiBLAS/test_dispatch_complex.cpp` | Tests which elementwise and logic operations compute on COMPLEX32 and which refuse it |
+| `test_SushiBLAS/test_dispatch_checks.cpp` | Tests, on values and without a device, the record-time domain and parameter-capacity checks of the public Dispatch seam |
 | `test_SushiBLAS/test_dispatch_seam.cpp` | Tests the public Dispatch seam with functors written outside the library |
-| `test_SushiBLAS/test_empty_tensors.cpp` | Tests what elementwise, non-linear, logic and reduction ops do with an empty tensor |
+| `test_SushiBLAS/test_empty_tensors.cpp` | Tests, on a host engine, what elementwise, non-linear, logic and reduction ops do with an empty tensor |
 | `test_SushiBLAS/test_framework_sim.cpp` | Tests a ten-layer forward pass and 24 independent models through the engine |
 | `test_SushiBLAS/test_integer_dtypes.cpp` | Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every operation refuses UINT32 |
 | `test_SushiBLAS/test_math_validation.cpp` | Tests the operand checks and numeric edge cases of the elementwise, nonlinear and reduction ops |
@@ -65,17 +66,17 @@ graph reported no error, and the output tensor was left holding whatever it held
 case in this file is one of those silently dropped paths, now resolved one way or the other:
 computed where the operation has a complex meaning, thrown for where it does not.
 
-`BinaryArithmeticOnComplex32`: the imaginary cross terms of the two products are exactly what
+`MulOnComplex32`: the imaginary cross terms of the two products are exactly what
 the old no-op path could never have produced, and what a real-only kernel would drop.
 
 The rejected operations threw nothing before; they enqueued nothing and returned. Each now
 fails at record time, at the call site, before a task reaches the graph.
 
-`OrderingComparisonsRejectComplex32`: C is not an ordered field. A lexicographic answer to
+The `Less`, `LessEqual`, `Greater` and `GreaterEqual` rows of `RefusesComplex32AtRecordTime`: C is not an ordered field. A lexicographic answer to
 these comparisons would be a well-formed answer to a question nobody asked, so the test holds the
 refusal.
 
-`RemainingRealOnlyOpsRejectComplex32`: trigonometry and `pow` do have complex extensions, but
+The `Sin`, `Cos`, `Tan` and `Pow` rows of `RefusesComplex32AtRecordTime`: trigonometry and `pow` do have complex extensions, but
 SushiBLAS does not implement them yet. The contract is that "not implemented" is observable:
 these report the gap and do not leave the tensor untouched while claiming success.
 
@@ -87,10 +88,6 @@ It is the in-tree half of the proof. The out-of-tree half is `tests/package/main
 does the same against a `find_package()`'d install.
 
 `float_bits` serves the determinism checks; see "Comparing floats by bit pattern".
-
-`RealOnlyDomainRejectsComplexAtRecordTime`: the default domain is `Domain::Real`, so a functor
-that was only ever meant for real scalars is rejected before it can be handed a complex operand.
-It is not compiled for one, and it is not silently skipped as it once was.
 
 `FusesAFiveTensorAdamWUpdateIntoOneKernel` uses 1023 elements on purpose. That is not a
 multiple of any plausible work-group size, so the grid-stride loop has to wrap, and not a
@@ -260,16 +257,13 @@ right magnitude for xASUM and IxAMAX and the wrong one for a 2-norm, which needs
 cross term made every complex norm too large, by sqrt(2) for a vector of (1 + i). The test uses
 3 + 4i: the modulus is 5 and `abs1` would give 7.
 
+## test_SushiBLAS/test_dispatch_checks.cpp
+
+`RealOnlyDomainRejectsADtypeOutsideIt`: the default domain is `Domain::Real`, so a functor
+that was only ever meant for real scalars is rejected before it can be handed a complex operand.
+It is not compiled for one, and it is not silently skipped as it once was.
+
 ## test_SushiBLAS/test_dependency_stress.cpp
-
-### ManyReadersOneWriter
-
-One tensor is written once and then read by 5000 independent tasks, so 5000 reads are appended
-to the access history SushiRuntime's dependency tracker keeps for that one allocation.
-
-The write is a GEMM of `dummy_weights` with itself into `writer_tensor`. `writer_tensor` is the
-C operand there, so the tracker records a write. Each of the 5000 following GEMMs takes
-`writer_tensor` as A, so the tracker records a read.
 
 ### ShardCollisionStress
 
