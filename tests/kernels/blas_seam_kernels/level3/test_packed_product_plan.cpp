@@ -27,7 +27,9 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <limits>
+#include <string>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
@@ -243,52 +245,102 @@ namespace SushiBLAS
                 profile.blocking.min_operand_bytes = (24 * 10 + 10 * 64) * sizeof(float);
                 return profile;
             }
+
+            /** @brief Expects a register block to have the shape and the planes of its row. */
+            template<typename Block>
+            void expect_block_shape(int64_t rows, int64_t cols, int64_t parts)
+            {
+                EXPECT_EQ(rows, static_cast<int64_t>(Block::K_ROWS));
+                EXPECT_EQ(cols, static_cast<int64_t>(Block::K_COLS));
+                EXPECT_EQ(parts, static_cast<int64_t>(Block::K_PARTS));
+            }
+
+            /** @brief Expects a micro-tile of a register block to be whole alignments. */
+            template<typename Block>
+            void expect_tile_is_whole_alignments()
+            {
+                EXPECT_EQ(std::size_t{0},
+                          Block::K_TILE_REALS * sizeof(typename Block::Real) %
+                              Kernels::K_PACKED_ALIGNMENT);
+            }
+
+            /** @brief Holds one shape of an empty product: m, n and the batch size. */
+            struct EmptyShape
+            {
+                const char* name; /**< The suffix of the test name. */
+                int64_t m;        /**< The rows. */
+                int64_t n;        /**< The columns. */
+                int64_t batch;    /**< The matrices. */
+            };
+
+            /** @brief Returns the three shapes that leave a product empty. */
+            [[nodiscard]] std::array<EmptyShape, 3> empty_shapes()
+            {
+                return {{{"NoRows", 0, 64, 1}, {"NoColumns", 24, 0, 1}, {"NoMatrices", 24, 64, 0}}};
+            }
+
+            /** @brief Names an empty shape for the test name. */
+            std::string empty_shape_name(const ::testing::TestParamInfo<EmptyShape>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Names an extent for the test name. */
+            std::string extent_name(const ::testing::TestParamInfo<int64_t>& info)
+            {
+                return "Extent" + std::to_string(info.param);
+            }
         }
 
-        /**
-         * @brief Tests that the register block of each accumulation type has the documented shape.
-         */
-        TEST(Medium_PackedProductPlan, TheRegisterBlockFollowsTheAccumulationType)
+        /** @brief Tests the register block of float: 6 by 16 in one plane. */
+        TEST(Small_PackedProductPlan, TheRegisterBlockOfFloatIsSixBySixteen)
         {
-            using Float = Kernels::PackedRegisterBlock<float>;
-            using Double = Kernels::PackedRegisterBlock<double>;
-            using ComplexFloat = Kernels::PackedRegisterBlock<std::complex<float>>;
-            using ComplexDouble = Kernels::PackedRegisterBlock<std::complex<double>>;
+            using Block = Kernels::PackedRegisterBlock<float>;
 
-            static_assert(Float::K_ROWS == 6 && Float::K_COLS == 16 && Float::K_PARTS == 1,
-                          "A float register block is 6 by 16 in one plane.");
-            static_assert(Double::K_ROWS == 6 && Double::K_COLS == 8 && Double::K_PARTS == 1,
-                          "A double register block is 6 by 8 in one plane.");
-            static_assert(ComplexFloat::K_ROWS == 4 && ComplexFloat::K_COLS == 8 &&
-                              ComplexFloat::K_PARTS == 2,
-                          "A complex float register block is 4 by 8 in two planes.");
-            static_assert(ComplexDouble::K_ROWS == 4 && ComplexDouble::K_COLS == 4 &&
-                              ComplexDouble::K_PARTS == 2,
-                          "A complex double register block is 4 by 4 in two planes.");
+            expect_block_shape<Block>(6, 16, 1);
+            expect_tile_is_whole_alignments<Block>();
+        }
 
-            static_assert(Float::K_TILE_REALS * sizeof(Float::Real) %
-                              Kernels::K_PACKED_ALIGNMENT == 0,
-                          "A float micro-tile is a whole number of alignments.");
-            static_assert(Double::K_TILE_REALS * sizeof(Double::Real) %
-                              Kernels::K_PACKED_ALIGNMENT == 0,
-                          "A double micro-tile is a whole number of alignments.");
-            static_assert(ComplexFloat::K_TILE_REALS * sizeof(ComplexFloat::Real) %
-                              Kernels::K_PACKED_ALIGNMENT == 0,
-                          "A complex float micro-tile is a whole number of alignments.");
-            static_assert(ComplexDouble::K_TILE_REALS * sizeof(ComplexDouble::Real) %
-                              Kernels::K_PACKED_ALIGNMENT == 0,
-                          "A complex double micro-tile is a whole number of alignments.");
+        /** @brief Tests the register block of double: 6 by 8 in one plane. */
+        TEST(Small_PackedProductPlan, TheRegisterBlockOfDoubleIsSixByEight)
+        {
+            using Block = Kernels::PackedRegisterBlock<double>;
 
+            expect_block_shape<Block>(6, 8, 1);
+            expect_tile_is_whole_alignments<Block>();
+        }
+
+        /** @brief Tests the register block of complex float: 4 by 8 in two planes. */
+        TEST(Small_PackedProductPlan, TheRegisterBlockOfComplexFloatIsFourByEightInTwoPlanes)
+        {
+            using Block = Kernels::PackedRegisterBlock<std::complex<float>>;
+
+            expect_block_shape<Block>(4, 8, 2);
+            expect_tile_is_whole_alignments<Block>();
+        }
+
+        /** @brief Tests the register block of complex double: 4 by 4 in two planes. */
+        TEST(Small_PackedProductPlan, TheRegisterBlockOfComplexDoubleIsFourByFourInTwoPlanes)
+        {
+            using Block = Kernels::PackedRegisterBlock<std::complex<double>>;
+
+            expect_block_shape<Block>(4, 4, 2);
+            expect_tile_is_whole_alignments<Block>();
+        }
+
+        /** @brief Tests that a HALF product accumulates in the register block of float. */
+        TEST(Small_PackedProductPlan, AHalfProductUsesTheRegisterBlockOfFloat)
+        {
             using Half = Kernels::PackedRegisterBlock<Kernels::Accumulator<sycl::half>>;
-            static_assert(
-                std::is_same_v<Half, Float>,
-                "A HALF product accumulates in the register block of float.");
+            const bool same = std::is_same_v<Half, Kernels::PackedRegisterBlock<float>>;
+
+            EXPECT_TRUE(same);
         }
 
         /**
-         * @brief Tests that the starting blocking is derived from the cache a device reports.
+         * @brief Tests that the starting blocking is derived from a cache size in bytes.
          */
-        TEST(Medium_PackedProductPlan, TheDefaultBlockingComesFromTheReportedCache)
+        TEST(Small_PackedProductPlan, TheDefaultBlockingIsDerivedFromACacheSizeInBytes)
         {
             const Device::CacheBlocking blocking =
                 Device::cache_blocking_for(K_DOCUMENTED_CACHE_BYTES);
@@ -304,70 +356,112 @@ namespace SushiBLAS
                                  Device::CacheBlocking{});
         }
 
-        /**
-         * @brief Tests that the plans of the design's table come out of plan_packed_blocks.
-         */
-        TEST(Medium_PackedProductPlan, TheDocumentedPlansHold)
+        /** @brief Tests that the documented plan of DoubleAtTwoThousandFortyEight comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfDoubleAtTwoThousandFortyEightHolds)
         {
             expect_documented_plan<double>({2048, 256, 126, 256, 17, 8, 12, 1040384, 12484672});
-            expect_documented_plan<double>({1024, 256, 126, 256, 9, 4, 12, 1040384, 12484672});
-            expect_documented_plan<double>({512, 256, 126, 128, 5, 4, 12, 649216, 7790656});
-            expect_documented_plan<float>({2048, 293, 222, 432, 10, 5, 12, 1150144, 13801792});
-            expect_documented_plan<float>({1024, 256, 252, 256, 5, 4, 12, 778240, 9338944});
-            expect_documented_plan<float>({512, 256, 252, 128, 3, 4, 12, 518144, 6217792});
-            expect_documented_plan<std::complex<double>>(
-                {1024, 205, 76, 156, 14, 7, 12, 950656, 11407936});
+        }
 
+        /** @brief Tests that the documented plan of DoubleAtOneThousandTwentyFour comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfDoubleAtOneThousandTwentyFourHolds)
+        {
+            expect_documented_plan<double>({1024, 256, 126, 256, 9, 4, 12, 1040384, 12484672});
+        }
+
+        /** @brief Tests that the documented plan of DoubleAtFiveHundredTwelve comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfDoubleAtFiveHundredTwelveHolds)
+        {
+            expect_documented_plan<double>({512, 256, 126, 128, 5, 4, 12, 649216, 7790656});
+        }
+
+        /** @brief Tests that the documented plan of FloatAtTwoThousandFortyEight comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfFloatAtTwoThousandFortyEightHolds)
+        {
+            expect_documented_plan<float>({2048, 293, 222, 432, 10, 5, 12, 1150144, 13801792});
+        }
+
+        /** @brief Tests that the documented plan of FloatAtOneThousandTwentyFour comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfFloatAtOneThousandTwentyFourHolds)
+        {
+            expect_documented_plan<float>({1024, 256, 252, 256, 5, 4, 12, 778240, 9338944});
+        }
+
+        /** @brief Tests that the documented plan of FloatAtFiveHundredTwelve comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfFloatAtFiveHundredTwelveHolds)
+        {
+            expect_documented_plan<float>({512, 256, 252, 128, 3, 4, 12, 518144, 6217792});
+        }
+
+        /** @brief Tests that the documented plan of ComplexDoubleAtOneThousandTwentyFour comes out of plan_packed_blocks. */
+        TEST(Small_PackedProductPlan, TheDocumentedPlanOfComplexDoubleAtOneThousandTwentyFourHolds)
+        {
+            expect_documented_plan<std::complex<double>>({1024, 205, 76, 156, 14, 7, 12, 950656, 11407936});
+        }
+
+        /** @brief Runs a HALF against FLOAT32 case once per extent. */
+        class Small_PackedProductPlanHalf : public ::testing::TestWithParam<int64_t>
+        {
+
+        };
+
+        TEST_P(Small_PackedProductPlanHalf, AHalfPlanEqualsTheFloat32Plan)
+        {
+            const int64_t extent = GetParam();
             const Device::CacheBlocking blocking =
                 Device::cache_blocking_for(K_DOCUMENTED_CACHE_BYTES);
-            for (const int64_t extent : {int64_t{2048}, int64_t{1024}, int64_t{512}})
-            {
-                SCOPED_TRACE(::testing::Message() << "HALF against FLOAT32, extent " << extent);
-                expect_same_plan(
-                    Kernels::plan_packed_blocks<float>(blocking, K_DOCUMENTED_COMPUTE_UNITS,
-                                                       extent, extent, extent, 1),
-                    Kernels::plan_packed_blocks<sycl::half>(blocking, K_DOCUMENTED_COMPUTE_UNITS,
-                                                            extent, extent, extent, 1));
-            }
+
+            expect_same_plan(
+                Kernels::plan_packed_blocks<float>(blocking, K_DOCUMENTED_COMPUTE_UNITS, extent,
+                                                   extent, extent, 1),
+                Kernels::plan_packed_blocks<sycl::half>(blocking, K_DOCUMENTED_COMPUTE_UNITS,
+                                                        extent, extent, extent, 1));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedProductPlanHalf,
+                                 ::testing::Values(int64_t{2048}, int64_t{1024}, int64_t{512}),
+                                 extent_name);
 
         /**
          * @brief Tests that the macro-blocks of a plan tile the matrix and its slot adds up.
          */
-        TEST(Medium_PackedProductPlan, EveryPlanCoversTheMatrixOnce)
+        TEST(Small_PackedProductPlan, EveryPlanCoversTheMatrixOnce)
         {
             expect_every_plan_covers<float>();
             expect_every_plan_covers<std::complex<double>>();
         }
 
+        /** @brief Plans a product that is empty in one way at a time. */
+        class Small_PackedProductPlanEmpty : public ::testing::TestWithParam<EmptyShape>
+        {
+
+        };
+
         /**
          * @brief Tests that a product without rows, columns or matrices plans no block.
          */
-        TEST(Medium_PackedProductPlan, AnEmptyProductPlansNothing)
+        TEST_P(Small_PackedProductPlanEmpty, AnEmptyProductPlansNothing)
         {
             const Device::Profile profile = selecting_profile();
-            const int64_t shapes[][3] = {{0, 64, 1}, {24, 0, 1}, {24, 64, 0}};
+            const EmptyShape shape = GetParam();
 
-            for (const auto& shape : shapes)
-            {
-                SCOPED_TRACE(::testing::Message() << "m " << shape[0] << ", n " << shape[1]
-                                                  << ", batch " << shape[2]);
+            const Kernels::PackedProductPlan plan = Kernels::plan_packed_blocks<float>(
+                profile.blocking, profile.compute_units, shape.m, shape.n, 10, shape.batch);
 
-                const Kernels::PackedProductPlan plan = Kernels::plan_packed_blocks<float>(
-                    profile.blocking, profile.compute_units, shape[0], shape[1], 10, shape[2]);
-
-                EXPECT_EQ(0, plan.blocks);
-                EXPECT_EQ(0, plan.workers);
-                EXPECT_EQ(std::size_t{0}, plan.scratch_bytes);
-                EXPECT_FALSE(Kernels::plan_packed_product<float>(profile, shape[0], shape[1], 10,
-                                                                 shape[2]).selected);
-            }
+            EXPECT_EQ(0, plan.blocks);
+            EXPECT_EQ(0, plan.workers);
+            EXPECT_EQ(std::size_t{0}, plan.scratch_bytes);
+            EXPECT_FALSE(
+                Kernels::plan_packed_product<float>(profile, shape.m, shape.n, 10, shape.batch)
+                    .selected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedProductPlanEmpty,
+                                 ::testing::ValuesIn(empty_shapes()), empty_shape_name);
 
         /**
          * @brief Tests that budgets above the whole matrix leave it in one macro-block.
          */
-        TEST(Medium_PackedProductPlan, ABudgetAboveEveryMatrixGivesOneBlock)
+        TEST(Small_PackedProductPlan, ABudgetAboveEveryMatrixGivesOneBlock)
         {
             const Kernels::PackedProductPlan plan =
                 Kernels::plan_packed_blocks<float>(widest_blocking(), 1, 37, 45, 23, 1);
@@ -382,7 +476,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that no worker count splits a macro-block below one register block.
          */
-        TEST(Medium_PackedProductPlan, TheSplitStopsAtTheRegisterBlock)
+        TEST(Small_PackedProductPlan, TheSplitStopsAtTheRegisterBlock)
         {
             const Kernels::PackedProductPlan plan = Kernels::plan_packed_blocks<float>(
                 Device::CacheBlocking{}, 1000, 6, 16, 8, 1);
@@ -393,10 +487,8 @@ namespace SushiBLAS
             EXPECT_EQ(1, plan.workers);
         }
 
-        /**
-         * @brief Tests each of the three conditions a profile sets on taking the packed kernel.
-         */
-        TEST(Medium_PackedProductPlan, SelectionNeedsACPUASpanAndEnoughBytes)
+        /** @brief Tests that a CPU profile at the threshold selects the packed kernel. */
+        TEST(Small_PackedProductPlan, ACPUAtTheThresholdSelectsThePackedKernel)
         {
             using Block = Kernels::PackedRegisterBlock<float>;
             constexpr int64_t m = 4 * Block::K_ROWS;
@@ -404,29 +496,60 @@ namespace SushiBLAS
             constexpr int64_t k = 10;
 
             const Device::Profile at_threshold = selecting_profile();
+
             EXPECT_TRUE(Kernels::selects_packed_product<float>(at_threshold, m, n, k));
             EXPECT_TRUE(Kernels::plan_packed_product<float>(at_threshold, m, n, k, 1).selected);
+        }
 
-            Device::Profile gpu = at_threshold;
+        /** @brief Tests that a GPU profile never selects the packed kernel. */
+        TEST(Small_PackedProductPlan, AGPUNeverSelectsThePackedKernel)
+        {
+            using Block = Kernels::PackedRegisterBlock<float>;
+            constexpr int64_t m = 4 * Block::K_ROWS;
+            constexpr int64_t n = 4 * Block::K_COLS;
+            constexpr int64_t k = 10;
+
+            Device::Profile gpu = selecting_profile();
             gpu.is_cpu = false;
+
             EXPECT_FALSE(Kernels::selects_packed_product<float>(gpu, m, n, k));
             EXPECT_FALSE(Kernels::plan_packed_product<float>(gpu, m, n, k, 1).selected);
+        }
+
+        /** @brief Tests that a product narrower than one register block is not selected. */
+        TEST(Small_PackedProductPlan, AProductNarrowerThanARegisterBlockIsNotSelected)
+        {
+            using Block = Kernels::PackedRegisterBlock<float>;
+            constexpr int64_t m = 4 * Block::K_ROWS;
+            constexpr int64_t n = 4 * Block::K_COLS;
+            constexpr int64_t k = 10;
 
             // min_operand_bytes is zero here, so only the span can refuse the product.
-            Device::Profile narrow = at_threshold;
+            Device::Profile narrow = selecting_profile();
             narrow.blocking.min_operand_bytes = 0;
+
             EXPECT_FALSE(Kernels::selects_packed_product<float>(narrow, m - 1, n, k));
             EXPECT_TRUE(Kernels::selects_packed_product<float>(narrow, m, n, k));
+        }
 
-            Device::Profile one_element_short = at_threshold;
+        /** @brief Tests that a product one element short of the byte threshold is not selected. */
+        TEST(Small_PackedProductPlan, AProductOneElementShortOfTheByteThresholdIsNotSelected)
+        {
+            using Block = Kernels::PackedRegisterBlock<float>;
+            constexpr int64_t m = 4 * Block::K_ROWS;
+            constexpr int64_t n = 4 * Block::K_COLS;
+            constexpr int64_t k = 10;
+
+            Device::Profile one_element_short = selecting_profile();
             one_element_short.blocking.min_operand_bytes += sizeof(float);
+
             EXPECT_FALSE(Kernels::selects_packed_product<float>(one_element_short, m, n, k));
         }
 
         /**
          * @brief Tests that saturated budgets and counts still give a plan of positive sizes.
          */
-        TEST(Medium_PackedProductPlan, ASaturatedBudgetDoesNotOverflow)
+        TEST(Small_PackedProductPlan, ASaturatedBudgetDoesNotOverflow)
         {
             Device::CacheBlocking blocking;
             blocking.inner_bytes = K_SATURATED;
@@ -456,7 +579,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a launch is ready only for a selected plan whose scratch holds it.
          */
-        TEST(Medium_PackedProductPlan, APlanIsReadyOnlyWithItsScratch)
+        TEST(Small_PackedProductPlan, APlanIsReadyOnlyWithItsScratch)
         {
             const Device::Profile profile = selecting_profile();
             const Kernels::PackedProductPlan plan =

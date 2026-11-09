@@ -43,13 +43,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/library/umbrella/test_SushiBLAS/test_regression.cpp"
 count = 1
 backlog = "RW-133"
