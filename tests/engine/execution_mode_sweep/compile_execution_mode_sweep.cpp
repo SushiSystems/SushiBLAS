@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_execution_mode_sweep.cpp                                          */
+/* compile_execution_mode_sweep.cpp                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,24 +22,18 @@
 /**************************************************************************/
 
 /**
- * @file test_execution_mode_sweep.cpp
+ * @file compile_execution_mode_sweep.cpp
  * @brief Tests that the sweep names each forced execution mode once.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
+#include <iterator>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Medium_ExecutionModeSweep, NamesBothForcedModesOnce)
-        {
-            EXPECT_EQ(K_BOTH_MODES[0], ExecutionMode::ForceReference);
-            EXPECT_EQ(K_BOTH_MODES[1], ExecutionMode::ForceSYCL);
-            EXPECT_NE(K_BOTH_MODES[0], K_BOTH_MODES[1]);
-        }
-    } // namespace Test
+    static_assert(std::size(Test::K_BOTH_MODES) == 2, "a routine runs in the two forced modes");
+    static_assert(Test::K_BOTH_MODES[0] == ExecutionMode::ForceReference, "the reference mode first");
+    static_assert(Test::K_BOTH_MODES[1] == ExecutionMode::ForceSYCL, "the SYCL mode second");
 } // namespace SushiBLAS

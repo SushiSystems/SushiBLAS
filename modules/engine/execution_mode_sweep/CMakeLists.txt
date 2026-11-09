@@ -13,5 +13,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE execution_mode_sweep
-    TESTS
-        test_execution_mode_sweep.cpp)
+    COMPILE_CHECKS
+        compile_execution_mode_sweep.cpp)

@@ -8,4 +8,4 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_execution_mode_sweep.cpp` | Tests that the sweep names each forced execution mode once |
+| `compile_execution_mode_sweep.cpp` | Checks at compile time that the sweep names the two forced execution modes in order |
