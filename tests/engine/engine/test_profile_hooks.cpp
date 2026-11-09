@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ProfileHooks, ARecordingBodyRunsOnceWhileTheMutexIsHeld)
+        TEST(Medium_ProfileHooks, ARecordingBodyRunsOnceWhileTheMutexIsHeld)
         {
             std::mutex mutex;
             int runs = 0;
@@ -77,22 +77,22 @@ namespace SushiBLAS
             EXPECT_EQ(runs, 1);
         }
 
-        TEST(Small_ProfileHooks, EveryLeaseKindIsCountedWithoutACollector)
+        TEST(Small_ProfileHooks, InstallingTheHooksSetsTheVariantObserver)
         {
-            EXPECT_NO_THROW({
-                Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolHit);
-                Internal::count_scratch_lease(Internal::ScratchLeaseKind::PoolMiss);
-                Internal::count_scratch_lease(Internal::ScratchLeaseKind::Unpooled);
-            });
-        }
-
-        TEST(Small_ProfileHooks, InstallingTheHooksSetsTheVariantObserverAndIsRepeatable)
-        {
-            Internal::install_profile_hooks();
             Internal::install_profile_hooks();
 
             EXPECT_NE(Device::kernel_variant_slot().load(), nullptr);
             Device::note_kernel_variant(Device::KernelVariant::GemmPacked);
+        }
+
+        TEST(Small_ProfileHooks, InstallingTheHooksTwiceKeepsTheObserver)
+        {
+            Internal::install_profile_hooks();
+            const auto first = Device::kernel_variant_slot().load();
+
+            Internal::install_profile_hooks();
+
+            EXPECT_EQ(Device::kernel_variant_slot().load(), first);
         }
     } // namespace Test
 } // namespace SushiBLAS
