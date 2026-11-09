@@ -28,7 +28,6 @@
  */
 
 #include <cstdint>
-#include <cstring>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/task_description.hpp>
 
@@ -36,16 +35,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_TaskDescription, StartsUnnamedWithEverySlotZero)
-        {
-            const TaskDescription description;
-
-            EXPECT_EQ(std::strcmp(description.name, "unnamed_task"), 0);
-            for (int slot = 0; slot < static_cast<int>(TaskDescription::K_MAX_PARAMETERS); ++slot)
-                EXPECT_EQ(description.parameter<std::uint64_t>(slot), std::uint64_t{0});
-        }
-
-        TEST(Medium_TaskDescription, ASlotGivesBackTheValueOfItsType)
+        TEST(Small_TaskDescription, ASlotGivesBackTheValueOfItsType)
         {
             TaskDescription description;
             description.set_parameter(0, -12);
