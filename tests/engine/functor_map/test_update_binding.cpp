@@ -94,6 +94,20 @@ namespace SushiBLAS
             EXPECT_EQ(seen_read, r.data_as<float>());
             EXPECT_EQ(seen_update, u.data_as<float>());
             EXPECT_EQ(seen_write, w.data_as<std::int64_t>());
+        }
+
+        TEST_F(Medium_UpdateBinding, TheElementDtypeIsTheDtypeOfTheUpdate)
+        {
+            const Tensor r = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+            Tensor u = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+            Tensor w = engine->create_tensor({K_ELEMENTS}, Core::DataType::Int64);
+            const auto fn = [](std::size_t, const float*, float*, std::int64_t*) {};
+
+            const auto bound = Dispatch::bind_writes(
+                Dispatch::bind_updates(Dispatch::bind_reads(fn, Dispatch::read_as<float>(r)),
+                                       Dispatch::update_as_element(u)),
+                Dispatch::write_as<std::int64_t>(w));
+
             EXPECT_EQ(Dispatch::Detail::element_dtype_of(bound), Core::DataType::Float32);
         }
 
