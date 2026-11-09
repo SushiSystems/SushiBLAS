@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,45 +46,49 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs tbmv on the host CPU queue. */
-        class Medium_SYCLTbmv : public HostDeviceTest
+        /// @brief Names a row after its layout, triangle, transpose and diagonal.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
+        {
+            return triangular_label(std::get<0>(info.param), std::get<1>(info.param),
+                                    std::get<2>(info.param), std::get<3>(info.param));
+        }
+
+        /// @brief Runs tbmv on the host CPU queue, one layout, triangle, transpose and diagonal at a time.
+        class Medium_SYCLTbmv : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLTbmv, MatchesTheReferenceForEveryFlag)
+        /// @brief Tests that the SYCL tbmv matches the reference for one layout, triangle, transpose and diagonal.
+        TEST_P(Medium_SYCLTbmv, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const bool unit = std::get<3>(GetParam());
             const int64_t n = 44;
             const int64_t k = 3;
             const int64_t ld = k + 1;
             const std::vector<double> band = small_integers<double>(n * ld, 1);
             const SharedArray<double> device_band(queue(), band);
             SharedArray<double> work(queue(), static_cast<std::size_t>(n));
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        for (const bool unit : {false, true})
-                        {
-                            SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                            std::vector<double> x = small_integers<double>(n, 2);
-                            SharedArray<double> device_x(queue(), x);
+            std::vector<double> x = small_integers<double>(n, 2);
+            SharedArray<double> device_x(queue(), x);
 
-                            Kernels::SYCL::tbmv(queue(), layout, uplo_of(upper),
-                                                transpose_of(transposed), diag_of(unit), n, k,
-                                                device_band.get(), ld, device_x.get(), 1,
-                                                work.get(), {}).wait();
-                            Kernels::Reference::tbmv(layout, uplo_of(upper),
-                                                     transpose_of(transposed), diag_of(unit), n,
-                                                     k, band.data(), ld, x.data(), 1);
+            Kernels::SYCL::tbmv(queue(), layout, uplo_of(upper),
+                                transpose_of(transposed), diag_of(unit), n, k,
+                                device_band.get(), ld, device_x.get(), 1,
+                                work.get(), {}).wait();
+            Kernels::Reference::tbmv(layout, uplo_of(upper),
+                                     transpose_of(transposed), diag_of(unit), n,
+                                     k, band.data(), ld, x.data(), 1);
 
-                            EXPECT_EQ(device_x.values(), x);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(device_x.values(), x);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesTransposesAndDiagonals, Medium_SYCLTbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS

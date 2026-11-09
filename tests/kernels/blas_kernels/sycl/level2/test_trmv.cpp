@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,43 +46,47 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs trmv on the host CPU queue. */
-        class Medium_SYCLTrmv : public HostDeviceTest
+        /// @brief Names a row after its layout, triangle, transpose and diagonal.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
+        {
+            return triangular_label(std::get<0>(info.param), std::get<1>(info.param),
+                                    std::get<2>(info.param), std::get<3>(info.param));
+        }
+
+        /// @brief Runs trmv on the host CPU queue, one layout, triangle, transpose and diagonal at a time.
+        class Medium_SYCLTrmv : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLTrmv, MatchesTheReferenceForEveryFlag)
+        /// @brief Tests that the SYCL trmv matches the reference for one layout, triangle, transpose and diagonal.
+        TEST_P(Medium_SYCLTrmv, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const bool unit = std::get<3>(GetParam());
             const int64_t n = 47;
             const std::vector<double> a = small_integers<double>(n * n, 1);
             const SharedArray<double> device_a(queue(), a);
             SharedArray<double> work(queue(), static_cast<std::size_t>(n));
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        for (const bool unit : {false, true})
-                        {
-                            SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                            std::vector<double> x = small_integers<double>(2 * n, 2);
-                            SharedArray<double> device_x(queue(), x);
+            std::vector<double> x = small_integers<double>(2 * n, 2);
+            SharedArray<double> device_x(queue(), x);
 
-                            Kernels::SYCL::trmv(queue(), layout, uplo_of(upper),
-                                                transpose_of(transposed), diag_of(unit), n,
-                                                device_a.get(), n, device_x.get(), 2, work.get(),
-                                                {}).wait();
-                            Kernels::Reference::trmv(layout, uplo_of(upper),
-                                                     transpose_of(transposed), diag_of(unit), n,
-                                                     a.data(), n, x.data(), 2);
+            Kernels::SYCL::trmv(queue(), layout, uplo_of(upper),
+                                transpose_of(transposed), diag_of(unit), n,
+                                device_a.get(), n, device_x.get(), 2, work.get(),
+                                {}).wait();
+            Kernels::Reference::trmv(layout, uplo_of(upper),
+                                     transpose_of(transposed), diag_of(unit), n,
+                                     a.data(), n, x.data(), 2);
 
-                            EXPECT_EQ(device_x.values(), x);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(device_x.values(), x);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesTransposesAndDiagonals, Medium_SYCLTrmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS

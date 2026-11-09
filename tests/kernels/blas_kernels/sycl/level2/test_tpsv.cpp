@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -47,50 +49,54 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs tpsv on the host CPU queue. */
-        class Medium_SYCLTpsv : public HostDeviceTest
+        /// @brief Names a row after its layout, triangle, transpose and diagonal.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
+        {
+            return triangular_label(std::get<0>(info.param), std::get<1>(info.param),
+                                    std::get<2>(info.param), std::get<3>(info.param));
+        }
+
+        /// @brief Runs tpsv on the host CPU queue, one layout, triangle, transpose and diagonal at a time.
+        class Medium_SYCLTpsv : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLTpsv, MatchesTheReferenceForEveryFlag)
+        /// @brief Tests that the SYCL tpsv matches the reference for one layout, triangle, transpose and diagonal.
+        TEST_P(Medium_SYCLTpsv, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const bool unit = std::get<3>(GetParam());
             const int64_t n = 40;
             // A unit diagonal keeps every substitution exact in integers.
             const std::vector<double> a = unit_diagonal_matrix<double>(n, 1);
             SharedArray<Kernels::Accumulator<double>> work(queue(), static_cast<std::size_t>(n));
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    const std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
-                    const SharedArray<double> device_packed(queue(), packed);
-                    for (const bool transposed : {false, true})
-                    {
-                        for (const bool unit : {false, true})
-                        {
-                            SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                            // A small solution keeps every substitution step exact.
-                            const std::vector<double> solution = small_integers<double>(n, 2);
-                            std::vector<double> x =
-                                dense_matvec(triangle_of(a, n, upper, false), n, n, transposed,
-                                             1.0, solution, 0.0, solution);
-                            SharedArray<double> device_x(queue(), x);
+            const std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
+            const SharedArray<double> device_packed(queue(), packed);
+            // A small solution keeps every substitution step exact.
+            const std::vector<double> solution = small_integers<double>(n, 2);
+            std::vector<double> x =
+                dense_matvec(triangle_of(a, n, upper, false), n, n, transposed,
+                             1.0, solution, 0.0, solution);
+            SharedArray<double> device_x(queue(), x);
 
-                            Kernels::SYCL::tpsv(queue(), layout, uplo_of(upper),
-                                                transpose_of(transposed), diag_of(unit), n,
-                                                device_packed.get(), device_x.get(), 1,
-                                                work.get(), {}).wait();
-                            Kernels::Reference::tpsv(layout, uplo_of(upper),
-                                                     transpose_of(transposed), diag_of(unit), n,
-                                                     packed.data(), x.data(), 1);
+            Kernels::SYCL::tpsv(queue(), layout, uplo_of(upper),
+                                transpose_of(transposed), diag_of(unit), n,
+                                device_packed.get(), device_x.get(), 1,
+                                work.get(), {}).wait();
+            Kernels::Reference::tpsv(layout, uplo_of(upper),
+                                     transpose_of(transposed), diag_of(unit), n,
+                                     packed.data(), x.data(), 1);
 
-                            EXPECT_EQ(device_x.values(), x);
-                            EXPECT_EQ(x, solution);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(device_x.values(), x);
+            EXPECT_EQ(x, solution);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesTransposesAndDiagonals, Medium_SYCLTpsv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS
