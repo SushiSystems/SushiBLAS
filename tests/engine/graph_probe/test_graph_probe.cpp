@@ -97,14 +97,20 @@ namespace SushiBLAS
             EXPECT_EQ((*tasks)[1].reads.size(), std::size_t{1});
         }
 
-        TEST_F(Medium_GraphProbe, TakeAndExecuteEmptyTheProbe)
+        TEST_F(Medium_GraphProbe, TakingTheRecordedCountEmptiesTheProbe)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             record_nothing(probe, "first", OperandSet());
+
             EXPECT_EQ(probe.take_recorded_count(), std::size_t{1});
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+        }
 
+        TEST_F(Medium_GraphProbe, ExecutingEmptiesTheProbe)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
             record_nothing(probe, "second", OperandSet());
+
             EXPECT_TRUE(probe.execute().has_value());
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
         }
