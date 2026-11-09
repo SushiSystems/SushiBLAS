@@ -65,11 +65,22 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Tests that a bound pack names each segment and tensor at its offset. */
-        TEST(Small_BoundPack, NamesSegmentsAndTensorsTyped)
+        /**
+         * @brief Tests that a bound pack lays out a float tensor of 3 and an int64 tensor of 2 in
+         *        two 128-byte aligned segments, 256 bytes in all.
+         */
+        TEST(Small_BoundPack, SmallLayoutHoldsTwoAlignedSegments)
         {
             const PackLayout layout = small_layout();
-            std::vector<std::byte> memory(layout.size_bytes());
+
+            EXPECT_EQ(layout.size_bytes(), 256U);
+        }
+
+        /** @brief Tests that the int64 segment starts at byte 128 and counts two elements. */
+        TEST(Small_BoundPack, SegmentIsNamedAtItsLayoutOffset)
+        {
+            const PackLayout layout = small_layout();
+            std::vector<std::byte> memory(256);
             const BufferView view{memory.data(), memory.size()};
 
             const std::vector<BoundPack> bound =
@@ -80,10 +91,72 @@ namespace SushiBLAS
             const PackSpan longs = bound[0].segment(Core::DataType::Int64);
             EXPECT_EQ(longs.count, 2U);
             EXPECT_EQ(static_cast<void*>(longs.as<std::int64_t>()),
-                      static_cast<void*>(memory.data() +
-                                         layout.segment(Core::DataType::Int64).offset_bytes));
-            EXPECT_EQ(bound[0].tensor(0).count, 3U);
+                      static_cast<void*>(memory.data() + 128));
+        }
+
+        /** @brief Tests that tensor(0) is the float tensor, at byte 0 and counting three. */
+        TEST(Small_BoundPack, TensorLiesAtItsEntryOffset)
+        {
+            const PackLayout layout = small_layout();
+            std::vector<std::byte> memory(256);
+            const BufferView view{memory.data(), memory.size()};
+
+            const std::vector<BoundPack> bound =
+                bind_views(SushiRuntime::span<const BufferView>(&view, 1),
+                           SushiRuntime::span<const PackLayout>(&layout, 1));
+            ASSERT_EQ(bound.size(), 1U);
+
+            const PackSpan floats = bound[0].tensor(0);
+            EXPECT_EQ(floats.count, 3U);
+            EXPECT_EQ(static_cast<void*>(floats.as<float>()), static_cast<void*>(memory.data()));
+        }
+
+        /** @brief Tests that tensor(1) is the int64 tensor, at byte 128 and counting two. */
+        TEST(Small_BoundPack, SecondTensorLiesAtItsSegmentOffset)
+        {
+            const PackLayout layout = small_layout();
+            std::vector<std::byte> memory(256);
+            const BufferView view{memory.data(), memory.size()};
+
+            const std::vector<BoundPack> bound =
+                bind_views(SushiRuntime::span<const BufferView>(&view, 1),
+                           SushiRuntime::span<const PackLayout>(&layout, 1));
+            ASSERT_EQ(bound.size(), 1U);
+
+            const PackSpan longs = bound[0].tensor(1);
+            EXPECT_EQ(longs.count, 2U);
+            EXPECT_EQ(static_cast<void*>(longs.as<std::int64_t>()),
+                      static_cast<void*>(memory.data() + 128));
+        }
+
+        /** @brief Tests that the segment of a type no tensor has is empty with a null pointer. */
+        TEST(Small_BoundPack, AbsentTypeGivesANullSegment)
+        {
+            const PackLayout layout = small_layout();
+            std::vector<std::byte> memory(256);
+            const BufferView view{memory.data(), memory.size()};
+
+            const std::vector<BoundPack> bound =
+                bind_views(SushiRuntime::span<const BufferView>(&view, 1),
+                           SushiRuntime::span<const PackLayout>(&layout, 1));
+            ASSERT_EQ(bound.size(), 1U);
+
             EXPECT_EQ(bound[0].segment(Core::DataType::Half).data, nullptr);
+        }
+
+        /** @brief Tests that reading a segment as another element type than its own throws. */
+        TEST(Small_BoundPack, SegmentRefusesAnotherElementType)
+        {
+            const PackLayout layout = small_layout();
+            std::vector<std::byte> memory(256);
+            const BufferView view{memory.data(), memory.size()};
+
+            const std::vector<BoundPack> bound =
+                bind_views(SushiRuntime::span<const BufferView>(&view, 1),
+                           SushiRuntime::span<const PackLayout>(&layout, 1));
+            ASSERT_EQ(bound.size(), 1U);
+
+            const PackSpan longs = bound[0].segment(Core::DataType::Int64);
             EXPECT_THROW((void)longs.as<float>(), std::runtime_error);
         }
 
