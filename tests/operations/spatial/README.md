@@ -29,12 +29,18 @@ whole fixed-width stride array, so nothing in the helper reaches past the librar
 the layout comes from the helper. The logical shape stays `[N, H, W, C]` because that is what
 `layout_convert` compares: a conversion permutes strides, not shapes.
 
-`BroadcastSpatialAtOneOverHwIsTheMeanBackward` checks the property `SPATIAL_MEAN_BACKWARD`
+The value tests run `Small_` on the host engine; the agreement of the two paths is one `Medium_`
+test per routine. `LayoutConvertRoundTripsToItself` is a table of two extents, the small one and
+the ragged one of `LayoutConvertMovesRaggedTilesToNCHW`.
+
+`BroadcastSpatialAtOneOverHwSumsEachPlaneBackToOne` checks the property `SPATIAL_MEAN_BACKWARD`
 needs: each (n, c) plane sums back to the 1.0 that global average pooling's forward divided
 out. The sum is not exact and is not expected to be. 1/20 has no finite binary expansion, so
 twenty copies of `float(1/20)` add up to 1.0 only to within the rounding each addition carries.
-A few ulps of 1.0 is roughly 1e-7; the tolerance of 1e-6 leaves room without hiding a real
-error, which would be off by a factor of H, of W or of N.
+The bound is `absolute_tolerance<float>(H * W)`, one rounding per term, which stays far below
+the error of a real fault, which would be off by a factor of H, of W or of N.
+`BroadcastSpatialAtOneOverHwGivesEveryPixelTheSameShare` is the other half of the old test: every
+element is the one float `float(1/20)`.
 
 ## test_spatial/test_spatial_channels.cpp
 
