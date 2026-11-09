@@ -30,6 +30,7 @@
 
 #include <map>
 #include <utility>
+#include <iterator>
 #include <optional>
 #include <algorithm>
 #include <string>
@@ -48,6 +49,7 @@
 #include <SushiProfiler/analysis/table.hpp>
 #include <SushiBLAS/profiling/profiler_parts.hpp>
 #include <SushiProfiler/registry/registry.hpp>
+#include <SushiProfiler/environment/record_facts.hpp>
 
 namespace SushiBLAS
 {
@@ -61,6 +63,15 @@ namespace SushiBLAS
                 return {};
             }
 
+
+            /** @brief Returns every build fact of facts as one "name=value" line, in order. */
+            std::vector<std::string> build_lines(const SushiProfiler::RecordFacts& facts)
+            {
+                std::vector<std::string> lines;
+                std::transform(facts.build.begin(), facts.build.end(), std::back_inserter(lines),
+                               [](const auto& fact) { return fact.name + "=" + fact.value; });
+                return lines;
+            }
         } // namespace
 
         TEST(Small_RegisterProfilerParts, AddsTheContributorToTheRegistry)
@@ -98,6 +109,21 @@ namespace SushiBLAS
 
             EXPECT_EQ(first_registry.contributors().size(), std::size_t{1});
             EXPECT_EQ(second_registry.contributors().size(), std::size_t{1});
+        }
+
+        TEST(Small_RegisterProfilerParts, TwoGathersOfTheFactsGiveEqualBuildFacts)
+        {
+            SushiProfiler::Registry registry;
+            const Profiling::SushiBLASProfilerParts parts =
+                Profiling::register_profiler_parts(registry, no_devices(), "");
+
+            const std::vector<std::string> first = build_lines(
+                SushiProfiler::gather_facts({&parts.environment()}));
+            const std::vector<std::string> second = build_lines(
+                SushiProfiler::gather_facts({&parts.environment()}));
+
+            EXPECT_FALSE(first.empty());
+            EXPECT_EQ(first, second);
         }
 
         namespace
