@@ -438,24 +438,10 @@ namespace SushiBLAS
             };
         } // namespace
 
-        /**
-         * @brief Runs a BLAS call on the reference kernel of the row, in the layout and element
-         *        type of the row, and compares it with the same result computed on the host.
-         * @tparam Axis NoAxis, or the type of the value that completes each row.
-         */
-        template<typename Axis>
-        class BlasSymmetricBitsCase : public SushiBLASTest,
-                                      public ::testing::WithParamInterface<Row<Axis>>
+        /** @brief Builds the tensors of a symmetric bit comparison. */
+        class BlasSymmetricBitsFixture : public BlasEngineStart
         {
             protected:
-                /** @brief Rebuilds the engine in the layout of the row and selects its kernel. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    reinit_engine(this->GetParam().layout);
-                    set_mode(this->GetParam().mode);
-                }
-
                 /** @brief Returns a tensor of dims holding values in storage order. */
                 template<typename T>
                 [[nodiscard]] Tensor tensor_of(std::initializer_list<int64_t> dims,
@@ -464,6 +450,14 @@ namespace SushiBLAS
                     return create_initialized_tensor<T>(dims, values);
                 }
         };
+
+        /**
+         * @brief Runs a BLAS call on the reference kernel of the row, in the layout and element
+         *        type of the row, and compares it with the same result computed on the host.
+         * @tparam Axis NoAxis, or the type of the value that completes each row.
+         */
+        template<typename Axis>
+        using BlasSymmetricBitsCase = BlasRowCase<BlasSymmetricBitsFixture, Axis>;
 
         /** @brief Runs the cases that take no axis beyond layout and element type. */
         class Medium_BlasSymmetricBits : public BlasSymmetricBitsCase<NoAxis>

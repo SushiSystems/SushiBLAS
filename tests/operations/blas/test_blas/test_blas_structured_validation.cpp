@@ -316,16 +316,9 @@ namespace SushiBLAS
          * @brief Builds operands every routine accepts, so one case changes one of them and
          *        expects the refusal.
          */
-        class BlasStructuredCase : public SushiBLASTest
+        class BlasStructuredCase : public BlasEngineStart
         {
             protected:
-                /** @brief Rebuilds the engine in a layout and selects its kernel. */
-                void start(Core::Layout layout, ExecutionMode mode)
-                {
-                    reinit_engine(layout);
-                    set_mode(mode);
-                }
-
                 /** @brief Returns a tensor of dims and dtype whose elements are not set. */
                 [[nodiscard]] Tensor raw(const std::vector<int64_t>& dims,
                                          DataType dtype = DataType::Float32)
@@ -454,22 +447,11 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Runs a case once per row: rebuilds the engine in the layout of the row and
-         *        selects its kernel.
+         * @brief Runs a case once per row of the structured suite.
          * @tparam Axis NoAxis, or the type of the value that completes each row.
          */
         template<typename Axis>
-        class BlasStructuredRowCase : public BlasStructuredCase,
-                                      public ::testing::WithParamInterface<Row<Axis>>
-        {
-            protected:
-                /** @brief Starts the engine of the row. */
-                void SetUp() override
-                {
-                    BlasStructuredCase::SetUp();
-                    start(this->GetParam().layout, this->GetParam().mode);
-                }
-        };
+        using BlasStructuredRowCase = BlasRowCase<BlasStructuredCase, Axis>;
 
         /**
          * @brief Runs a case on one routine of K_ROUTINES.

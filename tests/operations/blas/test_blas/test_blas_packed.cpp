@@ -327,17 +327,6 @@ namespace SushiBLAS
                 return (uplo == Core::Uplo::Upper) == (layout == Core::Layout::ColumnMajor);
             }
 
-            /** @brief Returns whether the test device computes in the component type of a data type. */
-            [[nodiscard]] bool device_runs(Core::DataType type)
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-                if (type == Core::DataType::Half)
-                    return device.has(sycl::aspect::fp16);
-                if (type == Core::DataType::Float64 || type == Core::DataType::Complex64)
-                    return device.has(sycl::aspect::fp64);
-                return true;
-            }
-
             /** @brief Returns value in T; a real T drops the imaginary part. */
             template<typename T>
             [[nodiscard]] T narrowed(const Wide& value)
@@ -847,23 +836,11 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Runs a case once per row: rebuilds the engine in the layout of the row, selects
-         *        its kernel and skips a device that lacks the element type.
+         * @brief Runs a case once per row of the BlasPackedCase suite.
          * @tparam Axis NoAxis, or the type of the value that completes each row.
          */
         template<typename Axis>
-        class PackedRowCase : public BlasPackedCase, public ::testing::WithParamInterface<Row<Axis>>
-        {
-            protected:
-                /** @brief Starts the engine of the row, or skips the case. */
-                void SetUp() override
-                {
-                    BlasPackedCase::SetUp();
-                    if (!device_runs(this->GetParam().type))
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                    start(this->GetParam().layout, this->GetParam().mode);
-                }
-        };
+        using PackedRowCase = BlasRowCase<BlasPackedCase, Axis>;
 
         /** @brief Runs the hand and sibling cases that take one triangle. */
         class Medium_BlasPackedTriangle : public PackedRowCase<Core::Uplo>

@@ -194,15 +194,6 @@ namespace SushiBLAS
                 return "_" + word(form.uplo) + "_" + word(form.trans);
             }
 
-            /** @brief Returns whether the test device computes in the component type of a data type. */
-            [[nodiscard]] bool device_runs(Core::DataType type)
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-                if (type == Core::DataType::Complex64)
-                    return device.has(sycl::aspect::fp64);
-                return true;
-            }
-
             /** @brief Returns value as a complex double; a real T has a zero imaginary part. */
             template<typename T>
             [[nodiscard]] Wide widened(const T& value)
@@ -732,23 +723,11 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Runs a case once per row: rebuilds the engine in the layout of the row, selects
-         *        its kernel and skips a device that lacks the element type.
+         * @brief Runs a case once per row of the BlasComplexCase suite.
          * @tparam Axis NoAxis, or the type of the value that completes each row.
          */
         template<typename Axis>
-        class ComplexRowCase : public BlasComplexCase, public ::testing::WithParamInterface<Row<Axis>>
-        {
-            protected:
-                /** @brief Starts the engine of the row, or skips the case. */
-                void SetUp() override
-                {
-                    BlasComplexCase::SetUp();
-                    if (!device_runs(this->GetParam().type))
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                    start(this->GetParam().layout, this->GetParam().mode);
-                }
-        };
+        using ComplexRowCase = BlasRowCase<BlasComplexCase, Axis>;
 
         /** @brief Runs the hand cases and the comparisons that take one triangle. */
         class Medium_BlasComplexTriangle : public ComplexRowCase<Core::Uplo>

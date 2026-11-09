@@ -282,17 +282,6 @@ namespace SushiBLAS
                        std::to_string(shape.kl) + "_ku" + std::to_string(shape.ku);
             }
 
-            /** @brief Returns whether the test device computes in the component type of a data type. */
-            [[nodiscard]] bool device_runs(Core::DataType type)
-            {
-                const sycl::device device = TestEnvironment::queue().get_device();
-                if (type == Core::DataType::Half)
-                    return device.has(sycl::aspect::fp16);
-                if (type == Core::DataType::Float64 || type == Core::DataType::Complex64)
-                    return device.has(sycl::aspect::fp64);
-                return true;
-            }
-
             /** @brief Returns the unit roundoff of the component type R of an element type. */
             template<typename R>
             [[nodiscard]] constexpr double unit_roundoff_of()
@@ -530,16 +519,9 @@ namespace SushiBLAS
          * @brief Builds band, dense and vector operands of any element type and records the
          *        band routines on them.
          */
-        class BlasBandCase : public SushiBLASTest
+        class BlasBandCase : public BlasEngineStart
         {
             protected:
-                /** @brief Rebuilds the engine in a layout and selects a kernel. */
-                void start(Core::Layout layout, ExecutionMode mode)
-                {
-                    this->reinit_engine(layout);
-                    this->set_mode(mode);
-                }
-
                 /** @brief Returns a tensor of dims that holds stored in storage order. */
                 template<typename T>
                 [[nodiscard]] Tensor tensor_of(const std::vector<int64_t>& dims,
@@ -779,23 +761,11 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Runs a case once per row: rebuilds the engine in the layout of the row, selects
-         *        its kernel and skips a device that lacks the element type.
+         * @brief Runs a case once per row of the BlasBandCase suite.
          * @tparam Axis NoAxis, or the type of the value that completes each row.
          */
         template<typename Axis>
-        class BandRowCase : public BlasBandCase, public ::testing::WithParamInterface<Row<Axis>>
-        {
-            protected:
-                /** @brief Starts the engine of the row, or skips the case. */
-                void SetUp() override
-                {
-                    BlasBandCase::SetUp();
-                    if (!device_runs(this->GetParam().type))
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                    start(this->GetParam().layout, this->GetParam().mode);
-                }
-        };
+        using BandRowCase = BlasRowCase<BlasBandCase, Axis>;
 
         /** @brief Runs the worked-matrix, sibling and hand cases over the five element types. */
         class Medium_BlasBand : public BandRowCase<NoAxis>

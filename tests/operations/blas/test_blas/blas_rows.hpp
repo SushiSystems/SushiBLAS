@@ -23,8 +23,8 @@
 
 /**
  * @file blas_rows.hpp
- * @brief Declares the parameter row of the BLAS suites (layout, kernel, element type and one axis),
- *        the words that name a row, and the dispatch from a data type to its element type.
+ * @brief Declares the parameter row of the BLAS suites, the words that name a row, the
+ *        dispatch from a data type to its element type and the fixture of a row.
  * @author Mustafa Garip
  */
 
@@ -39,6 +39,8 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -200,5 +202,48 @@ namespace SushiBLAS
                     FAIL() << "a BLAS routine takes no such element type";
             }
         }
+
+        /** @brief Returns whether the test device computes in the component type of a data type. */
+        [[nodiscard]] inline bool device_runs(Core::DataType type)
+        {
+            const sycl::device device = TestEnvironment::queue().get_device();
+            if (type == Core::DataType::Half)
+                return device.has(sycl::aspect::fp16);
+            if (type == Core::DataType::Float64 || type == Core::DataType::Complex64)
+                return device.has(sycl::aspect::fp64);
+            return true;
+        }
+
+        /** @brief Starts the engine of a suite in a layout with a kernel selected. */
+        class BlasEngineStart : public SushiBLASTest
+        {
+            protected:
+                /** @brief Rebuilds the engine in a layout and selects a kernel. */
+                void start(Core::Layout layout, ExecutionMode mode)
+                {
+                    this->reinit_engine(layout);
+                    this->set_mode(mode);
+                }
+        };
+
+        /**
+         * @brief Runs a case once per row: skips a device that lacks the element type of the row,
+         *        then starts the engine in the layout and kernel of the row through start.
+         * @tparam Base The suite fixture; it provides start(layout, mode).
+         * @tparam Axis NoAxis, or the type of the value that completes each row.
+         */
+        template<typename Base, typename Axis>
+        class BlasRowCase : public Base, public ::testing::WithParamInterface<Row<Axis>>
+        {
+            protected:
+                /** @brief Starts the engine of the row, or skips the case. */
+                void SetUp() override
+                {
+                    Base::SetUp();
+                    if (!device_runs(this->GetParam().type))
+                        GTEST_SKIP() << "the device does not compute in this element type";
+                    this->start(this->GetParam().layout, this->GetParam().mode);
+                }
+        };
     } // namespace Test
 } // namespace SushiBLAS
