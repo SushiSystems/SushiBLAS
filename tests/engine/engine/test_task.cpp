@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -37,6 +38,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
@@ -79,17 +81,23 @@ namespace SushiBLAS
             EXPECT_EQ(bytes, static_cast<int>(sizeof(double)));
         }
 
-        TEST(Medium_Task, RefusesADtypeItsDomainDoesNotAdmit)
+        /** @brief Records typed tasks on a host recorder. */
+        class Small_Task : public HostEngineTest
         {
-            GraphProbe probe;
+
+        };
+
+        TEST_F(Small_Task, RefusesADtypeItsDomainDoesNotAdmit)
+        {
             TaskDescription description;
             description.name = "size";
             int bytes = 0;
 
-            EXPECT_ANY_THROW(Internal::execute_typed_task<Dispatch::Domain::Real>(
-                probe.recorder(), description, OperandSet(), Core::DataType::Complex32, "test",
-                SizeBody{&bytes}));
-            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+            EXPECT_THROW(Internal::execute_typed_task<Dispatch::Domain::Real>(
+                             recorder(), description, OperandSet(), Core::DataType::Complex32,
+                             "test", SizeBody{&bytes}),
+                         std::invalid_argument);
+            EXPECT_EQ(recording->recorded_count(), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS
