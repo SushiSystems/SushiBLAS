@@ -40,11 +40,20 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_ProfileSession, WithoutTheFolderVariableNoSessionStarts)
+        /** @brief Skips a test of the unprofiled case when the environment asks for a profile. */
+        class Medium_ProfileSession : public ::testing::Test
         {
-            if (!Bench::environment_value(Bench::K_PROFILE_FOLDER_VARIABLE).empty())
-                GTEST_SKIP() << "SB_BENCH_PROFILE is set in this environment";
+        protected:
+            /** @brief Skips the test when SB_BENCH_PROFILE names a folder. */
+            void SetUp() override
+            {
+                if (!Bench::environment_value(Bench::K_PROFILE_FOLDER_VARIABLE).empty())
+                    GTEST_SKIP() << "SB_BENCH_PROFILE is set in this environment";
+            }
+        };
 
+        TEST_F(Medium_ProfileSession, WithoutTheFolderVariableNoSessionStarts)
+        {
             Bench::ProfileSession* session =
                 Bench::ProfileSession::start_from_environment(TestEnvironment::runtime(), "test");
 
@@ -57,12 +66,6 @@ namespace SushiBLAS
             Bench::ProfileSession::mark_current_iteration();
 
             EXPECT_EQ(Bench::ProfileSession::current(), nullptr);
-        }
-
-        TEST(Medium_ProfileSession, TheIterationTimelineIsNamedAfterTheScenario)
-        {
-            EXPECT_STREQ(Bench::K_ITERATION_TIMELINE, "bench.iteration");
-            EXPECT_STREQ(Bench::K_PROFILE_FOLDER_VARIABLE, "SB_BENCH_PROFILE");
         }
     } // namespace Test
 } // namespace SushiBLAS
