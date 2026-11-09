@@ -32,16 +32,16 @@
 
 #include <string>
 #include <utility>
-#include <fstream>
+#include <memory>
 #include <sstream>
 #include <optional>
-#include <filesystem>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/version.hpp>
 #include <SushiBLAS/launch/gemm_tile_pin.hpp>
 #include <SushiBLAS/profile/profile_gate.hpp>
 #include <SushiBLAS/profile/profile_keys.hpp>
 #include <SushiBLAS/profiling/ceilings_file.hpp>
+#include <SushiBLAS/profiling/folder_ceilings_source.hpp>
 #include <SushiBLAS/profiling/profiling_log_category.hpp>
 #include <SushiProfiler/record/device_span_keys.hpp>
 
@@ -88,30 +88,18 @@ namespace SushiBLAS
                 return stream.str();
             }
 
-            /** @brief Returns the contents of a file, or nothing when it cannot be opened. */
-            std::optional<std::string> read_file(const std::filesystem::path& path)
-            {
-                std::ifstream file(path, std::ios::binary);
-                if (!file)
-                    return std::nullopt;
-                std::ostringstream contents;
-                contents << file.rdbuf();
-                return contents.str();
-            }
-
             /** @brief Sets the facts of one device's ceilings, and returns what became of them. */
-            CeilingsState state_ceilings(const DeviceFacts& device, const std::string& folder,
+            CeilingsState state_ceilings(const DeviceFacts& device, const CeilingsSource& source,
                                          std::vector<SushiProfiler::Fact>& facts)
             {
-                const std::filesystem::path path =
-                    std::filesystem::path(folder) / ceilings_file_name(device.device_name);
-                const std::optional<std::string> text = read_file(path);
+                const std::string file_name = ceilings_file_name(device.device_name);
+                const std::optional<std::string> text = source.read(file_name);
                 if (!text)
                 {
                     SB_LOG_INFO(K_PROFILING_LOG_CATEGORY,
                                 "no ceilings file {} for device '{}'; its spans are stated without "
                                 "a ceiling. Run device_ceilings to measure one.",
-                                path.string(), device.device_name);
+                                source.location(file_name), device.device_name);
                     return CeilingsState::Unmeasured;
                 }
 
@@ -121,7 +109,7 @@ namespace SushiBLAS
                     SB_LOG_WARN(K_PROFILING_LOG_CATEGORY,
                                 "ceilings file {} refused: {}; device '{}' is stated without a "
                                 "ceiling.",
-                                path.string(), read.message, device.device_name);
+                                source.location(file_name), read.message, device.device_name);
                     return CeilingsState::Refused;
                 }
 
@@ -142,7 +130,15 @@ namespace SushiBLAS
 
         BlasEnvironment::BlasEnvironment(std::vector<DeviceFacts> devices,
                                          std::string ceilings_folder)
-            : devices_(std::move(devices)), ceilings_folder_(std::move(ceilings_folder))
+            : BlasEnvironment(std::move(devices),
+                              std::make_shared<const FolderCeilingsSource>(std::move(ceilings_folder)))
+        {
+
+        }
+
+        BlasEnvironment::BlasEnvironment(std::vector<DeviceFacts> devices,
+                                         std::shared_ptr<const CeilingsSource> ceilings)
+            : devices_(std::move(devices)), ceilings_(std::move(ceilings))
         {
 
         }
@@ -163,7 +159,7 @@ namespace SushiBLAS
             for (const DeviceFacts& device : devices_)
             {
                 const CeilingsState state =
-                    state_ceilings(device, ceilings_folder_, facts.environment);
+                    state_ceilings(device, *ceilings_, facts.environment);
                 SushiProfiler::set_fact(
                     facts.environment,
                     std::string(Keys::K_FACT_CEILINGS_PREFIX) + device.track, state_text(state));

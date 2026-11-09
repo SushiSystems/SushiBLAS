@@ -30,8 +30,10 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
+#include <SushiBLAS/profiling/ceilings_source.hpp>
 #include <SushiProfiler/environment/environment_contributor.hpp>
 #include <SushiProfiler/environment/record_facts.hpp>
 
@@ -62,6 +64,12 @@ namespace SushiBLAS
                  */
                 BlasEnvironment(std::vector<DeviceFacts> devices, std::string ceilings_folder);
 
+                /**
+                 * @param devices The devices a record's spans can name.
+                 * @param ceilings The source the `<device>.ceilings.json` texts are read through.
+                 */
+                BlasEnvironment(std::vector<DeviceFacts> devices, std::shared_ptr<const CeilingsSource> ceilings);
+
                 /** @brief Sets the facts of SushiBLAS, then the ceiling facts of each device. */
                 void contribute(SushiProfiler::RecordFacts& facts) const override;
 
@@ -69,8 +77,8 @@ namespace SushiBLAS
                 /// @brief The devices a record's spans can name.
                 std::vector<DeviceFacts> devices_;
 
-                /// @brief The folder the ceilings files are read from.
-                std::string ceilings_folder_;
+                /// @brief The source the ceilings files are read through.
+                std::shared_ptr<const CeilingsSource> ceilings_;
         };
     } // namespace Profiling
 } // namespace SushiBLAS

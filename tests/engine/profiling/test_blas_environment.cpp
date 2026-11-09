@@ -23,19 +23,19 @@
 
 /**
  * @file test_blas_environment.cpp
- * @brief Tests the facts BlasEnvironment states: SushiBLAS's own, and the ceilings of each device.
+ * @brief Tests the facts BlasEnvironment states: SushiBLAS's own, and the ceilings of each device, read through an in-memory source.
  * @author Mustafa Garip
  * @see tests/engine/profiling/README.md
  */
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <fstream>
-#include <filesystem>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/version.hpp>
 #include <SushiBLAS/profiling/blas_environment.hpp>
 #include <SushiBLAS/profiling/ceilings_file.hpp>
+#include <SushiBLAS/profiling/in_memory_ceilings_source.hpp>
 #include <SushiProfiler/environment/record_facts.hpp>
 #include <SushiProfiler/record/device_span_keys.hpp>
 
@@ -66,26 +66,12 @@ namespace SushiBLAS
                 return SushiProfiler::gather_facts({&environment});
             }
 
-            /** @brief Owns a folder under the temporary directory and removes it afterwards. */
-            class Medium_BlasEnvironment : public ::testing::Test
+            /** @brief Holds the ceilings files of one test in memory, so no folder is needed. */
+            class Small_BlasEnvironment : public ::testing::Test
             {
                 protected:
-                    void SetUp() override
-                    {
-                        const std::string name = std::string("sushiblas_profiling_") +
-                            ::testing::UnitTest::GetInstance()->current_test_info()->name();
-                        folder_ = std::filesystem::temp_directory_path() / name;
-                        std::filesystem::remove_all(folder_);
-                        std::filesystem::create_directories(folder_);
-                    }
-
-                    void TearDown() override
-                    {
-                        std::filesystem::remove_all(folder_);
-                    }
-
-                    /** @brief Writes valid ceilings for a device into the folder. */
-                    void write_ceilings_for(const std::string& device_name, bool smoke_only)
+                    /** @brief Puts valid ceilings for a device into the source. */
+                    void put_ceilings_for(const std::string& device_name, bool smoke_only)
                     {
                         Profiling::DeviceCeilings ceilings;
                         ceilings.device_name = device_name;
@@ -96,19 +82,25 @@ namespace SushiBLAS
                         ceilings.compute = {{"f32", 2.0e12, 0.01, 5}, {"f16", 4.0e12, 0.01, 5}};
                         ceilings.bandwidth = {5.0e11, 0.01, 5};
                         ceilings.launch_floor_ns = 4000.0;
-                        std::ofstream file(folder_ / Profiling::ceilings_file_name(device_name),
-                                           std::ios::binary);
-                        file << Profiling::write_ceilings(ceilings);
+                        source_->put(Profiling::ceilings_file_name(device_name),
+                                     Profiling::write_ceilings(ceilings));
                     }
 
-                    /// @brief The folder the ceilings files of one test live in.
-                    std::filesystem::path folder_;
+                    /** @brief Returns an environment over the source for the given devices. */
+                    BlasEnvironment environment_of(std::vector<DeviceFacts> devices) const
+                    {
+                        return BlasEnvironment(std::move(devices), source_);
+                    }
+
+                    /// @brief The ceilings files of one test.
+                    std::shared_ptr<Profiling::InMemoryCeilingsSource> source_ =
+                        std::make_shared<Profiling::InMemoryCeilingsSource>();
             };
         } // namespace
 
-        TEST_F(Medium_BlasEnvironment, StatesTheTilePinAndTheDefaultMode)
+        TEST_F(Small_BlasEnvironment, StatesTheTilePinAndTheDefaultMode)
         {
-            const BlasEnvironment environment({}, folder_.string());
+            const BlasEnvironment environment = environment_of({});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -116,9 +108,9 @@ namespace SushiBLAS
             EXPECT_NE(value_of(facts.environment, "sushiblas.gemm_tile_pin"), "<absent>");
         }
 
-        TEST_F(Medium_BlasEnvironment, StatesTheVersionAndTheProfileLevelAsBuildFacts)
+        TEST_F(Small_BlasEnvironment, StatesTheVersionAndTheProfileLevelAsBuildFacts)
         {
-            const BlasEnvironment environment({}, folder_.string());
+            const BlasEnvironment environment = environment_of({});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -126,11 +118,10 @@ namespace SushiBLAS
             EXPECT_NE(value_of(facts.build, "sushiblas.profile_level"), "<absent>");
         }
 
-        TEST_F(Medium_BlasEnvironment, StatesTheCeilingsOfADeviceWithAFile)
+        TEST_F(Small_BlasEnvironment, StatesTheCeilingsOfADeviceWithAFile)
         {
-            write_ceilings_for("Device A", false);
-            const BlasEnvironment environment({DeviceFacts{"node/0/Device A", "Device A"}},
-                                              folder_.string());
+            put_ceilings_for("Device A", false);
+            const BlasEnvironment environment = environment_of({DeviceFacts{"node/0/Device A", "Device A"}});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -147,11 +138,10 @@ namespace SushiBLAS
             EXPECT_EQ(value_of(facts.environment, "sushiblas.ceilings." + track), "measured");
         }
 
-        TEST_F(Medium_BlasEnvironment, MarksTheCeilingsOfASmokeOnlyDevice)
+        TEST_F(Small_BlasEnvironment, MarksTheCeilingsOfASmokeOnlyDevice)
         {
-            write_ceilings_for("Device A", true);
-            const BlasEnvironment environment({DeviceFacts{"node/0/Device A", "Device A"}},
-                                              folder_.string());
+            put_ceilings_for("Device A", true);
+            const BlasEnvironment environment = environment_of({DeviceFacts{"node/0/Device A", "Device A"}});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -159,10 +149,9 @@ namespace SushiBLAS
                       "smoke_only");
         }
 
-        TEST_F(Medium_BlasEnvironment, StatesUnmeasuredWithoutAFile)
+        TEST_F(Small_BlasEnvironment, StatesUnmeasuredWithoutAFile)
         {
-            const BlasEnvironment environment({DeviceFacts{"node/0/Device B", "Device B"}},
-                                              folder_.string());
+            const BlasEnvironment environment = environment_of({DeviceFacts{"node/0/Device B", "Device B"}});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -176,14 +165,11 @@ namespace SushiBLAS
                       "<absent>");
         }
 
-        TEST_F(Medium_BlasEnvironment, StatesRefusedForAFileTheReaderRefuses)
+        TEST_F(Small_BlasEnvironment, StatesRefusedForAFileTheReaderRefuses)
         {
-            std::ofstream file(folder_ / Profiling::ceilings_file_name("Device C"),
-                               std::ios::binary);
-            file << "{ \"format\": \"sushiblas.ceilings\", \"version\": 9 }";
-            file.close();
-            const BlasEnvironment environment({DeviceFacts{"node/0/Device C", "Device C"}},
-                                              folder_.string());
+            source_->put(Profiling::ceilings_file_name("Device C"),
+                         "{ \"format\": \"sushiblas.ceilings\", \"version\": 9 }");
+            const BlasEnvironment environment = environment_of({DeviceFacts{"node/0/Device C", "Device C"}});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 
@@ -195,12 +181,11 @@ namespace SushiBLAS
                       "<absent>");
         }
 
-        TEST_F(Medium_BlasEnvironment, EachDeviceGetsItsOwnCeilings)
+        TEST_F(Small_BlasEnvironment, EachDeviceGetsItsOwnCeilings)
         {
-            write_ceilings_for("Device A", false);
-            const BlasEnvironment environment({DeviceFacts{"node/0/Device A", "Device A"},
-                                               DeviceFacts{"node/1/Device B", "Device B"}},
-                                              folder_.string());
+            put_ceilings_for("Device A", false);
+            const BlasEnvironment environment = environment_of({DeviceFacts{"node/0/Device A", "Device A"},
+                                                                DeviceFacts{"node/1/Device B", "Device B"}});
 
             const SushiProfiler::RecordFacts facts = facts_of(environment);
 

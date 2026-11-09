@@ -9,6 +9,9 @@ It depends on [`core`](../../foundation/core/README.md), [`launch`](../../founda
 | `profiler_parts.hpp` | `SushiBLASProfilerParts`, the two `register_profiler_parts` overloads |
 | `blas_environment.hpp` | `BlasEnvironment`, the contributor, and `DeviceFacts` |
 | `ceilings.hpp` | `DeviceCeilings`, `ComputeCeiling`, `BandwidthCeiling`, `CeilingsMethod` |
+| `ceilings_source.hpp` | `CeilingsSource`, the port the ceilings texts are read through |
+| `folder_ceilings_source.hpp` | `FolderCeilingsSource`, the adapter over a folder, the default of `BlasEnvironment` |
+| `in_memory_ceilings_source.hpp` | `InMemoryCeilingsSource`, the adapter that holds the texts in memory |
 | `ceilings_file.hpp` | `read_ceilings`, `write_ceilings`, `ceilings_file_name`, `CeilingsReadStatus` |
 | `profiling_log_category.hpp` | `K_PROFILING_LOG_CATEGORY` |
 
@@ -43,4 +46,4 @@ The ceiling facts are built with `SushiProfiler::DeviceSpanKeys`, and `<track>` 
 
 ## The ceilings file
 
-`<device>.ceilings.json`, named by `ceilings_file_name` from the device's name, in the folder passed to `register_profiler_parts`. [`docs/reference/CEILINGS_FORMAT.md`](../../../docs/reference/CEILINGS_FORMAT.md) holds the format. The `device_ceilings` program writes it with `write_ceilings`; `read_ceilings` validates it and returns a status, never an exception. The module needs SushiProfiler's JSON reader and writer, which is why the reader is here and not in `core`.
+`<device>.ceilings.json`, named by `ceilings_file_name` from the device's name, in the folder passed to `register_profiler_parts`. `BlasEnvironment` reads it through a `CeilingsSource`: the folder is the `FolderCeilingsSource` it builds from a path, and its other constructor takes any source. [`docs/reference/CEILINGS_FORMAT.md`](../../../docs/reference/CEILINGS_FORMAT.md) holds the format. The `device_ceilings` program writes it with `write_ceilings`; `read_ceilings` validates it and returns a status, never an exception. The module needs SushiProfiler's JSON reader and writer, which is why the reader is here and not in `core`.

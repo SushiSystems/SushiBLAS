@@ -10,6 +10,7 @@ sushiblas_add_module(
     SOURCES
         blas_environment.cpp
         ceilings_file.cpp
+        folder_ceilings_source.cpp
         profiler_parts.cpp
     DEPENDS
         core
@@ -24,8 +25,11 @@ sushiblas_add_test_program(
     TESTS
         test_blas_environment.cpp
         test_ceilings_file.cpp
+        test_folder_ceilings_source.cpp
+        test_in_memory_ceilings_source.cpp
     DEVICE_TESTS
         test_profiler_parts.cpp
     COMPILE_CHECKS
         compile_ceilings.cpp
+        compile_ceilings_source.cpp
         compile_profiling_log_category.cpp)
