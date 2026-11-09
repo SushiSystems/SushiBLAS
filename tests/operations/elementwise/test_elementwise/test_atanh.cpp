@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_AtanhTest : public SushiBLASTest {};
+class Small_AtanhTest : public HostEngineTest {};
 
-TEST_F(Medium_AtanhTest, FloatForward) 
+/**
+ * @brief Tests that the recorded atanh replaces each element with its inverse hyperbolic tangent when the task runs.
+ */
+TEST_F(Small_AtanhTest, AtanhReplacesEachElementWithItsInverseHyperbolicTangent) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 0.8f});
     
     SushiBLAS::ElementwiseOps(recorder()).atanh(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {0.00000f, 0.549306f, -0.549306f, 1.098612f});
 }
