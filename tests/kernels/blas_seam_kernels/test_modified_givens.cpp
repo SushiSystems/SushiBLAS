@@ -62,66 +62,29 @@ namespace SushiBLAS
                 double x1_after; /**< The expected first component. */
             };
 
+            /// @brief The outcome of a swap (flag 1): equal products, so H is [[1, 1], [-1, 1]].
+            const ModifiedGivensOutcome K_SWAP = {
+                1.0, 1.0, 1.0, 1.0, {1.0, 1.0, K_UNWRITTEN, K_UNWRITTEN, 1.0}, 0.5, 0.5, 2.0};
+
+            /// @brief The outcome of a plain rotation (flag 0): the first product is larger.
+            const ModifiedGivensOutcome K_KEEP = {
+                5.0, 5.0, 4.0, 2.0, {0.0, K_UNWRITTEN, -0.5, 0.5, K_UNWRITTEN}, 4.0, 4.0, 5.0};
+
+            /// @brief The outcome of the identity (flag -2): the second product is zero.
+            const ModifiedGivensOutcome K_NONE = {
+                3.0, 0.0, 5.0, 7.0,
+                {-2.0, K_UNWRITTEN, K_UNWRITTEN, K_UNWRITTEN, K_UNWRITTEN}, 3.0, 0.0, 5.0};
+
+            /// @brief The outcome of a refusal (flag -1 with zeros): d1 is negative.
+            const ModifiedGivensOutcome K_REFUSED = {
+                -1.0, 1.0, 1.0, 1.0, {-1.0, 0.0, 0.0, 0.0, 0.0}, 0.0, 0.0, 0.0};
+
             /**
-             * @brief Returns whether modified_givens gives the four values worked by hand from
-             *        the reference routine.
-             * @tparam R float or double; every value below is exact in both.
+             * @brief Expects that modified_givens and store_modified_givens give an outcome:
+             *        the stored array and the three returned values.
              */
             template<typename R>
-            [[nodiscard]] constexpr bool modified_givens_matches_hand_values()
-            {
-                const Kernels::ModifiedGivens<R> swap =
-                    Kernels::modified_givens(R(1), R(1), R(1), R(1));
-                if (swap.flag != R(1) || swap.h11 != R(1) || swap.h22 != R(1) ||
-                    swap.d1 != R(0.5) || swap.d2 != R(0.5) || swap.x1 != R(2))
-                    return false;
-
-                const Kernels::ModifiedGivens<R> keep =
-                    Kernels::modified_givens(R(5), R(5), R(4), R(2));
-                if (keep.flag != R(0) || keep.h21 != R(-0.5) || keep.h12 != R(0.5) ||
-                    keep.d1 != R(4) || keep.d2 != R(4) || keep.x1 != R(5))
-                    return false;
-
-                const Kernels::ModifiedGivens<R> none =
-                    Kernels::modified_givens(R(3), R(0), R(5), R(7));
-                if (none.flag != R(-2) || none.d1 != R(3) || none.d2 != R(0) || none.x1 != R(5))
-                    return false;
-
-                const Kernels::ModifiedGivens<R> refused =
-                    Kernels::modified_givens(R(-1), R(1), R(1), R(1));
-                return refused.flag == R(-1) && refused.d1 == R(0) && refused.x1 == R(0);
-            }
-        } // namespace
-
-        /**
-         * @brief Names the suite of the modified Givens cases of component type R.
-         */
-        template<typename R>
-        class Small_ModifiedGivens : public ::testing::Test
-        {
-
-        };
-
-        /// @brief Names the real types the modified rotation suite runs over.
-        using ModifiedGivensTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Small_ModifiedGivens, ModifiedGivensTypes);
-
-        /**
-         * @brief Tests the four outcomes of xROTMG and which parameters each one stores.
-         */
-        TYPED_TEST(Small_ModifiedGivens, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
-        {
-            using R = TypeParam;
-            constexpr double unwritten = K_UNWRITTEN;
-
-            const ModifiedGivensOutcome outcomes[] = {
-                {1.0, 1.0, 1.0, 1.0, {1.0, 1.0, unwritten, unwritten, 1.0}, 0.5, 0.5, 2.0},
-                {5.0, 5.0, 4.0, 2.0, {0.0, unwritten, -0.5, 0.5, unwritten}, 4.0, 4.0, 5.0},
-                {3.0, 0.0, 5.0, 7.0, {-2.0, unwritten, unwritten, unwritten, unwritten},
-                 3.0, 0.0, 5.0},
-                {-1.0, 1.0, 1.0, 1.0, {-1.0, 0.0, 0.0, 0.0, 0.0}, 0.0, 0.0, 0.0}};
-
-            for (const ModifiedGivensOutcome& outcome : outcomes)
+            void expect_outcome(const ModifiedGivensOutcome& outcome)
             {
                 SCOPED_TRACE(::testing::Message()
                              << "d1 " << outcome.d1 << ", d2 " << outcome.d2 << ", x1 "
@@ -144,6 +107,43 @@ namespace SushiBLAS
                 EXPECT_EQ(static_cast<R>(outcome.d2_after), h.d2);
                 EXPECT_EQ(static_cast<R>(outcome.x1_after), h.x1);
             }
+        } // namespace
+
+        /**
+         * @brief Names the suite of the modified Givens cases of component type R.
+         */
+        template<typename R>
+        class Small_ModifiedGivens : public ::testing::Test
+        {
+
+        };
+
+        /// @brief Names the real types the modified rotation suite runs over.
+        using ModifiedGivensTypes = ::testing::Types<float, double>;
+        SB_TYPED_TEST_SUITE(Small_ModifiedGivens, ModifiedGivensTypes);
+
+        /** @brief Tests that a swap stores its flag, h11, h22 and the scaled values. */
+        TYPED_TEST(Small_ModifiedGivens, ASwapStoresOnlyWhatItsFlagDoesNotImply)
+        {
+            expect_outcome<TypeParam>(K_SWAP);
+        }
+
+        /** @brief Tests that a plain rotation stores its flag, h21 and h12. */
+        TYPED_TEST(Small_ModifiedGivens, ARotationStoresOnlyWhatItsFlagDoesNotImply)
+        {
+            expect_outcome<TypeParam>(K_KEEP);
+        }
+
+        /** @brief Tests that a zero second product stores the identity flag and nothing else. */
+        TYPED_TEST(Small_ModifiedGivens, TheIdentityStoresOnlyItsFlag)
+        {
+            expect_outcome<TypeParam>(K_NONE);
+        }
+
+        /** @brief Tests that a negative first factor stores the refusal flag and zeros. */
+        TYPED_TEST(Small_ModifiedGivens, ARefusalStoresItsFlagAndZeros)
+        {
+            expect_outcome<TypeParam>(K_REFUSED);
         }
 
         /**
@@ -195,9 +195,10 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that a scale factor no pass brings into the window ends the rescaling.
+         * @brief Tests that a first factor no pass brings into the window ends the rescaling
+         *        at the pass limit: d1 stays infinite, and x1 and h11 grow to infinity.
          */
-        TYPED_TEST(Small_ModifiedGivens, AnInfiniteFactorReturns)
+        TYPED_TEST(Small_ModifiedGivens, AnInfiniteFirstFactorEndsTheRescalingAtThePassLimit)
         {
             using R = TypeParam;
 
@@ -206,6 +207,8 @@ namespace SushiBLAS
 
             EXPECT_EQ(R(-1), h.flag);
             EXPECT_TRUE(std::isinf(h.d1));
+            EXPECT_TRUE(std::isinf(h.x1));
+            EXPECT_TRUE(std::isinf(h.h11));
             EXPECT_EQ(R(1), h.d2);
         }
     } // namespace Test
