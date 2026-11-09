@@ -27,7 +27,9 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <limits>
+#include <string>
 #include <vector>
 #include <complex>
 #include <cstddef>
@@ -57,21 +59,6 @@ namespace SushiBLAS
 
             /// @brief Imaginary part given to a stored diagonal that a Hermitian read must drop.
             constexpr float K_DIAGONAL_IMAGINARY = 7.0f;
-
-            /// @brief Order of the matrix the compile-time case reads.
-            constexpr int64_t K_CONSTANT_ORDER = 3;
-
-            /// @brief A row-major 3 x 3 array whose upper triangle is the stored one.
-            constexpr float K_CONSTANT_MATRIX[] = {1.0f, 2.0f, 3.0f,
-                                                   -1.0f, 4.0f, 5.0f,
-                                                   -1.0f, -1.0f, 6.0f};
-
-            /// @brief The two layouts every run-time case reads in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
-            /// @brief The two triangles every run-time case stores.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /** @brief Returns the value that marks an element no read may return. */
             template<typename T>
@@ -121,127 +108,146 @@ namespace SushiBLAS
                 return std::complex<float>(static_cast<float>(10 * r + c + 1),
                                            static_cast<float>(r - c) + 0.5f);
             }
-        } // namespace
 
-        TEST(Small_SymmetricAccess, ReadsTheStoredTriangleOnly)
-        {
-            for (const Core::Layout layout : K_LAYOUTS)
+            /** @brief Holds one layout and one stored triangle of a run-time case. */
+            struct StoredTriangle
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    const std::vector<float> array = stored_triangle<float>(
-                        layout, uplo,
-                        [](int64_t r, int64_t c) { return static_cast<float>(10 * r + c + 1); });
-                    const auto access = Kernels::symmetric_access<Kernels::Unconjugated>(
-                        layout, uplo, K_LEADING_DIMENSION);
+                Core::Layout layout; /**< The layout of the array. */
+                Core::Uplo uplo;     /**< The triangle the array stores. */
+            };
 
-                    for (int64_t r = 0; r < K_ORDER; ++r)
+            /** @brief Returns the four layout and triangle pairs every case reads. */
+            [[nodiscard]] std::array<StoredTriangle, 4> stored_triangles()
+            {
+                return {{{Core::Layout::RowMajor, Core::Uplo::Upper},
+                         {Core::Layout::RowMajor, Core::Uplo::Lower},
+                         {Core::Layout::ColumnMajor, Core::Uplo::Upper},
+                         {Core::Layout::ColumnMajor, Core::Uplo::Lower}}};
+            }
+
+            /** @brief Names a layout and triangle pair for the test name. */
+            std::string stored_triangle_name(const ::testing::TestParamInfo<StoredTriangle>& info)
+            {
+                return std::string(info.param.layout == Core::Layout::RowMajor ? "RowMajor"
+                                                                                : "ColumnMajor") +
+                       (info.param.uplo == Core::Uplo::Upper ? "Upper" : "Lower");
+            }
+
+            /** @brief Expects that a symmetric read returns the stored triangle's element. */
+            void expect_the_stored_triangle_is_read(const StoredTriangle& row)
+            {
+                const std::vector<float> array = stored_triangle<float>(
+                    row.layout, row.uplo,
+                    [](int64_t r, int64_t c) { return static_cast<float>(10 * r + c + 1); });
+                const auto access = Kernels::symmetric_access<Kernels::Unconjugated>(
+                    row.layout, row.uplo, K_LEADING_DIMENSION);
+
+                for (int64_t r = 0; r < K_ORDER; ++r)
+                {
+                    for (int64_t c = 0; c < K_ORDER; ++c)
                     {
-                        for (int64_t c = 0; c < K_ORDER; ++c)
-                        {
-                            const int64_t low = std::min(r, c);
-                            const int64_t high = std::max(r, c);
-                            const int64_t expected = uplo == Core::Uplo::Upper
-                                                         ? 10 * low + high + 1
-                                                         : 10 * high + low + 1;
-                            EXPECT_EQ(access.at(array.data(), r, c), static_cast<float>(expected))
-                                << Core::to_string(uplo) << " (" << r << ", " << c << ")";
-                        }
+                        const int64_t low = std::min(r, c);
+                        const int64_t high = std::max(r, c);
+                        const int64_t expected = row.uplo == Core::Uplo::Upper
+                                                     ? 10 * low + high + 1
+                                                     : 10 * high + low + 1;
+                        EXPECT_EQ(access.at(array.data(), r, c), static_cast<float>(expected))
+                            << "(" << r << ", " << c << ")";
                     }
                 }
             }
-        }
 
-        TEST(Small_SymmetricAccess, AHermitianMirrorIsConjugated)
-        {
-            for (const Core::Layout layout : K_LAYOUTS)
+            /** @brief Expects that a Hermitian read conjugates the mirrored off-diagonal. */
+            void expect_the_hermitian_mirror_is_conjugated(const StoredTriangle& row)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
+                const std::vector<std::complex<float>> array =
+                    stored_triangle<std::complex<float>>(row.layout, row.uplo,
+                                                         &hermitian_element);
+                const auto access = Kernels::symmetric_access<Kernels::Conjugated>(
+                    row.layout, row.uplo, K_LEADING_DIMENSION);
+
+                for (int64_t r = 0; r < K_ORDER; ++r)
                 {
-                    const std::vector<std::complex<float>> array =
-                        stored_triangle<std::complex<float>>(layout, uplo, &hermitian_element);
-                    const auto access = Kernels::symmetric_access<Kernels::Conjugated>(
-                        layout, uplo, K_LEADING_DIMENSION);
-
-                    for (int64_t r = 0; r < K_ORDER; ++r)
+                    for (int64_t c = 0; c < K_ORDER; ++c)
                     {
-                        for (int64_t c = 0; c < K_ORDER; ++c)
-                        {
-                            if (r == c)
-                                continue;
+                        if (r == c)
+                            continue;
 
-                            const std::complex<float> expected =
-                                is_stored(uplo, r, c) ? hermitian_element(r, c)
+                        const std::complex<float> expected =
+                            is_stored(row.uplo, r, c) ? hermitian_element(r, c)
                                                       : std::conj(hermitian_element(c, r));
-                            EXPECT_EQ(access.at(array.data(), r, c), expected)
-                                << Core::to_string(uplo) << " (" << r << ", " << c << ")";
-                        }
+                        EXPECT_EQ(access.at(array.data(), r, c), expected)
+                            << "(" << r << ", " << c << ")";
                     }
                 }
             }
-        }
 
-        TEST(Small_SymmetricAccess, AHermitianDiagonalIsReadAsItsRealPart)
-        {
-            const auto diagonal_element = [](int64_t r, int64_t c)
+            /** @brief Returns the complex element of the diagonal cases, with its imaginary part. */
+            [[nodiscard]] std::complex<float> diagonal_element(int64_t r, int64_t c) noexcept
             {
                 return std::complex<float>(static_cast<float>(10 * r + c + 1),
                                            K_DIAGONAL_IMAGINARY);
-            };
+            }
 
-            for (const Core::Layout layout : K_LAYOUTS)
+            /** @brief Expects that a read of the diagonal gives its value under a policy. */
+            template<typename Policy>
+            void expect_the_diagonal_reads(const StoredTriangle& row, float imaginary)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    const std::vector<std::complex<float>> array =
-                        stored_triangle<std::complex<float>>(layout, uplo, diagonal_element);
-                    const auto hermitian = Kernels::symmetric_access<Kernels::Conjugated>(
-                        layout, uplo, K_LEADING_DIMENSION);
-                    const auto symmetric = Kernels::symmetric_access<Kernels::Unconjugated>(
-                        layout, uplo, K_LEADING_DIMENSION);
+                const std::vector<std::complex<float>> array =
+                    stored_triangle<std::complex<float>>(row.layout, row.uplo, &diagonal_element);
+                const auto access =
+                    Kernels::symmetric_access<Policy>(row.layout, row.uplo, K_LEADING_DIMENSION);
 
-                    for (int64_t d = 0; d < K_ORDER; ++d)
-                    {
-                        const float real = static_cast<float>(11 * d + 1);
-                        EXPECT_EQ(hermitian.at(array.data(), d, d),
-                                  std::complex<float>(real, 0.0f))
-                            << Core::to_string(uplo) << " diagonal " << d;
-                        EXPECT_EQ(symmetric.at(array.data(), d, d),
-                                  std::complex<float>(real, K_DIAGONAL_IMAGINARY))
-                            << Core::to_string(uplo) << " diagonal " << d;
-                    }
+                for (int64_t d = 0; d < K_ORDER; ++d)
+                {
+                    const float real = static_cast<float>(11 * d + 1);
+                    EXPECT_EQ(access.at(array.data(), d, d), std::complex<float>(real, imaginary))
+                        << "diagonal " << d;
                 }
             }
+        } // namespace
+
+        /** @brief Reads a stored triangle once per layout and triangle. */
+        class Small_SymmetricAccess : public ::testing::TestWithParam<StoredTriangle>
+        {
+
+        };
+
+        TEST_P(Small_SymmetricAccess, ReadsTheStoredTriangleOnly)
+        {
+            expect_the_stored_triangle_is_read(GetParam());
         }
 
-        TEST(Small_SymmetricAccess, ARealElementIgnoresThePolicy)
+        TEST_P(Small_SymmetricAccess, AHermitianMirrorIsConjugated)
         {
-            static_assert(
-                std::is_same_v<
-                    Kernels::SymmetricAccess<Kernels::ConjugationFor<float, Kernels::Conjugated>>,
-                    Kernels::SymmetricAccess<Kernels::Unconjugated>>,
-                "A real element type reads a Hermitian matrix as a symmetric one.");
-            static_assert(
-                std::is_same_v<
-                    Kernels::SymmetricAccess<
-                        Kernels::ConjugationFor<std::complex<float>, Kernels::Conjugated>>,
-                    Kernels::SymmetricAccess<Kernels::Conjugated>>,
-                "A complex element type keeps the policy it was given.");
+            expect_the_hermitian_mirror_is_conjugated(GetParam());
         }
 
-        TEST(Small_SymmetricAccess, IsAConstantExpression)
+        TEST_P(Small_SymmetricAccess, AHermitianDiagonalIsReadAsItsRealPart)
         {
-            constexpr auto access = Kernels::symmetric_access<Kernels::Unconjugated>(
-                Core::Layout::RowMajor, Core::Uplo::Upper, K_CONSTANT_ORDER);
+            expect_the_diagonal_reads<Kernels::Conjugated>(GetParam(), 0.0f);
+        }
 
-            static_assert(access.at(K_CONSTANT_MATRIX, 0, 2) == 3.0f,
-                          "A stored element is read where it lies.");
-            static_assert(access.at(K_CONSTANT_MATRIX, 2, 0) == 3.0f,
-                          "A mirrored element is read from the stored triangle.");
-            static_assert(access.at(K_CONSTANT_MATRIX, 2, 1) == 5.0f,
-                          "A mirrored element is read from the stored triangle.");
-            static_assert(access.at(K_CONSTANT_MATRIX, 1, 1) == 4.0f,
-                          "A diagonal element is read where it lies.");
+        TEST_P(Small_SymmetricAccess, ASymmetricDiagonalKeepsItsImaginaryPart)
+        {
+            expect_the_diagonal_reads<Kernels::Unconjugated>(GetParam(), K_DIAGONAL_IMAGINARY);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SymmetricAccess, ::testing::ValuesIn(stored_triangles()),
+                                 stored_triangle_name);
+
+        TEST(Small_SymmetricAccessPolicy, ARealElementIgnoresThePolicy)
+        {
+            const bool real_reads_as_symmetric = std::is_same_v<
+                Kernels::SymmetricAccess<Kernels::ConjugationFor<float, Kernels::Conjugated>>,
+                Kernels::SymmetricAccess<Kernels::Unconjugated>>;
+            const bool complex_keeps_the_policy = std::is_same_v<
+                Kernels::SymmetricAccess<
+                    Kernels::ConjugationFor<std::complex<float>, Kernels::Conjugated>>,
+                Kernels::SymmetricAccess<Kernels::Conjugated>>;
+
+            EXPECT_TRUE(real_reads_as_symmetric);
+            EXPECT_TRUE(complex_keeps_the_policy);
         }
     } // namespace Test
 } // namespace SushiBLAS
