@@ -28,7 +28,9 @@
  */
 
 #include <cstddef>
+#include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -84,53 +86,102 @@ namespace SushiBLAS
             return c;
         }
 
-        TEST(Small_ReferenceGemm, MatchesADenseLoopInEveryLayoutAndTranspose)
+        /** @brief Holds one layout and the two transposes of a product. */
+        struct GemmCase
         {
+            Core::Layout layout; /**< The storage order of A, B and C. */
+            bool trans_a;        /**< Whether A is transposed. */
+            bool trans_b;        /**< Whether B is transposed. */
+        };
+
+        /** @brief Returns both layouts crossed with the four transpose pairs. */
+        static std::vector<GemmCase> gemm_cases()
+        {
+            std::vector<GemmCase> cases;
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
+                for (const bool trans_a : {false, true})
+                    for (const bool trans_b : {false, true})
+                        cases.push_back({layout, trans_a, trans_b});
+            return cases;
+        }
+
+        /** @brief Names a case for the test name. */
+        static std::string gemm_case_name(const ::testing::TestParamInfo<GemmCase>& info)
+        {
+            return std::string(info.param.layout == Core::Layout::RowMajor ? "RowMajor"
+                                                                            : "ColumnMajor") +
+                   (info.param.trans_a ? "TransA" : "PlainA") +
+                   (info.param.trans_b ? "TransB" : "PlainB");
+        }
+
+        /** @brief Returns the dense product with the bias of every column added to its elements. */
+        static std::vector<double> biased(std::vector<double> product,
+                                          const std::vector<double>& bias)
+        {
+            for (int64_t i = 0; i < K_M; ++i)
+                for (int64_t j = 0; j < K_N; ++j)
+                    product[static_cast<std::size_t>(i * K_N + j)] +=
+                        bias[static_cast<std::size_t>(j)];
+            return product;
+        }
+
+        /** @brief Returns the batch of products that single gemm calls give, one per matrix. */
+        static std::vector<double> single_calls(const std::vector<double>& a,
+                                                const std::vector<double>& b, int64_t batch)
+        {
+            std::vector<double> single(static_cast<std::size_t>(batch * K_M * K_N), 1.0);
+            for (int64_t i = 0; i < batch; ++i)
+                Kernels::Reference::gemm(Core::Layout::RowMajor, Core::Transpose::NoTrans,
+                                         Core::Transpose::NoTrans, K_M, K_N, K_K, 1.0,
+                                         a.data() + i * K_M * K_K, K_K,
+                                         b.data() + i * K_K * K_N, K_N, 1.0,
+                                         single.data() + i * K_M * K_N, K_N);
+            return single;
+        }
+
+        /** @brief Runs the reference gemm in one layout and transpose pair at a time. */
+        class Small_ReferenceGemm : public ::testing::TestWithParam<GemmCase>
+        {
+
+        };
+
+        TEST_P(Small_ReferenceGemm, MatchesADenseLoopInEveryLayoutAndTranspose)
+        {
+            const GemmCase row = GetParam();
             const std::vector<double> a = small_integers<double>(K_M * K_K, 1);
             const std::vector<double> b = small_integers<double>(K_K * K_N, 2);
             const std::vector<double> c = small_integers<double>(K_M * K_N, 3);
             const std::vector<double> expected = dense_gemm(a, b, 2.0, -1.0, c);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool trans_a : {false, true})
-                {
-                    for (const bool trans_b : {false, true})
-                    {
-                        SCOPED_TRACE(2 * trans_a + trans_b);
-                        const int64_t a_rows = trans_a ? K_K : K_M;
-                        const int64_t a_cols = trans_a ? K_M : K_K;
-                        const int64_t b_rows = trans_b ? K_N : K_K;
-                        const int64_t b_cols = trans_b ? K_K : K_N;
-                        const std::vector<double> stored_a = in_layout(
-                            trans_a ? transposed_of(a, K_M, K_K) : a, a_rows, a_cols, layout);
-                        const std::vector<double> stored_b = in_layout(
-                            trans_b ? transposed_of(b, K_K, K_N) : b, b_rows, b_cols, layout);
-                        const bool row_major = (layout == Core::Layout::RowMajor);
-                        std::vector<double> got = in_layout(c, K_M, K_N, layout);
+            const int64_t a_rows = row.trans_a ? K_K : K_M;
+            const int64_t a_cols = row.trans_a ? K_M : K_K;
+            const int64_t b_rows = row.trans_b ? K_N : K_K;
+            const int64_t b_cols = row.trans_b ? K_K : K_N;
+            const std::vector<double> stored_a = in_layout(
+                row.trans_a ? transposed_of(a, K_M, K_K) : a, a_rows, a_cols, row.layout);
+            const std::vector<double> stored_b = in_layout(
+                row.trans_b ? transposed_of(b, K_K, K_N) : b, b_rows, b_cols, row.layout);
+            const bool row_major = (row.layout == Core::Layout::RowMajor);
+            std::vector<double> got = in_layout(c, K_M, K_N, row.layout);
 
-                        Kernels::Reference::gemm(layout, transpose_of(trans_a),
-                                                 transpose_of(trans_b), K_M, K_N, K_K, 2.0,
-                                                 stored_a.data(), row_major ? a_cols : a_rows,
-                                                 stored_b.data(), row_major ? b_cols : b_rows,
-                                                 -1.0, got.data(), row_major ? K_N : K_M);
+            Kernels::Reference::gemm(row.layout, transpose_of(row.trans_a),
+                                     transpose_of(row.trans_b), K_M, K_N, K_K, 2.0,
+                                     stored_a.data(), row_major ? a_cols : a_rows,
+                                     stored_b.data(), row_major ? b_cols : b_rows, -1.0,
+                                     got.data(), row_major ? K_N : K_M);
 
-                        EXPECT_EQ(got, in_layout(expected, K_M, K_N, layout));
-                    }
-                }
-            }
+            EXPECT_EQ(got, in_layout(expected, K_M, K_N, row.layout));
         }
 
-        TEST(Small_ReferenceGemm, AnEpilogueSeesEachElementAfterAlphaAndBeta)
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceGemm, ::testing::ValuesIn(gemm_cases()),
+                                 gemm_case_name);
+
+        TEST(Small_ReferenceGemmForms, AnEpilogueSeesEachElementAfterAlphaAndBeta)
         {
             const std::vector<double> a = small_integers<double>(K_M * K_K, 4);
             const std::vector<double> b = small_integers<double>(K_K * K_N, 5);
             const std::vector<double> bias = small_integers<double>(K_N, 6);
-            std::vector<double> expected = dense_gemm(a, b, 1.0, 0.0,
-                                                      std::vector<double>(K_M * K_N, 0.0));
-            for (int64_t i = 0; i < K_M; ++i)
-                for (int64_t j = 0; j < K_N; ++j)
-                    expected[static_cast<std::size_t>(i * K_N + j)] +=
-                        bias[static_cast<std::size_t>(j)];
+            const std::vector<double> expected = biased(
+                dense_gemm(a, b, 1.0, 0.0, std::vector<double>(K_M * K_N, 0.0)), bias);
             std::vector<double> got(K_M * K_N, 0.0);
 
             Kernels::Reference::gemm(Core::Layout::RowMajor, Core::Transpose::NoTrans,
@@ -141,19 +192,28 @@ namespace SushiBLAS
             EXPECT_EQ(got, expected);
         }
 
-        TEST(Small_ReferenceGemm, TheBatchedAndTheAccessedFormsAgreeWithTheSingleCall)
+        TEST(Small_ReferenceGemmForms, TheBatchedFormAgreesWithTheSingleCall)
         {
             const int64_t batch = 2;
             const std::vector<double> a = small_integers<double>(batch * K_M * K_K, 7);
             const std::vector<double> b = small_integers<double>(batch * K_K * K_N, 8);
             std::vector<double> batched(batch * K_M * K_N, 1.0);
-            std::vector<double> accessed = batched;
-            std::vector<double> single = batched;
 
             Kernels::Reference::gemm(Core::Layout::RowMajor, Core::Transpose::NoTrans,
                                      Core::Transpose::NoTrans, K_M, K_N, K_K, 1.0, a.data(), K_K,
                                      K_M * K_K, b.data(), K_N, K_K * K_N, 1.0, batched.data(),
                                      K_N, K_M * K_N, batch);
+
+            EXPECT_EQ(batched, single_calls(a, b, batch));
+        }
+
+        TEST(Small_ReferenceGemmForms, TheAccessedFormAgreesWithTheSingleCall)
+        {
+            const int64_t batch = 2;
+            const std::vector<double> a = small_integers<double>(batch * K_M * K_K, 7);
+            const std::vector<double> b = small_integers<double>(batch * K_K * K_N, 8);
+            std::vector<double> accessed(batch * K_M * K_N, 1.0);
+
             Kernels::Reference::gemm_accessed(
                 K_M, K_N, K_K, 1.0, a.data(),
                 Kernels::operand_access(Core::Layout::RowMajor, Core::Transpose::NoTrans, K_K),
@@ -162,15 +222,8 @@ namespace SushiBLAS
                 K_K * K_N, 1.0, accessed.data(),
                 Kernels::operand_access(Core::Layout::RowMajor, Core::Transpose::NoTrans, K_N),
                 K_M * K_N, batch);
-            for (int64_t i = 0; i < batch; ++i)
-                Kernels::Reference::gemm(Core::Layout::RowMajor, Core::Transpose::NoTrans,
-                                         Core::Transpose::NoTrans, K_M, K_N, K_K, 1.0,
-                                         a.data() + i * K_M * K_K, K_K,
-                                         b.data() + i * K_K * K_N, K_N, 1.0,
-                                         single.data() + i * K_M * K_N, K_N);
 
-            EXPECT_EQ(batched, single);
-            EXPECT_EQ(accessed, single);
+            EXPECT_EQ(accessed, single_calls(a, b, batch));
         }
     } // namespace Test
 } // namespace SushiBLAS
