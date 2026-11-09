@@ -23,7 +23,7 @@
 
 /**
  * @file test_spatial_random_io_validation.cpp
- * @brief Tests the record-time checks of spatial geometry, random fills and IO.
+ * @brief Tests the device pooling extremes, the degenerate random fills and the IO round trip.
  * @author Mustafa Garip
  */
 
@@ -33,7 +33,6 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-#include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -44,24 +43,36 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief A Poisson mean above K_MAX_POISSON_LAMBDA.
-            constexpr double K_LAMBDA_ABOVE_CAP = 2.0e7;
-            /// @brief A negative Poisson mean.
-            constexpr double K_LAMBDA_NEGATIVE = -1.0;
             /// @brief Seed of the Bernoulli edge-probability tests.
             constexpr uint64_t K_BERNOULLI_SEED = 20261006;
+
             /// @brief Number of Bernoulli draws checked per edge probability.
             constexpr int64_t K_BERNOULLI_DRAWS = 100000;
-            /// @brief The bound FLOAT32 discrete_uniform accepts in magnitude, 2^24.
-            constexpr int32_t K_FLOAT32_EXACT_LIMIT = 16777216;
-            /// @brief A float bound whose doubled magnitude overflows FLOAT32.
-            constexpr double K_LARGE_FLOAT_BOUND = 3.0e38;
-            /// @brief A double bound whose doubled magnitude overflows FLOAT64.
-            constexpr double K_LARGE_DOUBLE_BOUND = 1.0e308;
+
             /// @brief The value both bounds of the degenerate uniform test share.
             constexpr double K_DEGENERATE_BOUND = 2.5;
+
             /// @brief Decimal places to_string prints in the transposed-view test.
             constexpr int K_PRINT_PRECISION = 1;
+
+            /** @brief Names one Bernoulli probability and the only value it can draw. */
+            struct BernoulliRow
+            {
+                /** @brief The row name, which gtest takes as the suffix of the test. */
+                std::string name;
+
+                /** @brief The probability of a one. */
+                double probability;
+
+                /** @brief The value every draw takes. */
+                float expected;
+            };
+
+            /** @brief Names a row by its name. */
+            std::string bernoulli_row_name(const ::testing::TestParamInfo<BernoulliRow>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
 
         /** @brief Supplies an engine and removes the files a test wrote. */
@@ -95,55 +106,16 @@ namespace SushiBLAS
                     return t;
                 }
 
+                /** @brief Expects every element of a FLOAT32 tensor to equal value. */
+                static void expect_every_element(const Tensor& t, float value)
+                {
+                    expect_tensor_equal(t, std::vector<float>(static_cast<size_t>(t.num_elements), value));
+                }
+
             private:
                 /// @brief Lists the files this test created.
                 std::vector<std::string> paths_;
         };
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, GeometryWithZeroStrideIsRefused)
-        {
-            auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
-            auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Float32);
-
-            Spatial::ConvGeometry g;
-            g.kernel_h = 2;
-            g.kernel_w = 2;
-            g.stride_h = 0;
-
-            EXPECT_THROW(
-                SushiBLAS::SpatialOps(recorder()).pool_avg(in, out, g),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, PoolingWindowMadeOnlyOfPaddingIsRefused)
-        {
-            // Window 0 covers rows -2 and -1 of a 2-row input: both taps are padding.
-            auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
-            auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Float32);
-            auto indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
-
-            Spatial::ConvGeometry g;
-            g.kernel_h = 2;
-            g.kernel_w = 2;
-            g.pad_top = 2;
-
-            EXPECT_THROW(
-                SushiBLAS::SpatialOps(recorder()).pool_max(in, out, indices, g),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxRefusesAStridedIndexTensor)
-        {
-            auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-            auto dense = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
-            auto indices = dense.transpose(1, 2);
-
-            EXPECT_THROW(
-                SushiBLAS::SpatialOps(recorder())
-                    .pool_max(in, out, indices, Spatial::ConvGeometry{}),
-                std::invalid_argument);
-        }
 
         TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxPropagatesANaNTap)
         {
@@ -162,37 +134,6 @@ namespace SushiBLAS
 
             EXPECT_TRUE(std::isnan(out.data_as<float>()[0]));
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_NAN_INDEX);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, PoissonRefusesALambdaAboveTheCap)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).poisson(t, K_LAMBDA_ABOVE_CAP),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, PoissonRefusesANegativeLambda)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).poisson(t, K_LAMBDA_NEGATIVE),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxBackwardRefusesATransposedOutputGradient)
-        {
-            auto dense = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-            const Tensor dy = dense.transpose(1, 2);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
-            auto dx = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-
-            EXPECT_THROW(
-                SushiBLAS::SpatialOps(recorder()).pool_max_backward(
-                    dy, indices, dx, Spatial::ConvGeometry{}),
-                std::invalid_argument);
         }
 
         TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxOfAnAllNegativeInfinityWindowIsNegativeInfinity)
@@ -214,66 +155,26 @@ namespace SushiBLAS
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_FIRST_TAP_INDEX);
         }
 
-        TEST_F(Medium_SpatialRandomIOValidationTest, BernoulliWithZeroProbabilityFillsZeros)
+        /// @brief Draws a Bernoulli fill at one edge probability per row.
+        class Medium_BernoulliEdge : public Medium_SpatialRandomIOValidationTest,
+                                     public ::testing::WithParamInterface<BernoulliRow> {};
+
+        /// @brief Tests that a Bernoulli fill at probability 0 or 1 draws only that value.
+        TEST_P(Medium_BernoulliEdge, FillsOnlyTheValueTheProbabilityNames)
         {
             auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::Float32);
 
             SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(K_BERNOULLI_SEED);
-            SushiBLAS::RandomOps(recorder(), engine->rng()).bernoulli(t, 0.0);
+            SushiBLAS::RandomOps(recorder(), engine->rng()).bernoulli(t, GetParam().probability);
             recording->run().value();
 
-            const float* p = t.data_as<float>();
-            for (int64_t i = 0; i < K_BERNOULLI_DRAWS; ++i)
-                ASSERT_EQ(p[i], 0.0f) << "at index " << i;
+            expect_every_element(t, GetParam().expected);
         }
 
-        TEST_F(Medium_SpatialRandomIOValidationTest, BernoulliWithUnitProbabilityFillsOnes)
-        {
-            auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::Float32);
-
-            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(K_BERNOULLI_SEED);
-            SushiBLAS::RandomOps(recorder(), engine->rng()).bernoulli(t, 1.0);
-            recording->run().value();
-
-            const float* p = t.data_as<float>();
-            for (int64_t i = 0; i < K_BERNOULLI_DRAWS; ++i)
-                ASSERT_EQ(p[i], 1.0f) << "at index " << i;
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesBoundsOutOfOrder)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-
-            EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-                .uniform(t, 1.0, 0.0), std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesANonFiniteBound)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float64);
-            const double inf = std::numeric_limits<double>::infinity();
-            const double nan = std::numeric_limits<double>::quiet_NaN();
-
-            EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-                .uniform(t, 0.0, inf), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-                .uniform(t, nan, 1.0), std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesAWidthThatOverflowsTheDtype)
-        {
-            auto single = engine->create_tensor({4}, Core::DataType::Float32);
-            auto wide = engine->create_tensor({4}, Core::DataType::Float64);
-
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(
-                    single, -K_LARGE_FLOAT_BOUND, K_LARGE_FLOAT_BOUND),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(
-                    wide, -K_LARGE_DOUBLE_BOUND, K_LARGE_DOUBLE_BOUND),
-                std::invalid_argument);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            Probabilities, Medium_BernoulliEdge,
+            ::testing::Values(BernoulliRow{"Zero", 0.0, 0.0f}, BernoulliRow{"One", 1.0, 1.0f}),
+            bernoulli_row_name);
 
         TEST_F(Medium_SpatialRandomIOValidationTest, UniformWithEqualBoundsFillsThatBound)
         {
@@ -283,39 +184,7 @@ namespace SushiBLAS
                 .uniform(t, K_DEGENERATE_BOUND, K_DEGENERATE_BOUND);
             recording->run().value();
 
-            const float* p = t.data_as<float>();
-            for (int64_t i = 0; i < t.num_elements; ++i)
-                ASSERT_EQ(p[i], static_cast<float>(K_DEGENERATE_BOUND)) << "at index " << i;
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, DiscreteUniformIntoFloat32RefusesBoundsPastTwoToTheTwentyFour)
-        {
-            auto t = engine->create_tensor({4}, Core::DataType::Float32);
-
-            EXPECT_NO_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).discrete_uniform(
-                    t, -K_FLOAT32_EXACT_LIMIT, K_FLOAT32_EXACT_LIMIT));
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng())
-                    .discrete_uniform(t, 0, K_FLOAT32_EXACT_LIMIT + 1),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng())
-                    .discrete_uniform(t, -K_FLOAT32_EXACT_LIMIT - 1, 0),
-                std::invalid_argument);
-        }
-
-        TEST_F(Medium_SpatialRandomIOValidationTest, IntegerValuedFillsRefuseAComplexTensor)
-        {
-            auto z = engine->create_tensor({4}, Core::DataType::Complex32);
-
-            EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-                .poisson(z, 1.0), std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(recorder(), engine->rng()).discrete_uniform(z, 0, 10),
-                std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
-                .bernoulli(z, 0.5), std::invalid_argument);
+            expect_every_element(t, static_cast<float>(K_DEGENERATE_BOUND));
         }
 
         TEST_F(Medium_SpatialRandomIOValidationTest, ToStringReadsATransposedViewThroughItsStrides)
