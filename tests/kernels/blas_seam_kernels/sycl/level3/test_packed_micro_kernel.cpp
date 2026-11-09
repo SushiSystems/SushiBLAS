@@ -202,6 +202,41 @@ namespace SushiBLAS
                                 set_sum(i, j, draw());
                     }
 
+                    /**
+                     * @brief Fills depth slices of both factors and the tile with small
+                     *        integers that follow a fixed pattern.
+                     */
+                    void fill_patterned(int64_t depth) noexcept
+                    {
+                        for (int64_t l = 0; l < depth; ++l)
+                        {
+                            for (int64_t i = 0; i < Block::K_ROWS; ++i)
+                                set_a(l, i, value_of<W>(static_cast<R>((l + 2 * i) % 5 - 2),
+                                                        static_cast<R>((2 * l + i) % 3 - 1)));
+                            for (int64_t j = 0; j < Block::K_COLS; ++j)
+                                set_b(l, j, value_of<W>(static_cast<R>((3 * l + j) % 7 - 3),
+                                                        static_cast<R>((l + 2 * j) % 5 - 2)));
+                        }
+                        for (int64_t i = 0; i < Block::K_ROWS; ++i)
+                            for (int64_t j = 0; j < Block::K_COLS; ++j)
+                                set_sum(i, j, value_of<W>(static_cast<R>(10 * i + j + 1),
+                                                          static_cast<R>(-(i + j + 1))));
+                    }
+
+                    /**
+                     * @brief Sets row 0 of the first factor to (2^p, 1, -2^p) over three slices,
+                     *        where 2^p absorbs a 1, and every element of the second factor to 1.
+                     */
+                    void fill_cancelling(R absorbing) noexcept
+                    {
+                        set_a(0, 0, value_of<W>(absorbing, absorbing));
+                        set_a(1, 0, value_of<W>(R(1), R(1)));
+                        set_a(2, 0, value_of<W>(-absorbing, -absorbing));
+                        for (int64_t l = 0; l < 3; ++l)
+                            for (int64_t j = 0; j < Block::K_COLS; ++j)
+                                set_b(l, j, value_of<W>(R(1), R(0)));
+                    }
+
                     /** @brief Runs the micro-kernel over the first depth slices. */
                     void run(int64_t depth) noexcept
                     {
@@ -270,90 +305,104 @@ namespace SushiBLAS
                         ++mismatches;
                 return mismatches;
             }
-        }
+
+            /** @brief Expects the first row of the tile to hold zeros in every column. */
+            template<typename W>
+            void expect_first_row_is_zero(const MicroProblem<W>& problem)
+            {
+                using Block = Kernels::PackedRegisterBlock<W>;
+
+                for (int64_t j = 0; j < Block::K_COLS; ++j)
+                    EXPECT_EQ(problem.sum(0, j), W(0)) << "column " << j;
+            }
+
+            /** @brief Expects every sum of the tile to equal the expected sums, value by value. */
+            template<typename W>
+            void expect_tile_equals(const MicroProblem<W>& problem,
+                                    const typename MicroProblem<W>::Sums& expected)
+            {
+                using Block = Kernels::PackedRegisterBlock<W>;
+
+                for (int64_t i = 0; i < Block::K_ROWS; ++i)
+                    for (int64_t j = 0; j < Block::K_COLS; ++j)
+                        EXPECT_EQ(problem.sum(i, j),
+                                  expected[static_cast<std::size_t>(i * Block::K_COLS + j)])
+                            << "row " << i << ", column " << j;
+            }
+        } // namespace
 
         /**
          * @brief Names the accumulation type a micro-kernel runs in.
          * @tparam W float, double or the std::complex of either.
          */
         template<typename W>
-        class Medium_PackedMicroKernel : public ::testing::Test
+        class Small_PackedMicroKernel : public ::testing::Test
         {
 
         };
 
         using PackedMicroKernelTypes =
             ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_PackedMicroKernel, PackedMicroKernelTypes);
+        SB_TYPED_TEST_SUITE(Small_PackedMicroKernel, PackedMicroKernelTypes);
 
         /** @brief Tests that every sum gains the outer products of the slices, exactly. */
-        TYPED_TEST(Medium_PackedMicroKernel, TheTileGainsTheOuterProducts)
+        TYPED_TEST(Small_PackedMicroKernel, TheTileGainsTheOuterProducts)
         {
             using W = TypeParam;
-            using R = Kernels::RealType<W>;
-            using Block = Kernels::PackedRegisterBlock<W>;
 
             MicroProblem<W> problem;
-            for (int64_t l = 0; l < K_SHORT_DEPTH; ++l)
-            {
-                for (int64_t i = 0; i < Block::K_ROWS; ++i)
-                    problem.set_a(l, i, value_of<W>(static_cast<R>((l + 2 * i) % 5 - 2),
-                                                    static_cast<R>((2 * l + i) % 3 - 1)));
-                for (int64_t j = 0; j < Block::K_COLS; ++j)
-                    problem.set_b(l, j, value_of<W>(static_cast<R>((3 * l + j) % 7 - 3),
-                                                    static_cast<R>((l + 2 * j) % 5 - 2)));
-            }
-            for (int64_t i = 0; i < Block::K_ROWS; ++i)
-                for (int64_t j = 0; j < Block::K_COLS; ++j)
-                    problem.set_sum(i, j, value_of<W>(static_cast<R>(10 * i + j + 1),
-                                                      static_cast<R>(-(i + j + 1))));
-
+            problem.fill_patterned(K_SHORT_DEPTH);
             const auto expected = problem.expected_sums(K_SHORT_DEPTH);
             problem.run(K_SHORT_DEPTH);
 
-            for (int64_t i = 0; i < Block::K_ROWS; ++i)
-                for (int64_t j = 0; j < Block::K_COLS; ++j)
-                    EXPECT_EQ(problem.sum(i, j),
-                              expected[static_cast<std::size_t>(i * Block::K_COLS + j)])
-                        << "row " << i << ", column " << j;
+            expect_tile_equals(problem, expected);
         }
 
         /** @brief Tests that term l is added before term l + 1, in each part of a sum. */
-        TYPED_TEST(Medium_PackedMicroKernel, TheTermsAreAddedInAscendingOrder)
+        TYPED_TEST(Small_PackedMicroKernel, TheTermsAreAddedInAscendingOrder)
         {
             using W = TypeParam;
             using R = Kernels::RealType<W>;
-            using Block = Kernels::PackedRegisterBlock<W>;
 
             const R absorbing = std::ldexp(R(1), std::is_same_v<R, float>
                                                      ? K_FLOAT_ABSORBING_EXPONENT
                                                      : K_DOUBLE_ABSORBING_EXPONENT);
 
             MicroProblem<W> cancelling;
-            cancelling.set_a(0, 0, value_of<W>(absorbing, absorbing));
-            cancelling.set_a(1, 0, value_of<W>(R(1), R(1)));
-            cancelling.set_a(2, 0, value_of<W>(-absorbing, -absorbing));
-            for (int64_t l = 0; l < 3; ++l)
-                for (int64_t j = 0; j < Block::K_COLS; ++j)
-                    cancelling.set_b(l, j, value_of<W>(R(1), R(0)));
+            cancelling.fill_cancelling(absorbing);
             cancelling.run(3);
 
-            for (int64_t j = 0; j < Block::K_COLS; ++j)
-                EXPECT_EQ(cancelling.sum(0, j), W(0)) << "column " << j;
+            expect_first_row_is_zero(cancelling);
+        }
 
-            if constexpr (!Core::is_complex_v<W>)
-            {
-                MicroProblem<W> problem;
-                problem.fill_uniform(K_BARE_PRODUCT_SEED, K_MAX_DEPTH);
-                const auto expected = problem.expected_sums(K_MAX_DEPTH);
-                problem.run(K_MAX_DEPTH);
+        /**
+         * @brief Names the real accumulation type a micro-kernel runs in.
+         * @tparam W float or double.
+         */
+        template<typename W>
+        class Small_PackedMicroKernelReal : public ::testing::Test
+        {
 
-                EXPECT_EQ(count_bit_mismatches(problem.sums(), expected), std::size_t{0});
-            }
+        };
+
+        using PackedMicroKernelRealTypes = ::testing::Types<float, double>;
+        SB_TYPED_TEST_SUITE(Small_PackedMicroKernelReal, PackedMicroKernelRealTypes);
+
+        /** @brief Tests that a real tile equals the bare product sum, bit for bit. */
+        TYPED_TEST(Small_PackedMicroKernelReal, TheTilesOfARealTypeEqualTheBareProductSum)
+        {
+            using W = TypeParam;
+
+            MicroProblem<W> problem;
+            problem.fill_uniform(K_BARE_PRODUCT_SEED, K_MAX_DEPTH);
+            const auto expected = problem.expected_sums(K_MAX_DEPTH);
+            problem.run(K_MAX_DEPTH);
+
+            EXPECT_EQ(count_bit_mismatches(problem.sums(), expected), std::size_t{0});
         }
 
         /** @brief Tests that each term is added by Kernels::Detail::multiply_add, to the bit. */
-        TYPED_TEST(Medium_PackedMicroKernel, EachTermIsAddedByTheFusedMultiplyAdd)
+        TYPED_TEST(Small_PackedMicroKernel, EachTermIsAddedByTheFusedMultiplyAdd)
         {
             using W = TypeParam;
 
@@ -366,7 +415,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a depth of zero leaves every bit of the tile. */
-        TYPED_TEST(Medium_PackedMicroKernel, ADepthOfZeroLeavesTheTile)
+        TYPED_TEST(Small_PackedMicroKernel, ADepthOfZeroLeavesTheTile)
         {
             using W = TypeParam;
 
@@ -379,7 +428,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the real after the tile is left alone. */
-        TYPED_TEST(Medium_PackedMicroKernel, NothingIsWrittenPastTheTile)
+        TYPED_TEST(Small_PackedMicroKernel, NothingIsWrittenPastTheTile)
         {
             using W = TypeParam;
             using R = Kernels::RealType<W>;
