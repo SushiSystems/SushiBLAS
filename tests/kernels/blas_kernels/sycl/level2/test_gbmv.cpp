@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,42 +46,48 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs gbmv on the host CPU queue. */
-        class Medium_SYCLGbmv : public HostDeviceTest
+        /// @brief Names a row after its layout and its transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+        {
+            return layout_transpose_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs gbmv on the host CPU queue, one layout and transpose at a time.
+        class Medium_SYCLGbmv : public HostDeviceTest,
+                                public ::testing::WithParamInterface<std::tuple<bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLGbmv, MatchesTheReferenceInEveryLayoutAndTranspose)
+        /// @brief Tests that the SYCL gbmv matches the reference in one layout and transpose.
+        TEST_P(Medium_SYCLGbmv, MatchesTheReferenceInEveryLayoutAndTranspose)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool transposed = std::get<1>(GetParam());
             const int64_t m = 41;
             const int64_t n = 29;
             const int64_t kl = 3;
             const int64_t ku = 5;
             const int64_t ld = kl + ku + 1;
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                const int64_t lines = (layout == Core::Layout::ColumnMajor) ? n : m;
-                const std::vector<double> band = small_integers<double>(lines * ld, 1);
-                const SharedArray<double> device_band(queue(), band);
-                for (const bool transposed : {false, true})
-                {
-                    SCOPED_TRACE(transposed);
-                    const std::vector<double> x = small_integers<double>(transposed ? m : n, 2);
-                    std::vector<double> y = small_integers<double>(transposed ? n : m, 3);
-                    const SharedArray<double> device_x(queue(), x);
-                    SharedArray<double> device_y(queue(), y);
+            const int64_t lines = (layout == Core::Layout::ColumnMajor) ? n : m;
+            const std::vector<double> band = small_integers<double>(lines * ld, 1);
+            const SharedArray<double> device_band(queue(), band);
+            const std::vector<double> x = small_integers<double>(transposed ? m : n, 2);
+            std::vector<double> y = small_integers<double>(transposed ? n : m, 3);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> device_y(queue(), y);
 
-                    Kernels::SYCL::gbmv(queue(), layout, transpose_of(transposed), m, n, kl, ku,
-                                        2.0, device_band.get(), ld, device_x.get(), 1, -1.0,
-                                        device_y.get(), 1, {}).wait();
-                    Kernels::Reference::gbmv(layout, transpose_of(transposed), m, n, kl, ku, 2.0,
-                                             band.data(), ld, x.data(), 1, -1.0, y.data(), 1);
+            Kernels::SYCL::gbmv(queue(), layout, transpose_of(transposed), m, n, kl, ku, 2.0,
+                                device_band.get(), ld, device_x.get(), 1, -1.0, device_y.get(), 1,
+                                {}).wait();
+            Kernels::Reference::gbmv(layout, transpose_of(transposed), m, n, kl, ku, 2.0,
+                                     band.data(), ld, x.data(), 1, -1.0, y.data(), 1);
 
-                    EXPECT_EQ(device_y.values(), y);
-                }
-            }
+            EXPECT_EQ(device_y.values(), y);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTransposes, Medium_SYCLGbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS

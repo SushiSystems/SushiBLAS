@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -50,58 +52,59 @@ namespace SushiBLAS
         /// @brief Columns of the matrix.
         constexpr int64_t K_COLUMNS = 53;
 
-        /** @brief Runs gemv on the host CPU queue. */
-        class Medium_SYCLGemv : public HostDeviceTest
+        /// @brief Names a row after its layout and its transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_transpose_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
 
-        };
-
-        TEST_F(Medium_SYCLGemv, MatchesTheReferenceInEveryLayoutAndTranspose)
+        /// @brief Runs gemv on the host CPU queue, one layout and transpose at a time.
+        class Medium_SYCLGemv : public HostDeviceTest,
+                                public ::testing::WithParamInterface<std::tuple<bool, bool>>
         {
-            // Every operand is a small integer, so both kernels compute without rounding.
-            const std::vector<double> a = small_integers<double>(K_ROWS * K_COLUMNS, 1);
-            const SharedArray<double> device_a(queue(), a);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool transposed : {false, true})
+            protected:
+                /**
+                 * @brief Checks the SYCL gemv of element type T against the reference for the row.
+                 * @details Every operand is a small integer, so both kernels compute without rounding.
+                 */
+                template<typename T>
+                void expect_matches_the_reference()
                 {
-                    SCOPED_TRACE(transposed);
+                    const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+                    const bool transposed = std::get<1>(GetParam());
+                    const std::vector<T> a = small_integers<T>(K_ROWS * K_COLUMNS, 1);
+                    const SharedArray<T> device_a(queue(), a);
                     const int64_t in_length = transposed ? K_ROWS : K_COLUMNS;
                     const int64_t out_length = transposed ? K_COLUMNS : K_ROWS;
                     const int64_t lda = (layout == Core::Layout::RowMajor) ? K_COLUMNS : K_ROWS;
-                    const std::vector<double> x = small_integers<double>(2 * in_length, 2);
-                    std::vector<double> y = small_integers<double>(out_length, 3);
-                    const SharedArray<double> device_x(queue(), x);
-                    SharedArray<double> device_y(queue(), y);
+                    const std::vector<T> x = small_integers<T>(2 * in_length, 2);
+                    std::vector<T> y = small_integers<T>(out_length, 3);
+                    const SharedArray<T> device_x(queue(), x);
+                    SharedArray<T> device_y(queue(), y);
 
                     Kernels::SYCL::gemv(queue(), layout, transpose_of(transposed), K_ROWS,
-                                        K_COLUMNS, 3.0, device_a.get(), lda, device_x.get(), 2,
-                                        -2.0, device_y.get(), 1, {}).wait();
+                                        K_COLUMNS, T(3), device_a.get(), lda, device_x.get(), 2,
+                                        T(-2), device_y.get(), 1, {}).wait();
                     Kernels::Reference::gemv(layout, transpose_of(transposed), K_ROWS, K_COLUMNS,
-                                             3.0, a.data(), lda, x.data(), 2, -2.0, y.data(), 1);
+                                             T(3), a.data(), lda, x.data(), 2, T(-2), y.data(), 1);
 
                     EXPECT_EQ(device_y.values(), y);
                 }
-            }
-        }
+        };
 
-        TEST_F(Medium_SYCLGemv, FloatMatchesTheReferenceToo)
+        /// @brief Tests that the SYCL gemv of doubles matches the reference in one layout and transpose.
+        TEST_P(Medium_SYCLGemv, MatchesTheReferenceInEveryLayoutAndTranspose)
         {
-            const std::vector<float> a = small_integers<float>(K_ROWS * K_COLUMNS, 4);
-            const std::vector<float> x = small_integers<float>(K_COLUMNS, 5);
-            std::vector<float> y(K_ROWS, 0.0f);
-            const SharedArray<float> device_a(queue(), a);
-            const SharedArray<float> device_x(queue(), x);
-            SharedArray<float> device_y(queue(), y);
-
-            Kernels::SYCL::gemv(queue(), Core::Layout::RowMajor, Core::Transpose::NoTrans,
-                                K_ROWS, K_COLUMNS, 1.0f, device_a.get(), K_COLUMNS,
-                                device_x.get(), 1, 0.0f, device_y.get(), 1, {}).wait();
-            Kernels::Reference::gemv(Core::Layout::RowMajor, Core::Transpose::NoTrans, K_ROWS,
-                                     K_COLUMNS, 1.0f, a.data(), K_COLUMNS, x.data(), 1, 0.0f,
-                                     y.data(), 1);
-
-            EXPECT_EQ(device_y.values(), y);
+            expect_matches_the_reference<double>();
         }
+
+        /// @brief Tests that the SYCL gemv of floats matches the reference in one layout and transpose.
+        TEST_P(Medium_SYCLGemv, FloatMatchesTheReferenceInEveryLayoutAndTranspose)
+        {
+            expect_matches_the_reference<float>();
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTransposes, Medium_SYCLGemv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS

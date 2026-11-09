@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,35 +46,40 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs spr2 on the host CPU queue. */
-        class Medium_SYCLSpr2 : public HostDeviceTest
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+        {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs spr2 on the host CPU queue, one layout and triangle at a time.
+        class Medium_SYCLSpr2 : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLSpr2, MatchesTheReferenceForBothTrianglesAndLayouts)
+        /// @brief Tests that the SYCL spr2 matches the reference for one layout and triangle.
+        TEST_P(Medium_SYCLSpr2, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 36;
             const std::vector<double> x = small_integers<double>(n, 2);
             const std::vector<double> y = small_integers<double>(n, 3);
             const SharedArray<double> device_x(queue(), x);
             const SharedArray<double> device_y(queue(), y);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> packed = small_integers<double>(n * (n + 1) / 2, 1);
-                    SharedArray<double> device_packed(queue(), packed);
+            std::vector<double> packed = small_integers<double>(n * (n + 1) / 2, 1);
+            SharedArray<double> device_packed(queue(), packed);
 
-                    Kernels::SYCL::spr2(queue(), layout, uplo_of(upper), n, 2.0, device_x.get(),
-                                        1, device_y.get(), 1, device_packed.get(), {}).wait();
-                    Kernels::Reference::spr2(layout, uplo_of(upper), n, 2.0, x.data(), 1,
-                                             y.data(), 1, packed.data());
+            Kernels::SYCL::spr2(queue(), layout, uplo_of(upper), n, 2.0, device_x.get(),
+                                1, device_y.get(), 1, device_packed.get(), {}).wait();
+            Kernels::Reference::spr2(layout, uplo_of(upper), n, 2.0, x.data(), 1,
+                                     y.data(), 1, packed.data());
 
-                    EXPECT_EQ(device_packed.values(), packed);
-                }
-            }
+            EXPECT_EQ(device_packed.values(), packed);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Medium_SYCLSpr2,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS

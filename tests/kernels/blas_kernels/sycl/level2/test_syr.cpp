@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,33 +46,38 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs syr on the host CPU queue. */
-        class Medium_SYCLSyr : public HostDeviceTest
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+        {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs syr on the host CPU queue, one layout and triangle at a time.
+        class Medium_SYCLSyr : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLSyr, MatchesTheReferenceForBothTrianglesAndLayouts)
+        /// @brief Tests that the SYCL syr matches the reference for one layout and triangle.
+        TEST_P(Medium_SYCLSyr, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 43;
             const std::vector<double> x = small_integers<double>(n, 2);
             const SharedArray<double> device_x(queue(), x);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> a = small_integers<double>(n * n, 1);
-                    SharedArray<double> device_a(queue(), a);
+            std::vector<double> a = small_integers<double>(n * n, 1);
+            SharedArray<double> device_a(queue(), a);
 
-                    Kernels::SYCL::syr(queue(), layout, uplo_of(upper), n, 2.0, device_x.get(),
-                                       1, device_a.get(), n, {}).wait();
-                    Kernels::Reference::syr(layout, uplo_of(upper), n, 2.0, x.data(), 1, a.data(),
-                                            n);
+            Kernels::SYCL::syr(queue(), layout, uplo_of(upper), n, 2.0, device_x.get(),
+                               1, device_a.get(), n, {}).wait();
+            Kernels::Reference::syr(layout, uplo_of(upper), n, 2.0, x.data(), 1, a.data(),
+                                    n);
 
-                    EXPECT_EQ(device_a.values(), a);
-                }
-            }
+            EXPECT_EQ(device_a.values(), a);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Medium_SYCLSyr,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS

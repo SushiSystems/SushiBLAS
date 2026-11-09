@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -44,14 +46,23 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs sbmv on the host CPU queue. */
-        class Medium_SYCLSbmv : public HostDeviceTest
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+        {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs sbmv on the host CPU queue, one layout and triangle at a time.
+        class Medium_SYCLSbmv : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLSbmv, MatchesTheReferenceForBothTrianglesAndLayouts)
+        /// @brief Tests that the SYCL sbmv matches the reference for one layout and triangle.
+        TEST_P(Medium_SYCLSbmv, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 39;
             const int64_t k = 4;
             const int64_t ld = k + 1;
@@ -59,23 +70,19 @@ namespace SushiBLAS
             const std::vector<double> x = small_integers<double>(n, 2);
             const SharedArray<double> device_band(queue(), band);
             const SharedArray<double> device_x(queue(), x);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> y = small_integers<double>(n, 3);
-                    SharedArray<double> device_y(queue(), y);
+            std::vector<double> y = small_integers<double>(n, 3);
+            SharedArray<double> device_y(queue(), y);
 
-                    Kernels::SYCL::sbmv(queue(), layout, uplo_of(upper), n, k, -1.0,
-                                        device_band.get(), ld, device_x.get(), 1, 2.0,
-                                        device_y.get(), 1, {}).wait();
-                    Kernels::Reference::sbmv(layout, uplo_of(upper), n, k, -1.0, band.data(), ld,
-                                             x.data(), 1, 2.0, y.data(), 1);
+            Kernels::SYCL::sbmv(queue(), layout, uplo_of(upper), n, k, -1.0,
+                                device_band.get(), ld, device_x.get(), 1, 2.0,
+                                device_y.get(), 1, {}).wait();
+            Kernels::Reference::sbmv(layout, uplo_of(upper), n, k, -1.0, band.data(), ld,
+                                     x.data(), 1, 2.0, y.data(), 1);
 
-                    EXPECT_EQ(device_y.values(), y);
-                }
-            }
+            EXPECT_EQ(device_y.values(), y);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Medium_SYCLSbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
