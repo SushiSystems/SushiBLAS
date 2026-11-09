@@ -15,9 +15,11 @@ It depends on `core`. Its headers are included as `<SushiBLAS/blas_test_oracle/<
 ## blas_flags.hpp
 
 The BLAS suites are parameterised over `bool` values (transposed or not, upper or lower), and the
-public API takes `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`. The four
-functions here map one to the other: `true` is `Trans`, `Upper`, `Unit` and `Left`. A test names
-the flag it means at the call site and keeps its parameter list.
+public API takes `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`. The first four
+functions here map one to the other: `true` is `Trans`, `Upper`, `Unit` and `Left`, and
+`layout_of` maps `true` to `RowMajor`. A test names the flag it means at the call site and keeps
+its parameter list. `layout_transpose_label` names the row of a layout and transpose pair, such as
+`RowMajorTrans`, for the name generator of a suite instantiated over both.
 
 ## blas_truth.hpp
 
