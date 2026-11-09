@@ -27,29 +27,35 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
 #include <complex>
+#include <utility>
+#include <algorithm>
 #include <type_traits>
 #include <gtest/gtest.h>
-#include <SushiBLAS/tensor/runtime_block.hpp>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
+#include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include "support/tolerance.hpp"
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -57,917 +63,202 @@ namespace SushiBLAS
     {
         using namespace SushiRuntime::Literals;
 
-        template <typename T>
-        class Medium_GEMMTest : public SushiBLASTest
+        /**
+         * @brief Names one product the kernels are run on: the forms of A and B, the extents, the
+         *        batch and the scalars. The layout and the element type come from the row.
+         */
+        struct GemmCase
         {
-            public:
-                /**
-                * @brief Differential check of the SYCL kernel against the reference one.
-                *
-                * The reference kernel is this operation's specification, so every shape
-                * below is judged against it rather than against a stored expectation.
-                * What that cannot catch is a defect the two implementations share - see
-                * Medium_GEMMKernelTest for the absolute, hand-computed pins that can.
-                */
-                void expect_accuracy(int64_t m, int64_t n, int64_t k,
-                                   Core::Layout layout = Core::Layout::RowMajor,
-                                   bool transA = false, bool transB = false,
-                                   double alpha = 1.0, double beta = 0.0)
-                {
-                    reinit_engine(layout);
+            Core::Transpose trans_a; /**< How A is read. */
+            Core::Transpose trans_b; /**< How B is read. */
+            int64_t m;               /**< Rows of C. */
+            int64_t n;               /**< Columns of C. */
+            int64_t k;               /**< Depth of the product. */
+            int64_t batch;           /**< Products in the batch, stored back to back. */
+            double alpha;            /**< Scale of the product. */
+            double beta;             /**< Scale of the old C; exactly zero never reads it. */
+        };
 
-                    const auto dtype = sushiblas_dtype<T>();
+        /** @brief Returns the tail of a row named by the product it runs. */
+        [[nodiscard]] inline std::string axis_name(const GemmCase& c)
+        {
+            std::string name = "_" + word(c.trans_a) + "_" + word(c.trans_b) + "_" +
+                               std::to_string(c.m) + "x" + std::to_string(c.n) + "x" +
+                               std::to_string(c.k);
+            if (c.batch > 1)
+                name += "_b" + std::to_string(c.batch);
+            if (c.alpha != 1.0)
+                name += "_scaled";
+            if (c.beta == 0.0)
+                name += "_beta0";
+            return name;
+        }
 
-                    // op(A) is m x k and op(B) is k x n; a set flag stores the transpose.
-                    const int64_t a_rows = transA ? k : m;
-                    const int64_t a_cols = transA ? m : k;
-                    const int64_t b_rows = transB ? n : k;
-                    const int64_t b_cols = transB ? k : n;
+        /**
+         * @brief A deliberately non-trivial epilogue: two broadcasts and a clamp.
+         *
+         * The per-row and per-column terms prove both coordinates reach the functor, and the
+         * clamp makes it non-linear, so it cannot be absorbed into alpha or beta.
+         */
+        struct BiasReLUEpilogue
+        {
+            /** @brief One value per row of C, broadcast across its columns. */
+            const float* row_bias;
 
-                    auto A = engine->create_tensor({a_rows, a_cols}, dtype);
-                    auto B = engine->create_tensor({b_rows, b_cols}, dtype);
-                    auto C_actual = engine->create_tensor({m, n}, dtype);
-                    auto C_expected = engine->create_tensor({m, n}, dtype);
+            /** @brief One value per column of C, broadcast down its rows. */
+            const float* col_bias;
 
-                    fill_random<T>(A);
-                    fill_random<T>(B);
+            /**
+             * @brief Adds both biases to value and clamps the result at zero.
+             * @return max(value + row_bias[row] + col_bias[col], 0).
+             */
+            template<typename T>
+            [[nodiscard]] T operator()(T value, int64_t row, int64_t col) const noexcept
+            {
+                const T biased = value + static_cast<T>(row_bias[row]) + static_cast<T>(col_bias[col]);
+                return biased > T(0) ? biased : T(0);
+            }
+        };
 
-                    // Both C buffers must start identical. See tests/operations/blas/README.md.
-                    seed_output(C_actual, C_expected, beta == 0.0);
+        /** @brief A per-column bias add, the shape a fused Linear layer uses. */
+        struct BiasColumnEpilogue
+        {
+            /** @brief One value per column of C, broadcast down its rows. */
+            const float* bias;
 
-                    set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, transpose_of(transA),
-                                                     transpose_of(transB), alpha, beta);
-                    recording->run().value();
+            /**
+             * @brief Adds the bias of the column to value.
+             * @return value + bias[col].
+             */
+            template<typename T>
+            [[nodiscard]] T operator()(T value, int64_t, int64_t col) const noexcept
+            {
+                return value + static_cast<T>(bias[col]);
+            }
+        };
 
-                    set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, transpose_of(transA),
-                                                     transpose_of(transB), alpha, beta);
-                    recording->run().value();
+        /** @brief Adds a bias and also writes its result to an auxiliary buffer. */
+        struct BiasSpillEpilogue
+        {
+            /** @brief One value per column of C. */
+            const float* bias;
 
-                    SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
-                }
+            /** @brief Row-major spill buffer, the same extents as C. */
+            float* aux;
 
-                /**
-                * @brief The same differential check over a batch of matrices.
-                *
-                * Distinct m, n and k give the three operands three distinct batch
-                * strides, which is what makes this exercise the stride arithmetic rather
-                * than a single shared step.
-                */
-                void expect_batched(int64_t batch, int64_t m, int64_t n, int64_t k,
-                                  double alpha = 1.0, double beta = 0.0)
-                {
-                    reinit_engine(Core::Layout::RowMajor);
+            /** @brief Column count of C, so the epilogue can address aux. */
+            int64_t columns;
 
-                    const auto dtype = sushiblas_dtype<T>();
+            /**
+             * @brief Adds the bias, spills the result and returns it.
+             * @return value + bias[col].
+             */
+            template<typename T>
+            T operator()(T value, int64_t row, int64_t col) const
+            {
+                const T pre = value + static_cast<T>(bias[col]);
+                aux[row * columns + col] = static_cast<float>(pre);
+                return pre;
+            }
+        };
 
-                    auto A = engine->create_tensor({batch, m, k}, dtype);
-                    auto B = engine->create_tensor({batch, k, n}, dtype);
-                    auto C_actual = engine->create_tensor({batch, m, n}, dtype);
-                    auto C_expected = engine->create_tensor({batch, m, n}, dtype);
+        namespace
+        {
+            using Core::DataType;
+            using Core::Layout;
+            using Core::Transpose;
 
-                    fill_random<T>(A);
-                    fill_random<T>(B);
-                    seed_output(C_actual, C_expected, beta == 0.0);
+            /**
+             * @brief Magnitude of one product of two entries drawn from [-1, 1] in both parts: the
+             *        bound of |a| * |b| for complex entries of modulus at most 2^(1/2).
+             */
+            constexpr double K_ENTRY_PRODUCT_MAGNITUDE = 2.0;
 
-                    set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, Core::Transpose::NoTrans,
-                                                     Core::Transpose::NoTrans, alpha, beta);
-                    recording->run().value();
+            /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
+            constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
 
-                    set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, Core::Transpose::NoTrans,
-                                                     Core::Transpose::NoTrans, alpha, beta);
-                    recording->run().value();
+            /// @brief Rounded operations on the path to a HALF result: the sum is carried in FLOAT32.
+            constexpr std::size_t K_HALF_ROUNDINGS = 2;
 
-                    SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
-                }
-
-            private:
-                /**
-                * @brief Gives both output tensors the same starting contents.
-                *
-                * @param actual The buffer the SYCL kernel writes.
-                * @param expected The buffer the reference kernel writes.
-                * @param poison Whether to fill with a value that must never survive -
-                *        used when beta is zero, where reading C at all is a defect.
-                */
-                void seed_output(Tensor& actual, Tensor& expected, bool poison)
-                {
-                    if (poison)
-                    {
-                        // A read of C at beta == 0 yields NaN. See tests/operations/blas/README.md.
-                        const std::vector<float> nans(
-                            static_cast<std::size_t>(actual.num_elements),
-                            std::numeric_limits<float>::quiet_NaN());
-                        fill_tensor(actual, nans);
-                        fill_tensor(expected, nans);
-                        return;
-                    }
-
-                    fill_random<T>(actual);
-
-                    auto& q = TestEnvironment::queue();
-                    q.memcpy(expected.data(), actual.data(),
-                             static_cast<std::size_t>(actual.num_elements) * sizeof(T)).wait();
-                }
-
-                /**
-                * @brief A type- and reduction-length-appropriate comparison tolerance.
-                *
-                * The SYCL kernel accumulates in float for half and in T otherwise, the reference in double.
-                * They differ only in summation order, so the gap they can open grows with
-                * the length of the reduction instead of staying fixed. That only matters
-                * for half, which has about three decimal digits to spend in the result.
-                */
-                [[nodiscard]] static double tolerance_for(Core::DataType dtype, int64_t k)
-                {
-                    if (dtype == Core::DataType::Half)
-                        return half_absolute_tolerance(static_cast<std::size_t>(2 * (1 + k / 8)));
-                    return absolute_tolerance<float>(128);
-                }
+            /** @brief Returns the component type of an element type. */
+            template<typename T, bool = Core::is_complex_v<T>>
+            struct ComponentOf
+            {
+                using type = T; /**< The element type of a real tensor. */
             };
 
-            using DataTypes = ::testing::Types<float, double, sycl::half, std::complex<float>, std::complex<double>>;
-            SB_TYPED_TEST_SUITE(Medium_GEMMTest, DataTypes);
-
-            TYPED_TEST(Medium_GEMMTest, SmallMatrix)
+            /** @brief Returns the component type of a complex element type. */
+            template<typename T>
+            struct ComponentOf<T, true>
             {
-                this->expect_accuracy(4, 4, 4);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, SmallMatrixColMajor)
-            {
-                this->expect_accuracy(4, 4, 4, Core::Layout::ColumnMajor);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, Rectangular)
-            {
-                this->expect_accuracy(8, 16, 4);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, RectangularColMajor)
-            {
-                this->expect_accuracy(8, 16, 4, Core::Layout::ColumnMajor);
-            }
-
-            /**
-             * @brief Tests prime extents, which leave the row, column and K tails ragged at once.
-             * @see tests/operations/blas/README.md
-             */
-            TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxis)
-            {
-                this->expect_accuracy(37, 23, 13);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxisColMajor)
-            {
-                this->expect_accuracy(37, 23, 13, Core::Layout::ColumnMajor);
-            }
-
-            /**
-             * @brief Tests a K shorter than one local-memory K-tile under a multi-group output.
-             * @see tests/operations/blas/README.md
-             */
-            TYPED_TEST(Medium_GEMMTest, KShorterThanOneTile)
-            {
-                this->expect_accuracy(40, 40, 3);
-            }
-
-            /**
-             * @brief Tests a small result under a K long enough for the depth-split kernel on a GPU.
-             * @see tests/operations/blas/README.md
-             */
-            TYPED_TEST(Medium_GEMMTest, DeepProduct)
-            {
-                this->expect_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, false,
-                                    1.0 / 4096.0, 0.0);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, DeepProductTransposeB)
-            {
-                this->expect_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, true,
-                                    1.0 / 4096.0, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, DeepProductTransposeBothColMajor)
-            {
-                this->expect_accuracy(9, 4, 4133, Core::Layout::ColumnMajor, true, true,
-                                    1.0 / 4096.0, 0.5);
-            }
-
-            /**
-             * @brief Tests a result wide enough for sixteen column lanes, ragged on both axes.
-             * @see tests/operations/blas/README.md
-             */
-            TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanes)
-            {
-                this->expect_accuracy(130, 131, 4133, Core::Layout::RowMajor, false, false,
-                                    1.0 / 4096.0, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanesTransposeA)
-            {
-                this->expect_accuracy(41, 70, 4133, Core::Layout::RowMajor, true, false,
-                                    1.0 / 4096.0, 0.0);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, DeepProductBatched)
-            {
-                this->expect_batched(3, 5, 6, 4100, 1.0 / 4096.0, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, SingleElement)
-            {
-                this->expect_accuracy(1, 1, 1);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TallSkinny)
-            {
-                this->expect_accuracy(65, 2, 33);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, ShortWide)
-            {
-                this->expect_accuracy(2, 65, 33);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, NoTransposeScaled)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, false, false, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeA)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, true, false, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeB)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, false, true, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeBoth)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::RowMajor, true, true, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeBothColMajor)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, true, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeAColMajor)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, false, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, TransposeBColMajor)
-            {
-                this->expect_accuracy(17, 19, 11, Core::Layout::ColumnMajor, false, true, 1.5, 0.5);
-            }
-
-            /**
-             * @brief Tests that beta == 0 never reads C, which starts full of NaN.
-             * @see tests/operations/blas/README.md
-             */
-            TYPED_TEST(Medium_GEMMTest, BetaZeroNeverReadsC)
-            {
-                this->expect_accuracy(37, 23, 13, Core::Layout::RowMajor, false, false, 1.0, 0.0);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, Batched)
-            {
-                this->expect_batched(4, 13, 7, 5, 1.5, 0.5);
-            }
-
-            TYPED_TEST(Medium_GEMMTest, BatchedRagged)
-            {
-                this->expect_batched(3, 33, 17, 23);
-            }
-
-            /**
-             * @brief Holds the hand-computed pins and the direct calls to both kernel variants.
-             * @see tests/operations/blas/README.md
-             */
-            class Medium_GEMMKernelTest : public SushiBLASTest
-            {
-                protected:
-                    /** @brief Row-major strides for an operand of leading dimension @p ld. */
-                    [[nodiscard]] static Kernels::OperandAccess row_major(int64_t ld)
-                    {
-                        return Kernels::operand_access(Core::Layout::RowMajor,
-                                                       Core::Transpose::NoTrans, ld);
-                    }
-
-                    /** @brief Copies a tensor's contents out to a host vector. */
-                    [[nodiscard]] static std::vector<float> download(const Tensor& t)
-                    {
-                        std::vector<float> host(static_cast<std::size_t>(t.num_elements));
-                        auto& q = TestEnvironment::queue();
-                        q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
-                        return host;
-                    }
+                using type = typename T::value_type; /**< The type of the real and imaginary part. */
             };
 
-            TEST_F(Medium_GEMMKernelTest, RowMajorMatchesHandComputedResult)
+            /** @brief Returns the unit roundoff of the component type of an element type. */
+            template<typename T>
+            [[nodiscard]] constexpr double unit_roundoff_of_element()
             {
-                // A (2x3) = [[1,2,3],[4,5,6]], B (3x2) = [[1,0],[0,1],[1,1]].
-                auto A = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
-                auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
-
-                set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
-                recording->run().value();
-
-                // C = [[1+3, 2+3], [4+6, 5+6]] = [[4,5],[10,11]], row-major.
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), absolute_tolerance<float>(16));
+                using R = typename ComponentOf<T>::type;
+                if constexpr (std::is_same_v<R, sycl::half>)
+                    return K_HALF_UNIT_ROUNDOFF;
+                else
+                    return TestSupport::unit_roundoff<R>();
             }
 
-            TEST_F(Medium_GEMMKernelTest, ColumnMajorMatchesHandComputedResult)
+            /** @brief Returns the rounded operations on the path to one result of depth k. */
+            template<typename T>
+            [[nodiscard]] std::size_t roundings_of(int64_t k)
             {
-                reinit_engine(Core::Layout::ColumnMajor);
-
-                // The same problem, stored column-major. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
-                auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
-
-                set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
-                recording->run().value();
-
-                // C = [[4,5],[10,11]] again, stored column-major with ldc = 2.
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), absolute_tolerance<float>(16));
+                if constexpr (std::is_same_v<typename ComponentOf<T>::type, sycl::half>)
+                    return K_HALF_ROUNDINGS;
+                else
+                    return static_cast<std::size_t>(k) + 2;
             }
 
-            TEST_F(Medium_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
+            /** @brief Returns a value of T from a double; a complex T has a zero imaginary part. */
+            template<typename T>
+            [[nodiscard]] T element_of(double value)
             {
-                // The oracle is pinned to the same numbers. See tests/operations/blas/README.md.
-                reinit_engine(Core::Layout::ColumnMajor);
-
-                auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
-                auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
-
-                set_mode(ExecutionMode::ForceReference);
-                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
-                recording->run().value();
-
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), absolute_tolerance<float>(16));
+                using R = typename ComponentOf<T>::type;
+                if constexpr (Core::is_complex_v<T>)
+                    return T(static_cast<R>(value), R(0));
+                else if constexpr (std::is_same_v<T, sycl::half>)
+                    return sycl::half(static_cast<float>(value));
+                else
+                    return static_cast<T>(value);
             }
 
-            TEST_F(Medium_GEMMKernelTest, TransposedAMatchesHandComputedResult)
+            /** @brief Returns the real and the imaginary part of an element as doubles. */
+            template<typename T>
+            [[nodiscard]] std::pair<double, double> parts_of(const T& value)
             {
-                // A is stored 3x2 as the transpose of op(A). See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, {1, 4, 2, 5, 3, 6});
-                auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
-
-                set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(recorder()).gemm(A, B, C, Core::Transpose::Trans,
-                                                 Core::Transpose::NoTrans);
-                recording->run().value();
-
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), absolute_tolerance<float>(16));
+                if constexpr (Core::is_complex_v<T>)
+                    return {static_cast<double>(value.real()), static_cast<double>(value.imag())};
+                else if constexpr (std::is_same_v<T, sycl::half>)
+                    return {static_cast<double>(static_cast<float>(value)), 0.0};
+                else
+                    return {static_cast<double>(value), 0.0};
             }
 
-            /**
-            * @struct BiasReLUEpilogue
-            * @brief A deliberately non-trivial epilogue: two broadcasts and a clamp.
-            *
-            * The per-row and per-column terms are what prove both coordinates reach the
-            * functor - a column bias alone would leave a wrong `row` undetected. The
-            * clamp makes it non-linear, so it cannot be absorbed into alpha or beta.
-            */
-            struct BiasReLUEpilogue
+            /** @brief Returns the modulus of an element as an element with no imaginary part. */
+            template<typename T>
+            [[nodiscard]] T modulus_of(const T& value)
             {
-                /** @brief One value per row of C, broadcast across its columns. */
-                const float* row_bias;
-
-                /** @brief One value per column of C, broadcast down its rows. */
-                const float* col_bias;
-
-                /**
-                 * @brief Adds both biases to @p value and clamps the result at zero.
-                 * @return max(value + row_bias[row] + col_bias[col], 0).
-                 */
-                template<typename T>
-                [[nodiscard]] T operator()(T value, int64_t row, int64_t col) const noexcept
-                {
-                    const T biased = value + static_cast<T>(row_bias[row])
-                                           + static_cast<T>(col_bias[col]);
-                    return biased > T(0) ? biased : T(0);
-                }
-            };
-
-            TEST_F(Medium_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
-            {
-                // 2*(A*B), plus both biases, clamped at 0. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
-                auto B = create_initialized_tensor<float>({2, 3}, {1, 0, -1, 0, 1, -1});
-                auto C = engine->create_tensor({2, 3}, Core::DataType::Float32);
-                auto row_bias = create_initialized_tensor<float>({2}, {0.0f, 1.0f});
-                auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
-
-                auto& q = TestEnvironment::queue();
-                const BiasReLUEpilogue epilogue{static_cast<const float*>(row_bias.data()),
-                                                static_cast<const float*>(col_bias.data())};
-
-                Kernels::SYCL::gemm<float>(
-                    q, Core::Layout::RowMajor, Core::Transpose::NoTrans,
-                    Core::Transpose::NoTrans, 2, 3, 2,
-                    2.0f, static_cast<const float*>(A.data()), 2, 0,
-                    static_cast<const float*>(B.data()), 3, 0,
-                    0.0f, static_cast<float*>(C.data()), 3, 0,
-                    1, {}, epilogue).wait();
-
-                EXPECT_TENSOR_NEAR(C, (std::vector<float>{2.5f, 3.0f, 0.0f, 7.5f, 8.0f, 0.0f}), absolute_tolerance<float>(16));
+                const auto [re, im] = parts_of(value);
+                return element_of<T>(std::hypot(re, im));
             }
 
-            /**
-             * @brief Holds the operands and the hand-computed result of the fused seam tests.
-             * @see tests/operations/blas/README.md
-             */
-            class Medium_GEMMSeamTest : public SushiBLASTest
+            /** @brief Copies every element of a tensor of T to the host. */
+            template<typename T>
+            [[nodiscard]] std::vector<T> download_as(const Tensor& t)
             {
-                protected:
-                    /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
-                    static std::vector<float> a_values() { return {1, 0, 0, 1, 1, 1}; }
-
-                    /** @brief B = 2x3. */
-                    static std::vector<float> b_values() { return {1, 2, 3, 4, 5, 6}; }
-
-                    /**
-                     * @brief Returns the hand-computed result of the fused call.
-                     * @see tests/operations/blas/README.md
-                     */
-                    static std::vector<float> expected()
-                    {
-                        return {2, 0, 6,
-                                0, 0, 3,
-                                11, 4, 17};
-                    }
-            };
-
-            TEST_F(Medium_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReLUOnTheSYCLPath)
-            {
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
-                auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-
-                const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
-                                                col_bias.data_as<float>()};
-
-                set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
-                                       epilogue);
-                recording->run().value();
-
-                EXPECT_TENSOR_NEAR(C, expected(), absolute_tolerance<float>(16));
+                std::vector<T> host(static_cast<std::size_t>(t.num_elements));
+                TestEnvironment::queue().memcpy(host.data(), t.data(), host.size() * sizeof(T)).wait();
+                return host;
             }
 
-            TEST_F(Medium_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
-            {
-                // The reference kernel applies the epilogue. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
-                auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-
-                const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
-                                                col_bias.data_as<float>()};
-
-                set_mode(ExecutionMode::ForceReference);
-                Dispatch::execute_gemm(recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_bias_relu_ref", "test.gemm_bias_relu_ref"_op,
-                                       epilogue);
-                recording->run().value();
-
-                EXPECT_TENSOR_NEAR(C, expected(), absolute_tolerance<float>(16));
-            }
-
-            TEST_F(Medium_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
-            {
-                // Level3::gemm is the seam with the identity. See tests/operations/blas/README.md.
-                auto A = engine->create_tensor({13, 7}, Core::DataType::Float32);
-                auto B = engine->create_tensor({7, 11}, Core::DataType::Float32);
-                auto via_api = engine->create_tensor({13, 11}, Core::DataType::Float32);
-                auto via_seam = engine->create_tensor({13, 11}, Core::DataType::Float32);
-                fill_random<float>(A);
-                fill_random<float>(B);
-
-                SushiBLAS::BLASOps(recorder()).gemm(A, B, via_api, Core::Transpose::NoTrans,
-                                                 Core::Transpose::NoTrans, 1.5, 0.0);
-                Dispatch::execute_gemm(recorder(), A, B, via_seam,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.5, 0.0,
-                                       "test.gemm_identity", "test.gemm_identity"_op,
-                                       Kernels::GemmIdentityEpilogue{});
-                recording->run().value();
-
-                SB_ASSERT_TENSOR_NEAR(via_seam, via_api, absolute_tolerance<float>(2), float);
-            }
-
-            // An undeclared epilogue operand gets no edge. See tests/operations/blas/README.md.
-
-            /**
-            * @struct BiasColumnEpilogue
-            * @brief A per-column bias add - the shape a fused Linear layer uses.
-            *
-            * Deliberately simpler than @ref BiasReLUEpilogue: these tests are about
-            * what the task *declares*, not about what it computes, and a bias-only
-            * epilogue is the one the ordering hazard was actually found on.
-            */
-            struct BiasColumnEpilogue
-            {
-                /** @brief One value per column of C, broadcast down its rows. */
-                const float* bias;
-
-                /**
-                * @brief Adds the column's bias to @p value.
-                * @tparam T The element type of C.
-                * @param value The fully formed element.
-                * @param col The element's column in C.
-                * @return value + bias[col].
-                */
-                template<typename T>
-                [[nodiscard]] T operator()(T value, int64_t, int64_t col) const noexcept
-                {
-                    return value + static_cast<T>(bias[col]);
-                }
-            };
-
-            /**
-             * @struct BiasSpillEpilogue
-             * @brief Adds a bias and also writes its result to an auxiliary buffer.
-             * @see tests/operations/blas/README.md
-             */
-            struct BiasSpillEpilogue
-            {
-                /** @brief One value per column of C. */
-                const float* bias;
-
-                /** @brief Row-major spill buffer, the same extents as C. */
-                float* aux;
-
-                /** @brief C's column count, so the epilogue can address @ref aux. */
-                int64_t columns;
-
-                /**
-                * @brief Adds the bias, spills the result and returns it.
-                * @tparam T The element type of C.
-                * @param value The fully formed element.
-                * @param row The element's row in C.
-                * @param col The element's column in C.
-                * @return value + bias[col].
-                */
-                template<typename T>
-                T operator()(T value, int64_t row, int64_t col) const
-                {
-                    const T pre = value + static_cast<T>(bias[col]);
-                    aux[row * columns + col] = static_cast<float>(pre);
-                    return pre;
-                }
-            };
-
-            TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
-            {
-                GraphProbe probe;
-
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-                auto bias = engine->create_tensor({3}, Core::DataType::Float32);
-
-                // The in-degree counts the bias edge alone. See tests/operations/blas/README.md.
-                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-                Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
-                                       Dispatch::gemm_epilogue(
-                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                    << "The GEMM whose epilogue dereferences `bias` must depend on the op "
-                       "that wrote it. An in-degree of 0 means the declaration made through "
-                       "Dispatch::gemm_epilogue never reached the task's read set.";
-            }
-
-            TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
-            {
-                GraphProbe probe;
-
-                // The same functor passed bare gets no edge. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-                auto bias = engine->create_tensor({3}, Core::DataType::Float32);
-
-                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-                Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
-                                       BiasColumnEpilogue{bias.data_as<float>()});
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
-                    << "A bare epilogue declares nothing, so the GEMM must be a root - "
-                       "unordered against the op writing the bias it reads. If this is 1, "
-                       "something is inferring the epilogue's operands, which this layer "
-                       "cannot do correctly and must not appear to do.";
-            }
-
-            TEST_F(Medium_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
-            {
-                GraphProbe probe;
-
-                // The declared read uses Tensor::region(). See tests/operations/blas/README.md.
-                constexpr int64_t kN = 3;
-
-                auto storage = make_runtime_storage(TestEnvironment::runtime(),
-                    static_cast<size_t>(2 * kN) * sizeof(float),
-                    SushiRuntime::Residency::Shared);
-
-                Tensor seed(storage, {kN}, Core::DataType::Float32, 0);
-                Tensor bias(storage, {kN}, Core::DataType::Float32, kN);
-
-                fill_tensor(seed, {1.0f, 2.0f, 3.0f});
-
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-
-                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-                Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
-                                       Dispatch::gemm_epilogue(
-                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                    << "The declared read must be described by Tensor::region() - keyed on "
-                       "the allocation base and narrowed to the view's byte interval. An "
-                       "in-degree of 0 means it was described by a bare pointer, which keys "
-                       "on a base nothing else in this graph shares.";
-            }
-
-            TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
-            {
-                GraphProbe probe;
-
-                // Only a declared write orders the aux reader. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
-
-                Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_spill", "test.gemm_spill"_op,
-                                       Dispatch::gemm_epilogue(
-                                           BiasSpillEpilogue{bias.data_as<float>(),
-                                                             aux.data_as<float>(), 3})
-                                           .reads(bias)
-                                           .writes(aux));
-
-                SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                    << "The op reading the epilogue's spill buffer must depend on the GEMM "
-                       "that filled it. An in-degree of 0 means the declared write never "
-                       "reached the task's write set, and the spill buys nothing.";
-            }
-
-            TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
-            {
-                GraphProbe probe;
-
-                // An undeclared aux write gets no edge. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
-
-                Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
-                                       BiasSpillEpilogue{bias.data_as<float>(),
-                                                         aux.data_as<float>(), 3});
-
-                SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
-
-                ASSERT_EQ(2u, probe.recorded_count());
-                const auto tasks = probe.recorded_tasks();
-                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
-                    << "Nothing can see an undeclared write, so the reader must be a root.";
-            }
-
-            TEST_F(Medium_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
-            {
-                // Both spellings must agree to the bit. See tests/operations/blas/README.md.
-                auto A = create_initialized_tensor<float>({3, 2}, a_values());
-                auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto bare = engine->create_tensor({3, 3}, Core::DataType::Float32);
-                auto declared = engine->create_tensor({3, 3}, Core::DataType::Float32);
-
-                set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(recorder(), A, B, bare,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
-                                       BiasColumnEpilogue{bias.data_as<float>()});
-                Dispatch::execute_gemm(recorder(), A, B, declared,
-                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                                       1.0, 0.0,
-                                       "test.gemm_bias_declared", "test.gemm_bias_declared"_op,
-                                       Dispatch::gemm_epilogue(
-                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-                recording->run().value();
-
-                // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
-                EXPECT_TENSOR_NEAR(declared, (std::vector<float>{2, -6, 6,
-                                                                 5, -3, 9,
-                                                                 6, -1, 12}), absolute_tolerance<float>(16));
-                expect_tensor_equal(declared, SushiBLAS::IO().to_vector<float>(bare));
-            }
-
-            TEST_F(Medium_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
-            {
-                // A base-less region orders against nothing. See tests/operations/blas/README.md.
-                Tensor nothing;
-
-                EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).reads(nothing),
-                             std::invalid_argument);
-                EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).writes(nothing),
-                             std::invalid_argument);
-            }
-
-            TEST_F(Medium_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
-            {
-                constexpr int64_t m = 37, n = 45, k = 23;
-                constexpr float alpha = 1.5f;
-
-                auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
-                auto B = engine->create_tensor({k, n}, Core::DataType::Float32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
-                fill_random<float>(A);
-                fill_random<float>(B);
-
-                const std::vector<float> host_a = download(A);
-                const std::vector<float> host_b = download(B);
-                std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::RowMajor, Core::Transpose::NoTrans,
-                                                Core::Transpose::NoTrans, m, n, k,
-                                                alpha, host_a.data(), k, host_b.data(), n,
-                                                0.0f, expected.data(), n);
-
-                auto& q = TestEnvironment::queue();
-                Kernels::SYCL::Detail::gemm_no_local<float>(
-                    q, Device::profile_for(q), m, n, k,
-                    alpha, static_cast<const float*>(A.data()), row_major(k), 0,
-                    static_cast<const float*>(B.data()), row_major(n), 0,
-                    0.0f, static_cast<float*>(C.data()), row_major(n), 0,
-                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
-
-                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
-            }
-
-            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnRaggedShape)
-            {
-                // Only an OpenCL CPU runs this variant here. See tests/operations/blas/README.md.
-                constexpr int64_t m = 37, n = 45, k = 23;
-                constexpr float alpha = 1.5f;
-
-                auto& q = TestEnvironment::queue();
-                const Device::Profile& profile = Device::profile_for(q);
-                using Configuration = Kernels::GemmTile<float, Kernels::GemmTileRole::Balanced>;
-
-                if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
-                    profile.max_work_group_size <
-                        static_cast<std::size_t>(Configuration::K_WG_ITEMS))
-                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
-
-                auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
-                auto B = engine->create_tensor({k, n}, Core::DataType::Float32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
-                fill_random<float>(A);
-                fill_random<float>(B);
-
-                const std::vector<float> host_a = download(A);
-                const std::vector<float> host_b = download(B);
-                std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::RowMajor, Core::Transpose::NoTrans,
-                                                Core::Transpose::NoTrans, m, n, k,
-                                                alpha, host_a.data(), k, host_b.data(), n,
-                                                0.0f, expected.data(), n);
-
-                Kernels::SYCL::Detail::gemm_local_tiled<float>(
-                    q, m, n, k,
-                    alpha, static_cast<const float*>(A.data()), row_major(k), 0,
-                    static_cast<const float*>(B.data()), row_major(n), 0,
-                    0.0f, static_cast<float*>(C.data()), row_major(n), 0,
-                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
-
-                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
-            }
-
-            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantHandlesColumnMajorAndTransposes)
-            {
-                // The profile never selects this path here. See tests/operations/blas/README.md.
-                constexpr int64_t m = 19, n = 21, k = 17;
-
-                auto& q = TestEnvironment::queue();
-                const Device::Profile& profile = Device::profile_for(q);
-                using Configuration = Kernels::GemmTile<float, Kernels::GemmTileRole::Balanced>;
-
-                if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
-                    profile.max_work_group_size <
-                        static_cast<std::size_t>(Configuration::K_WG_ITEMS))
-                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
-
-                // A is stored k x m and used transposed; B is stored n x k likewise.
-                auto A = engine->create_tensor({k, m}, Core::DataType::Float32);
-                auto B = engine->create_tensor({n, k}, Core::DataType::Float32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
-                fill_random<float>(A);
-                fill_random<float>(B);
-
-                const std::vector<float> host_a = download(A);
-                const std::vector<float> host_b = download(B);
-                std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::ColumnMajor, Core::Transpose::Trans,
-                                                Core::Transpose::Trans, m, n, k,
-                                                1.0f, host_a.data(), k, host_b.data(), n,
-                                                0.0f, expected.data(), m);
-
-                Kernels::SYCL::Detail::gemm_local_tiled<float>(
-                    q, m, n, k,
-                    1.0f, static_cast<const float*>(A.data()),
-                    Kernels::operand_access(Core::Layout::ColumnMajor,
-                                            Core::Transpose::Trans, k), 0,
-                    static_cast<const float*>(B.data()),
-                    Kernels::operand_access(Core::Layout::ColumnMajor,
-                                            Core::Transpose::Trans, n), 0,
-                    0.0f, static_cast<float*>(C.data()),
-                    Kernels::operand_access(Core::Layout::ColumnMajor,
-                                            Core::Transpose::NoTrans, m), 0,
-                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
-
-                EXPECT_TENSOR_NEAR(C, expected, K_DEFAULT_TOLERANCE);
-            }
-
-            /** @brief Holds one batched product the local-tiled kernel is checked at. */
-            struct LocalTiledCase
-            {
-                Core::Layout layout;     /**< Storage order of every operand. */
-                Core::Transpose trans_a; /**< How A is read. */
-                Core::Transpose trans_b; /**< How B is read. */
-                int64_t m;               /**< Rows of C. */
-                int64_t n;               /**< Columns of C. */
-                int64_t k;               /**< Depth of the product. */
-                int64_t batch;           /**< Products in the batch, stored back to back. */
-            };
-
-            /** @brief Holds the leading dimensions and batch strides of one LocalTiledCase. */
-            struct LocalTiledStorage
+            /** @brief Holds the leading dimensions and batch strides of one case as stored. */
+            struct CaseStorage
             {
                 int64_t lda;   /**< Leading dimension of A as stored. */
                 int64_t ldb;   /**< Leading dimension of B as stored. */
@@ -975,20 +266,154 @@ namespace SushiBLAS
                 int64_t str_a; /**< Elements of one A. */
                 int64_t str_b; /**< Elements of one B. */
                 int64_t str_c; /**< Elements of one C. */
+                int64_t a_rows; /**< Stored rows of A. */
+                int64_t a_cols; /**< Stored columns of A. */
+                int64_t b_rows; /**< Stored rows of B. */
+                int64_t b_cols; /**< Stored columns of B. */
             };
 
             /** @brief Returns how the operands of a case are stored, back to back per batch. */
-            [[nodiscard]] LocalTiledStorage storage_of(const LocalTiledCase& c)
+            [[nodiscard]] CaseStorage storage_of(Layout layout, const GemmCase& c)
             {
                 // A is stored k x m when it is read transposed and m x k otherwise; B likewise.
-                const bool row_major = c.layout == Core::Layout::RowMajor;
-                const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
-                const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
-                const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
-                const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
-                return LocalTiledStorage{row_major ? a_cols : a_rows, row_major ? b_cols : b_rows,
-                                         row_major ? c.n : c.m,       a_rows * a_cols,
-                                         b_rows * b_cols,             c.m * c.n};
+                const bool row_major = layout == Layout::RowMajor;
+                CaseStorage s{};
+                s.a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
+                s.a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
+                s.b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
+                s.b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
+                s.lda = row_major ? s.a_cols : s.a_rows;
+                s.ldb = row_major ? s.b_cols : s.b_rows;
+                s.ldc = row_major ? c.n : c.m;
+                s.str_a = s.a_rows * s.a_cols;
+                s.str_b = s.b_rows * s.b_cols;
+                s.str_c = c.m * c.n;
+                return s;
+            }
+
+            /** @brief Holds the reference product of a case and the magnitude its error scales with. */
+            template<typename T>
+            struct HostProduct
+            {
+                std::vector<T> value;            /**< alpha * op(A) * op(B) + beta * C, per element. */
+                std::vector<double> magnitude;   /**< The sum of |a| * |b| of each element. */
+            };
+
+            /**
+             * @brief Computes the reference product of a case on the host.
+             * @param c0 The old contents of C.
+             */
+            template<typename T>
+            [[nodiscard]] HostProduct<T> host_product(Layout layout, const GemmCase& c,
+                                                      const std::vector<T>& a,
+                                                      const std::vector<T>& b,
+                                                      const std::vector<T>& c0)
+            {
+                const CaseStorage s = storage_of(layout, c);
+                std::vector<T> abs_a(a.size());
+                std::vector<T> abs_b(b.size());
+                std::transform(a.begin(), a.end(), abs_a.begin(), [](const T& v) { return modulus_of(v); });
+                std::transform(b.begin(), b.end(), abs_b.begin(), [](const T& v) { return modulus_of(v); });
+
+                HostProduct<T> out;
+                out.value = c0;
+                std::vector<T> sums(c0.size(), T(0));
+                for (int64_t i = 0; i < c.batch; ++i)
+                {
+                    Kernels::Reference::gemm<T>(layout, c.trans_a, c.trans_b, c.m, c.n, c.k,
+                                                element_of<T>(c.alpha), a.data() + i * s.str_a, s.lda,
+                                                b.data() + i * s.str_b, s.ldb, element_of<T>(c.beta),
+                                                out.value.data() + i * s.str_c, s.ldc);
+                    Kernels::Reference::gemm<T>(layout, c.trans_a, c.trans_b, c.m, c.n, c.k, T(1),
+                                                abs_a.data() + i * s.str_a, s.lda,
+                                                abs_b.data() + i * s.str_b, s.ldb, T(0),
+                                                sums.data() + i * s.str_c, s.ldc);
+                }
+                for (const T& sum : sums)
+                    out.magnitude.push_back(parts_of(sum).first);
+                return out;
+            }
+
+            /**
+             * @brief Expects every element of actual to lie within the rounding bound of expected.
+             *
+             * The bound is the rounded operations on the path to a result times the unit roundoff
+             * times |alpha| * (the sum of |a| * |b|) plus |beta| times the magnitude of an old C entry.
+             */
+            template<typename T>
+            void expect_close(const std::vector<T>& actual, const std::vector<T>& expected,
+                              const std::vector<double>& magnitude, const GemmCase& c)
+            {
+                ASSERT_EQ(actual.size(), expected.size());
+                ASSERT_EQ(actual.size(), magnitude.size());
+                for (std::size_t i = 0; i < actual.size(); ++i)
+                {
+                    const double scale = std::abs(c.alpha) * magnitude[i] +
+                                         std::abs(c.beta) * K_ENTRY_PRODUCT_MAGNITUDE;
+                    const double bound = static_cast<double>(roundings_of<T>(c.k)) *
+                                         unit_roundoff_of_element<T>() * scale;
+                    const auto [got_re, got_im] = parts_of(actual[i]);
+                    const auto [want_re, want_im] = parts_of(expected[i]);
+
+                    EXPECT_TRUE(TestSupport::is_within(
+                        TestSupport::measure_error(got_re, want_re, bound)))
+                        << "real part of element " << i;
+                    EXPECT_TRUE(TestSupport::is_within(
+                        TestSupport::measure_error(got_im, want_im, bound)))
+                        << "imaginary part of element " << i;
+                }
+            }
+
+            /** @brief Returns the dims of a stored operand: rank 2, or rank 3 for a batch. */
+            [[nodiscard]] std::vector<int64_t> operand_dims(int64_t rows, int64_t cols, int64_t batch)
+            {
+                if (batch > 1)
+                    return {batch, rows, cols};
+                return {rows, cols};
+            }
+
+            /** @brief Returns a tensor of dims and dtype from the engine of a fixture. */
+            [[nodiscard]] Tensor tensor_of_dims(Engine& engine, const std::vector<int64_t>& dims,
+                                                DataType dtype)
+            {
+                return engine.create_tensor(
+                    SushiRuntime::span<const int64_t>(dims.data(), dims.size()), dtype);
+            }
+
+            /** @brief Shapes the SYCL kernel is compared with the reference on, in both layouts. */
+            const std::vector<GemmCase> K_AGREEMENT_CASES = {
+                // Small, rectangular, ragged and short-K shapes.
+                {Transpose::NoTrans, Transpose::NoTrans, 4, 4, 4, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 8, 16, 4, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 37, 23, 13, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 40, 40, 3, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 1, 1, 1, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 65, 2, 33, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 2, 65, 33, 1, 1.0, 0.0},
+                // Beta zero over a C that starts full of NaN.
+                {Transpose::NoTrans, Transpose::NoTrans, 37, 23, 13, 1, 1.5, 0.0},
+                // Deep products and a result wide enough for sixteen column lanes.
+                {Transpose::NoTrans, Transpose::NoTrans, 5, 7, 4133, 1, 1.0 / 4096.0, 0.0},
+                {Transpose::NoTrans, Transpose::Trans, 5, 7, 4133, 1, 1.0 / 4096.0, 0.5},
+                {Transpose::Trans, Transpose::Trans, 9, 4, 4133, 1, 1.0 / 4096.0, 0.5},
+                {Transpose::NoTrans, Transpose::NoTrans, 130, 131, 4133, 1, 1.0 / 4096.0, 0.5},
+                {Transpose::Trans, Transpose::NoTrans, 41, 70, 4133, 1, 1.0 / 4096.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 5, 6, 4100, 3, 1.0 / 4096.0, 0.5},
+                // The four forms of op(A) and op(B) under scalars that scale both terms.
+                {Transpose::NoTrans, Transpose::NoTrans, 17, 19, 11, 1, 1.5, 0.5},
+                {Transpose::Trans, Transpose::NoTrans, 17, 19, 11, 1, 1.5, 0.5},
+                {Transpose::NoTrans, Transpose::Trans, 17, 19, 11, 1, 1.5, 0.5},
+                {Transpose::Trans, Transpose::Trans, 17, 19, 11, 1, 1.5, 0.5},
+                // Distinct m, n and k give the three operands three distinct batch strides.
+                {Transpose::NoTrans, Transpose::NoTrans, 13, 7, 5, 4, 1.5, 0.5},
+                {Transpose::NoTrans, Transpose::NoTrans, 33, 17, 23, 3, 1.0, 0.0}};
+
+            /** @brief Returns the rows of every element type, layout and agreement case. */
+            [[nodiscard]] std::vector<Row<GemmCase>> agreement_rows()
+            {
+                return rows_of({DataType::Half, DataType::Float32, DataType::Float64,
+                                DataType::Complex32, DataType::Complex64},
+                               {ExecutionMode::ForceSYCL}, K_AGREEMENT_CASES);
             }
 
             /** @brief Returns whether a device hosts the local-tiled work-group of T. */
@@ -1001,96 +426,6 @@ namespace SushiBLAS
                               static_cast<std::size_t>(Configuration::K_WG_ITEMS)});
             }
 
-            /** @brief Copies every element of a tensor of T to the host. */
-            template<typename T>
-            [[nodiscard]] std::vector<T> download_as(const Tensor& t)
-            {
-                std::vector<T> host(static_cast<std::size_t>(t.num_elements));
-                auto& q = TestEnvironment::queue();
-                q.memcpy(host.data(), t.data(), host.size() * sizeof(T)).wait();
-                return host;
-            }
-
-            /**
-             * @brief Runs gemm_local_tiled on one case and compares it with the reference GEMM.
-             * @param tolerance Absolute error allowed per element, times one plus its magnitude.
-             */
-            template<typename T>
-            void expect_local_tiled_matches_reference(Engine& engine, const LocalTiledCase& c,
-                                                      double tolerance)
-            {
-                const LocalTiledStorage s = storage_of(c);
-                const int64_t lda = s.lda;
-                const int64_t ldb = s.ldb;
-                const int64_t ldc = s.ldc;
-                const int64_t str_a = s.str_a;
-                const int64_t str_b = s.str_b;
-                const int64_t str_c = s.str_c;
-
-                const Core::DataType dtype = sushiblas_dtype<T>();
-                Tensor A = engine.create_tensor({c.batch * str_a}, dtype);
-                Tensor B = engine.create_tensor({c.batch * str_b}, dtype);
-                Tensor C = engine.create_tensor({c.batch * str_c}, dtype);
-                fill_random<T>(A);
-                fill_random<T>(B);
-
-                const std::vector<T> host_a = download_as<T>(A);
-                const std::vector<T> host_b = download_as<T>(B);
-                std::vector<T> expected(static_cast<std::size_t>(c.batch * str_c), T(0));
-                for (int64_t i = 0; i < c.batch; ++i)
-                    Kernels::Reference::gemm<T>(c.layout, c.trans_a, c.trans_b, c.m, c.n, c.k,
-                                                T(1), host_a.data() + i * str_a, lda,
-                                                host_b.data() + i * str_b, ldb,
-                                                T(0), expected.data() + i * str_c, ldc);
-
-                Kernels::SYCL::Detail::gemm_local_tiled<T>(
-                    TestEnvironment::queue(), c.m, c.n, c.k,
-                    T(1), static_cast<const T*>(A.data()),
-                    Kernels::operand_access(c.layout, c.trans_a, lda), str_a,
-                    static_cast<const T*>(B.data()),
-                    Kernels::operand_access(c.layout, c.trans_b, ldb), str_b,
-                    T(0), static_cast<T*>(C.data()),
-                    Kernels::operand_access(c.layout, Core::Transpose::NoTrans, ldc), str_c,
-                    c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
-
-                // HALF converts to double through float; float and double convert directly.
-                using Wide = std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
-                const std::vector<T> actual = download_as<T>(C);
-                for (std::size_t i = 0; i < actual.size(); ++i)
-                {
-                    const double want = static_cast<double>(static_cast<Wide>(expected[i]));
-                    const double got = static_cast<double>(static_cast<Wide>(actual[i]));
-                    ASSERT_NEAR(got, want, tolerance * (1.0 + std::abs(want))) << "element " << i;
-                }
-            }
-
-            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnWholeAndEdgeTiles)
-            {
-                // Each case mixes whole and edge tiles; see tests/operations/blas/README.md.
-                const Device::Profile& profile = Device::profile_for(TestEnvironment::queue());
-                if (!hosts_local_tiled<float>(profile))
-                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
-
-                using Core::Layout;
-                using Core::Transpose;
-                const std::vector<LocalTiledCase> cases = {
-                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 128, 136, 40, 2},
-                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 130, 72, 40, 1},
-                    {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 72, 128, 40, 1},
-                    {Layout::RowMajor, Transpose::Trans, Transpose::NoTrans, 128, 72, 40, 1},
-                    {Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 72, 68, 48, 1}};
-
-                for (std::size_t i = 0; i < cases.size(); ++i)
-                {
-                    SCOPED_TRACE("case " + std::to_string(i));
-                    expect_local_tiled_matches_reference<float>(*engine, cases[i], absolute_tolerance<float>(16));
-                    if (profile.supports_fp64 && hosts_local_tiled<double>(profile))
-                        expect_local_tiled_matches_reference<double>(*engine, cases[i], absolute_tolerance<double>(1024));
-                    if (profile.supports_fp16 && hosts_local_tiled<sycl::half>(profile))
-                        expect_local_tiled_matches_reference<sycl::half>(*engine, cases[i], half_absolute_tolerance(4));
-                }
-            }
-
             /** @brief Returns whether a device hosts the work-group of one tile shape. */
             template<typename Shape>
             [[nodiscard]] bool hosts_shape(const Device::Profile& profile)
@@ -1099,109 +434,671 @@ namespace SushiBLAS
                     profile, {Shape::local_mem_bytes(), static_cast<std::size_t>(Shape::K_WG_ITEMS)});
             }
 
-            /** @brief Runs gemm_local_tiled with one shape on a case's operands and returns C. */
-            template<typename T, typename Shape>
-            [[nodiscard]] std::vector<T> local_tiled_with(Engine& engine, const LocalTiledCase& c,
-                                                          const Tensor& A, const Tensor& B)
-            {
-                const LocalTiledStorage s = storage_of(c);
-                Tensor C = engine.create_tensor({c.batch * s.str_c}, sushiblas_dtype<T>());
+            /** @brief Shapes the local-tiled kernel is compared with the reference on. */
+            const std::vector<GemmCase> K_LOCAL_TILED_CASES = {
+                // Each case mixes whole and edge tiles.
+                {Transpose::NoTrans, Transpose::NoTrans, 128, 136, 40, 2, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 130, 72, 40, 1, 1.0, 0.0},
+                {Transpose::NoTrans, Transpose::NoTrans, 72, 128, 40, 1, 1.0, 0.0},
+                {Transpose::Trans, Transpose::NoTrans, 128, 72, 40, 1, 1.0, 0.0},
+                {Transpose::Trans, Transpose::Trans, 72, 68, 48, 1, 1.0, 0.0},
+                // A ragged shape under alpha, and transposes on odd extents.
+                {Transpose::NoTrans, Transpose::NoTrans, 37, 45, 23, 1, 1.5, 0.0},
+                {Transpose::Trans, Transpose::Trans, 19, 21, 17, 1, 1.0, 0.0}};
 
-                Kernels::SYCL::Detail::gemm_local_tiled<T, Shape>(
-                    TestEnvironment::queue(), c.m, c.n, c.k,
-                    T(1), static_cast<const T*>(A.data()),
-                    Kernels::operand_access(c.layout, c.trans_a, s.lda), s.str_a,
-                    static_cast<const T*>(B.data()),
-                    Kernels::operand_access(c.layout, c.trans_b, s.ldb), s.str_b,
-                    T(0), static_cast<T*>(C.data()),
-                    Kernels::operand_access(c.layout, Core::Transpose::NoTrans, s.ldc), s.str_c,
-                    c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
-                return download_as<T>(C);
+            /** @brief Shapes every tile shape of the catalog is compared with Balanced on. */
+            [[nodiscard]] std::vector<GemmCase> tile_shape_cases()
+            {
+                std::vector<GemmCase> cases;
+                for (const Transpose trans_a : {Transpose::NoTrans, Transpose::Trans})
+                    for (const Transpose trans_b : {Transpose::NoTrans, Transpose::Trans})
+                    {
+                        cases.push_back({trans_a, trans_b, 256, 128, 64, 1, 1.0, 0.0});
+                        cases.push_back({trans_a, trans_b, 131, 70, 45, 2, 1.0, 0.0});
+                    }
+                return cases;
             }
+        } // namespace
 
-            /** @brief Expects every catalog shape to give the bits of Balanced on one case. */
-            template<typename T>
-            void expect_every_shape_gives_balanced_bits(Engine& engine, const Device::Profile& profile,
-                                                        const LocalTiledCase& c)
-            {
-                using Balanced = Kernels::GemmTile<T, Kernels::GemmTileRole::Balanced>;
-                using Wide = Kernels::GemmTile<T, Kernels::GemmTileRole::Wide>;
-                using Compact = Kernels::GemmTile<T, Kernels::GemmTileRole::Compact>;
-
-                const LocalTiledStorage s = storage_of(c);
-                Tensor A = engine.create_tensor({c.batch * s.str_a}, sushiblas_dtype<T>());
-                Tensor B = engine.create_tensor({c.batch * s.str_b}, sushiblas_dtype<T>());
-                fill_random<T>(A);
-                fill_random<T>(B);
-
-                const std::vector<T> want = local_tiled_with<T, Balanced>(engine, c, A, B);
-                const std::size_t bytes = want.size() * sizeof(T);
-                if (hosts_shape<Wide>(profile))
+        /** @brief Compares the SYCL kernel with the reference one on random operands. */
+        class GemmAgreementCase : public BlasEngineStart
+        {
+            protected:
+                /**
+                 * @brief Differential check of the SYCL kernel against the reference one.
+                 *
+                 * The reference kernel is the specification of the operation, so every shape is
+                 * judged against it. A defect the two share is caught by the hand-computed rows.
+                 */
+                template<typename T>
+                void expect_agreement(Layout layout, const GemmCase& c)
                 {
-                    const std::vector<T> wide = local_tiled_with<T, Wide>(engine, c, A, B);
-                    EXPECT_EQ(std::memcmp(wide.data(), want.data(), bytes), 0) << "Wide";
+                    const DataType dtype = sushiblas_dtype<T>();
+                    const CaseStorage s = storage_of(layout, c);
+
+                    Tensor A = tensor_of_dims(*engine, operand_dims(s.a_rows, s.a_cols, c.batch), dtype);
+                    Tensor B = tensor_of_dims(*engine, operand_dims(s.b_rows, s.b_cols, c.batch), dtype);
+                    Tensor C_actual = tensor_of_dims(*engine, operand_dims(c.m, c.n, c.batch), dtype);
+                    Tensor C_expected = tensor_of_dims(*engine, operand_dims(c.m, c.n, c.batch), dtype);
+                    fill_random<T>(A);
+                    fill_random<T>(B);
+                    seed_output<T>(C_actual, C_expected, c.beta == 0.0);
+
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, c.trans_a, c.trans_b,
+                                                        c.alpha, c.beta);
+                    recording->run().value();
+
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, c.trans_a, c.trans_b,
+                                                        c.alpha, c.beta);
+                    recording->run().value();
+
+                    const std::vector<T> zeros(static_cast<std::size_t>(C_actual.num_elements), T(0));
+                    const HostProduct<T> truth =
+                        host_product<T>(layout, c, download_as<T>(A), download_as<T>(B), zeros);
+                    expect_close<T>(download_as<T>(C_actual), download_as<T>(C_expected),
+                                    truth.magnitude, c);
                 }
-                if (hosts_shape<Compact>(profile))
+
+            private:
+                /**
+                 * @brief Gives both output tensors the same starting contents.
+                 * @param poison Whether to fill with NaN, which must never survive a beta of
+                 *        zero: reading C at all is a defect there.
+                 */
+                template<typename T>
+                void seed_output(Tensor& actual, Tensor& expected, bool poison)
                 {
-                    const std::vector<T> compact = local_tiled_with<T, Compact>(engine, c, A, B);
-                    EXPECT_EQ(std::memcmp(compact.data(), want.data(), bytes), 0) << "Compact";
+                    if (poison)
+                    {
+                        const std::vector<float> nans(static_cast<std::size_t>(actual.num_elements),
+                                                      std::numeric_limits<float>::quiet_NaN());
+                        fill_tensor(actual, nans);
+                        fill_tensor(expected, nans);
+                        return;
+                    }
+
+                    fill_random<T>(actual);
+                    TestEnvironment::queue()
+                        .memcpy(expected.data(), actual.data(),
+                                static_cast<std::size_t>(actual.num_elements) * sizeof(T))
+                        .wait();
                 }
-            }
+        };
 
-            TEST_F(Medium_GEMMKernelTest, EveryTileShapeGivesTheBitsOfBalanced)
+        /** @brief Runs the agreement cases over layout and element type. */
+        class Medium_GemmAgreement : public BlasRowCase<GemmAgreementCase, GemmCase>
+        {
+
+        };
+
+        TEST_P(Medium_GemmAgreement, TheSyclKernelAgreesWithTheReferenceKernel)
+        {
+            with_element(GetParam().type, [&](auto element)
             {
-                // One fused multiply-add per k, k rising, in every shape; see the parametric tile spec 5.4.
-                const Device::Profile& profile = Device::profile_for(TestEnvironment::queue());
-                if (!hosts_local_tiled<float>(profile))
-                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
+                using T = typename decltype(element)::type;
+                expect_agreement<T>(GetParam().layout, GetParam().axis);
+            });
+        }
 
-                using Core::Layout;
-                using Core::Transpose;
-                std::vector<LocalTiledCase> cases;
-                for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
-                    for (const Transpose trans_a : {Transpose::NoTrans, Transpose::Trans})
-                        for (const Transpose trans_b : {Transpose::NoTrans, Transpose::Trans})
-                        {
-                            cases.push_back({layout, trans_a, trans_b, 256, 128, 64, 1});
-                            cases.push_back({layout, trans_a, trans_b, 131, 70, 45, 2});
-                        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmAgreement, ::testing::ValuesIn(agreement_rows()), row_name<GemmCase>);
 
-                for (std::size_t i = 0; i < cases.size(); ++i)
+        namespace
+        {
+            /**
+             * @brief Returns the storage-order values of a row-ordered matrix, or of its transpose.
+             * @param row_ordered The matrix, row by row.
+             * @param transposed Whether the stored matrix is the transpose of the given one.
+             */
+            [[nodiscard]] std::vector<float> stored_values(const std::vector<float>& row_ordered,
+                                                          int64_t rows, int64_t cols, Layout layout,
+                                                          bool transposed)
+            {
+                const int64_t out_rows = transposed ? cols : rows;
+                const int64_t out_cols = transposed ? rows : cols;
+                std::vector<float> stored(row_ordered.size());
+                for (int64_t i = 0; i < out_rows; ++i)
+                    for (int64_t j = 0; j < out_cols; ++j)
+                    {
+                        const float value = transposed ? row_ordered[static_cast<std::size_t>(j * cols + i)]
+                                                       : row_ordered[static_cast<std::size_t>(i * cols + j)];
+                        const int64_t at = layout == Layout::RowMajor ? i * out_cols + j : j * out_rows + i;
+                        stored[static_cast<std::size_t>(at)] = value;
+                    }
+                return stored;
+            }
+        } // namespace
+
+        /** @brief Pins the product of two small integer matrices on both kernels and layouts. */
+        class Medium_GemmHandComputed : public BlasRowCase<BlasEngineStart, Core::Transpose>
+        {
+
+        };
+
+        TEST_P(Medium_GemmHandComputed, TheProductOfTwoSmallMatricesIsTheHandComputedOne)
+        {
+            // A (2x3) = [[1,2,3],[4,5,6]], B (3x2) = [[1,0],[0,1],[1,1]], C = [[4,5],[10,11]].
+            const bool a_stored_transposed = GetParam().axis == Transpose::Trans;
+            const Layout layout = GetParam().layout;
+            auto A = a_stored_transposed
+                         ? create_initialized_tensor<float>(
+                               {3, 2}, stored_values({1, 2, 3, 4, 5, 6}, 2, 3, layout, true))
+                         : create_initialized_tensor<float>(
+                               {2, 3}, stored_values({1, 2, 3, 4, 5, 6}, 2, 3, layout, false));
+            auto B = create_initialized_tensor<float>(
+                {3, 2}, stored_values({1, 0, 0, 1, 1, 1}, 3, 2, layout, false));
+            auto C = engine->create_tensor({2, 2}, DataType::Float32);
+
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, C, GetParam().axis, Transpose::NoTrans);
+            recording->run().value();
+
+            expect_tensor_equal(C, stored_values({4, 5, 10, 11}, 2, 2, layout, false));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmHandComputed,
+            ::testing::ValuesIn(rows_of({DataType::Float32},
+                                        {ExecutionMode::ForceSYCL, ExecutionMode::ForceReference},
+                                        std::vector<Core::Transpose>{Transpose::NoTrans,
+                                                                     Transpose::Trans})),
+            row_name<Core::Transpose>);
+
+        /** @brief Holds the operands and the hand-computed result of the fused seam tests. */
+        class GemmSeamValues : public BlasEngineStart
+        {
+            protected:
+                /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
+                static std::vector<float> a_values() { return {1, 0, 0, 1, 1, 1}; }
+
+                /** @brief B = 2x3. */
+                static std::vector<float> b_values() { return {1, 2, 3, 4, 5, 6}; }
+
+                /** @brief Returns the hand-computed result of the fused call. */
+                static std::vector<float> expected()
                 {
-                    SCOPED_TRACE("case " + std::to_string(i));
-                    expect_every_shape_gives_balanced_bits<float>(*engine, profile, cases[i]);
-                    if (profile.supports_fp64 && hosts_local_tiled<double>(profile))
-                        expect_every_shape_gives_balanced_bits<double>(*engine, profile, cases[i]);
-                    if (hosts_local_tiled<std::complex<float>>(profile))
-                        expect_every_shape_gives_balanced_bits<std::complex<float>>(*engine, profile,
-                                                                                    cases[i]);
+                    return {2, 0, 6,
+                            0, 0, 3,
+                            11, 4, 17};
                 }
-            }
+        };
 
-            TEST_F(Medium_GEMMKernelTest, StrideTableMatchesTheStandardIdentity)
+        /** @brief Runs the fused epilogue once per kernel, in the row-major layout. */
+        class Medium_GemmEpilogueModes : public BlasRowCase<GemmSeamValues, NoAxis>
+        {
+
+        };
+
+        TEST_P(Medium_GemmEpilogueModes, ExecuteGemmFusesBiasBroadcastAndReLU)
+        {
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
+            auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+            const BiasReLUEpilogue epilogue{row_bias.data_as<float>(), col_bias.data_as<float>()};
+
+            Dispatch::execute_gemm(recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
+                                   epilogue);
+            recording->run().value();
+
+            expect_tensor_equal(C, expected());
+        }
+
+        namespace
+        {
+            /** @brief Returns the row-major rows of the float suites that run one kernel each. */
+            [[nodiscard]] std::vector<Row<NoAxis>> kernel_rows()
             {
-                // A transpose equals a flipped layout. See tests/operations/blas/README.md.
-                constexpr int64_t ld = 7;
-
-                const auto row_plain = Kernels::operand_access(
-                    Core::Layout::RowMajor, Core::Transpose::NoTrans, ld);
-                const auto row_trans = Kernels::operand_access(
-                    Core::Layout::RowMajor, Core::Transpose::Trans, ld);
-                const auto col_plain = Kernels::operand_access(
-                    Core::Layout::ColumnMajor, Core::Transpose::NoTrans, ld);
-                const auto col_trans = Kernels::operand_access(
-                    Core::Layout::ColumnMajor, Core::Transpose::Trans, ld);
-
-                EXPECT_EQ(row_plain.row, ld);
-                EXPECT_EQ(row_plain.col, 1);
-                EXPECT_EQ(row_trans.row, 1);
-                EXPECT_EQ(row_trans.col, ld);
-
-                EXPECT_EQ(col_plain.row, row_trans.row);
-                EXPECT_EQ(col_plain.col, row_trans.col);
-                EXPECT_EQ(col_trans.row, row_plain.row);
-                EXPECT_EQ(col_trans.col, row_plain.col);
+                std::vector<Row<NoAxis>> rows;
+                for (const Row<NoAxis>& row :
+                     plain_rows({DataType::Float32},
+                                {ExecutionMode::ForceSYCL, ExecutionMode::ForceReference}))
+                    if (row.layout == Layout::RowMajor)
+                        rows.push_back(row);
+                return rows;
             }
+        } // namespace
 
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmEpilogueModes, ::testing::ValuesIn(kernel_rows()), row_name<NoAxis>);
+
+        /** @brief Runs the fused seam and the dependency probes on the default engine. */
+        class Medium_GEMMSeamTest : public GemmSeamValues
+        {
+
+        };
+
+        TEST_F(Medium_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
+        {
+            // Level3::gemm is the seam with the identity.
+            auto A = engine->create_tensor({13, 7}, DataType::Float32);
+            auto B = engine->create_tensor({7, 11}, DataType::Float32);
+            auto via_api = engine->create_tensor({13, 11}, DataType::Float32);
+            auto via_seam = engine->create_tensor({13, 11}, DataType::Float32);
+            fill_random<float>(A);
+            fill_random<float>(B);
+
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, via_api, Transpose::NoTrans,
+                                                Transpose::NoTrans, 1.5, 0.0);
+            Dispatch::execute_gemm(recorder(), A, B, via_seam, Transpose::NoTrans,
+                                   Transpose::NoTrans, 1.5, 0.0, "test.gemm_identity",
+                                   "test.gemm_identity"_op, Kernels::GemmIdentityEpilogue{});
+            recording->run().value();
+
+            expect_tensor_equal(via_seam, SushiBLAS::IO().to_vector<float>(via_api));
+        }
+
+        TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
+        {
+            GraphProbe probe;
+
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
+            auto bias = engine->create_tensor({3}, DataType::Float32);
+
+            // The in-degree counts the bias edge alone.
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
+
+            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_declared_bias",
+                                   "test.gemm_declared_bias"_op,
+                                   Dispatch::gemm_epilogue(
+                                       BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
+                << "The GEMM whose epilogue dereferences `bias` must depend on the op "
+                   "that wrote it. An in-degree of 0 means the declaration made through "
+                   "Dispatch::gemm_epilogue never reached the task's read set.";
+        }
+
+        TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
+        {
+            GraphProbe probe;
+
+            // The same functor passed bare gets no edge.
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
+            auto bias = engine->create_tensor({3}, DataType::Float32);
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
+
+            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
+                                   BiasColumnEpilogue{bias.data_as<float>()});
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(0u, (*tasks)[1].dependency_count)
+                << "A bare epilogue declares nothing, so the GEMM must be a root - "
+                   "unordered against the op writing the bias it reads. If this is 1, "
+                   "something is inferring the epilogue's operands, which this layer "
+                   "cannot do correctly and must not appear to do.";
+        }
+
+        TEST_F(Medium_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
+        {
+            GraphProbe probe;
+
+            // The declared read uses Tensor::region().
+            constexpr int64_t K_COLUMNS = 3;
+
+            auto storage = make_runtime_storage(TestEnvironment::runtime(),
+                static_cast<size_t>(2 * K_COLUMNS) * sizeof(float),
+                SushiRuntime::Residency::Shared);
+
+            Tensor seed(storage, {K_COLUMNS}, DataType::Float32, 0);
+            Tensor bias(storage, {K_COLUMNS}, DataType::Float32, K_COLUMNS);
+
+            fill_tensor(seed, {1.0f, 2.0f, 3.0f});
+
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
+
+            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
+                                   Dispatch::gemm_epilogue(
+                                       BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
+                << "The declared read must be described by Tensor::region() - keyed on "
+                   "the allocation base and narrowed to the view's byte interval. An "
+                   "in-degree of 0 means it was described by a bare pointer, which keys "
+                   "on a base nothing else in this graph shares.";
+        }
+
+        TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
+        {
+            GraphProbe probe;
+
+            // Only a declared write orders the aux reader.
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+            auto aux = engine->create_tensor({3, 3}, DataType::Float32);
+            auto consumer = engine->create_tensor({3, 3}, DataType::Float32);
+
+            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_spill", "test.gemm_spill"_op,
+                                   Dispatch::gemm_epilogue(
+                                       BiasSpillEpilogue{bias.data_as<float>(),
+                                                         aux.data_as<float>(), 3})
+                                       .reads(bias)
+                                       .writes(aux));
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
+                << "The op reading the epilogue's spill buffer must depend on the GEMM "
+                   "that filled it. An in-degree of 0 means the declared write never "
+                   "reached the task's write set, and the spill buys nothing.";
+        }
+
+        TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
+        {
+            GraphProbe probe;
+
+            // An undeclared aux write gets no edge.
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+            auto aux = engine->create_tensor({3, 3}, DataType::Float32);
+            auto consumer = engine->create_tensor({3, 3}, DataType::Float32);
+
+            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
+                                   BiasSpillEpilogue{bias.data_as<float>(), aux.data_as<float>(), 3});
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+            EXPECT_EQ(0u, (*tasks)[1].dependency_count)
+                << "Nothing can see an undeclared write, so the reader must be a root.";
+        }
+
+        TEST_F(Medium_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
+        {
+            // Both spellings must agree to the bit.
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+            auto bare = engine->create_tensor({3, 3}, DataType::Float32);
+            auto declared = engine->create_tensor({3, 3}, DataType::Float32);
+
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, bare, Transpose::NoTrans, Transpose::NoTrans,
+                                   1.0, 0.0, "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
+                                   BiasColumnEpilogue{bias.data_as<float>()});
+            Dispatch::execute_gemm(recorder(), A, B, declared, Transpose::NoTrans,
+                                   Transpose::NoTrans, 1.0, 0.0, "test.gemm_bias_declared",
+                                   "test.gemm_bias_declared"_op,
+                                   Dispatch::gemm_epilogue(
+                                       BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+            recording->run().value();
+
+            // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
+            expect_tensor_equal(declared, std::vector<float>{2, -6, 6,
+                                                             5, -3, 9,
+                                                             6, -1, 12});
+            expect_tensor_equal(declared, SushiBLAS::IO().to_vector<float>(bare));
+        }
+
+        TEST_F(Medium_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
+        {
+            // A base-less region orders against nothing.
+            Tensor nothing;
+
+            EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).reads(nothing),
+                         std::invalid_argument);
+            EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).writes(nothing),
+                         std::invalid_argument);
+        }
+
+        /** @brief Holds the direct calls to the kernels of the SYCL GEMM. */
+        class Medium_GEMMKernelTest : public BlasEngineStart
+        {
+            protected:
+                /** @brief Returns row-major strides for an operand of leading dimension ld. */
+                [[nodiscard]] static Kernels::OperandAccess row_major(int64_t ld)
+                {
+                    return Kernels::operand_access(Layout::RowMajor, Transpose::NoTrans, ld);
+                }
+        };
+
+        TEST_F(Medium_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
+        {
+            // 2*(A*B), plus both biases, clamped at 0.
+            auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
+            auto B = create_initialized_tensor<float>({2, 3}, {1, 0, -1, 0, 1, -1});
+            auto C = engine->create_tensor({2, 3}, DataType::Float32);
+            auto row_bias = create_initialized_tensor<float>({2}, {0.0f, 1.0f});
+            auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
+
+            const BiasReLUEpilogue epilogue{static_cast<const float*>(row_bias.data()),
+                                            static_cast<const float*>(col_bias.data())};
+
+            Kernels::SYCL::gemm<float>(
+                TestEnvironment::queue(), Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans,
+                2, 3, 2, 2.0f, static_cast<const float*>(A.data()), 2, 0,
+                static_cast<const float*>(B.data()), 3, 0, 0.0f, static_cast<float*>(C.data()), 3, 0,
+                1, {}, epilogue).wait();
+
+            expect_tensor_equal(C, std::vector<float>{2.5f, 3.0f, 0.0f, 7.5f, 8.0f, 0.0f});
+        }
+
+        TEST_F(Medium_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
+        {
+            const GemmCase c{Transpose::NoTrans, Transpose::NoTrans, 37, 45, 23, 1, 1.5, 0.0};
+            const CaseStorage s = storage_of(Layout::RowMajor, c);
+
+            Tensor A = engine->create_tensor({c.m, c.k}, DataType::Float32);
+            Tensor B = engine->create_tensor({c.k, c.n}, DataType::Float32);
+            Tensor C = engine->create_tensor({c.m, c.n}, DataType::Float32);
+            fill_random<float>(A);
+            fill_random<float>(B);
+
+            const std::vector<float> zeros(static_cast<std::size_t>(s.str_c), 0.0f);
+            const HostProduct<float> truth =
+                host_product<float>(Layout::RowMajor, c, download_as<float>(A), download_as<float>(B),
+                                    zeros);
+
+            auto& q = TestEnvironment::queue();
+            Kernels::SYCL::Detail::gemm_no_local<float>(
+                q, Device::profile_for(q), c.m, c.n, c.k,
+                static_cast<float>(c.alpha), static_cast<const float*>(A.data()), row_major(c.k), 0,
+                static_cast<const float*>(B.data()), row_major(c.n), 0,
+                0.0f, static_cast<float*>(C.data()), row_major(c.n), 0,
+                1, {}, Kernels::GemmIdentityEpilogue{}).wait();
+
+            expect_close<float>(download_as<float>(C), truth.value, truth.magnitude, c);
+        }
+
+        /** @brief Runs the local-tiled kernel once per layout, element type and product. */
+        using LocalTiledRow = BlasRowCase<BlasEngineStart, GemmCase>;
+
+        /** @brief Compares the local-tiled kernel with the reference GEMM. */
+        class Medium_GemmLocalTiledAgreement : public LocalTiledRow
+        {
+            protected:
+                /** @brief Runs gemm_local_tiled on a case and compares it with the reference. */
+                template<typename T>
+                void expect_matches_reference(Layout layout, const GemmCase& c)
+                {
+                    if (!hosts_local_tiled<T>(Device::profile_for(TestEnvironment::queue())))
+                    {
+                        GTEST_SKIP() << "device cannot host the local-tiled work-group";
+                    }
+                    const CaseStorage s = storage_of(layout, c);
+                    const DataType dtype = sushiblas_dtype<T>();
+                    Tensor A = engine->create_tensor({c.batch * s.str_a}, dtype);
+                    Tensor B = engine->create_tensor({c.batch * s.str_b}, dtype);
+                    Tensor C = engine->create_tensor({c.batch * s.str_c}, dtype);
+                    fill_random<T>(A);
+                    fill_random<T>(B);
+
+                    const std::vector<T> zeros(static_cast<std::size_t>(c.batch * s.str_c), T(0));
+                    const HostProduct<T> truth =
+                        host_product<T>(layout, c, download_as<T>(A), download_as<T>(B), zeros);
+
+                    Kernels::SYCL::Detail::gemm_local_tiled<T>(
+                        TestEnvironment::queue(), c.m, c.n, c.k, element_of<T>(c.alpha),
+                        static_cast<const T*>(A.data()),
+                        Kernels::operand_access(layout, c.trans_a, s.lda), s.str_a,
+                        static_cast<const T*>(B.data()),
+                        Kernels::operand_access(layout, c.trans_b, s.ldb), s.str_b,
+                        T(0), static_cast<T*>(C.data()),
+                        Kernels::operand_access(layout, Transpose::NoTrans, s.ldc), s.str_c,
+                        c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+
+                    expect_close<T>(download_as<T>(C), truth.value, truth.magnitude, c);
+                }
+        };
+
+        TEST_P(Medium_GemmLocalTiledAgreement, TheLocalTiledKernelAgreesWithTheReferenceKernel)
+        {
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_matches_reference<T>(GetParam().layout, GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmLocalTiledAgreement,
+            ::testing::ValuesIn(rows_of({DataType::Float32, DataType::Float64, DataType::Half},
+                                        {ExecutionMode::ForceSYCL}, K_LOCAL_TILED_CASES)),
+            row_name<GemmCase>);
+
+        /** @brief Compares every tile shape of the catalog with Balanced, bit for bit. */
+        class Medium_GemmTileShapeBits : public LocalTiledRow
+        {
+            protected:
+                /** @brief Runs gemm_local_tiled with one shape on the operands and returns C. */
+                template<typename T, typename Shape>
+                [[nodiscard]] std::vector<T> local_tiled_with(Layout layout, const GemmCase& c,
+                                                              const Tensor& A, const Tensor& B)
+                {
+                    const CaseStorage s = storage_of(layout, c);
+                    Tensor C = engine->create_tensor({c.batch * s.str_c}, sushiblas_dtype<T>());
+
+                    Kernels::SYCL::Detail::gemm_local_tiled<T, Shape>(
+                        TestEnvironment::queue(), c.m, c.n, c.k, T(1),
+                        static_cast<const T*>(A.data()),
+                        Kernels::operand_access(layout, c.trans_a, s.lda), s.str_a,
+                        static_cast<const T*>(B.data()),
+                        Kernels::operand_access(layout, c.trans_b, s.ldb), s.str_b,
+                        T(0), static_cast<T*>(C.data()),
+                        Kernels::operand_access(layout, Transpose::NoTrans, s.ldc), s.str_c,
+                        c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+                    return download_as<T>(C);
+                }
+
+                /** @brief Expects the Wide and Compact shapes to give the bits of Balanced. */
+                template<typename T>
+                void expect_every_shape_gives_balanced_bits(Layout layout, const GemmCase& c)
+                {
+                    using Balanced = Kernels::GemmTile<T, Kernels::GemmTileRole::Balanced>;
+                    using Wide = Kernels::GemmTile<T, Kernels::GemmTileRole::Wide>;
+                    using Compact = Kernels::GemmTile<T, Kernels::GemmTileRole::Compact>;
+
+                    const Device::Profile& profile = Device::profile_for(TestEnvironment::queue());
+                    if (!hosts_local_tiled<T>(profile))
+                    {
+                        GTEST_SKIP() << "device cannot host the local-tiled work-group";
+                    }
+                    const CaseStorage s = storage_of(layout, c);
+                    Tensor A = engine->create_tensor({c.batch * s.str_a}, sushiblas_dtype<T>());
+                    Tensor B = engine->create_tensor({c.batch * s.str_b}, sushiblas_dtype<T>());
+                    fill_random<T>(A);
+                    fill_random<T>(B);
+
+                    // One fused multiply-add per k, k rising, in every shape.
+                    const std::vector<T> want = local_tiled_with<T, Balanced>(layout, c, A, B);
+                    const std::size_t bytes = want.size() * sizeof(T);
+                    if (hosts_shape<Wide>(profile))
+                    {
+                        const std::vector<T> wide = local_tiled_with<T, Wide>(layout, c, A, B);
+                        EXPECT_EQ(std::memcmp(wide.data(), want.data(), bytes), 0) << "Wide";
+                    }
+                    if (hosts_shape<Compact>(profile))
+                    {
+                        const std::vector<T> compact = local_tiled_with<T, Compact>(layout, c, A, B);
+                        EXPECT_EQ(std::memcmp(compact.data(), want.data(), bytes), 0) << "Compact";
+                    }
+                }
+        };
+
+        TEST_P(Medium_GemmTileShapeBits, EveryTileShapeGivesTheBitsOfBalanced)
+        {
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_every_shape_gives_balanced_bits<T>(GetParam().layout, GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmTileShapeBits,
+            ::testing::ValuesIn(rows_of({DataType::Float32, DataType::Float64, DataType::Complex32},
+                                        {ExecutionMode::ForceSYCL}, tile_shape_cases())),
+            row_name<GemmCase>);
+
+        /**
+         * @brief Tests that a transpose equals a flipped layout, on integer data the host sums exactly.
+         *
+         * A k x m row-major buffer read transposed is the m x k column-major buffer of the same
+         * bytes read as given, so the two calls must give C and its column-major copy.
+         */
+        TEST(Small_GemmStrideTable, ATransposeEqualsAFlippedLayout)
+        {
+            constexpr int64_t K_M = 5;
+            constexpr int64_t K_N = 4;
+            constexpr int64_t K_K = 3;
+
+            std::vector<float> a(static_cast<std::size_t>(K_K * K_M));
+            std::vector<float> b(static_cast<std::size_t>(K_K * K_N));
+            for (std::size_t i = 0; i < a.size(); ++i)
+                a[i] = static_cast<float>(static_cast<int>(i % 7) - 3);
+            for (std::size_t i = 0; i < b.size(); ++i)
+                b[i] = static_cast<float>(static_cast<int>(i % 5) - 2);
+
+            std::vector<float> row_major_c(static_cast<std::size_t>(K_M * K_N), 0.0f);
+            std::vector<float> column_major_c(row_major_c.size(), 0.0f);
+            Kernels::Reference::gemm<float>(Layout::RowMajor, Transpose::Trans, Transpose::NoTrans,
+                                            K_M, K_N, K_K, 1.0f, a.data(), K_M, b.data(), K_N, 0.0f,
+                                            row_major_c.data(), K_N);
+            Kernels::Reference::gemm<float>(Layout::ColumnMajor, Transpose::NoTrans, Transpose::Trans,
+                                            K_M, K_N, K_K, 1.0f, a.data(), K_M, b.data(), K_N, 0.0f,
+                                            column_major_c.data(), K_M);
+
+            for (int64_t row = 0; row < K_M; ++row)
+                for (int64_t col = 0; col < K_N; ++col)
+                    EXPECT_EQ(column_major_c[static_cast<std::size_t>(row + col * K_M)],
+                              row_major_c[static_cast<std::size_t>(row * K_N + col)])
+                        << "element (" << row << ", " << col << ")";
+        }
     } // namespace Test
-} // namespace SushiBLAS::Test
+} // namespace SushiBLAS

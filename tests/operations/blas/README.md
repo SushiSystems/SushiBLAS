@@ -55,20 +55,20 @@ the benchmark section of `tests/README.md` describes them.
 
 ## test_blas/test_gemm.cpp
 
-`expect_accuracy` seeds both C buffers identically, or a non-zero beta would compare two
+`expect_agreement` seeds both C buffers identically, or a non-zero beta would compare two
 different problems. When beta is zero they are poisoned, not zeroed: BLAS says that case must
 not read C at all, and a NaN that leaks through fails the comparison where a zero would hide in
 a plausible number. A NaN is the strongest available witness, because 0*NaN is NaN, so any read
 of C at beta == 0 propagates and `EXPECT_NEAR` rejects it. Half and the complex types all carry
 a quiet NaN.
 
-`RaggedOnEveryAxis`: every extent is prime and none divides any work-group block, so the row,
+The 37 x 23 x 13 case: every extent is prime and none divides any work-group block, so the row,
 column and K tails are ragged at the same time.
 
-`KShorterThanOneTile` spans several work-groups in both output dimensions while K is shorter
+The 40 x 40 x 3 case spans several work-groups in both output dimensions while K is shorter
 than one local-memory K-tile, so the staged tile is mostly zero padding.
 
-`BetaZeroNeverReadsC` is ragged on purpose, so the tail path is covered too.
+The scaled beta-zero case is ragged on purpose, so the tail path is covered too.
 
 `Medium_GEMMKernelTest` does two things the typed differential suite cannot. The first is
 hand-computed expectations; see "Expectations are worked out by hand". The layout and transpose
@@ -76,9 +76,9 @@ cases are checked against numbers worked out by hand. The second is variant cove
 picks between its local-tiled and no-local shapes from the device profile, so on any one
 machine the public API only ever reaches one of them. These tests call both directly.
 
-`LocalTiledVariantMatchesReferenceOnWholeAndEdgeTiles` reaches every staging path of
+`TheLocalTiledKernelAgreesWithTheReferenceKernel` reaches every staging path of
 `gemm_local_tiled`. Each extent spans at least one whole 64-wide block and an edge, and K = 40 or
-48 gives two or three whole K-tiles with an edge after the first. The five cases cover A walked
+48 gives two or three whole K-tiles with an edge after the first. The first five cases, each run in both layouts, cover A walked
 rows first (ColumnMajor NoTrans, RowMajor Trans) and columns first, and B walked depth first
 (ColumnMajor NoTrans) and columns first. The first case is a batch of two, so the second product
 starts at a batch offset; the second case has lda = 130, which no 128-bit load divides, so its
@@ -90,17 +90,17 @@ and compares the bytes of C. It covers both layouts and every transpose, at one 
 blocks and one of edges with a batch of two, in FLOAT32, FLOAT64 and complex FLOAT32. A shape the
 device cannot host is left out.
 
-`ColumnMajorMatchesHandComputedResult` stores the row-major problem column-major: A (2x3) is
+The column-major rows of `TheProductOfTwoSmallMatricesIsTheHandComputedOne` store the row-major problem column-major: A (2x3) is
 `[1,4,2,5,3,6]` with lda = 2, and B (3x2) is `[1,0,1,0,1,1]` with ldb = 3. This is the case
 that was wrong. The old kernels read a column-major A as if it were row-major with a
 column-major leading dimension. That produced the wrong element and, because that leading
 dimension is m and not k, ran off the end of the buffer whenever m > k. It survived because the
 reference kernel had the identical defect.
 
-`ColumnMajorReferenceMatchesHandComputedResult` pins the oracle itself to the same numbers.
+The reference rows of the same suite pin the oracle itself to the same numbers.
 Without it the SYCL kernel could only ever be as right as whatever the reference does.
 
-`TransposedAMatchesHandComputedResult`: op(A) is the same `[[1,2,3],[4,5,6]]`, so A is stored
+The `Trans` rows of the same suite: op(A) is the same `[[1,2,3],[4,5,6]]`, so A is stored
 3x2 as its transpose `[[1,4],[2,5],[3,6]]`. This pins the RowMajor and transposed arm, which
 must address identically to ColumnMajor and untransposed.
 
@@ -138,7 +138,7 @@ jointly.
 
 and the ReLU clamps the three negatives to zero.
 
-`ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath`: the reference kernel is this operation's
+The reference row of `ExecuteGemmFusesBiasBroadcastAndReLU`: the reference kernel is this operation's
 specification, so it has to apply the epilogue too. Otherwise ForceReference would quietly
 compute a different function from ForceSYCL, and every comparison of the two modes on a fused
 GEMM would disagree.
@@ -206,17 +206,17 @@ remove.
 
 ### Kernel variants
 
-`LocalTiledVariantMatchesReferenceOnRaggedShape` runs the variant a GPU would take. The machine
+`NoLocalVariantMatchesReferenceOnRaggedShape` and the local-tiled rows run the variant a GPU would take. The machine
 these tests were written on has no GPU; the only reachable device is an OpenCL CPU. What the
 test proves is that the kernel compiles, launches, synchronises and computes the right answer
 on a device whose "local memory" is really just cache. It is not evidence about performance on
 real scratchpad hardware, and it is not a substitute for running it on one.
 
-`LocalTiledVariantHandlesColumnMajorAndTransposes` drives the same variant through the stride
+The column-major and transposed rows of the local-tiled suite drive the same variant through the stride
 pair and not the identity case, so the layout and transpose hoisting is exercised on the path
 the profile will not select on that machine.
 
-`StrideTableMatchesTheStandardIdentity`: transposing an operand and flipping its layout are the
+`ATransposeEqualsAFlippedLayout`: transposing an operand and flipping its layout are the
 same operation. The check is cheap to state, and it would have caught the inverted
 ColumnMajor arm the moment it was written.
 

@@ -124,12 +124,12 @@ struct BiasColumnEpilogue
 
 // ...
 
-Dispatch::execute_gemm(probe.recorder(), A, B, C,
-                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
-                       1.0, 0.0,
-                       "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
+Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
+                       1.0, 0.0, "test.gemm_declared_bias",
+                       "test.gemm_declared_bias"_op,
                        Dispatch::gemm_epilogue(
                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+
 ```
 
 Source: `tests/operations/blas/test_blas/test_gemm.cpp`

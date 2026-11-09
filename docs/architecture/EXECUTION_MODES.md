@@ -20,16 +20,14 @@ tasks of different modes:
 
 ```cpp
 set_mode(ExecutionMode::ForceSYCL);
-SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, transpose_of(transA),
-                                 transpose_of(transB), alpha, beta);
+SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, c.trans_a, c.trans_b,
+                                    c.alpha, c.beta);
 recording->run().value();
 
 set_mode(ExecutionMode::ForceReference);
-SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, transpose_of(transA),
-                                 transpose_of(transB), alpha, beta);
+SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, c.trans_a, c.trans_b,
+                                    c.alpha, c.beta);
 recording->run().value();
-
-SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
 ```
 
 Source: `tests/operations/blas/test_blas/test_gemm.cpp`
