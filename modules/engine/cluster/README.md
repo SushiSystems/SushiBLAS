@@ -85,8 +85,10 @@ worker side has no use for them yet. A caller can sum the same segment of severa
 `record_gather()` records through a `TaskRecorder` one task that copies each tensor into its
 place, and `record_scatter()` one that copies each place into its tensor. The pack enters the
 task's `OperandSet` as a `Float32` tensor over the whole buffer, whose size is a multiple of 128. Each takes one tensor per entry in
-the layout's order, refuses a tensor whose type, layout or shape differs from its entry, and
-refuses one that is not contiguous or lives on another device than the pack. The task reads the tensors and writes the pack, or the
+the layout's order. `PackLayout::require_tensors()` makes those checks without a runtime or a
+recorder: it refuses a list of another length, a tensor whose type, layout or shape differs from
+its entry, and one with no storage, that is not contiguous or that lives on another device than
+the pack. The task reads the tensors and writes the pack, or the
 reverse, and keeps every storage it touches alive. The copies run one after the other on the
 task's queue, under every execution mode: a `memcpy` between shared allocations has no separate
 reference path.
@@ -95,7 +97,8 @@ reference path.
 
 `ClusterBinding` holds a `Cluster` handle and the `KernelRegistry` the engine's remote tasks run.
 It exposes `share()`, `is_shared()`, `has_worker_for()` and `kernels()`, never the cluster
-itself. `share()` registers the pack's buffer with the master; the buffer leaves the registry when
+itself. The static `require_kernels()` refuses a null registry, as the constructor does, and
+needs no runtime. `share()` registers the pack's buffer with the master; the buffer leaves the registry when
 the last copy of the pack frees it, through the allocator's release observer.
 
 ## remote_task.hpp

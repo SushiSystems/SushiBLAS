@@ -39,7 +39,13 @@ namespace SushiBLAS
         SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry> kernels)
         : cluster_(std::move(cluster)), kernels_(std::move(kernels))
     {
-        SB_THROW_IF(!kernels_, "ClusterBinding: the kernel registry is null");
+        require_kernels(kernels_);
+    }
+
+    void ClusterBinding::require_kernels(
+        const SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry>& kernels)
+    {
+        SB_THROW_IF(!kernels, "ClusterBinding: the kernel registry is null");
     }
 
     void ClusterBinding::share(const TensorPack& pack)

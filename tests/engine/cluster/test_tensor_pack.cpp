@@ -137,30 +137,6 @@ namespace SushiBLAS
                 graph.run().value();
             }
 
-            /** @brief Returns true when recording a gather of the tensors throws runtime_error. */
-            bool gather_is_refused(const TensorPack& pack, const std::vector<Tensor>& tensors)
-            {
-                RuntimeScratchSource scratch_source(runtime());
-                ScratchPool scratch(scratch_source);
-                LateCountHold late_counts(runtime());
-                auto graph = runtime().graph();
-                bool refused = false;
-                graph.extend([&](SushiRuntime::Recorder& recorder)
-                {
-                    TaskRecorder recording(recorder, scratch, late_counts);
-                    try
-                    {
-                        (void)pack.record_gather(recording, SushiRuntime::span<const Tensor>(
-                                                                tensors.data(), tensors.size()));
-                    }
-                    catch (const std::runtime_error&)
-                    {
-                        refused = true;
-                    }
-                });
-                return refused;
-            }
-
             /** @brief Gathers the sources into a pack that dies before this returns, and hands back its tensors. */
             std::vector<Tensor> entry_views_after_the_pack_dies(const std::vector<Tensor>& sources)
             {
@@ -281,16 +257,6 @@ namespace SushiBLAS
             EXPECT_THROW((void)pack.tensor(2), std::out_of_range);
         }
 
-        /** @brief Tests that a gather refuses a tensor whose shape differs from its entry. */
-        TEST_F(Medium_TensorPack, GatherRefusesATensorOfAnotherShape)
-        {
-            const std::vector<Tensor> layout_tensors = {shared_tensor(Core::DataType::Float32, 4)};
-            const std::vector<Tensor> other = {shared_tensor(Core::DataType::Float32, 5)};
-            const TensorPack pack(runtime(), layout_of(layout_tensors), 0);
-
-            EXPECT_TRUE(gather_is_refused(pack, other));
-        }
-
         /** @brief Runs one row of segment_rows() against a pack holding two tensors of every type. */
         class Medium_TensorPackSegment : public ::testing::TestWithParam<SegmentRow>
         {
@@ -363,25 +329,5 @@ namespace SushiBLAS
             ::testing::Values(std::size_t{0}, std::size_t{1}),
             [](const ::testing::TestParamInfo<std::size_t>& info)
             { return "Device" + std::to_string(info.param); });
-
-        /** @brief Skips every test of its suite when the runtime drives fewer than two devices. */
-        class Medium_Regression_TensorPackSecondDevice : public ::testing::Test
-        {
-            protected:
-                void SetUp() override
-                {
-                    if (runtime().advanced().device_count() < 2)
-                        GTEST_SKIP() << "The runtime drives one device; two are needed.";
-                }
-        };
-
-        /** @brief Tests that a gather refuses a tensor on another device than the pack. */
-        TEST_F(Medium_Regression_TensorPackSecondDevice, GatherRefusesATensorOnAnotherDevice)
-        {
-            const std::vector<Tensor> on_second = {shared_tensor(Core::DataType::Float32, 4, 1)};
-            const TensorPack pack(runtime(), layout_of(on_second), 0);
-
-            EXPECT_TRUE(gather_is_refused(pack, on_second));
-        }
     } // namespace Test
 } // namespace SushiBLAS

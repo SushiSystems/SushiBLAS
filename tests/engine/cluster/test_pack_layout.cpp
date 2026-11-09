@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/cluster/pack_layout.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
@@ -57,6 +58,24 @@ namespace SushiBLAS
             {
                 return PackLayout::of(
                     SushiRuntime::span<const Tensor>(tensors.data(), tensors.size()));
+            }
+
+            /** @brief Returns a contiguous float tensor of count elements on host storage. */
+            Tensor host_floats(std::int64_t count)
+            {
+                const std::int64_t dims[] = {count};
+                return Tensor(make_host_storage(static_cast<std::size_t>(count) * sizeof(float)),
+                              SushiRuntime::span<const std::int64_t>(dims, 1),
+                              Core::DataType::Float32);
+            }
+
+            /** @brief Runs require_tensors on a list against the layout of one float tensor of four. */
+            void require_against_four_floats(const std::vector<Tensor>& tensors,
+                                             std::size_t device_index)
+            {
+                layout_of({host_floats(4)}).require_tensors(
+                    SushiRuntime::span<const Tensor>(tensors.data(), tensors.size()), device_index,
+                    "test.pack");
             }
         } // namespace
 
@@ -182,6 +201,33 @@ namespace SushiBLAS
             EXPECT_FALSE(PackLayout::matches(entry, shaped({3, 2}, Core::DataType::Float64)));
             EXPECT_FALSE(PackLayout::matches(
                 entry, shaped({3, 2}, Core::DataType::Float32, Core::Layout::ColumnMajor)));
+        }
+
+        /** @brief Tests that require_tensors refuses a tensor of another shape. */
+        TEST(Small_PackLayout, RequireTensorsRefusesATensorOfAnotherShape)
+        {
+            EXPECT_THROW(require_against_four_floats({host_floats(5)}, 0), std::runtime_error);
+        }
+
+        /** @brief Tests that require_tensors refuses a list of another length. */
+        TEST(Small_PackLayout, RequireTensorsRefusesAListOfAnotherLength)
+        {
+            EXPECT_THROW(require_against_four_floats({host_floats(4), host_floats(4)}, 0),
+                         std::runtime_error);
+        }
+
+        /** @brief Tests that require_tensors refuses a tensor with no storage. */
+        TEST(Small_PackLayout, RequireTensorsRefusesATensorWithNoStorage)
+        {
+            EXPECT_THROW(require_against_four_floats({shaped({4}, Core::DataType::Float32)}, 0),
+                         std::runtime_error);
+        }
+
+        /** @brief Tests that require_tensors refuses a tensor on another device than the pack. */
+        TEST(Small_Regression_PackLayout, RequireTensorsRefusesATensorOnAnotherDevice)
+        {
+            // Host storage lives on device 0, so a pack on device 1 differs from it.
+            EXPECT_THROW(require_against_four_floats({host_floats(4)}, 1), std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/tensor/storage.hpp>
 
 // A pack crosses the network as raw bytes, and the stack's frames are little-endian.
 static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__,
@@ -164,5 +165,29 @@ namespace SushiBLAS
                 return false;
         }
         return true;
+    }
+
+    void PackLayout::require_tensors(SushiRuntime::span<const Tensor> tensors,
+                                     std::size_t device_index, const char* name) const
+    {
+        SB_THROW_IF(tensors.size() != entries_.size(),
+                    "{}: the pack holds {} tensors and {} were given", name, entries_.size(),
+                    tensors.size());
+        for (std::size_t index = 0; index < entries_.size(); ++index)
+        {
+            const PackEntry& entry = entries_[index];
+            const Tensor& tensor = tensors[index];
+            SB_THROW_IF(!matches(entry, tensor),
+                        "{}: tensor {} differs from its entry in type, layout or shape", name,
+                        index);
+            if (entry.size_bytes == 0)
+                continue;
+            SB_THROW_IF(!tensor.storage, "{}: tensor {} has no storage", name, index);
+            SB_THROW_IF(!tensor.is_contiguous(), "{}: tensor {} is not contiguous", name, index);
+            SB_THROW_IF(tensor.storage->device_index() != device_index,
+                        "{}: tensor {} lives on device {} and the pack on device {}; a pack "
+                        "copies within one device",
+                        name, index, tensor.storage->device_index(), device_index);
+        }
     }
 } // namespace SushiBLAS

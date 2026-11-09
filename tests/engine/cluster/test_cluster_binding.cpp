@@ -138,10 +138,10 @@ namespace SushiBLAS
             EXPECT_FALSE(binding.has_worker_for(SushiRuntime::OperationID(1)));
         }
 
-        /** @brief Tests that a binding refuses a null kernel registry. */
-        TEST_F(Medium_ClusterBinding, RefusesANullRegistry)
+        /** @brief Tests that a null kernel registry is refused, with no runtime or cluster. */
+        TEST(Small_ClusterBinding, RefusesANullRegistry)
         {
-            EXPECT_THROW(ClusterBinding(*cluster_, SushiRuntime::sushi_ptr<KernelRegistry>()),
+            EXPECT_THROW(ClusterBinding::require_kernels(SushiRuntime::sushi_ptr<KernelRegistry>()),
                          std::runtime_error);
         }
     } // namespace Test

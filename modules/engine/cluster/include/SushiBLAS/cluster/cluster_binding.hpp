@@ -55,6 +55,14 @@ namespace SushiBLAS
                 SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry> kernels);
 
             /**
+             * @brief Refuses a null kernel registry; the constructor calls it, and it needs no
+             *        runtime or cluster.
+             * @throws std::runtime_error when kernels is null.
+             */
+            static void require_kernels(
+                const SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry>& kernels);
+
+            /**
              * @brief Shares a pack's buffer with the workers until the buffer is released.
              *
              * The buffer leaves the cluster's registry when the last copy of the pack is

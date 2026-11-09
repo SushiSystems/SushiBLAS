@@ -107,6 +107,17 @@ namespace SushiBLAS
             [[nodiscard]] static bool matches(const PackEntry& entry,
                                               const Tensor& tensor) noexcept;
 
+            /**
+             * @brief Refuses tensors a pack of this layout cannot copy from or into, with no runtime.
+             * @param tensors The tensors, in the order of the layout's entries.
+             * @param device_index The device the pack's buffer lives on.
+             * @param name The task name a refusal quotes.
+             * @throws std::runtime_error on a wrong count, or a tensor of another type, layout,
+             *         shape or device, or one with no storage or not contiguous.
+             */
+            void require_tensors(SushiRuntime::span<const Tensor> tensors,
+                                 std::size_t device_index, const char* name) const;
+
         private:
             PackLayout() = default;
 

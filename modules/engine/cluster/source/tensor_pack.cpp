@@ -102,10 +102,8 @@ namespace SushiBLAS
                                  const Tensor& pack, SushiRuntime::span<const Tensor> tensors,
                                  CopyDirection direction, const char* name)
         {
+            layout.require_tensors(tensors, pack.storage->device_index(), name);
             const std::vector<PackEntry>& entries = layout.entries();
-            SB_THROW_IF(tensors.size() != entries.size(),
-                        "{}: the pack holds {} tensors and {} were given", name, entries.size(),
-                        tensors.size());
 
             std::byte* base = static_cast<std::byte*>(pack.storage->allocation_base());
             CopyTask task;
@@ -120,20 +118,8 @@ namespace SushiBLAS
             {
                 const PackEntry& entry = entries[index];
                 const Tensor& tensor = tensors[index];
-                SB_THROW_IF(!PackLayout::matches(entry, tensor),
-                            "{}: tensor {} differs from its entry in type, layout or shape", name,
-                            index);
                 if (entry.size_bytes == 0)
                     continue;
-
-                SB_THROW_IF(!tensor.storage, "{}: tensor {} has no storage", name, index);
-                SB_THROW_IF(!tensor.is_contiguous(), "{}: tensor {} is not contiguous", name,
-                            index);
-                SB_THROW_IF(tensor.storage->device_index() != pack.storage->device_index(),
-                            "{}: tensor {} lives on device {} and the pack on device {}; a pack "
-                            "copies within one device",
-                            name, index, tensor.storage->device_index(),
-                            pack.storage->device_index());
 
                 std::byte* place = base + entry.offset_bytes;
                 // Tensor::data() is const-qualified only on its view; the bytes are writable.
