@@ -27,12 +27,12 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <algorithm>
-#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -51,12 +51,6 @@ namespace SushiBLAS
             using Core::Transpose;
             using Core::Uplo;
             using Complex = std::complex<double>;
-
-            /// @brief Holds the orders the rows are walked at.
-            constexpr int64_t K_ORDERS[] = {1, 2, 7};
-
-            /// @brief Holds the band widths the rows are walked at.
-            constexpr int64_t K_BANDS[] = {0, 1, 3};
 
             /** @brief Returns storage whose element at offset p is (p + 1, -(p + 1)). */
             [[nodiscard]] std::vector<Complex> numbered(int64_t elements)
@@ -113,62 +107,85 @@ namespace SushiBLAS
                 expect_rows_in_order<Kernels::Unconjugated>(access, a, n);
                 expect_rows_in_order<Kernels::Conjugated>(access, a, n);
             }
+
+            /** @brief Holds one storage, order and band width the rows are walked at. */
+            struct RowCase
+            {
+                Layout layout; /**< The storage order of the lines. */
+                Uplo uplo;     /**< The stored triangle. */
+                int64_t order; /**< The order of the matrix. */
+                int64_t band;  /**< The band width; unused by the packed storage. */
+            };
+
+            /** @brief Returns both layouts and triangles crossed with the orders and bands. */
+            [[nodiscard]] std::vector<RowCase> row_cases(std::vector<int64_t> orders,
+                                                         std::vector<int64_t> bands)
+            {
+                std::vector<RowCase> cases;
+                for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
+                    for (const Uplo uplo : {Uplo::Upper, Uplo::Lower})
+                        for (const int64_t n : orders)
+                            for (const int64_t k : bands)
+                                cases.push_back({layout, uplo, n, k});
+                return cases;
+            }
+
+            /** @brief Names a case for the test name. */
+            std::string row_case_name(const ::testing::TestParamInfo<RowCase>& info)
+            {
+                const RowCase& row = info.param;
+                return std::string(row.layout == Layout::RowMajor ? "RowMajor" : "ColumnMajor") +
+                       (row.uplo == Uplo::Upper ? "Upper" : "Lower") + "Order" +
+                       std::to_string(row.order) + "Band" + std::to_string(row.band);
+            }
         } // namespace
+
+        /** @brief Walks the rows of a packed symmetric matrix once per case. */
+        class Small_SymmetricRowPacked : public ::testing::TestWithParam<RowCase>
+        {
+
+        };
 
         /**
          * @brief Tests that a row of a packed symmetric or Hermitian matrix is visited from its
          *        first column to its last, each element equal to its indexed read.
          */
-        TEST(Small_SymmetricRow, APackedRowIsVisitedInColumnOrder)
+        TEST_P(Small_SymmetricRowPacked, APackedRowIsVisitedInColumnOrder)
         {
-            for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
-            {
-                for (const Uplo uplo : {Uplo::Upper, Uplo::Lower})
-                {
-                    for (const int64_t n : K_ORDERS)
-                    {
-                        SCOPED_TRACE(::testing::Message()
-                                     << (layout == Layout::RowMajor ? "row-major" : "column-major")
-                                     << ", " << Core::to_string(uplo) << ", order " << n);
+            const RowCase& row = GetParam();
+            const std::vector<Complex> a = numbered(row.order * (row.order + 1) / 2);
 
-                        const std::vector<Complex> a = numbered(n * (n + 1) / 2);
-                        expect_both_policies(
-                            Kernels::packed_access(layout, uplo, Transpose::NoTrans, n),
-                            a.data(), n);
-                    }
-                }
-            }
+            expect_both_policies(
+                Kernels::packed_access(row.layout, row.uplo, Transpose::NoTrans, row.order),
+                a.data(), row.order);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SymmetricRowPacked,
+                                 ::testing::ValuesIn(row_cases({1, 2, 7}, {0})), row_case_name);
+
+        /** @brief Walks the rows of a band-stored symmetric matrix once per case. */
+        class Small_SymmetricRowBand : public ::testing::TestWithParam<RowCase>
+        {
+
+        };
 
         /**
          * @brief Tests that a row of a band-stored symmetric or Hermitian matrix is visited
          *        from its first column inside the band to its last.
          */
-        TEST(Small_SymmetricRow, ABandRowIsVisitedInColumnOrder)
+        TEST_P(Small_SymmetricRowBand, ABandRowIsVisitedInColumnOrder)
         {
-            for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
-            {
-                for (const Uplo uplo : {Uplo::Upper, Uplo::Lower})
-                {
-                    for (const int64_t n : K_ORDERS)
-                    {
-                        for (const int64_t k : K_BANDS)
-                        {
-                            SCOPED_TRACE(::testing::Message()
-                                         << (layout == Layout::RowMajor ? "row-major"
-                                                                        : "column-major")
-                                         << ", " << Core::to_string(uplo) << ", order " << n
-                                         << ", band " << k);
+            const RowCase& row = GetParam();
+            const std::vector<Complex> a = numbered((row.band + 1) * row.order);
 
-                            const std::vector<Complex> a = numbered((k + 1) * n);
-                            expect_both_policies(
-                                Kernels::triangle_band_access(layout, uplo, Transpose::NoTrans,
-                                                              k, k + 1),
-                                a.data(), n);
-                        }
-                    }
-                }
-            }
+            expect_both_policies(
+                Kernels::triangle_band_access(row.layout, row.uplo, Transpose::NoTrans, row.band,
+                                              row.band + 1),
+                a.data(), row.order);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_SymmetricRowBand,
+                                 ::testing::ValuesIn(row_cases({1, 2, 7}, {0, 1, 3})),
+                                 row_case_name);
     } // namespace Test
 } // namespace SushiBLAS
