@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_SquareTest : public SushiBLASTest {};
+class Small_SquareTest : public HostEngineTest {};
 
-TEST_F(Medium_SquareTest, FloatForward) 
+/**
+ * @brief Tests that the recorded square replaces each element with its square when the task runs.
+ */
+TEST_F(Small_SquareTest, SquareReplacesEachElementWithItsSquare) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).square(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.00000f, 4.00000f, 9.00000f, 0.25000f});
 }
