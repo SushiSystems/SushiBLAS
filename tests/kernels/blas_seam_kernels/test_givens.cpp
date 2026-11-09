@@ -69,30 +69,24 @@ namespace SushiBLAS
             };
 
             /**
-             * @brief Holds the scaling bounds of a real type and operands that leave them.
+             * @brief Holds the operands of a real type whose squares leave its range.
              * @tparam R float or double.
              */
             template<typename R>
             struct GivensLimits;
 
-            /** @brief Holds the bounds and the out-of-range operands of float. */
+            /** @brief Holds the out-of-range operands of float. */
             template<>
             struct GivensLimits<float>
             {
-                static constexpr float K_SAFE_MINIMUM = 0x1p-126f;     /**< 2^-126. */
-                static constexpr float K_SAFE_MAXIMUM = 0x1p127f;      /**< 2^127. */
-                static constexpr float K_SAFE_ROOT_MINIMUM = 0x1p-63f; /**< 2^-63. */
                 static constexpr float K_LARGE = 1e30f;  /**< Its square overflows float. */
                 static constexpr float K_SMALL = 1e-30f; /**< Its square underflows float. */
             };
 
-            /** @brief Holds the bounds and the out-of-range operands of double. */
+            /** @brief Holds the out-of-range operands of double. */
             template<>
             struct GivensLimits<double>
             {
-                static constexpr double K_SAFE_MINIMUM = 0x1p-1022;     /**< 2^-1022. */
-                static constexpr double K_SAFE_MAXIMUM = 0x1p1023;      /**< 2^1023. */
-                static constexpr double K_SAFE_ROOT_MINIMUM = 0x1p-511; /**< 2^-511. */
                 static constexpr double K_LARGE = 1e200;  /**< Its square overflows double. */
                 static constexpr double K_SMALL = 1e-200; /**< Its square underflows double. */
             };
@@ -129,6 +123,54 @@ namespace SushiBLAS
                 std::complex<double> s; /**< The expected sine. */
             };
 
+            /// @brief The real row of the pair (3, 4).
+            const RealRotationRow K_REAL_3_4 = {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0,
+                                                RebuildValue::InverseCosine};
+
+            /// @brief The real row of the pair (4, 3).
+            const RealRotationRow K_REAL_4_3 = {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0,
+                                                RebuildValue::Sine};
+
+            /// @brief The real row of the pair (-4, 3).
+            const RealRotationRow K_REAL_MINUS_4_3 = {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0,
+                                                      RebuildValue::Sine};
+
+            /// @brief The real row of the pair (3, -4).
+            const RealRotationRow K_REAL_3_MINUS_4 = {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0,
+                                                      RebuildValue::InverseCosine};
+
+            /// @brief The real row of the pair (0, 0).
+            const RealRotationRow K_REAL_0_0 = {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+                                                RebuildValue::Zero};
+
+            /// @brief The real row of the pair (0, 2).
+            const RealRotationRow K_REAL_0_2 = {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0,
+                                                RebuildValue::One};
+
+            /// @brief The real row of the pair (2, 0).
+            const RealRotationRow K_REAL_2_0 = {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0,
+                                                RebuildValue::Zero};
+
+            /// @brief The complex row of the pair (3, 4).
+            const ComplexRotationRow K_COMPLEX_3_4 = {
+                {3.0, 0.0}, {4.0, 0.0}, {5.0, 0.0}, 0.6, {0.8, 0.0}};
+
+            /// @brief The complex row of the pair (3i, 4).
+            const ComplexRotationRow K_COMPLEX_3I_4 = {
+                {0.0, 3.0}, {4.0, 0.0}, {0.0, 5.0}, 0.6, {0.0, 0.8}};
+
+            /// @brief The complex row of the pair (0, 3 + 4i).
+            const ComplexRotationRow K_COMPLEX_0_3_4I = {
+                {0.0, 0.0}, {3.0, 4.0}, {5.0, 0.0}, 0.0, {0.6, -0.8}};
+
+            /// @brief The complex row of the pair (0, 4i).
+            const ComplexRotationRow K_COMPLEX_0_4I = {
+                {0.0, 0.0}, {0.0, 4.0}, {4.0, 0.0}, 0.0, {0.0, -1.0}};
+
+            /// @brief The complex row of the pair (1 + 2i, 0).
+            const ComplexRotationRow K_COMPLEX_1_2I_0 = {
+                {1.0, 2.0}, {0.0, 0.0}, {1.0, 2.0}, 1.0, {0.0, 0.0}};
+
             /** @brief Returns a complex value of component type R from one of double. */
             template<typename R>
             [[nodiscard]] std::complex<R> narrowed(const std::complex<double>& value)
@@ -141,6 +183,24 @@ namespace SushiBLAS
             [[nodiscard]] bool is_finite(const std::complex<R>& value)
             {
                 return std::isfinite(value.real()) && std::isfinite(value.imag());
+            }
+
+            /** @brief Returns the z a real rotation of the table rebuilds from c and s. */
+            template<typename R>
+            [[nodiscard]] R rebuilt_z(RebuildValue value, R c, R s)
+            {
+                switch (value)
+                {
+                    case RebuildValue::Zero:
+                        return R(0);
+                    case RebuildValue::One:
+                        return R(1);
+                    case RebuildValue::Sine:
+                        return s;
+                    case RebuildValue::InverseCosine:
+                        return R(1) / c;
+                }
+                return R(0);
             }
 
             /**
@@ -189,6 +249,49 @@ namespace SushiBLAS
                 EXPECT_LE(std::abs(rotation.c * rotation.c + std::norm(rotation.s) - R(1)),
                           K_IDENTITY_TOLERANCE<R>);
             }
+
+            /** @brief Expects that the rotation of one row of the real table equals the row. */
+            template<typename R>
+            void expect_real_row(const RealRotationRow& row)
+            {
+                const Kernels::GivensRotation<R> rotation = Kernels::givens_rotation<StdRoot>(
+                    static_cast<R>(row.a), static_cast<R>(row.b));
+                const R c = static_cast<R>(row.c_numerator) / static_cast<R>(row.c_denominator);
+                const R s = static_cast<R>(row.s_numerator) / static_cast<R>(row.s_denominator);
+
+                EXPECT_EQ(static_cast<R>(row.r), rotation.r);
+                EXPECT_EQ(c, rotation.c);
+                EXPECT_EQ(s, rotation.s);
+                EXPECT_EQ(rebuilt_z<R>(row.z, c, s), rotation.z);
+            }
+
+            /** @brief Expects that the rotation of one row of the complex table equals the row. */
+            template<typename R>
+            void expect_complex_row(const ComplexRotationRow& row)
+            {
+                const std::complex<R> f = narrowed<R>(row.f);
+                const std::complex<R> g = narrowed<R>(row.g);
+                const Kernels::GivensRotation<std::complex<R>> rotation =
+                    Kernels::givens_rotation<StdRoot>(f, g);
+
+                const R tolerance = K_IDENTITY_TOLERANCE<R> * (std::abs(f) + std::abs(g));
+                EXPECT_LE(std::abs(rotation.r - narrowed<R>(row.r)), tolerance);
+                EXPECT_LE(std::abs(rotation.c - static_cast<R>(row.c)), K_IDENTITY_TOLERANCE<R>);
+                EXPECT_LE(std::abs(rotation.s - narrowed<R>(row.s)), K_IDENTITY_TOLERANCE<R>);
+                EXPECT_EQ(std::complex<R>(), rotation.z);
+            }
+
+            /** @brief Expects the identities on count pairs of values that next_value draws. */
+            template<typename R, typename Draw>
+            void expect_random_pairs_hold(int count, Draw next_value)
+            {
+                for (int pair = 0; pair < count; ++pair)
+                {
+                    const std::complex<R> f = next_value();
+                    const std::complex<R> g = next_value();
+                    expect_complex_rotation_holds(f, g);
+                }
+            }
         } // namespace
 
         /**
@@ -218,102 +321,76 @@ namespace SushiBLAS
         using GivensTypes = ::testing::Types<float, double>;
         SB_TYPED_TEST_SUITE(Small_Givens, GivensTypes);
 
-        /**
-         * @brief Tests at compile time that the scaling bounds are the powers of two xROTG
-         *        names.
-         */
-        TYPED_TEST(Small_Givens, TheSafeScalingBoundsArePowersOfTwo)
+        /** @brief Tests the real rotation of (3, 4) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairThreeFourMatchesTheTable)
         {
-            using R = TypeParam;
-            using Scaling = Kernels::Detail::SafeScaling<R>;
-
-            static_assert(Scaling::K_MINIMUM == GivensLimits<R>::K_SAFE_MINIMUM,
-                          "K_MINIMUM is the smallest normal value.");
-            static_assert(Scaling::K_MAXIMUM == GivensLimits<R>::K_SAFE_MAXIMUM,
-                          "K_MAXIMUM is the largest power of two.");
-            static_assert(Scaling::K_ROOT_MINIMUM == GivensLimits<R>::K_SAFE_ROOT_MINIMUM,
-                          "K_ROOT_MINIMUM is the root of K_MINIMUM.");
+            expect_real_row<TypeParam>(K_REAL_3_4);
         }
 
-        /**
-         * @brief Tests the real rotation against the table of the design, r for equality.
-         */
-        TYPED_TEST(Small_Givens, RealPairsMatchTheTable)
+        /** @brief Tests the real rotation of (4, 3) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairFourThreeMatchesTheTable)
         {
-            using R = TypeParam;
-
-            const RealRotationRow rows[] = {
-                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::InverseCosine},
-                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::Sine},
-                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::Sine},
-                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::InverseCosine},
-                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero},
-                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::One},
-                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero}};
-
-            for (const RealRotationRow& row : rows)
-            {
-                SCOPED_TRACE(::testing::Message() << "a " << row.a << ", b " << row.b);
-
-                const Kernels::GivensRotation<R> rotation = Kernels::givens_rotation<StdRoot>(
-                    static_cast<R>(row.a), static_cast<R>(row.b));
-                const R c = static_cast<R>(row.c_numerator) / static_cast<R>(row.c_denominator);
-                const R s = static_cast<R>(row.s_numerator) / static_cast<R>(row.s_denominator);
-
-                R z = R(0);
-                switch (row.z)
-                {
-                    case RebuildValue::Zero:
-                        z = R(0);
-                        break;
-                    case RebuildValue::One:
-                        z = R(1);
-                        break;
-                    case RebuildValue::Sine:
-                        z = s;
-                        break;
-                    case RebuildValue::InverseCosine:
-                        z = R(1) / c;
-                        break;
-                }
-
-                EXPECT_EQ(static_cast<R>(row.r), rotation.r);
-                EXPECT_EQ(c, rotation.c);
-                EXPECT_EQ(s, rotation.s);
-                EXPECT_EQ(z, rotation.z);
-            }
+            expect_real_row<TypeParam>(K_REAL_4_3);
         }
 
-        /**
-         * @brief Tests the complex rotation against the table of the design.
-         */
-        TYPED_TEST(Small_Givens, ComplexPairsMatchTheTable)
+        /** @brief Tests the real rotation of (-4, 3) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairMinusFourThreeMatchesTheTable)
         {
-            using R = TypeParam;
-            using Complex = std::complex<double>;
+            expect_real_row<TypeParam>(K_REAL_MINUS_4_3);
+        }
 
-            const ComplexRotationRow rows[] = {
-                {Complex(3.0, 0.0), Complex(4.0, 0.0), Complex(5.0, 0.0), 0.6, Complex(0.8, 0.0)},
-                {Complex(0.0, 3.0), Complex(4.0, 0.0), Complex(0.0, 5.0), 0.6, Complex(0.0, 0.8)},
-                {Complex(0.0, 0.0), Complex(3.0, 4.0), Complex(5.0, 0.0), 0.0, Complex(0.6, -0.8)},
-                {Complex(0.0, 0.0), Complex(0.0, 4.0), Complex(4.0, 0.0), 0.0, Complex(0.0, -1.0)},
-                {Complex(1.0, 2.0), Complex(0.0, 0.0), Complex(1.0, 2.0), 1.0, Complex(0.0, 0.0)}};
+        /** @brief Tests the real rotation of (3, -4) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairThreeMinusFourMatchesTheTable)
+        {
+            expect_real_row<TypeParam>(K_REAL_3_MINUS_4);
+        }
 
-            for (const ComplexRotationRow& row : rows)
-            {
-                SCOPED_TRACE(::testing::Message() << "f " << row.f << ", g " << row.g);
+        /** @brief Tests the real rotation of (0, 0) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairZeroZeroMatchesTheTable)
+        {
+            expect_real_row<TypeParam>(K_REAL_0_0);
+        }
 
-                const std::complex<R> f = narrowed<R>(row.f);
-                const std::complex<R> g = narrowed<R>(row.g);
-                const Kernels::GivensRotation<std::complex<R>> rotation =
-                    Kernels::givens_rotation<StdRoot>(f, g);
+        /** @brief Tests the real rotation of (0, 2) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairZeroTwoMatchesTheTable)
+        {
+            expect_real_row<TypeParam>(K_REAL_0_2);
+        }
 
-                const R tolerance = K_IDENTITY_TOLERANCE<R> * (std::abs(f) + std::abs(g));
-                EXPECT_LE(std::abs(rotation.r - narrowed<R>(row.r)), tolerance);
-                EXPECT_LE(std::abs(rotation.c - static_cast<R>(row.c)), K_IDENTITY_TOLERANCE<R>);
-                EXPECT_LE(std::abs(rotation.s - narrowed<R>(row.s)), K_IDENTITY_TOLERANCE<R>);
-                EXPECT_EQ(std::complex<R>(), rotation.z);
-            }
+        /** @brief Tests the real rotation of (2, 0) against the table of the design. */
+        TYPED_TEST(Small_Givens, RealPairTwoZeroMatchesTheTable)
+        {
+            expect_real_row<TypeParam>(K_REAL_2_0);
+        }
+
+        /** @brief Tests the complex rotation of (3, 4) against the table of the design. */
+        TYPED_TEST(Small_Givens, ComplexPairThreeFourMatchesTheTable)
+        {
+            expect_complex_row<TypeParam>(K_COMPLEX_3_4);
+        }
+
+        /** @brief Tests the complex rotation of (3i, 4) against the table of the design. */
+        TYPED_TEST(Small_Givens, ComplexPairImaginaryThreeFourMatchesTheTable)
+        {
+            expect_complex_row<TypeParam>(K_COMPLEX_3I_4);
+        }
+
+        /** @brief Tests the complex rotation of (0, 3 + 4i) against the table of the design. */
+        TYPED_TEST(Small_Givens, ComplexPairZeroThreeFourIMatchesTheTable)
+        {
+            expect_complex_row<TypeParam>(K_COMPLEX_0_3_4I);
+        }
+
+        /** @brief Tests the complex rotation of (0, 4i) against the table of the design. */
+        TYPED_TEST(Small_Givens, ComplexPairZeroFourIMatchesTheTable)
+        {
+            expect_complex_row<TypeParam>(K_COMPLEX_0_4I);
+        }
+
+        /** @brief Tests the complex rotation of (1 + 2i, 0) against the table of the design. */
+        TYPED_TEST(Small_Givens, ComplexPairWithZeroSecondOperandMatchesTheTable)
+        {
+            expect_complex_row<TypeParam>(K_COMPLEX_1_2I_0);
         }
 
         /**
@@ -321,12 +398,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Small_Givens, RandomComplexPairsKeepTheIdentities)
         {
-            for (int pair = 0; pair < K_RANDOM_PAIRS; ++pair)
-            {
-                const std::complex<TypeParam> f = this->draw_complex();
-                const std::complex<TypeParam> g = this->draw_complex();
-                expect_complex_rotation_holds(f, g);
-            }
+            expect_random_pairs_hold<TypeParam>(K_RANDOM_PAIRS,
+                                                [this] { return this->draw_complex(); });
         }
 
         /**

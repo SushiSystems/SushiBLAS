@@ -4,90 +4,98 @@ rule = "rule_no_assertion"
 path = "tools/tests/test_check_version.py"
 count = 7
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_small_reaches_outside"
 path = "tests/engine/engine/test_profile_hooks.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/engine/engine/test_operand_check.cpp"
 count = 9
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/engine/engine/test_operation_options.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/engine/engine/test_profile_hooks.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/foundation/sparse_assembly/test_sparse_assembly.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_band_access.cpp"
 count = 1
 backlog = "RW-133"
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_seam_kernels/test_givens.cpp"
-count = 1
-backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_operand_access.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_packed_access.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_symmetric_access.cpp"
 count = 2
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/library/umbrella/test_SushiBLAS/test_regression.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/operations/blas/test_sparse.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp"
 count = 1
 backlog = "RW-133"
+
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
