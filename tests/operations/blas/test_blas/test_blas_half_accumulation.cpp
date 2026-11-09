@@ -28,6 +28,8 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
+#include <string>
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -36,7 +38,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
@@ -50,16 +53,15 @@ namespace SushiBLAS
         /// @brief The exact sum of K_REDUCTION_LENGTH products of one and one.
         constexpr double K_EXPECTED_SUM = 4096.0;
 
-        /// @brief Absolute tolerance: the HALF unit roundoff times K_EXPECTED_SUM, half the spacing at
-        /// 4096; a sum stalled at 2048 is far outside it.
-        constexpr double K_HALF_ROUNDING_AT_SUM = K_HALF_UNIT_ROUNDOFF * K_EXPECTED_SUM;
-
         /// @brief The exact 2-norm of K_REDUCTION_LENGTH ones: sqrt(4096).
         constexpr double K_EXPECTED_NORM = 64.0;
 
-        /// @brief Absolute tolerance: the HALF unit roundoff times K_EXPECTED_NORM, half the spacing
-        /// at 64; a norm stalled at sqrt(2048) is outside it.
-        constexpr double K_HALF_ROUNDING_AT_NORM = K_HALF_UNIT_ROUNDOFF * K_EXPECTED_NORM;
+        /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
+        constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
+
+        /// @brief Ratio of error to bound above which a result fails: the bound is one HALF
+        /// rounding of the expected value, so a sum stalled at 2048 is far outside it.
+        constexpr double K_ONE_ROUNDING_THRESHOLD = 1.0;
 
         /// @brief Order of the unit-lower system the substitution cases solve.
         constexpr int64_t K_SYSTEM_ORDER = 64;
@@ -351,13 +353,24 @@ namespace SushiBLAS
                     return static_cast<double>(static_cast<float>(value));
                 }
 
-                /** @brief Expects every element to equal K_EXPECTED_SUM within K_HALF_ROUNDING_AT_SUM. */
+                /** @brief Expects actual within one HALF rounding of expected, measured by TestSupport. */
+                static void expect_within_one_rounding(double actual, double expected)
+                {
+                    const double bound = K_HALF_UNIT_ROUNDOFF * std::fabs(expected);
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        actual, expected, bound, K_ONE_ROUNDING_THRESHOLD)));
+                }
+
+                /** @brief Expects every element to equal K_EXPECTED_SUM within one HALF rounding. */
                 static void expect_full_sum(const std::vector<sycl::half>& actual)
                 {
                     ASSERT_FALSE(actual.empty());
                     for (std::size_t i = 0; i < actual.size(); ++i)
-                        EXPECT_NEAR(static_cast<double>(static_cast<float>(actual[i])),
-                                    K_EXPECTED_SUM, K_HALF_ROUNDING_AT_SUM) << "index " << i;
+                    {
+                        SCOPED_TRACE("index " + std::to_string(i));
+                        expect_within_one_rounding(static_cast<double>(static_cast<float>(actual[i])),
+                                                   K_EXPECTED_SUM);
+                    }
                 }
 
                 /** @brief Expects the SYCL result to match the reference result element by element. */
@@ -366,9 +379,11 @@ namespace SushiBLAS
                 {
                     ASSERT_EQ(actual.size(), expected.size());
                     for (std::size_t i = 0; i < actual.size(); ++i)
-                        EXPECT_NEAR(static_cast<double>(static_cast<float>(actual[i])),
-                                    static_cast<double>(static_cast<float>(expected[i])),
-                                    K_HALF_ROUNDING_AT_SUM) << "index " << i;
+                    {
+                        SCOPED_TRACE("index " + std::to_string(i));
+                        expect_within_one_rounding(static_cast<double>(static_cast<float>(actual[i])),
+                                                   static_cast<double>(static_cast<float>(expected[i])));
+                    }
                 }
         };
 
@@ -405,10 +420,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(recorder()).dot(x, x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, dot), K_EXPECTED_SUM,
-                        K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, dot), K_EXPECTED_SUM,
-                        K_HALF_ROUNDING_AT_SUM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceReference, dot), K_EXPECTED_SUM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceSYCL, dot), K_EXPECTED_SUM);
         }
 
         TEST_F(Medium_BlasHalfAccumulationTest, AsumSumsEveryTermOfALongReduction)
@@ -417,10 +430,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(recorder()).asum(x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, asum), K_EXPECTED_SUM,
-                        K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, asum), K_EXPECTED_SUM,
-                        K_HALF_ROUNDING_AT_SUM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceReference, asum), K_EXPECTED_SUM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceSYCL, asum), K_EXPECTED_SUM);
         }
 
         TEST_F(Medium_BlasHalfAccumulationTest, Nrm2SumsEverySquareOfALongReduction)
@@ -429,25 +440,36 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(recorder()).nrm2(x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, nrm2), K_EXPECTED_NORM,
-                        K_HALF_ROUNDING_AT_NORM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, nrm2), K_EXPECTED_NORM,
-                        K_HALF_ROUNDING_AT_NORM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceReference, nrm2), K_EXPECTED_NORM);
+            expect_within_one_rounding(run_level1(ExecutionMode::ForceSYCL, nrm2), K_EXPECTED_NORM);
         }
 
-        TEST_F(Medium_BlasHalfAccumulationTest, HalfTrsmCarriesTheSolutionInFloat)
+        /** @brief Runs the HALF TRSM case once per side the triangular matrix stands on. */
+        class Medium_BlasHalfAccumulationSide : public Medium_BlasHalfAccumulationTest,
+                                                public ::testing::WithParamInterface<Core::Side>
         {
-            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
+
+        };
+
+        TEST_P(Medium_BlasHalfAccumulationSide, HalfTrsmCarriesTheSolutionInFloat)
+        {
+            const Core::Side side = GetParam();
+            const bool left = side == Core::Side::Left;
+            const int64_t rows = left ? K_SYSTEM_ORDER : K_RIGHT_HAND_SIDES;
+            const int64_t cols = left ? K_RIGHT_HAND_SIDES : K_SYSTEM_ORDER;
+            expect_carried_in_float(side, rows, cols, [&](ExecutionMode mode)
             {
-                const bool left = side == Core::Side::Left;
-                const int64_t rows = left ? K_SYSTEM_ORDER : K_RIGHT_HAND_SIDES;
-                const int64_t cols = left ? K_RIGHT_HAND_SIDES : K_SYSTEM_ORDER;
-                expect_carried_in_float(side, rows, cols, [&](ExecutionMode mode)
-                {
-                    return run_trsm(mode, side, rows, cols);
-                });
-            }
+                return run_trsm(mode, side, rows, cols);
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasHalfAccumulationSide,
+            ::testing::Values(Core::Side::Left, Core::Side::Right),
+            [](const ::testing::TestParamInfo<Core::Side>& info)
+            {
+                return std::string(info.param == Core::Side::Left ? "Left" : "Right");
+            });
 
         TEST_F(Medium_BlasHalfAccumulationTest, HalfTrsvCarriesTheSolutionInFloat)
         {
