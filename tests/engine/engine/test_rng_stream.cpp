@@ -74,7 +74,7 @@ class Medium_RngStreamTest : public SushiBLASTest
         }
 };
 
-TEST_F(Medium_RngStreamTest, ReseedRewindsTheOffset)
+TEST(Small_RngStream, ReseedRewindsTheOffset)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -89,7 +89,7 @@ TEST_F(Medium_RngStreamTest, ReseedRewindsTheOffset)
     EXPECT_EQ(position.offset, 0u);
 }
 
-TEST_F(Medium_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
+TEST(Small_RngStream, ReserveReturnsConsecutiveDisjointRanges)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -100,7 +100,7 @@ TEST_F(Medium_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
     EXPECT_EQ(stream.reserve(1).offset, 15u);
 }
 
-TEST_F(Medium_RngStreamTest, ConcurrentReservationsAreDistinct)
+TEST(Medium_RngStreamThreads, ConcurrentReservationsAreDistinct)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -117,7 +117,22 @@ TEST_F(Medium_RngStreamTest, ConcurrentReservationsAreDistinct)
     EXPECT_EQ(merged.size(), static_cast<size_t>(2 * K_RESERVATIONS_PER_THREAD));
 }
 
-TEST_F(Medium_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
+TEST(Small_RngStream, AReservationPairsTheSeedLiveAtItsTime)
+{
+    SushiBLAS::RNGStream stream;
+    stream.reseed(K_SEED);
+
+    const SushiBLAS::RNGPosition before = stream.reserve(2);
+    stream.reseed(K_SEED + 1);
+    const SushiBLAS::RNGPosition after = stream.reserve(1);
+
+    EXPECT_EQ(before.seed, K_SEED);
+    EXPECT_EQ(before.offset, 0u);
+    EXPECT_EQ(after.seed, K_SEED + 1);
+    EXPECT_EQ(after.offset, 0u);
+}
+
+TEST(Medium_RngStreamThreads, ReseedRacingReservationsNeverPairsAForeignSeed)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
