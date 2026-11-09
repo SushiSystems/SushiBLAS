@@ -47,12 +47,11 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_structured.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -91,15 +90,52 @@ namespace SushiBLAS
             constexpr int64_t K_MODE_ORDER = 64;
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceReference,
+                                                             ExecutionMode::ForceSYCL};
+
+            /// @brief The kernel the cases that compare the device with another result run.
+            const std::vector<ExecutionMode> K_DEVICE_MODE = {ExecutionMode::ForceSYCL};
+
+            /// @brief The five element types the packed routines accept.
+            const std::vector<Core::DataType> K_ALL_TYPES = {
+                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
+                Core::DataType::Complex32, Core::DataType::Complex64};
+
+            /// @brief The complex element types, the only ones a conjugation changes.
+            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
+                                                                 Core::DataType::Complex64};
+
+            /// @brief The element type of the HALF accumulation cases.
+            const std::vector<Core::DataType> K_HALF_TYPE = {Core::DataType::Half};
+
+            /// @brief The element type of the cases of order K_LARGE_ORDER.
+            const std::vector<Core::DataType> K_FLOAT_TYPE = {Core::DataType::Float32};
+
+            /**
+             * @brief Magnitude of one product of two entries drawn from [-1, 1] in both parts:
+             *        the bound of |a| * |b| for complex entries of modulus at most 2^(1/2).
+             */
+            constexpr double K_ENTRY_PRODUCT_MAGNITUDE = 2.0;
+
+            /**
+             * @brief Ratio of error to rounding bound above which two kernels disagree: the
+             *        reference-tester threshold 16 times 4 for the growth of a tpsv solve whose
+             *        diagonal n + 1 dominates n off-diagonals of at most 1.
+             */
+            constexpr double K_AGREEMENT_THRESHOLD = 64.0;
+
+            /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
+            constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
+
+            /// @brief Rounded operations on the path to a HALF result: the sum is carried in FLOAT32.
+            constexpr std::size_t K_HALF_ROUNDINGS = 2;
 
             /// @brief Both orders a packed triangle can be stored in.
             constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
                                                   Core::Layout::ColumnMajor};
 
             /// @brief Both triangles a packed tensor can hold.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
+            const std::vector<Core::Uplo> K_TRIANGLES = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief Every form op(A) takes.
             constexpr Core::Transpose K_TRANSPOSES[] = {Core::Transpose::NoTrans,
@@ -183,10 +219,14 @@ namespace SushiBLAS
             };
 
             /**
-             * @brief The hand values of orders 1 and 2; [1, 2, 3] packs [1 2; 2 3] in every
+             * @brief The hand values of orders 0, 1 and 2; [1, 2, 3] packs [1 2; 2 3] in every
              *        layout and triangle.
              */
             const EdgeRow K_EDGE_ROWS[] = {
+                {Core::Uplo::Upper, {}, {}, {}, {},
+                 {{}, {}, {}, {}, {}, {}, {}, {}}},
+                {Core::Uplo::Lower, {}, {}, {}, {},
+                 {{}, {}, {}, {}, {}, {}, {}, {}}},
                 {Core::Uplo::Upper, {3}, {2}, {5}, {6},
                  {{6}, {6}, {6}, {2}, {7}, {7}, {23}, {23}}},
                 {Core::Uplo::Lower, {3}, {2}, {5}, {6},
@@ -198,52 +238,225 @@ namespace SushiBLAS
                  {{5, 8}, {5, 8}, {1, 8}, {1, 2}, {2, 4, 7}, {2, 4, 7}, {7, 13, 23},
                   {7, 13, 23}}}};
 
-            /**
-             * @brief Holds how far the results of two kernels may differ, as a fraction of the
-             *        larger of 1 and the expected magnitude.
-             * @tparam R sycl::half, float or double.
-             */
-            template<typename R>
-            struct ModeTolerance;
-
-            /** @brief Allows two units in the last place of HALF. */
-            template<>
-            struct ModeTolerance<sycl::half>
+            /** @brief Holds the flags of one call on a packed triangle. */
+            struct TriangleFlags
             {
-                /** @brief Absolute tolerance: one HALF rounding of a value of order one. */
-                static constexpr double K_VALUE = half_absolute_tolerance(1);
+                Core::Uplo uplo;       /**< The triangle. */
+                Core::Transpose trans; /**< The form of op(A). */
+                Core::Diag diag;       /**< How the diagonal is read. */
             };
 
-            /** @brief Allows the rounding of a sum of 64 FLOAT32 products of unit size. */
-            template<>
-            struct ModeTolerance<float>
+            /** @brief Holds a routine and the triangle it is called on. */
+            struct RoutineTriangle
             {
-                /** @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one. */
-                static constexpr double K_VALUE = absolute_tolerance<float>(128);
+                std::size_t routine; /**< Position of the routine in K_ROUTINES. */
+                Core::Uplo uplo;     /**< The triangle every packed operand holds. */
             };
 
-            /** @brief Allows the rounding of a sum of 64 FLOAT64 products of unit size. */
-            template<>
-            struct ModeTolerance<double>
+            /** @brief Holds a routine and the edge row of K_EDGE_ROWS it is called on. */
+            struct RoutineEdge
             {
-                /** @brief Absolute tolerance: 8192 FLOAT64 roundings of a value of order one. */
-                static constexpr double K_VALUE = absolute_tolerance<double>(8192);
+                std::size_t routine; /**< Position of the routine in K_ROUTINES. */
+                std::size_t edge;    /**< Position of the row in K_EDGE_ROWS. */
             };
 
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
+            /** @brief Returns the hand triangular products as rows. */
+            [[nodiscard]] std::vector<TriangularRow> triangular_rows()
             {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                return std::vector<TriangularRow>(std::begin(K_TRIANGULAR_ROWS),
+                                                  std::end(K_TRIANGULAR_ROWS));
             }
 
-            /** @brief Returns the names of the flags of a triangular call. */
-            [[nodiscard]] std::string flags_name(Core::Uplo uplo, Core::Transpose trans,
-                                                 Core::Diag diag)
+            /** @brief Returns every combination of uplo, trans and diag. */
+            [[nodiscard]] std::vector<TriangleFlags> all_triangle_flags()
             {
-                return std::string(Core::to_string(uplo)) + ", " + Core::to_string(trans) + ", " +
-                       Core::to_string(diag);
+                std::vector<TriangleFlags> flags;
+                for (const Core::Uplo uplo : K_TRIANGLES)
+                    for (const Core::Transpose trans : K_TRANSPOSES)
+                        for (const Core::Diag diag : K_DIAGONALS)
+                            flags.push_back({uplo, trans, diag});
+                return flags;
+            }
+
+            /** @brief Returns every routine on every triangle. */
+            [[nodiscard]] std::vector<RoutineTriangle> all_routines_and_triangles()
+            {
+                std::vector<RoutineTriangle> rows;
+                for (std::size_t routine = 0; routine < K_ROUTINE_COUNT; ++routine)
+                    for (const Core::Uplo uplo : K_TRIANGLES)
+                        rows.push_back({routine, uplo});
+                return rows;
+            }
+
+            /** @brief Returns every routine on every edge row. */
+            [[nodiscard]] std::vector<RoutineEdge> all_routines_and_edges()
+            {
+                std::vector<RoutineEdge> rows;
+                for (std::size_t edge = 0; edge < std::size(K_EDGE_ROWS); ++edge)
+                    for (std::size_t routine = 0; routine < K_ROUTINE_COUNT; ++routine)
+                        rows.push_back({routine, edge});
+                return rows;
+            }
+
+            /** @brief Returns the word that names a triangle in a row name. */
+            [[nodiscard]] std::string word(Core::Uplo uplo)
+            {
+                return uplo == Core::Uplo::Upper ? "Upper" : "Lower";
+            }
+
+            /** @brief Returns the word that names a form of op(A) in a row name. */
+            [[nodiscard]] std::string word(Core::Transpose trans)
+            {
+                if (trans == Core::Transpose::NoTrans)
+                    return "NoTrans";
+                return trans == Core::Transpose::Trans ? "Trans" : "ConjTrans";
+            }
+
+            /** @brief Returns the word that names a diagonal in a row name. */
+            [[nodiscard]] std::string word(Core::Diag diag)
+            {
+                return diag == Core::Diag::Unit ? "Unit" : "NonUnit";
+            }
+
+            /** @brief Returns the word that names a layout in a row name. */
+            [[nodiscard]] std::string word(Core::Layout layout)
+            {
+                return layout == Core::Layout::RowMajor ? "RowMajor" : "ColumnMajor";
+            }
+
+            /** @brief Returns the word that names a kernel in a row name. */
+            [[nodiscard]] std::string word(ExecutionMode mode)
+            {
+                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
+            }
+
+            /** @brief Marks a row that varies over layout, kernel and element type alone. */
+            struct NoAxis
+            {
+            };
+
+            /** @brief Returns the empty tail of a row that has no further axis. */
+            [[nodiscard]] std::string axis_name(const NoAxis&)
+            {
+                return "";
+            }
+
+            /** @brief Returns the tail of a row named by a triangle. */
+            [[nodiscard]] std::string axis_name(Core::Uplo uplo)
+            {
+                return "_" + word(uplo);
+            }
+
+            /** @brief Returns the tail of a row named by the flags of a call. */
+            [[nodiscard]] std::string axis_name(const TriangleFlags& flags)
+            {
+                return "_" + word(flags.uplo) + "_" + word(flags.trans) + "_" + word(flags.diag);
+            }
+
+            /** @brief Returns the tail of a row named by the flags of a triangular product. */
+            [[nodiscard]] std::string axis_name(const TriangularRow& row)
+            {
+                return axis_name(TriangleFlags{row.uplo, row.trans, row.diag});
+            }
+
+            /** @brief Returns the tail of a row named by a routine and a triangle. */
+            [[nodiscard]] std::string axis_name(const RoutineTriangle& row)
+            {
+                return std::string("_") + K_ROUTINES[row.routine] + axis_name(row.uplo);
+            }
+
+            /** @brief Returns the tail of a row named by a routine and an edge row. */
+            [[nodiscard]] std::string axis_name(const RoutineEdge& row)
+            {
+                return std::string("_") + K_ROUTINES[row.routine] + "_order" +
+                       std::to_string(K_EDGE_ROWS[row.edge].x.size()) +
+                       axis_name(K_EDGE_ROWS[row.edge].uplo);
+            }
+
+            /**
+             * @brief Holds one row of a packed suite: the engine layout, the kernel, the element
+             *        type and the one axis the cases of the suite vary besides those.
+             * @tparam Axis NoAxis, or the type of the value that completes the row.
+             */
+            template<typename Axis>
+            struct Row
+            {
+                Core::Layout layout; /**< The element order the engine is rebuilt in. */
+                ExecutionMode mode;  /**< The kernel the engine selects. */
+                Core::DataType type; /**< The element type of every operand. */
+                Axis axis;           /**< The value that completes the row. */
+            };
+
+            /**
+             * @brief Returns every row over the layouts, the given kernels and types and axes.
+             * @param types The element types of the suite.
+             * @param modes The kernels of the suite.
+             * @param axes The values of the suite's own axis.
+             */
+            template<typename Axis>
+            [[nodiscard]] std::vector<Row<Axis>> rows_of(const std::vector<Core::DataType>& types,
+                                                         const std::vector<ExecutionMode>& modes,
+                                                         const std::vector<Axis>& axes)
+            {
+                std::vector<Row<Axis>> rows;
+                for (const Core::DataType type : types)
+                    for (const Core::Layout layout : K_LAYOUTS)
+                        for (const ExecutionMode mode : modes)
+                            for (const Axis& axis : axes)
+                                rows.push_back({layout, mode, type, axis});
+                return rows;
+            }
+
+            /** @brief Returns the rows of a suite that has no axis of its own. */
+            [[nodiscard]] std::vector<Row<NoAxis>> plain_rows(
+                const std::vector<Core::DataType>& types, const std::vector<ExecutionMode>& modes)
+            {
+                return rows_of(types, modes, std::vector<NoAxis>{NoAxis{}});
+            }
+
+            /** @brief Returns the name of a row for GoogleTest: layout, kernel, type, axis. */
+            template<typename Axis>
+            [[nodiscard]] std::string row_name(const ::testing::TestParamInfo<Row<Axis>>& info)
+            {
+                return word(info.param.layout) + "_" + word(info.param.mode) + "_" +
+                       Core::to_string(info.param.type) + axis_name(info.param.axis);
+            }
+
+            /** @brief Carries an element type to a generic lambda. */
+            template<typename T>
+            struct Element
+            {
+                using type = T; /**< The element type. */
+            };
+
+            /**
+             * @brief Calls body with the Element of a data type, so one row body serves every type.
+             * @param type One of the five types the packed routines accept.
+             * @param body Callable taking an Element.
+             */
+            template<typename Body>
+            void with_element(Core::DataType type, Body&& body)
+            {
+                switch (type)
+                {
+                    case Core::DataType::Half:
+                        body(Element<sycl::half>{});
+                        break;
+                    case Core::DataType::Float32:
+                        body(Element<float>{});
+                        break;
+                    case Core::DataType::Float64:
+                        body(Element<double>{});
+                        break;
+                    case Core::DataType::Complex32:
+                        body(Element<std::complex<float>>{});
+                        break;
+                    case Core::DataType::Complex64:
+                        body(Element<std::complex<double>>{});
+                        break;
+                    default:
+                        FAIL() << "a packed routine takes no such element type";
+                }
             }
 
             /** @brief Returns whether a triangle is packed in lines that grow under a layout. */
@@ -252,19 +465,15 @@ namespace SushiBLAS
                 return (uplo == Core::Uplo::Upper) == (layout == Core::Layout::ColumnMajor);
             }
 
-            /** @brief Returns whether the test device computes in the component type of T. */
-            template<typename T>
-            [[nodiscard]] bool device_runs()
+            /** @brief Returns whether the test device computes in the component type of a data type. */
+            [[nodiscard]] bool device_runs(Core::DataType type)
             {
-                using R = Kernels::RealType<T>;
-                const sycl::device device =
-                    TestEnvironment::queue().get_device();
-                if constexpr (std::is_same_v<R, sycl::half>)
+                const sycl::device device = TestEnvironment::queue().get_device();
+                if (type == Core::DataType::Half)
                     return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<R, double>)
+                if (type == Core::DataType::Float64 || type == Core::DataType::Complex64)
                     return device.has(sycl::aspect::fp64);
-                else
-                    return true;
+                return true;
             }
 
             /** @brief Returns value in T; a real T drops the imaginary part. */
@@ -436,82 +645,104 @@ namespace SushiBLAS
                 }
             }
 
-            /** @brief Expects both parts of every element within ModeTolerance of expected. */
+            /** @brief Returns the unit roundoff of the component type R of an element type. */
+            template<typename R>
+            [[nodiscard]] constexpr double unit_roundoff_of()
+            {
+                if constexpr (std::is_same_v<R, sycl::half>)
+                    return K_HALF_UNIT_ROUNDOFF;
+                else
+                    return TestSupport::unit_roundoff<R>();
+            }
+
+            /**
+             * @brief Returns the rounded operations on the path to one result of two kernels
+             *        that sum 2 * K_MODE_ORDER terms: the sum, and the carried solve.
+             */
+            template<typename R>
+            [[nodiscard]] constexpr std::size_t agreement_roundings()
+            {
+                if constexpr (std::is_same_v<R, sycl::half>)
+                    return K_HALF_ROUNDINGS;
+                else
+                    return static_cast<std::size_t>(2 * K_MODE_ORDER);
+            }
+
+            /**
+             * @brief Expects both parts of every element within the rounding bound two kernels
+             *        of the component type of T may differ by: rounded operations * unit
+             *        roundoff * magnitude, measured through TestSupport::measure_error, the
+             *        magnitude being the largest of 1 and the expected modulus times
+             *        K_ENTRY_PRODUCT_MAGNITUDE.
+             */
             template<typename T>
             void expect_near(const std::vector<T>& actual, const std::vector<T>& expected)
             {
-                const double tolerance = ModeTolerance<Kernels::RealType<T>>::K_VALUE;
+                using R = Kernels::RealType<T>;
 
                 ASSERT_EQ(actual.size(), expected.size());
                 for (std::size_t i = 0; i < actual.size(); ++i)
                 {
                     const Wide a = widened(actual[i]);
                     const Wide e = widened(expected[i]);
-                    const double bound = tolerance * std::max(1.0, std::abs(e));
-                    EXPECT_LE(std::abs(a.real() - e.real()), bound)
+                    const double magnitude =
+                        K_ENTRY_PRODUCT_MAGNITUDE * std::max(1.0, std::abs(e));
+                    const double bound = static_cast<double>(agreement_roundings<R>()) *
+                                         unit_roundoff_of<R>() * magnitude;
+
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        a.real(), e.real(), bound, K_AGREEMENT_THRESHOLD)))
                         << "real part of element " << i;
-                    EXPECT_LE(std::abs(a.imag() - e.imag()), bound)
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        a.imag(), e.imag(), bound, K_AGREEMENT_THRESHOLD)))
                         << "imaginary part of element " << i;
                 }
             }
+
+            /** @brief Holds the operands and the scalars of one call of each routine. */
+            template<typename T>
+            struct PackedInputs
+            {
+                Core::Uplo uplo;           /**< The triangle every packed operand holds. */
+                std::vector<T> ap;         /**< The matrix of the products and the updates. */
+                std::vector<T> triangular; /**< The matrix of tpmv and tpsv. */
+                std::vector<T> x;          /**< The first vector. */
+                std::vector<T> y;          /**< The second vector of spr2 and hpr2. */
+                std::vector<T> prior;      /**< What y of spmv and hpmv holds before. */
+                std::vector<T> b;          /**< The right-hand side of tpsv. */
+                double alpha;              /**< Scales every product and update. */
+                double beta;               /**< Scales prior. */
+            };
         } // namespace
 
+        /** @brief Holds a dense matrix, two vectors and a prior y drawn for a sibling comparison. */
+        template<typename T>
+        struct SiblingData
+        {
+            std::vector<T> dense; /**< The matrix, row by row. */
+            std::vector<T> x;     /**< The first vector. */
+            std::vector<T> y;     /**< The second vector of the rank-2 updates. */
+            std::vector<T> prior; /**< What y of the products holds before. */
+        };
+
         /**
-         * @brief Builds packed, dense and vector operands of element type T and records the
+         * @brief Builds packed, dense and vector operands of any element type and records the
          *        packed routines on them.
          */
-        template<typename T>
-        class BLASPackedCases : public SushiBLASTest
+        class BlasPackedCase : public SushiBLASTest
         {
             protected:
-                /** @brief Holds the operands and the scalars of one call of each routine. */
-                struct PackedInputs
-                {
-                    Core::Uplo uplo;           /**< The triangle every packed operand holds. */
-                    std::vector<T> ap;         /**< The matrix of the products and the updates. */
-                    std::vector<T> triangular; /**< The matrix of tpmv and tpsv. */
-                    std::vector<T> x;          /**< The first vector. */
-                    std::vector<T> y;          /**< The second vector of spr2 and hpr2. */
-                    std::vector<T> prior;      /**< What y of spmv and hpmv holds before. */
-                    std::vector<T> b;          /**< The right-hand side of tpsv. */
-                    double alpha;              /**< Scales every product and update. */
-                    double beta;               /**< Scales prior. */
-                };
-
-                /** @brief Skips the case on a device that lacks the component type of T. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>())
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                }
-
                 /** @brief Rebuilds the engine in a layout and selects a kernel. */
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
+                    layout_ = layout;
+                    mode_ = mode;
                     this->reinit_engine(layout);
                     this->set_mode(mode);
                 }
 
-                /**
-                 * @brief Runs body once in each layout under each kernel.
-                 * @param body Callable `(Core::Layout)`, called after the engine is rebuilt.
-                 */
-                template<typename Body>
-                void for_each_engine(Body&& body)
-                {
-                    for (const Core::Layout layout : K_LAYOUTS)
-                    {
-                        for (const ExecutionMode mode : K_MODES)
-                        {
-                            SCOPED_TRACE(engine_name(layout, mode));
-                            start(layout, mode);
-                            body(layout);
-                        }
-                    }
-                }
-
                 /** @brief Returns a tensor of dims that holds stored in storage order. */
+                template<typename T>
                 [[nodiscard]] Tensor tensor_of(const std::vector<int64_t>& dims,
                                                const std::vector<T>& stored)
                 {
@@ -527,12 +758,14 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns a rank-1 tensor that holds values. */
+                template<typename T>
                 [[nodiscard]] Tensor vector_of(const std::vector<T>& values)
                 {
                     return tensor_of({static_cast<int64_t>(values.size())}, values);
                 }
 
                 /** @brief Returns an n x n tensor that holds the row-ordered values. */
+                template<typename T>
                 [[nodiscard]] Tensor dense_of(int64_t n, const std::vector<T>& row_ordered)
                 {
                     return tensor_of({n, n},
@@ -540,6 +773,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the packed values of one triangle of a dense n x n matrix. */
+                template<typename T>
                 [[nodiscard]] std::vector<T> packed(const std::vector<T>& dense, int64_t n,
                                                     Core::Uplo uplo) const
                 {
@@ -547,6 +781,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the packed tensor of K_HAND_GROWING or K_HAND_SHRINKING. */
+                template<typename T>
                 [[nodiscard]] Tensor hand_triangle(Core::Uplo uplo)
                 {
                     return vector_of(elements<T>(is_growing(uplo, this->engine->layout())
@@ -555,12 +790,14 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the elements of a tensor, or none for one without storage. */
+                template<typename T>
                 [[nodiscard]] static std::vector<T> read(const Tensor& tensor)
                 {
                     return tensor.num_elements == 0 ? std::vector<T>() : read_tensor<T>(tensor);
                 }
 
                 /** @brief Returns the elements of an n x n tensor, row by row. */
+                template<typename T>
                 [[nodiscard]] static std::vector<T> read_row_ordered(const Tensor& tensor,
                                                                      int64_t n)
                 {
@@ -578,6 +815,20 @@ namespace SushiBLAS
                     return row_ordered;
                 }
 
+                /** @brief Returns the matrix and vectors of the comparisons with a dense sibling. */
+                template<typename T>
+                [[nodiscard]] static SiblingData<T> draw_siblings()
+                {
+                    const int64_t n = K_SIBLING_ORDER;
+                    std::mt19937 generator(K_SEED);
+                    SiblingData<T> data;
+                    data.dense = random_elements<T>(generator, n * n);
+                    data.x = random_elements<T>(generator, n);
+                    data.y = random_elements<T>(generator, n);
+                    data.prior = random_elements<T>(generator, n);
+                    return data;
+                }
+
                 /**
                  * @brief Records two calls on copies of initial in one graph, runs it and expects
                  *        the same elements from both.
@@ -585,7 +836,7 @@ namespace SushiBLAS
                  * @param second Callable `(Tensor&)` that records on the second copy.
                  * @return What the first call left.
                  */
-                template<typename First, typename Second>
+                template<typename T, typename First, typename Second>
                 std::vector<T> expect_same_result(const std::vector<T>& initial, First&& first,
                                                   Second&& second)
                 {
@@ -606,7 +857,7 @@ namespace SushiBLAS
                  * @param packed_call Callable `(Tensor&)` that records on the packed matrix.
                  * @param dense_call Callable `(Tensor&)` that records on the dense matrix.
                  */
-                template<typename Packed, typename Dense>
+                template<typename T, typename Packed, typename Dense>
                 void expect_same_update(const std::vector<T>& dense, int64_t n, Core::Uplo uplo,
                                         Packed&& packed_call, Dense&& dense_call)
                 {
@@ -617,51 +868,94 @@ namespace SushiBLAS
                     this->recording->run().value();
 
                     expect_equal(read_tensor<T>(from_packed),
-                                 packed(read_row_ordered(from_dense, n), n, uplo));
+                                 packed(read_row_ordered<T>(from_dense, n), n, uplo));
+                }
+
+                /** @brief Returns what the result tensor of a routine holds before the call. */
+                template<typename T>
+                [[nodiscard]] static const std::vector<T>& initial_of(std::size_t routine,
+                                                                      const PackedInputs<T>& in)
+                {
+                    if (routine == K_SPMV || routine == K_HPMV)
+                        return in.prior;
+                    if (routine == K_TPMV)
+                        return in.x;
+                    return routine == K_TPSV ? in.b : in.ap;
                 }
 
                 /**
-                 * @brief Returns what the eight packed routines leave, in the order of K_ROUTINES,
-                 *        all recorded in one graph.
+                 * @brief Records one packed routine on the operands, runs it and returns what it
+                 *        leaves in its result tensor.
+                 * @param routine Position of the routine in K_ROUTINES.
                  */
-                [[nodiscard]] std::vector<std::vector<T>> run_eight(const PackedInputs& in)
+                template<typename T>
+                [[nodiscard]] std::vector<T> run_routine(std::size_t routine,
+                                                         const PackedInputs<T>& in)
                 {
                     const Tensor ap = vector_of(in.ap);
                     const Tensor triangular = vector_of(in.triangular);
                     const Tensor x = vector_of(in.x);
                     const Tensor y = vector_of(in.y);
-
-                    std::vector<Tensor> results;
-                    results.reserve(K_ROUTINE_COUNT);
-                    results.push_back(vector_of(in.prior));
-                    results.push_back(vector_of(in.prior));
-                    results.push_back(vector_of(in.x));
-                    results.push_back(vector_of(in.b));
-                    for (std::size_t update = K_SPR; update < K_ROUTINE_COUNT; ++update)
-                        results.push_back(vector_of(in.ap));
+                    Tensor result = vector_of(initial_of(routine, in));
 
                     SushiBLAS::BLASOps ops(this->recorder());
-                    ops.spmv(ap, x, results[K_SPMV], in.uplo, in.alpha, in.beta);
-                    ops.hpmv(ap, x, results[K_HPMV], in.uplo, in.alpha, in.beta);
-                    ops.tpmv(triangular, results[K_TPMV], in.uplo);
-                    ops.tpsv(triangular, results[K_TPSV], in.uplo);
-                    ops.spr(x, results[K_SPR], in.uplo, in.alpha);
-                    ops.hpr(x, results[K_HPR], in.uplo, in.alpha);
-                    ops.spr2(x, y, results[K_SPR2], in.uplo, in.alpha);
-                    ops.hpr2(x, y, results[K_HPR2], in.uplo, in.alpha);
+                    switch (routine)
+                    {
+                        case K_SPMV:
+                            ops.spmv(ap, x, result, in.uplo, in.alpha, in.beta);
+                            break;
+                        case K_HPMV:
+                            ops.hpmv(ap, x, result, in.uplo, in.alpha, in.beta);
+                            break;
+                        case K_TPMV:
+                            ops.tpmv(triangular, result, in.uplo);
+                            break;
+                        case K_TPSV:
+                            ops.tpsv(triangular, result, in.uplo);
+                            break;
+                        case K_SPR:
+                            ops.spr(x, result, in.uplo, in.alpha);
+                            break;
+                        case K_HPR:
+                            ops.hpr(x, result, in.uplo, in.alpha);
+                            break;
+                        case K_SPR2:
+                            ops.spr2(x, y, result, in.uplo, in.alpha);
+                            break;
+                        case K_HPR2:
+                            ops.hpr2(x, y, result, in.uplo, in.alpha);
+                            break;
+                        default:
+                            ADD_FAILURE() << "no such packed routine";
+                    }
                     this->recording->run().value();
+                    return read<T>(result);
+                }
 
-                    std::vector<std::vector<T>> values;
-                    values.reserve(results.size());
-                    for (const Tensor& result : results)
-                        values.push_back(read(result));
-                    return values;
+                /**
+                 * @brief Expects one routine to leave the same elements, within the rounding of
+                 *        the element type, on the reference and on the kernel of the row, in the
+                 *        layout of the row.
+                 */
+                template<typename T>
+                void expect_modes_agree(std::size_t routine, const PackedInputs<T>& in)
+                {
+                    const Core::Layout layout = layout_;
+                    const ExecutionMode device_mode = mode_;
+
+                    start(layout, ExecutionMode::ForceReference);
+                    const std::vector<T> reference = run_routine(routine, in);
+                    start(layout, device_mode);
+                    const std::vector<T> device = run_routine(routine, in);
+
+                    expect_near(device, reference);
                 }
 
                 /**
                  * @brief Returns y of spmv on a packed upper triangle of order K_LARGE_ORDER,
                  *        then y of symv on the same matrix.
                  */
+                template<typename T>
                 [[nodiscard]] std::array<std::vector<T>, 2> large_symmetric_products()
                 {
                     const int64_t n = K_LARGE_ORDER;
@@ -681,380 +975,443 @@ namespace SushiBLAS
                     this->recording->run().value();
                     return {{read_tensor<T>(from_packed), read_tensor<T>(from_dense)}};
                 }
+
+            private:
+                /// @brief The layout the engine was last started in.
+                Core::Layout layout_ = Core::Layout::RowMajor;
+
+                /// @brief The kernel the engine was last started with.
+                ExecutionMode mode_ = ExecutionMode::ForceReference;
         };
 
-        /** @brief Runs the packed routines over the five element types. */
-        template<typename T>
-        class Medium_BlasPacked : public BLASPackedCases<T>
+        /**
+         * @brief Runs a case once per row: rebuilds the engine in the layout of the row, selects
+         *        its kernel and skips a device that lacks the element type.
+         * @tparam Axis NoAxis, or the type of the value that completes each row.
+         */
+        template<typename Axis>
+        class PackedRowCase : public BlasPackedCase, public ::testing::WithParamInterface<Row<Axis>>
+        {
+            protected:
+                /** @brief Starts the engine of the row, or skips the case. */
+                void SetUp() override
+                {
+                    BlasPackedCase::SetUp();
+                    if (!device_runs(this->GetParam().type))
+                        GTEST_SKIP() << "the device does not compute in this element type";
+                    start(this->GetParam().layout, this->GetParam().mode);
+                }
+        };
+
+        /** @brief Runs the hand and sibling cases that take one triangle. */
+        class Medium_BlasPackedTriangle : public PackedRowCase<Core::Uplo>
+        {
+
+        };
+
+        /** @brief Runs the hand products of the triangular routines. */
+        class Medium_BlasPackedProduct : public PackedRowCase<TriangularRow>
+        {
+
+        };
+
+        /** @brief Runs the triangular comparisons with the dense siblings over every flag combination. */
+        class Medium_BlasPackedFlags : public PackedRowCase<TriangleFlags>
+        {
+
+        };
+
+        /** @brief Runs each routine on the hand values of the orders 0, 1 and 2. */
+        class Medium_BlasPackedEdge : public PackedRowCase<RoutineEdge>
+        {
+
+        };
+
+        /** @brief Runs the comparison of the device with the reference for each routine and triangle. */
+        class Medium_BlasPackedAgree : public PackedRowCase<RoutineTriangle>
         {
 
         };
 
         /** @brief Runs the conjugating packed cases over the complex element types. */
-        template<typename T>
-        class Medium_BlasPackedComplex : public BLASPackedCases<T>
+        class Medium_BlasPackedComplex : public PackedRowCase<Core::Uplo>
         {
 
         };
 
-        /// @brief Names the suite of the HALF accumulation cases.
-        using Medium_BlasPackedHalf = BLASPackedCases<sycl::half>;
+        /** @brief Runs the HALF accumulation cases. */
+        class Medium_BlasPackedHalf : public PackedRowCase<NoAxis>
+        {
 
-        /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Medium_BlasPackedLarge = BLASPackedCases<float>;
+        };
 
-        /// @brief Names the five element types the packed routines accept.
-        using BLASPackedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
-                                                 std::complex<double>>;
-        /// @brief Names the complex element types, the only ones a conjugation changes.
-        using BLASPackedComplexTypes =
-            ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_BlasPacked, BLASPackedTypes);
-        SB_TYPED_TEST_SUITE(Medium_BlasPackedComplex, BLASPackedComplexTypes);
+        /** @brief Runs the FLOAT32 cases of order K_LARGE_ORDER. */
+        class Medium_BlasPackedLarge : public PackedRowCase<NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the FLOAT32 repeat case of order K_LARGE_ORDER on the device. */
+        class Medium_BlasPackedRepeat : public PackedRowCase<NoAxis>
+        {
+
+        };
 
         /**
          * @brief Tests spmv on the literal packed arrays of [1 2 3; 2 4 5; 3 5 6].
          */
-        TYPED_TEST(Medium_BlasPacked, SpmvMatchesByHand)
+        TEST_P(Medium_BlasPackedTriangle, SpmvMatchesByHand)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor AP = this->hand_triangle(uplo);
-                    const Tensor x = this->vector_of(elements<T>({1, -1, 2}));
-                    Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
+                using T = typename decltype(element)::type;
+                const Tensor AP = hand_triangle<T>(uplo);
+                const Tensor x = vector_of(elements<T>({1, -1, 2}));
+                Tensor y = vector_of(std::vector<T>(3, poison<T>()));
 
-                    SushiBLAS::BLASOps(this->recorder()).spmv(AP, x, y, uplo);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).spmv(AP, x, y, uplo);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(y), elements<T>({5, 8, 10}));
-                }
-            });
-        }
-
-        /**
-         * @brief Tests tpmv on the literal packed arrays of U and of its transpose.
-         */
-        TYPED_TEST(Medium_BlasPacked, TpmvMatchesByHand)
-        {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
-            {
-                for (const TriangularRow& row : K_TRIANGULAR_ROWS)
-                {
-                    SCOPED_TRACE(flags_name(row.uplo, row.trans, row.diag));
-                    const Tensor AP = this->hand_triangle(row.uplo);
-                    Tensor x = this->vector_of(elements<T>({1, 2, 3}));
-
-                    SushiBLAS::BLASOps(this->recorder()).tpmv(AP, x, row.uplo, row.trans, row.diag);
-                    this->recording->run().value();
-
-                    expect_equal(read_tensor<T>(x),
-                                 elements<T>({row.product[0], row.product[1], row.product[2]}));
-                }
-            });
-        }
-
-        /**
-         * @brief Tests that tpsv recovers [1, 2, 3] from each product of TpmvMatchesByHand.
-         */
-        TYPED_TEST(Medium_BlasPacked, TpsvInvertsTpmv)
-        {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
-            {
-                for (const TriangularRow& row : K_TRIANGULAR_ROWS)
-                {
-                    SCOPED_TRACE(flags_name(row.uplo, row.trans, row.diag));
-                    const Tensor AP = this->hand_triangle(row.uplo);
-                    Tensor b = this->vector_of(
-                        elements<T>({row.product[0], row.product[1], row.product[2]}));
-
-                    SushiBLAS::BLASOps(this->recorder()).tpsv(AP, b, row.uplo, row.trans, row.diag);
-                    this->recording->run().value();
-
-                    expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
-                }
+                expect_equal(read_tensor<T>(y), elements<T>({5, 8, 10}));
             });
         }
 
         /**
          * @brief Tests that spr writes 2 * x * x^T in the order the layout and triangle give.
          */
-        TYPED_TEST(Medium_BlasPacked, SprWritesTheStoredTriangle)
+        TEST_P(Medium_BlasPackedTriangle, SprWritesTheStoredTriangle)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout layout)
+            const Core::Uplo uplo = GetParam().axis;
+            const Core::Layout layout = GetParam().layout;
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor x = this->vector_of(elements<T>({1, 2, 3}));
-                    Tensor AP = this->vector_of(elements<T>({0, 0, 0, 0, 0, 0}));
+                using T = typename decltype(element)::type;
+                const Tensor x = vector_of(elements<T>({1, 2, 3}));
+                Tensor AP = vector_of(elements<T>({0, 0, 0, 0, 0, 0}));
 
-                    SushiBLAS::BLASOps(this->recorder()).spr(x, AP, uplo, 2.0);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).spr(x, AP, uplo, 2.0);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(AP),
-                                 is_growing(uplo, layout) ? elements<T>({2, 4, 8, 6, 12, 18})
-                                                          : elements<T>({2, 4, 6, 8, 12, 18}));
-                }
+                expect_equal(read_tensor<T>(AP),
+                             is_growing(uplo, layout) ? elements<T>({2, 4, 8, 6, 12, 18})
+                                                      : elements<T>({2, 4, 6, 8, 12, 18}));
             });
         }
 
         /**
          * @brief Tests spr2 on x = [1, 2], y = [3, 5]: the triangle of [6 11; 11 20].
          */
-        TYPED_TEST(Medium_BlasPacked, Spr2MatchesByHand)
+        TEST_P(Medium_BlasPackedTriangle, Spr2MatchesByHand)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor x = this->vector_of(elements<T>({1, 2}));
-                    const Tensor y = this->vector_of(elements<T>({3, 5}));
-                    Tensor AP = this->vector_of(elements<T>({0, 0, 0}));
+                using T = typename decltype(element)::type;
+                const Tensor x = vector_of(elements<T>({1, 2}));
+                const Tensor y = vector_of(elements<T>({3, 5}));
+                Tensor AP = vector_of(elements<T>({0, 0, 0}));
 
-                    SushiBLAS::BLASOps(this->recorder()).spr2(x, y, AP, uplo, 1.0);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).spr2(x, y, AP, uplo, 1.0);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(AP), elements<T>({6, 11, 20}));
-                }
+                expect_equal(read_tensor<T>(AP), elements<T>({6, 11, 20}));
+            });
+        }
+
+        /** @brief Tests that spmv gives the elements of symv on the same matrix. */
+        TEST_P(Medium_BlasPackedTriangle, SpmvEqualsSymv)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor AP = vector_of(packed(data.dense, K_SIBLING_ORDER, uplo));
+                const Tensor full = dense_of(K_SIBLING_ORDER, data.dense);
+                const Tensor x = vector_of(data.x);
+
+                expect_same_result(
+                    data.prior,
+                    [&](Tensor& out) { ops.spmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
+                    [&](Tensor& out) { ops.symv(full, x, out, uplo, K_ALPHA, K_BETA); });
+            });
+        }
+
+        /** @brief Tests that hpmv gives the elements of hemv on the same matrix. */
+        TEST_P(Medium_BlasPackedTriangle, HpmvEqualsHemv)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor AP = vector_of(packed(data.dense, K_SIBLING_ORDER, uplo));
+                const Tensor full = dense_of(K_SIBLING_ORDER, data.dense);
+                const Tensor x = vector_of(data.x);
+
+                expect_same_result(
+                    data.prior,
+                    [&](Tensor& out) { ops.hpmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
+                    [&](Tensor& out) { ops.hemv(full, x, out, uplo, K_ALPHA, K_BETA); });
+            });
+        }
+
+        /** @brief Tests that spr leaves the stored triangle of syr. */
+        TEST_P(Medium_BlasPackedTriangle, SprEqualsSyr)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor x = vector_of(data.x);
+
+                expect_same_update(
+                    data.dense, K_SIBLING_ORDER, uplo,
+                    [&](Tensor& out) { ops.spr(x, out, uplo, K_ALPHA); },
+                    [&](Tensor& out) { ops.syr(x, out, uplo, K_ALPHA); });
+            });
+        }
+
+        /** @brief Tests that hpr leaves the stored triangle of her. */
+        TEST_P(Medium_BlasPackedTriangle, HprEqualsHer)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor x = vector_of(data.x);
+
+                expect_same_update(
+                    data.dense, K_SIBLING_ORDER, uplo,
+                    [&](Tensor& out) { ops.hpr(x, out, uplo, K_ALPHA); },
+                    [&](Tensor& out) { ops.her(x, out, uplo, K_ALPHA); });
+            });
+        }
+
+        /** @brief Tests that spr2 leaves the stored triangle of syr2. */
+        TEST_P(Medium_BlasPackedTriangle, Spr2EqualsSyr2)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor x = vector_of(data.x);
+                const Tensor y = vector_of(data.y);
+
+                expect_same_update(
+                    data.dense, K_SIBLING_ORDER, uplo,
+                    [&](Tensor& out) { ops.spr2(x, y, out, uplo, K_ALPHA); },
+                    [&](Tensor& out) { ops.syr2(x, y, out, uplo, K_ALPHA); });
+            });
+        }
+
+        /** @brief Tests that hpr2 leaves the stored triangle of her2. */
+        TEST_P(Medium_BlasPackedTriangle, Hpr2EqualsHer2)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const SiblingData<T> data = draw_siblings<T>();
+                SushiBLAS::BLASOps ops(recorder());
+                const Tensor x = vector_of(data.x);
+                const Tensor y = vector_of(data.y);
+
+                expect_same_update(
+                    data.dense, K_SIBLING_ORDER, uplo,
+                    [&](Tensor& out) { ops.hpr2(x, y, out, uplo, K_ALPHA); },
+                    [&](Tensor& out) { ops.her2(x, y, out, uplo, K_ALPHA); });
             });
         }
 
         /**
-         * @brief Tests that a packed triangle gives the elements of symv and hemv, and that
-         *        each packed update leaves the stored triangle of its dense sibling.
+         * @brief Tests tpmv on the literal packed arrays of U and of its transpose.
          */
-        TYPED_TEST(Medium_BlasPacked, APackedTriangleEqualsTheDenseSibling)
+        TEST_P(Medium_BlasPackedProduct, TpmvMatchesByHand)
         {
-            using T = TypeParam;
+            const TriangularRow row = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const Tensor AP = hand_triangle<T>(row.uplo);
+                Tensor x = vector_of(elements<T>({1, 2, 3}));
+
+                SushiBLAS::BLASOps(recorder()).tpmv(AP, x, row.uplo, row.trans, row.diag);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(x),
+                             elements<T>({row.product[0], row.product[1], row.product[2]}));
+            });
+        }
+
+        /**
+         * @brief Tests that tpsv recovers [1, 2, 3] from each product of TpmvMatchesByHand.
+         */
+        TEST_P(Medium_BlasPackedProduct, TpsvInvertsTpmv)
+        {
+            const TriangularRow row = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const Tensor AP = hand_triangle<T>(row.uplo);
+                Tensor b = vector_of(
+                    elements<T>({row.product[0], row.product[1], row.product[2]}));
+
+                SushiBLAS::BLASOps(recorder()).tpsv(AP, b, row.uplo, row.trans, row.diag);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
+            });
+        }
+
+        /**
+         * @brief Tests that tpmv gives the elements of trmv, and the product formed in integers
+         *        on the host.
+         */
+        TEST_P(Medium_BlasPackedFlags, TpmvEqualsTrmvAndTheHostProduct)
+        {
+            const TriangleFlags flags = GetParam().axis;
             const int64_t n = K_SIBLING_ORDER;
-
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(this->recorder());
-                const std::vector<T> dense = random_elements<T>(generator, n * n);
-                const Tensor full = this->dense_of(n, dense);
+                using T = typename decltype(element)::type;
+                SushiBLAS::BLASOps ops(recorder());
+                const ExactTriangle exact =
+                    exact_triangle(n, flags.uplo, flags.trans, flags.diag, Core::is_complex_v<T>);
+                const std::vector<T> stored = narrowed_all<T>(exact.stored);
+                const Tensor AP = vector_of(packed(stored, n, flags.uplo));
+                const Tensor full = dense_of(n, stored);
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor AP = this->vector_of(this->packed(dense, n, uplo));
-                    const Tensor x = this->vector_of(random_elements<T>(generator, n));
-                    const Tensor y = this->vector_of(random_elements<T>(generator, n));
-                    const std::vector<T> prior = random_elements<T>(generator, n);
-
-                    this->expect_same_result(
-                        prior,
-                        [&](Tensor& out) { ops.spmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
-                        [&](Tensor& out) { ops.symv(full, x, out, uplo, K_ALPHA, K_BETA); });
-                    this->expect_same_result(
-                        prior,
-                        [&](Tensor& out) { ops.hpmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
-                        [&](Tensor& out) { ops.hemv(full, x, out, uplo, K_ALPHA, K_BETA); });
-
-                    this->expect_same_update(
-                        dense, n, uplo,
-                        [&](Tensor& out) { ops.spr(x, out, uplo, K_ALPHA); },
-                        [&](Tensor& out) { ops.syr(x, out, uplo, K_ALPHA); });
-                    this->expect_same_update(
-                        dense, n, uplo,
-                        [&](Tensor& out) { ops.hpr(x, out, uplo, K_ALPHA); },
-                        [&](Tensor& out) { ops.her(x, out, uplo, K_ALPHA); });
-                    this->expect_same_update(
-                        dense, n, uplo,
-                        [&](Tensor& out) { ops.spr2(x, y, out, uplo, K_ALPHA); },
-                        [&](Tensor& out) { ops.syr2(x, y, out, uplo, K_ALPHA); });
-                    this->expect_same_update(
-                        dense, n, uplo,
-                        [&](Tensor& out) { ops.hpr2(x, y, out, uplo, K_ALPHA); },
-                        [&](Tensor& out) { ops.her2(x, y, out, uplo, K_ALPHA); });
-                }
+                const std::vector<T> product = expect_same_result(
+                    narrowed_all<T>(exact.x),
+                    [&](Tensor& out) { ops.tpmv(AP, out, flags.uplo, flags.trans, flags.diag); },
+                    [&](Tensor& out) { ops.trmv(full, out, flags.uplo, flags.trans, flags.diag); });
+                expect_equal(product, narrowed_all<T>(exact.b));
             });
         }
 
         /**
-         * @brief Tests that tpmv and tpsv give the elements of trmv and trsv, and the product
-         *        and the solution formed in integers on the host.
+         * @brief Tests that tpsv gives the elements of trsv, and the solution formed in integers
+         *        on the host.
          */
-        TYPED_TEST(Medium_BlasPacked, APackedTriangularMatrixEqualsTheDenseSibling)
+        TEST_P(Medium_BlasPackedFlags, TpsvEqualsTrsvAndTheHostSolution)
         {
-            using T = TypeParam;
+            const TriangleFlags flags = GetParam().axis;
             const int64_t n = K_SIBLING_ORDER;
-
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                SushiBLAS::BLASOps ops(this->recorder());
+                using T = typename decltype(element)::type;
+                SushiBLAS::BLASOps ops(recorder());
+                const ExactTriangle exact =
+                    exact_triangle(n, flags.uplo, flags.trans, flags.diag, Core::is_complex_v<T>);
+                const std::vector<T> stored = narrowed_all<T>(exact.stored);
+                const Tensor AP = vector_of(packed(stored, n, flags.uplo));
+                const Tensor full = dense_of(n, stored);
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    for (const Core::Transpose trans : K_TRANSPOSES)
-                    {
-                        for (const Core::Diag diag : K_DIAGONALS)
-                        {
-                            SCOPED_TRACE(flags_name(uplo, trans, diag));
-                            const ExactTriangle exact =
-                                exact_triangle(n, uplo, trans, diag, Core::is_complex_v<T>);
-                            const std::vector<T> stored = narrowed_all<T>(exact.stored);
-                            const std::vector<T> x = narrowed_all<T>(exact.x);
-                            const std::vector<T> b = narrowed_all<T>(exact.b);
-
-                            const Tensor AP = this->vector_of(this->packed(stored, n, uplo));
-                            const Tensor full = this->dense_of(n, stored);
-
-                            const std::vector<T> product = this->expect_same_result(
-                                x,
-                                [&](Tensor& out) { ops.tpmv(AP, out, uplo, trans, diag); },
-                                [&](Tensor& out) { ops.trmv(full, out, uplo, trans, diag); });
-                            expect_equal(product, b);
-
-                            const std::vector<T> solution = this->expect_same_result(
-                                b,
-                                [&](Tensor& out) { ops.tpsv(AP, out, uplo, trans, diag); },
-                                [&](Tensor& out) { ops.trsv(full, out, uplo, trans, diag); });
-                            expect_equal(solution, x);
-                        }
-                    }
-                }
+                const std::vector<T> solution = expect_same_result(
+                    narrowed_all<T>(exact.b),
+                    [&](Tensor& out) { ops.tpsv(AP, out, flags.uplo, flags.trans, flags.diag); },
+                    [&](Tensor& out) { ops.trsv(full, out, flags.uplo, flags.trans, flags.diag); });
+                expect_equal(solution, narrowed_all<T>(exact.x));
             });
         }
 
         /**
-         * @brief Tests that the eight routines record and run on a packed tensor of no
-         *        elements, and give the hand values at orders 1 and 2.
+         * @brief Tests that one routine records and runs on a packed tensor of no elements, and
+         *        gives the hand values at orders 1 and 2.
          */
-        TYPED_TEST(Medium_BlasPacked, EdgeOrders)
+        TEST_P(Medium_BlasPackedEdge, RoutineGivesTheHandValues)
         {
-            using T = TypeParam;
-            using Inputs = typename TestFixture::PackedInputs;
-
-            this->for_each_engine([&](Core::Layout)
+            const RoutineEdge row = GetParam().axis;
+            const EdgeRow& edge = K_EDGE_ROWS[row.edge];
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(std::string("order 0, ") + Core::to_string(uplo));
-                    const Inputs empty{uplo, {}, {}, {}, {}, {}, {}, 1.0, 0.0};
-                    EXPECT_NO_THROW((void)this->run_eight(empty));
-                }
+                using T = typename decltype(element)::type;
+                const PackedInputs<T> in{edge.uplo,
+                                         elements<T>(edge.ap),
+                                         elements<T>(edge.ap),
+                                         elements<T>(edge.x),
+                                         elements<T>(edge.y),
+                                         std::vector<T>(edge.x.size(), poison<T>()),
+                                         elements<T>(edge.b),
+                                         1.0,
+                                         0.0};
 
-                for (const EdgeRow& row : K_EDGE_ROWS)
-                {
-                    SCOPED_TRACE(::testing::Message() << "order " << row.x.size() << ", "
-                                                      << Core::to_string(row.uplo));
-                    const Inputs in{row.uplo,
-                                    elements<T>(row.ap),
-                                    elements<T>(row.ap),
-                                    elements<T>(row.x),
-                                    elements<T>(row.y),
-                                    std::vector<T>(row.x.size(), poison<T>()),
-                                    elements<T>(row.b),
-                                    1.0,
-                                    0.0};
-                    const std::vector<std::vector<T>> results = this->run_eight(in);
-
-                    ASSERT_EQ(results.size(), K_ROUTINE_COUNT);
-                    for (std::size_t routine = 0; routine < K_ROUTINE_COUNT; ++routine)
-                    {
-                        SCOPED_TRACE(K_ROUTINES[routine]);
-                        expect_equal(results[routine], elements<T>(row.results[routine]));
-                    }
-                }
+                expect_equal(run_routine(row.routine, in),
+                             elements<T>(edge.results[row.routine]));
             });
         }
 
         /**
-         * @brief Tests that the two kernels agree within ModeTolerance on the eight routines.
+         * @brief Tests that the kernel of the row agrees with the reference, within the rounding
+         *        of the element type, on one routine and triangle.
          */
-        TYPED_TEST(Medium_BlasPacked, BothModesAgree)
+        TEST_P(Medium_BlasPackedAgree, RoutineMatchesTheReference)
         {
-            using T = TypeParam;
-            using Inputs = typename TestFixture::PackedInputs;
+            const RoutineTriangle row = GetParam().axis;
             const int64_t n = K_MODE_ORDER;
-
-            std::mt19937 generator(K_SEED);
-            const std::vector<T> general = random_elements<T>(generator, n * n);
-            std::vector<T> dominant = random_elements<T>(generator, n * n);
-            for (int64_t i = 0; i < n; ++i)
-                dominant[static_cast<std::size_t>(i * n + i)] =
-                    narrowed<T>(Wide(static_cast<double>(n + 1), 0.0));
-            const std::vector<T> x = random_elements<T>(generator, n);
-            const std::vector<T> y = random_elements<T>(generator, n);
-            const std::vector<T> prior = random_elements<T>(generator, n);
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL) + ", " +
-                                 Core::to_string(uplo));
-                    const Inputs in{uplo,
-                                    to_packed(general, n, uplo, layout),
-                                    to_packed(dominant, n, uplo, layout),
-                                    x,
-                                    y,
-                                    prior,
-                                    x,
-                                    K_ALPHA,
-                                    K_BETA};
+                using T = typename decltype(element)::type;
+                const Core::Layout layout = GetParam().layout;
+                std::mt19937 generator(K_SEED);
+                const std::vector<T> general = random_elements<T>(generator, n * n);
+                std::vector<T> dominant = random_elements<T>(generator, n * n);
+                for (int64_t i = 0; i < n; ++i)
+                    dominant[static_cast<std::size_t>(i * n + i)] =
+                        narrowed<T>(Wide(static_cast<double>(n + 1), 0.0));
+                const std::vector<T> x = random_elements<T>(generator, n);
+                const std::vector<T> y = random_elements<T>(generator, n);
+                const std::vector<T> prior = random_elements<T>(generator, n);
 
-                    this->start(layout, ExecutionMode::ForceReference);
-                    const std::vector<std::vector<T>> reference = this->run_eight(in);
-                    this->start(layout, ExecutionMode::ForceSYCL);
-                    const std::vector<std::vector<T>> device = this->run_eight(in);
+                const PackedInputs<T> in{row.uplo,
+                                         to_packed(general, n, row.uplo, layout),
+                                         to_packed(dominant, n, row.uplo, layout),
+                                         x,
+                                         y,
+                                         prior,
+                                         x,
+                                         K_ALPHA,
+                                         K_BETA};
 
-                    ASSERT_EQ(device.size(), reference.size());
-                    for (std::size_t routine = 0; routine < device.size(); ++routine)
-                    {
-                        SCOPED_TRACE(K_ROUTINES[routine]);
-                        expect_near(device[routine], reference[routine]);
-                    }
-                }
-            }
+                expect_modes_agree(row.routine, in);
+            });
         }
 
         /**
          * @brief Tests that hpmv conjugates the mirrored triangle and reads no imaginary
          *        diagonal.
          */
-        TYPED_TEST(Medium_BlasPackedComplex, HpmvConjugatesTheMirror)
+        TEST_P(Medium_BlasPackedComplex, HpmvConjugatesTheMirror)
         {
-            using T = TypeParam;
+            const Core::Uplo uplo = GetParam().axis;
             const int64_t n = K_HAND_ORDER;
             const std::vector<Wide> hermitian = {
                 Wide(1, K_DIAGONAL_IMAGINARY), Wide(2, 1),  Wide(0, 0),
                 Wide(2, -1), Wide(3, K_DIAGONAL_IMAGINARY), Wide(4, -2),
                 Wide(0, 0),  Wide(4, 2), Wide(5, K_DIAGONAL_IMAGINARY)};
             const std::vector<Wide> x = {Wide(1, 0), Wide(0, 1), Wide(2, 0)};
-
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor AP =
-                        this->vector_of(this->packed(narrowed_all<T>(hermitian), n, uplo));
-                    const Tensor x_tensor = this->vector_of(narrowed_all<T>(x));
-                    Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
+                using T = typename decltype(element)::type;
+                const Tensor AP = vector_of(packed(narrowed_all<T>(hermitian), n, uplo));
+                const Tensor x_tensor = vector_of(narrowed_all<T>(x));
+                Tensor y = vector_of(std::vector<T>(3, poison<T>()));
 
-                    SushiBLAS::BLASOps(this->recorder()).hpmv(AP, x_tensor, y, uplo);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).hpmv(AP, x_tensor, y, uplo);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(y),
-                                 narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
-                }
+                expect_equal(read_tensor<T>(y),
+                             narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
             });
         }
 
@@ -1062,52 +1419,43 @@ namespace SushiBLAS
          * @brief Tests that hpr adds 2 * x * x^H to the stored triangle and leaves a diagonal
          *        whose imaginary parts are exactly zero.
          */
-        TYPED_TEST(Medium_BlasPackedComplex, HprKeepsTheDiagonalReal)
+        TEST_P(Medium_BlasPackedComplex, HprKeepsTheDiagonalReal)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor x = this->vector_of(narrowed_all<T>({Wide(1, 1), Wide(2, 0)}));
-                    Tensor AP = this->vector_of(
-                        narrowed_all<T>({Wide(0, 7), Wide(0, 0), Wide(0, 7)}));
+                using T = typename decltype(element)::type;
+                const Tensor x = vector_of(narrowed_all<T>({Wide(1, 1), Wide(2, 0)}));
+                Tensor AP = vector_of(narrowed_all<T>({Wide(0, 7), Wide(0, 0), Wide(0, 7)}));
 
-                    SushiBLAS::BLASOps(this->recorder()).hpr(x, AP, uplo, 2.0);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).hpr(x, AP, uplo, 2.0);
+                recording->run().value();
 
-                    const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
-                    expect_equal(read_tensor<T>(AP),
-                                 narrowed_all<T>({Wide(4, 0), Wide(4, 4 * sign), Wide(8, 0)}));
-                }
+                const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
+                expect_equal(read_tensor<T>(AP),
+                             narrowed_all<T>({Wide(4, 0), Wide(4, 4 * sign), Wide(8, 0)}));
             });
         }
 
         /**
          * @brief Tests that hpr2 multiplies y * x^H by the conjugate of a complex alpha.
          */
-        TYPED_TEST(Medium_BlasPackedComplex, Hpr2ConjugatesAlpha)
+        TEST_P(Medium_BlasPackedComplex, Hpr2ConjugatesAlpha)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
+            const Core::Uplo uplo = GetParam().axis;
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor x = this->vector_of(narrowed_all<T>({Wide(1, 0), Wide(0, 1)}));
-                    const Tensor y = this->vector_of(narrowed_all<T>({Wide(1, 1), Wide(2, 0)}));
-                    Tensor AP = this->vector_of(std::vector<T>(3));
+                using T = typename decltype(element)::type;
+                const Tensor x = vector_of(narrowed_all<T>({Wide(1, 0), Wide(0, 1)}));
+                const Tensor y = vector_of(narrowed_all<T>({Wide(1, 1), Wide(2, 0)}));
+                Tensor AP = vector_of(std::vector<T>(3));
 
-                    SushiBLAS::BLASOps(this->recorder()).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
+                recording->run().value();
 
-                    const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
-                    expect_equal(read_tensor<T>(AP),
-                                 narrowed_all<T>({Wide(2, 0), Wide(-1, sign), Wide(-4, 0)}));
-                }
+                const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
+                expect_equal(read_tensor<T>(AP),
+                             narrowed_all<T>({Wide(2, 0), Wide(-1, sign), Wide(-4, 0)}));
             });
         }
 
@@ -1115,7 +1463,7 @@ namespace SushiBLAS
          * @brief Tests that spmv and tpmv sum a HALF row in FLOAT32: 2048 + 1 + 1 - 2048 is 2
          *        there and 0 in HALF.
          */
-        TEST_F(Medium_BlasPackedHalf, HalfSumsInFloat)
+        TEST_P(Medium_BlasPackedHalf, HalfSumsInFloat)
         {
             using T = sycl::half;
             constexpr int64_t n = 4;
@@ -1123,74 +1471,93 @@ namespace SushiBLAS
             std::vector<double> square(static_cast<std::size_t>(n * n), 0.0);
             std::copy(row.begin(), row.end(), square.begin());
 
-            for_each_engine([&](Core::Layout)
-            {
-                SushiBLAS::BLASOps ops(recorder());
-                const Tensor AP = vector_of(packed(elements<T>(square), n, Core::Uplo::Upper));
-                const Tensor ones = vector_of(elements<T>({1, 1, 1, 1}));
+            SushiBLAS::BLASOps ops(recorder());
+            const Tensor AP = vector_of(packed(elements<T>(square), n, Core::Uplo::Upper));
+            const Tensor ones = vector_of(elements<T>({1, 1, 1, 1}));
 
-                Tensor from_spmv = vector_of(std::vector<T>(4, poison<T>()));
-                ops.spmv(AP, ones, from_spmv, Core::Uplo::Upper);
-                Tensor from_tpmv = vector_of(elements<T>({1, 1, 1, 1}));
-                ops.tpmv(AP, from_tpmv, Core::Uplo::Upper);
-                recording->run().value();
+            Tensor from_spmv = vector_of(std::vector<T>(4, poison<T>()));
+            ops.spmv(AP, ones, from_spmv, Core::Uplo::Upper);
+            Tensor from_tpmv = vector_of(elements<T>({1, 1, 1, 1}));
+            ops.tpmv(AP, from_tpmv, Core::Uplo::Upper);
+            recording->run().value();
 
-                expect_equal(read_tensor<T>(from_spmv), elements<T>({2, 1, 1, -2048}));
-                expect_equal(read_tensor<T>(from_tpmv), elements<T>({2, 0, 0, 0}));
-            });
+            expect_equal(read_tensor<T>(from_spmv), elements<T>({2, 1, 1, -2048}));
+            expect_equal(read_tensor<T>(from_tpmv), elements<T>({2, 0, 0, 0}));
         }
 
         /**
          * @brief Tests that tpsv carries a HALF solution in FLOAT32: the middle element is
          *        2049 there, stored as 2048, and the last is 2050 - 2049.
          */
-        TEST_F(Medium_BlasPackedHalf, HalfSolveCarriesTheSolutionInFloat)
+        TEST_P(Medium_BlasPackedHalf, HalfSolveCarriesTheSolutionInFloat)
         {
             using T = sycl::half;
             const std::vector<double> lower = {1, 0, 0, -1, 1, 0, 0, 1, 1};
 
-            for_each_engine([&](Core::Layout)
-            {
-                const Tensor AP =
-                    vector_of(packed(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower));
-                Tensor b = vector_of(elements<T>({2048, 1, 2050}));
+            const Tensor AP =
+                vector_of(packed(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower));
+            Tensor b = vector_of(elements<T>({2048, 1, 2050}));
 
-                SushiBLAS::BLASOps(recorder()).tpsv(AP, b, Core::Uplo::Lower);
-                recording->run().value();
+            SushiBLAS::BLASOps(recorder()).tpsv(AP, b, Core::Uplo::Lower);
+            recording->run().value();
 
-                expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
-            });
+            expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
         }
 
         /**
          * @brief Tests spmv against symv at an order where a device that plans a work-group
          *        per row runs one.
          */
-        TEST_F(Medium_BlasPackedLarge, APackedTriangleEqualsTheDenseSiblingLarge)
+        TEST_P(Medium_BlasPackedLarge, APackedTriangleEqualsTheDenseSiblingLarge)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                const std::array<std::vector<float>, 2> symmetric = large_symmetric_products();
-                expect_equal(symmetric[0], symmetric[1]);
-            });
+            const std::array<std::vector<float>, 2> symmetric = large_symmetric_products<float>();
+            expect_equal(symmetric[0], symmetric[1]);
         }
 
         /**
          * @brief Tests that spmv gives the same bits when the device runs it twice.
          */
-        TEST_F(Medium_BlasPackedLarge, RepeatsToTheBit)
+        TEST_P(Medium_BlasPackedRepeat, RepeatsToTheBit)
         {
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL));
-                start(layout, ExecutionMode::ForceSYCL);
-                const std::vector<float> first = large_symmetric_products()[0];
-                const std::vector<float> second = large_symmetric_products()[0];
+            const std::vector<float> first = large_symmetric_products<float>()[0];
+            const std::vector<float> second = large_symmetric_products<float>()[0];
 
-                ASSERT_EQ(first.size(), second.size());
-                EXPECT_EQ(0, std::memcmp(first.data(), second.data(),
-                                         first.size() * sizeof(float)));
-            }
+            ASSERT_EQ(first.size(), second.size());
+            EXPECT_EQ(0, std::memcmp(first.data(), second.data(), first.size() * sizeof(float)));
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedTriangle,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, K_TRIANGLES)),
+            row_name<Core::Uplo>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedProduct,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, triangular_rows())),
+            row_name<TriangularRow>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedFlags,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, all_triangle_flags())),
+            row_name<TriangleFlags>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedEdge,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, all_routines_and_edges())),
+            row_name<RoutineEdge>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedAgree,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_DEVICE_MODE, all_routines_and_triangles())),
+            row_name<RoutineTriangle>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedComplex,
+            ::testing::ValuesIn(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES, K_TRIANGLES)),
+            row_name<Core::Uplo>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedHalf, ::testing::ValuesIn(plain_rows(K_HALF_TYPE, K_BOTH_MODES)),
+            row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedLarge, ::testing::ValuesIn(plain_rows(K_FLOAT_TYPE, K_BOTH_MODES)),
+            row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasPackedRepeat,
+            ::testing::ValuesIn(plain_rows(K_FLOAT_TYPE, K_DEVICE_MODE)), row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS
