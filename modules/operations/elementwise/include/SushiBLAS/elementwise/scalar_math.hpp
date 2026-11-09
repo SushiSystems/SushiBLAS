@@ -176,5 +176,77 @@ namespace SushiBLAS
             else
                 return (x != x) ? x : ((y != y) ? y : sycl::min(x, y));
         }
+
+        /**
+         * @brief Returns `sin(x)` through `sycl::sin`, in the type `sycl::sin` returns for T.
+         */
+        template<typename T>
+        inline auto scalar_sin(T x)
+        {
+            return sycl::sin(x);
+        }
+
+        /**
+         * @brief Returns `sinh(x)` through `sycl::sinh`, in the type `sycl::sinh` returns for T.
+         */
+        template<typename T>
+        inline auto scalar_sinh(T x)
+        {
+            return sycl::sinh(x);
+        }
+
+        /**
+         * @brief Returns `tan(x)` through `sycl::tan`, in the type `sycl::tan` returns for T.
+         */
+        template<typename T>
+        inline auto scalar_tan(T x)
+        {
+            return sycl::tan(x);
+        }
+
+        /**
+         * @brief Returns `round(x)` through `sycl::round`, in the type `sycl::round` returns for T.
+         */
+        template<typename T>
+        inline auto scalar_round(T x)
+        {
+            return sycl::round(x);
+        }
+
+        /**
+         * @brief Returns `x * x` in the operand type.
+         */
+        template<typename T>
+        inline auto scalar_square(T x)
+        {
+            return x * x;
+        }
+
+        /**
+         * @brief Returns `1 / x` in the operand type.
+         */
+        template<typename T>
+        inline auto scalar_reciprocal(T x)
+        {
+            return T(1) / x;
+        }
+
+        /**
+         * @brief Returns `pow(x, e)` through `sycl::pow`.
+         */
+        template<typename A, typename B>
+        inline auto scalar_pow(A x, B e)
+        {
+            return sycl::pow(x, e);
+        }
+
+        /**
+         * @brief Returns the IEEE remainder of `x` over `y` through `sycl::remainder`.
+         */
+        template<typename A, typename B>
+        inline auto scalar_remainder(A x, B y)
+        {
+            return sycl::remainder(x, y);
+        }
     } // namespace Dispatch
 } // namespace SushiBLAS

@@ -30,6 +30,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -38,6 +39,6 @@ namespace SushiBLAS
     TaskHandle ElementwiseOps::reciprocal(Tensor& t) 
     {
         return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.ew.reciprocal", "math.ew.reciprocal"_op, 
-            [](auto x) { return (decltype(x))1 / x; });
+            [](auto x) { return Dispatch::scalar_reciprocal(x); });
     }
 } // namespace SushiBLAS

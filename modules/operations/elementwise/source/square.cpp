@@ -29,6 +29,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -37,6 +38,6 @@ namespace SushiBLAS
     TaskHandle ElementwiseOps::square(Tensor& t) 
     {
         return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.ew.square", "math.ew.square"_op, 
-            [](auto x) { return x * x; });
+            [](auto x) { return Dispatch::scalar_square(x); });
     }
 } // namespace SushiBLAS

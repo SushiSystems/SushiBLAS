@@ -30,6 +30,7 @@
 
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/scalar_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -38,6 +39,6 @@ namespace SushiBLAS
     TaskHandle ElementwiseOps::remainder(const Tensor& A, const Tensor& B, Tensor& C) 
     {
         return Dispatch::execute_binary(recorder_, A, B, C, "math.ew.remainder", "math.ew.remainder"_op, 
-            [](auto x, auto y) { return sycl::remainder(x, y); });
+            [](auto x, auto y) { return Dispatch::scalar_remainder(x, y); });
     }
 } // namespace SushiBLAS
