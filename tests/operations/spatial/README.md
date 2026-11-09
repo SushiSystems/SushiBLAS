@@ -194,8 +194,14 @@ tie broken the other way is, and the gradient follows the index, not the value.
 
 ## test_spatial/test_spatial_upsample.cpp
 
-`TheBackwardSumsTheBlockThatReadEachInput` sums the expectation by walking the block index by
-index, with no closed form the kernel could be wrong in the same way.
+The value and refusal tests run `Small_` on the host engine; the agreement of the two paths is the
+one `Medium_` test.
+
+`TheBackwardSumsTheBlockThatReadEachInput` sums the expectation in `upsample_block_sums`, which
+walks the block index by index, with no closed form the kernel could be wrong in the same way.
+
+`AScaleThatIsNotPositiveIsRefusedNamingTheOperand` has one row per refused scale, a zero row scale
+and a negative column scale, and asserts the whole message.
 
 ## test_spatial/test_spatial_determinism.cpp
 
