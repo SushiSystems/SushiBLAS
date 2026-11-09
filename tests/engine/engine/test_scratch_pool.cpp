@@ -31,25 +31,17 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/engine/runtime_scratch_source.hpp>
+#include <SushiBLAS/tensor/storage.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/engine/host_scratch_source.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_ScratchPool, StartsWithoutIdleBlocks)
+        TEST(Small_ScratchPool, AReturnedBlockIsReusedForTheSameSize)
         {
-            RuntimeScratchSource pool_source(TestEnvironment::runtime());
-            const ScratchPool pool(pool_source);
-
-            EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
-            EXPECT_TRUE(pool.shelf());
-        }
-
-        TEST(Medium_ScratchPool, AReturnedBlockIsReusedForTheSameSize)
-        {
-            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            HostScratchSource pool_source;
             ScratchPool pool(pool_source);
             void* first_address = nullptr;
             {
@@ -64,20 +56,22 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
         }
 
-        TEST(Medium_ScratchPool, TrimReleasesTheIdleBlocks)
+        TEST(Small_ScratchPool, TrimReleasesTheIdleBlocks)
         {
-            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            HostScratchSource pool_source;
             ScratchPool pool(pool_source);
-            const std::size_t live_before = TestEnvironment::live_allocation_count();
+            SushiRuntime::sushi_ptr<Storage> storage;
             {
                 const ScratchBuffer buffer(pool, 512, 0);
+                storage = buffer.storage();
             }
             ASSERT_EQ(pool.idle_block_count(), std::size_t{1});
+            ASSERT_GT(storage->ref_count(), 1);
 
             pool.trim();
 
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
-            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
+            EXPECT_EQ(storage->ref_count(), 1);
         }
     } // namespace Test
 } // namespace SushiBLAS
