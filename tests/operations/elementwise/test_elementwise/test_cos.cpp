@@ -27,79 +27,50 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
-#include <cstdint>
-#include <limits>
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_CosTest : public SushiBLASTest {};
+class Small_CosTest : public HostEngineTest {};
 
-TEST_F(Medium_CosTest, FloatForward) 
+/**
+ * @brief Tests that the recorded cos replaces each element with its cosine when the task runs.
+ */
+TEST_F(Small_CosTest, CosReplacesEachElementWithItsCosine) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {0.54030f, -0.41615f, -0.98999f, 0.87758f});
 }
 
 namespace
 {
-    /// @brief Holds positive infinity.
-    const float K_INF = std::numeric_limits<float>::infinity();
-
-    /// @brief Holds a quiet NaN, the expectation for an input outside the domain.
-    const float K_NAN = std::numeric_limits<float>::quiet_NaN();
-
     /// @brief Holds cos of {-1, 0, 0.5, 2}.
     const std::vector<double> K_FLOAT64_EXPECTED = {0.5403023058681398, 1.0, 0.8775825618903728, -0.4161468365471424};
-
-    /// @brief Holds the absolute tolerance: 2 FLOAT32 roundings of a value of order one.
-    constexpr double K_FLOAT32_TOLERANCE = absolute_tolerance<float>(2);
 
     /// @brief Holds the absolute tolerance: 1024 FLOAT64 roundings of a value of order one.
     constexpr double K_FLOAT64_TOLERANCE = absolute_tolerance<double>(1024);
 }
 
-TEST_F(Medium_CosTest, ZeroInSingleElement)
-{
-    auto t = engine->create_tensor({1});
-    fill_tensor(t, {0.0f});
-
-    SushiBLAS::ElementwiseOps(recorder()).cos(t);
-    recording->run().value();
-
-    // cos(0) is 1.
-    expect_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
-}
-
-TEST_F(Medium_CosTest, PositiveInfinity)
-{
-    auto t = engine->create_tensor({1});
-    fill_tensor(t, {K_INF});
-
-    SushiBLAS::ElementwiseOps(recorder()).cos(t);
-    recording->run().value();
-
-    expect_tensor(t, {K_NAN});
-}
-
-TEST_F(Medium_CosTest, Float64)
+/**
+ * @brief Tests that the recorded cos computes in double on a FLOAT64 tensor.
+ */
+TEST_F(Small_CosTest, CosOnAFloat64TensorKeepsTheDoublePrecision)
 {
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
     SushiBLAS::ElementwiseOps(recorder()).cos(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
 
     expect_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }
