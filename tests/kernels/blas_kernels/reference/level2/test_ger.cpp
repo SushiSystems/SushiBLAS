@@ -29,11 +29,13 @@
 
 #include <complex>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_kernels/reference/level2/ger.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_structured.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
 
@@ -41,30 +43,53 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceGer, AddsTheOuterProductInEitherLayout)
+        namespace
         {
+            /** @brief Returns a, row by row, with alpha * x * y^T added. */
+            std::vector<double> with_outer_product(std::vector<double> a, int64_t n, double alpha,
+                                                   const std::vector<double>& x,
+                                                   const std::vector<double>& y)
+            {
+                for (std::size_t i = 0; i < x.size(); ++i)
+                {
+                    for (std::size_t j = 0; j < y.size(); ++j)
+                    {
+                        a[i * static_cast<std::size_t>(n) + j] += alpha * x[i] * y[j];
+                    }
+                }
+
+                return a;
+            }
+
+            /** @brief Names a row after its layout. */
+            std::string layout_name(const ::testing::TestParamInfo<bool>& info)
+            {
+                return info.param ? "RowMajor" : "ColumnMajor";
+            }
+        } // namespace
+
+        /// @brief Runs ger for one layout, as a row of (row major).
+        class Small_ReferenceGerLayout : public ::testing::TestWithParam<bool> {};
+
+        /// @brief Tests that ger adds alpha x y^T to A in the layout of the row.
+        TEST_P(Small_ReferenceGerLayout, AddsTheOuterProductInEitherLayout)
+        {
+            const Core::Layout layout = layout_of(GetParam());
             const int64_t m = 3;
             const int64_t n = 4;
             const std::vector<double> a = small_integers<double>(m * n, 1);
             const std::vector<double> x = small_integers<double>(m, 2);
             const std::vector<double> y = small_integers<double>(n, 3);
-            std::vector<double> expected = a;
-            for (int64_t i = 0; i < m; ++i)
-                for (int64_t j = 0; j < n; ++j)
-                    expected[static_cast<std::size_t>(i * n + j)] +=
-                        -2.0 * x[static_cast<std::size_t>(i)] * y[static_cast<std::size_t>(j)];
+            const std::vector<double> expected = with_outer_product(a, n, -2.0, x, y);
+            std::vector<double> stored = in_layout(a, m, n, layout);
+            const int64_t lda = (layout == Core::Layout::RowMajor) ? n : m;
 
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                std::vector<double> stored = in_layout(a, m, n, layout);
-                const int64_t lda = (layout == Core::Layout::RowMajor) ? n : m;
+            Kernels::Reference::ger(layout, m, n, -2.0, x.data(), 1, y.data(), 1, stored.data(), lda);
 
-                Kernels::Reference::ger(layout, m, n, -2.0, x.data(), 1, y.data(), 1,
-                                        stored.data(), lda);
-
-                EXPECT_EQ(stored, in_layout(expected, m, n, layout));
-            }
+            EXPECT_EQ(stored, in_layout(expected, m, n, layout));
         }
+
+        INSTANTIATE_TEST_SUITE_P(Layouts, Small_ReferenceGerLayout, ::testing::Bool(), layout_name);
 
         TEST(Small_ReferenceGer, TheConjugatedFormConjugatesY)
         {
