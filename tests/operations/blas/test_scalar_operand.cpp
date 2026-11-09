@@ -28,8 +28,11 @@
  */
 
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <stdexcept>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>
@@ -43,64 +46,101 @@ namespace SushiBLAS
         {
             using Core::DataType;
 
-            /// @brief Names the suite of the scalar operand cases.
-            using Medium_ScalarOperand = StructuredOperandTest;
+            /** @brief One tensor a scalar operand check meets, built on demand. */
+            struct TensorRow
+            {
+                const char* name;              /**< Names the row. */
+                int32_t rank;                  /**< The rank the tensor has. */
+                std::function<Tensor()> build; /**< Builds the tensor. */
+            };
+
+            /** @brief Returns the tensors of one stored element, whatever their rank. */
+            std::vector<TensorRow> scalar_rows()
+            {
+                return {
+                    {"RankZero", 0, [] { return host_matrix(std::initializer_list<int64_t>{}); }},
+                    {"RankOne", 1, [] { return host_matrix({1}); }},
+                    {"RankTwo", 2, [] { return host_matrix({1, 1}); }},
+                };
+            }
+
+            /** @brief Returns the tensors of another element count than one. */
+            std::vector<TensorRow> wrong_count_rows()
+            {
+                return {
+                    {"TwoElements", 1, [] { return host_matrix({2}); }},
+                    {"NoElement", 1, [] { return detached_matrix({0}); }},
+                };
+            }
+
+            /** @brief Names the suite of the tensors that are one stored element. */
+            class Small_ScalarOperandAccepts : public ::testing::TestWithParam<TensorRow>
+            {
+            };
+
+            /** @brief Names the suite of the tensors of another element count. */
+            class Small_ScalarOperandCount : public ::testing::TestWithParam<TensorRow>
+            {
+            };
+
+            /** @brief One dtype the call expects while the tensor holds FLOAT32. */
+            struct DtypeRow
+            {
+                const char* name; /**< Names the row. */
+                DataType expected; /**< The dtype the call expects. */
+            };
+
+            /** @brief Names the suite of the dtype rows. */
+            class Small_ScalarOperandDtype : public ::testing::TestWithParam<DtypeRow>
+            {
+            };
         } // namespace
 
-        /**
-         * @brief Tests that one stored element is a scalar whatever the rank of its tensor.
-         */
-        TEST_F(Medium_ScalarOperand, OneElementOfAnyRankIsAccepted)
+        TEST_P(Small_ScalarOperandAccepts, OneElementOfAnyRankIsAccepted)
         {
-            const Tensor rank0 = make_tensor(std::initializer_list<int64_t>{});
-            ASSERT_EQ(0, rank0.rank);
-            ASSERT_EQ(1, rank0.num_elements);
-            EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank0, DataType::Float32, "op", "alpha"));
+            const TensorRow row = GetParam();
+            const Tensor t = row.build();
+            ASSERT_EQ(row.rank, t.rank);
+            ASSERT_EQ(1, t.num_elements);
 
-            const Tensor rank1 = make_tensor({1});
-            EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank1, DataType::Float32, "op", "alpha"));
-
-            const Tensor rank2 = make_tensor({1, 1});
-            EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank2, DataType::Float32, "op", "alpha"));
+            EXPECT_NO_THROW(Dispatch::require_scalar_operand(t, DataType::Float32, "op", "alpha"));
         }
 
-        /**
-         * @brief Tests that a tensor of another element count is no scalar.
-         */
-        TEST_F(Medium_ScalarOperand, AnotherElementCountIsRefused)
-        {
-            const Tensor two = make_tensor({2});
-            EXPECT_THROW(Dispatch::require_scalar_operand(two, DataType::Float32, "op", "alpha"),
-                         std::invalid_argument);
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ScalarOperandAccepts, ::testing::ValuesIn(scalar_rows()),
+            [](const ::testing::TestParamInfo<TensorRow>& info) { return std::string(info.param.name); });
 
-            const Tensor none = make_tensor_without_storage({0});
-            EXPECT_THROW(Dispatch::require_scalar_operand(none, DataType::Float32, "op", "alpha"),
-                         std::invalid_argument);
-        }
-
-        /**
-         * @brief Tests that a scalar operand must own storage.
-         */
-        TEST_F(Medium_ScalarOperand, AMissingStorageIsRefused)
+        TEST_P(Small_ScalarOperandCount, AnotherElementCountIsRefused)
         {
-            const Tensor t = make_tensor_without_storage({1});
+            const Tensor t = GetParam().build();
+
             EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float32, "op", "alpha"),
                          std::invalid_argument);
         }
 
-        /**
-         * @brief Tests that a scalar operand must hold the dtype the call expects.
-         */
-        TEST_F(Medium_ScalarOperand, AnotherDtypeIsRefused)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ScalarOperandCount, ::testing::ValuesIn(wrong_count_rows()),
+            [](const ::testing::TestParamInfo<TensorRow>& info) { return std::string(info.param.name); });
+
+        TEST(Small_ScalarOperand, AMissingStorageIsRefused)
         {
-            const Tensor t = make_tensor({1});
-            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float64, "op", "alpha"),
-                         std::invalid_argument);
-            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Int32, "op", "alpha"),
+            const Tensor t = detached_matrix({1});
+
+            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float32, "op", "alpha"),
                          std::invalid_argument);
         }
+
+        TEST_P(Small_ScalarOperandDtype, AnotherDtypeIsRefused)
+        {
+            const Tensor t = host_matrix({1});
+
+            EXPECT_THROW(Dispatch::require_scalar_operand(t, GetParam().expected, "op", "alpha"),
+                         std::invalid_argument);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ScalarOperandDtype,
+            ::testing::Values(DtypeRow{"Float64", DataType::Float64}, DtypeRow{"Int32", DataType::Int32}),
+            [](const ::testing::TestParamInfo<DtypeRow>& info) { return std::string(info.param.name); });
     } // namespace Test
 } // namespace SushiBLAS

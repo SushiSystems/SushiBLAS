@@ -68,6 +68,20 @@ namespace SushiBLAS
                           dims, dtype, 0, layout);
         }
 
+        /**
+         * @brief Returns a rank-1 view of every second element of a host storage.
+         * @param elements Elements the view holds.
+         */
+        [[nodiscard]] inline Tensor host_every_second_element(int64_t elements, Core::Layout layout)
+        {
+            const int64_t dims[] = {elements};
+            std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
+            strides[0] = 2;
+            return Tensor(make_host_storage(static_cast<std::size_t>(2 * elements) * sizeof(float)),
+                          SushiRuntime::span<const int64_t>(dims, 1), strides, Core::DataType::Float32, 0,
+                          layout);
+        }
+
         /** @brief Returns a tensor of a shape that owns no storage, which needs no runtime. */
         [[nodiscard]] inline Tensor detached_matrix(std::initializer_list<int64_t> dims,
                                                     Core::Layout layout = Core::Layout::RowMajor)
