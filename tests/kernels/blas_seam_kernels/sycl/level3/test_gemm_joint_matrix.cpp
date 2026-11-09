@@ -59,6 +59,7 @@ namespace SushiBLAS
                 int64_t n;               /**< Columns of C; a multiple of 16. */
                 int64_t k;               /**< Depth of the product; a multiple of 16. */
                 int64_t batch;           /**< Products in the batch, stored back to back. */
+                const char* name;        /**< The test name of the case. */
             };
 
             /** @brief Returns count HALF values cycling through the integers -2 to 2. */
@@ -76,6 +77,41 @@ namespace SushiBLAS
             [[nodiscard]] uint16_t bits_of(sycl::half value) noexcept
             {
                 return sycl::bit_cast<uint16_t>(value);
+            }
+
+            /** @brief Returns the bits of every HALF value of a vector. */
+            [[nodiscard]] std::vector<uint16_t> bits_of_all(const std::vector<sycl::half>& values)
+            {
+                std::vector<uint16_t> bits(values.size());
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    bits[i] = bits_of(values[i]);
+                return bits;
+            }
+
+            /** @brief Returns the six batched HALF products both kernels compute. */
+            [[nodiscard]] std::vector<JointMatrixCase> joint_matrix_cases()
+            {
+                using Core::Layout;
+                using Core::Transpose;
+                return {
+                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 1024, 1024, 1024,
+                     1, "ColumnMajorSquare1024"},
+                    {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 48, 80, 32, 1,
+                     "RowMajorPlain"},
+                    {Layout::RowMajor, Transpose::Trans, Transpose::NoTrans, 48, 80, 32, 1,
+                     "RowMajorTransA"},
+                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::Trans, 48, 80, 32, 1,
+                     "ColumnMajorTransB"},
+                    {Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 80, 48, 64, 1,
+                     "ColumnMajorTransAB"},
+                    {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 64, 64, 48, 2,
+                     "RowMajorBatchOfTwo"}};
+            }
+
+            /** @brief Names a case for the test name. */
+            std::string joint_matrix_case_name(const ::testing::TestParamInfo<JointMatrixCase>& info)
+            {
+                return info.param.name;
             }
         } // namespace
 
@@ -110,72 +146,69 @@ namespace SushiBLAS
                                            columns, 1024));
         }
 
-        TEST(Large_GemmJointMatrix, MatchesTheLocalTiledKernelBitForBit)
+        /** @brief Runs the joint_matrix gemm against the local-tiled one, a case at a time. */
+        class Large_GemmJointMatrix : public ::testing::TestWithParam<JointMatrixCase>
         {
-            sycl::queue& queue = TestEnvironment::queue();
-            const Device::Profile& profile = Device::profile_for(queue);
-            if (!profile.supports_half_matrix)
-                GTEST_SKIP() << "the device offers no HALF joint_matrix product";
+            protected:
+                /** @brief Skips the case when the device offers no HALF joint_matrix product. */
+                void SetUp() override
+                {
+                    if (!Device::profile_for(TestEnvironment::queue()).supports_half_matrix)
+                        GTEST_SKIP() << "the device offers no HALF joint_matrix product";
+                }
+        };
 
+        TEST_P(Large_GemmJointMatrix, MatchesTheLocalTiledKernelBitForBit)
+        {
             // Small integers sum exactly in FLOAT32, so both kernels round the same value once.
             using Core::Layout;
             using Core::Transpose;
-            const std::vector<JointMatrixCase> cases = {
-                {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 1024, 1024, 1024, 1},
-                {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 48, 80, 32, 1},
-                {Layout::RowMajor, Transpose::Trans, Transpose::NoTrans, 48, 80, 32, 1},
-                {Layout::ColumnMajor, Transpose::NoTrans, Transpose::Trans, 48, 80, 32, 1},
-                {Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 80, 48, 64, 1},
-                {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 64, 64, 48, 2}};
+            sycl::queue& queue = TestEnvironment::queue();
+            const Device::Profile& profile = Device::profile_for(queue);
+            const JointMatrixCase& c = GetParam();
+            const bool row_major = c.layout == Layout::RowMajor;
+            const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
+            const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
+            const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
+            const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
+            const int64_t lda = row_major ? a_cols : a_rows;
+            const int64_t ldb = row_major ? b_cols : b_rows;
+            const int64_t ldc = row_major ? c.n : c.m;
+            const int64_t str_a = a_rows * a_cols;
+            const int64_t str_b = b_rows * b_cols;
+            const int64_t str_c = c.m * c.n;
 
-            for (std::size_t index = 0; index < cases.size(); ++index)
-            {
-                SCOPED_TRACE("case " + std::to_string(index));
-                const JointMatrixCase& c = cases[index];
-                const bool row_major = c.layout == Layout::RowMajor;
-                const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
-                const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
-                const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
-                const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
-                const int64_t lda = row_major ? a_cols : a_rows;
-                const int64_t ldb = row_major ? b_cols : b_rows;
-                const int64_t ldc = row_major ? c.n : c.m;
-                const int64_t str_a = a_rows * a_cols;
-                const int64_t str_b = b_rows * b_cols;
-                const int64_t str_c = c.m * c.n;
+            SharedArray<sycl::half> a(queue, small_integers(
+                                                 static_cast<std::size_t>(c.batch * str_a), 1));
+            SharedArray<sycl::half> b(queue, small_integers(
+                                                 static_cast<std::size_t>(c.batch * str_b), 3));
+            SharedArray<sycl::half> matrix_c(queue, static_cast<std::size_t>(c.batch * str_c));
+            SharedArray<sycl::half> tiled_c(queue, static_cast<std::size_t>(c.batch * str_c));
 
-                SharedArray<sycl::half> a(queue, small_integers(
-                                                     static_cast<std::size_t>(c.batch * str_a), 1));
-                SharedArray<sycl::half> b(queue, small_integers(
-                                                     static_cast<std::size_t>(c.batch * str_b), 3));
-                SharedArray<sycl::half> matrix_c(queue, static_cast<std::size_t>(c.batch * str_c));
-                SharedArray<sycl::half> tiled_c(queue, static_cast<std::size_t>(c.batch * str_c));
+            const Kernels::OperandAccess a_access =
+                Kernels::operand_access(c.layout, c.trans_a, lda);
+            const Kernels::OperandAccess b_access =
+                Kernels::operand_access(c.layout, c.trans_b, ldb);
+            const Kernels::OperandAccess c_access =
+                Kernels::operand_access(c.layout, Transpose::NoTrans, ldc);
+            ASSERT_TRUE(Kernels::SYCL::Detail::joint_matrix_fits(
+                profile, c.m, c.n, c.k, a.get(), a_access, str_a, b.get(), b_access, str_b));
 
-                const Kernels::OperandAccess a_access =
-                    Kernels::operand_access(c.layout, c.trans_a, lda);
-                const Kernels::OperandAccess b_access =
-                    Kernels::operand_access(c.layout, c.trans_b, ldb);
-                const Kernels::OperandAccess c_access =
-                    Kernels::operand_access(c.layout, Transpose::NoTrans, ldc);
-                ASSERT_TRUE(Kernels::SYCL::Detail::joint_matrix_fits(
-                    profile, c.m, c.n, c.k, a.get(), a_access, str_a, b.get(), b_access, str_b));
+            const sycl::half one(1.0f);
+            const sycl::half zero(0.0f);
+            Kernels::SYCL::gemm_joint_matrix(
+                queue, c.m, c.n, c.k, one, a.get(), a_access, str_a, b.get(), b_access, str_b,
+                zero, matrix_c.get(), c_access, str_c, c.batch, {},
+                Kernels::GemmIdentityEpilogue{}).wait();
+            Kernels::SYCL::Detail::gemm_local_tiled<sycl::half>(
+                queue, c.m, c.n, c.k, one, a.get(), a_access, str_a, b.get(), b_access, str_b,
+                zero, tiled_c.get(), c_access, str_c, c.batch, {},
+                Kernels::GemmIdentityEpilogue{}).wait();
 
-                const sycl::half one(1.0f);
-                const sycl::half zero(0.0f);
-                Kernels::SYCL::gemm_joint_matrix(
-                    queue, c.m, c.n, c.k, one, a.get(), a_access, str_a, b.get(), b_access, str_b,
-                    zero, matrix_c.get(), c_access, str_c, c.batch, {},
-                    Kernels::GemmIdentityEpilogue{}).wait();
-                Kernels::SYCL::Detail::gemm_local_tiled<sycl::half>(
-                    queue, c.m, c.n, c.k, one, a.get(), a_access, str_a, b.get(), b_access, str_b,
-                    zero, tiled_c.get(), c_access, str_c, c.batch, {},
-                    Kernels::GemmIdentityEpilogue{}).wait();
-
-                const std::vector<sycl::half> got = matrix_c.values();
-                const std::vector<sycl::half> want = tiled_c.values();
-                for (std::size_t i = 0; i < got.size(); ++i)
-                    ASSERT_EQ(bits_of(got[i]), bits_of(want[i])) << "element " << i;
-            }
+            EXPECT_EQ(bits_of_all(matrix_c.values()), bits_of_all(tiled_c.values()));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Large_GemmJointMatrix,
+                                 ::testing::ValuesIn(joint_matrix_cases()), joint_matrix_case_name);
     } // namespace Test
 } // namespace SushiBLAS
