@@ -260,3 +260,26 @@ with a small one, which makes the sum non-associative in binary32: `1e8 + 1.0` r
   reduction takes the cooperative work-group-per-segment shape and folds through the hand-written
   halving tree, not through one item's serial loop. That is the shape whose combination order a
   `sycl::reduction` would have left free.
+
+## test_spatial/test_spatial_window_dot.cpp
+
+The value tests are `Medium_` and typed over HALF, FLOAT32 and FLOAT64, each run in both forced
+modes over the five geometries G1 to G5. What runs `Small_` on the host engine is what needs no
+device: the six malformed-call rows of `Small_SpatialWindowDotMalformed`, the zero-batch weight
+gradient, and the launch-shape decision of `Small_SpatialWindowDotPlan`, which hands `plan_axis` a
+CPU profile value instead of reading the device. `WeightGradientIsExactInBothLaunchShapes` stays
+`Medium_` for the exactness and records the cooperative flag of the real device as a property; the
+flag is a fact recorded, not a check.
+
+`TheOneRowWindowGivesItsHandWorkedForward`, `...InputGradient` and `...WeightGradient` are the
+three results of one window, a test each. `AWindowOfOnlyPaddingGivesAZeroForward` and its two
+siblings are the same split.
+
+`ReferenceAndSYCLAgreeToTheBitOnTheForward` and `...OnTheInputGradient` compare bits. The host
+conversion to HALF truncates where a device rounds, so a HALF pair below `K_HOST_HALF_TRUNCATION_LIMIT`
+may differ by `K_HALF_STEP_BELOW_LIMIT`. Both are derived: the limit is twice the smallest normal
+HALF, 2^-13, below which the spacing is the constant 2^-24, which is twice the HALF unit roundoff
+times the smallest normal.
+
+`TheThreeKernelsAreAdjoint` skips in the fixture `Medium_SpatialWindowDotAdjoint`, and the two
+device-only tests skip in `Medium_SpatialWindowDotDeviceOnly`, so no body holds a skip guard.

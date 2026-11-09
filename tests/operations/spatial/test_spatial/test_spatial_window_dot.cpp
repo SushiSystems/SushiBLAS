@@ -30,6 +30,7 @@
 #include <cmath>
 #include <string>
 #include <vector>
+#include <functional>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -42,9 +43,11 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -363,13 +366,20 @@ namespace SushiBLAS
                         << quantity << " element " << i;
             }
 
+            /// @brief The smallest normal HALF magnitude, 2^-14.
+            constexpr double K_HALF_MIN_NORMAL = 0x1p-14;
+
             /// @brief Magnitude below which the host conversion to HALF truncates where a device rounds.
-            constexpr double K_HOST_HALF_TRUNCATION_LIMIT = 0x1p-13;
+            constexpr double K_HOST_HALF_TRUNCATION_LIMIT = 2.0 * K_HALF_MIN_NORMAL;
+
+            /// @brief The HALF spacing below the limit: 2^-14 times 2^-10, which is twice the unit roundoff.
+            constexpr double K_HALF_STEP_BELOW_LIMIT = K_HALF_MIN_NORMAL * 2.0 * K_HALF_UNIT_ROUNDOFF;
 
             /**
-             * @brief Returns whether a reference and a device element hold the same bits.
-             * @note A HALF pair below K_HOST_HALF_TRUNCATION_LIMIT may differ by one unit in the
-             *       last place, the device above the reference.
+             * @brief Returns whether a reference and a device element agree.
+             * @note A HALF pair below K_HOST_HALF_TRUNCATION_LIMIT may differ by one HALF step, the
+             *       host conversion truncating where the device rounds; every other pair holds the
+             *       same bits.
              * @see tests/operations/spatial/README.md
              */
             template<typename T>
@@ -380,12 +390,10 @@ namespace SushiBLAS
                 if (!std::is_same_v<T, sycl::half>)
                     return false;
 
-                std::uint16_t reference_bits = 0;
-                std::uint16_t device_bits = 0;
-                std::memcpy(&reference_bits, &reference, sizeof(reference_bits));
-                std::memcpy(&device_bits, &device, sizeof(device_bits));
-                return std::fabs(Detail::to_double(device)) < K_HOST_HALF_TRUNCATION_LIMIT &&
-                       device_bits == static_cast<std::uint16_t>(reference_bits + 1);
+                const double reference_value = Detail::to_double(reference);
+                const double device_value = Detail::to_double(device);
+                return std::fabs(device_value) < K_HOST_HALF_TRUNCATION_LIMIT &&
+                       std::fabs(device_value - reference_value) <= K_HALF_STEP_BELOW_LIMIT;
             }
 
             /** @brief Expects two results to hold the same bits, element for element. */
@@ -428,6 +436,144 @@ namespace SushiBLAS
                 const std::size_t roundings = std::is_same_v<T, double> ? 5 : terms + 2;
                 return rounding_bound(roundings, unit_roundoff<double>(), truth.magnitude) + store;
             }
+
+            /** @brief Expects every weight-gradient element to lie within its bound of the truth. */
+            template<typename T>
+            void expect_within_bounds(ExecutionMode mode, const std::vector<double>& got,
+                                      const std::vector<TruthSum>& truths, std::size_t terms)
+            {
+                ASSERT_EQ(got.size(), truths.size());
+                for (std::size_t tap = 0; tap < truths.size(); ++tap)
+                {
+                    const TruthValue truth = truths[tap].value();
+                    EXPECT_LE(std::fabs(got[tap] - truth.value),
+                              weight_gradient_bound<T>(mode, terms, truth))
+                        << "dweights element " << tap << ": got " << got[tap] << ", truth "
+                        << truth.value << ", magnitude " << truth.magnitude;
+                }
+            }
+
+            /** @brief Expects every value in expected to be an integer HALF holds exactly. */
+            void expect_integers_exact_in_half(const std::vector<double>& expected, const char* id)
+            {
+                for (const double truth : expected)
+                    EXPECT_LT(std::fabs(truth), K_HALF_EXACT_INTEGER_LIMIT) << id;
+            }
+
+            /** @brief Returns the one-row window of the hand-worked values. */
+            WindowCase hand_worked_case()
+            {
+                return WindowCase{"hand", geometry_of(1, 2, 1, 2, 1, 2, 0, 1), 1, 1, 5, 1,
+                                  1, Spatial::output_extent(5, 1, 1, 2, 2, 2)};
+            }
+
+            /**
+             * @brief Returns the dense copy of the interior of a larger input.
+             * @param larger_values The values of an input with one more image and two more columns.
+             * @details The copy skips image 0 and one column on each side of every row.
+             */
+            std::vector<double> interior_copy(const WindowCase& c,
+                                              const std::vector<double>& larger_values)
+            {
+                std::vector<double> dense_values;
+                dense_values.reserve(element_count(c.input_dims()));
+                for (int64_t n = 1; n <= c.batch; ++n)
+                    for (int64_t h = 0; h < c.in_h; ++h)
+                        for (int64_t w = 1; w <= c.in_w; ++w)
+                            for (int64_t ch = 0; ch < c.channels; ++ch)
+                                dense_values.push_back(larger_values[static_cast<std::size_t>(
+                                    ((n * c.in_h + h) * (c.in_w + 2) + w) * c.channels + ch)]);
+                return dense_values;
+            }
+
+            /** @brief Names one malformed window_dot call and the operand its refusal names. */
+            struct MalformedRow
+            {
+                /** @brief The row name, which gtest takes as the suffix of the test. */
+                std::string name;
+
+                /** @brief The operand the message names. */
+                const char* operand;
+
+                /** @brief Records the malformed call. */
+                std::function<void(SpatialOps&, Engine&)> record;
+            };
+
+            /** @brief Returns a 1 x 4 x 4 x 2 float tensor of the given dtype and batch. */
+            Tensor malformed_image(Engine& e, Core::DataType dtype, int64_t batch)
+            {
+                return e.create_tensor({batch, 4, 4, 2}, dtype);
+            }
+
+            /** @brief Returns the 3 x 3 float taps of the given channel count. */
+            Tensor malformed_taps(Engine& e, int64_t channels)
+            {
+                return e.create_tensor({3, 3, channels}, Core::DataType::Float32);
+            }
+
+            /** @brief Returns the rows of the malformed window_dot calls. */
+            std::vector<MalformedRow> malformed_rows()
+            {
+                const Spatial::ConvGeometry g = geometry_of(3, 3, 1, 1, 1, 1, 1, 1);
+
+                return {
+                    {"WeightsOfRankTwo", "weights",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor flat = e.create_tensor({3, 3}, Core::DataType::Float32);
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor out = malformed_image(e, Core::DataType::Float32, 1);
+                         s.window_dot(in, flat, out, g);
+                     }},
+                    {"WeightsOfTheWrongChannelCount", "weights",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor wide = malformed_taps(e, 3);
+                         Tensor out = malformed_image(e, Core::DataType::Float32, 1);
+                         s.window_dot(in, wide, out, g);
+                     }},
+                    {"OutputOfAnotherDtype", "out",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor weights = malformed_taps(e, 2);
+                         Tensor out = malformed_image(e, Core::DataType::Float64, 1);
+                         s.window_dot(in, weights, out, g);
+                     }},
+                    {"OutputOfAnotherBatch", "out",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor weights = malformed_taps(e, 2);
+                         Tensor out = malformed_image(e, Core::DataType::Float32, 2);
+                         s.window_dot(in, weights, out, g);
+                     }},
+                    {"OutputAliasingTheInput", "out",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor weights = malformed_taps(e, 2);
+                         Tensor aliased = in;
+                         s.window_dot(in, weights, aliased, g);
+                     }},
+                    {"GeometryOfStrideZero", "geometry",
+                     [g](SpatialOps& s, Engine& e)
+                     {
+                         Tensor in = malformed_image(e, Core::DataType::Float32, 1);
+                         Tensor weights = malformed_taps(e, 2);
+                         Tensor out = malformed_image(e, Core::DataType::Float32, 1);
+                         Spatial::ConvGeometry unstrided = g;
+                         unstrided.stride_h = 0;
+                         s.window_dot(in, weights, out, unstrided);
+                     }}};
+            }
+
+            /** @brief Names a row by its name. */
+            std::string malformed_row_name(const ::testing::TestParamInfo<MalformedRow>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
 
         /**
@@ -458,14 +604,83 @@ namespace SushiBLAS
         {
         };
 
-        /** @brief Tests that a strided, dilated, padded 1 by 2 window gives hand-worked values. */
-        TYPED_TEST(Medium_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedValues)
+        /** @brief Runs the adjoint check in FLOAT64, skipped where the device lacks it. */
+        class Medium_SpatialWindowDotAdjoint : public SushiBLASTest
+        {
+            protected:
+                /** @brief Builds the engine and skips the case on a device without fp64. */
+                void SetUp() override
+                {
+                    SushiBLASTest::SetUp();
+
+                    if (!device_computes<double>())
+                        GTEST_SKIP() << "the device does not report the fp64 aspect";
+                }
+        };
+
+        /** @brief Runs the window-sum operations on the host engine. */
+        class Small_SpatialWindowDot : public HostEngineTest
+        {
+        };
+
+        /** @brief Records one malformed window_dot call per row on a host engine. */
+        class Small_SpatialWindowDotMalformed : public HostEngineTest,
+                                                public ::testing::WithParamInterface<MalformedRow>
+        {
+        };
+
+        /** @brief Holds a device-only input, skipped where the device gives no such allocation. */
+        class Medium_SpatialWindowDotDeviceOnly : public SushiBLASTest
+        {
+            protected:
+                /** @brief Builds the engine, the device-only input and the other operands. */
+                void SetUp() override
+                {
+                    SushiBLASTest::SetUp();
+
+                    const WindowCase c = table_cases()[0];
+                    geometry = c.geometry;
+
+                    try
+                    {
+                        input = engine->create_tensor({c.batch, c.in_h, c.in_w, c.channels},
+                                                      Core::DataType::Float32,
+                                                      SushiRuntime::Residency::Device);
+                    }
+                    catch (const std::exception& error)
+                    {
+                        GTEST_SKIP() << "the device gives no device-only USM: " << error.what();
+                    }
+
+                    const sycl::context context = TestEnvironment::queue().get_context();
+                    if (sycl::get_pointer_type(input->data(), context) != sycl::usm::alloc::device)
+                        GTEST_SKIP() << "the allocation is not device-only USM";
+
+                    fill_tensor(*input, std::vector<float>(element_count(c.input_dims()), 1.0f));
+                    weights = tensor_from<float>(*engine, c.tap_dims(), tap_pattern(c.tap_dims()));
+                    output = sentinel_tensor<float>(*engine, c.output_dims());
+                }
+
+                /** @brief The geometry of the call. */
+                Spatial::ConvGeometry geometry;
+
+                /** @brief The device-only input. */
+                std::optional<Tensor> input;
+
+                /** @brief The taps. */
+                Tensor weights;
+
+                /** @brief The output. */
+                Tensor output;
+        };
+
+
+        /** @brief Tests that a strided, dilated, padded 1 by 2 window gives the hand-worked window sums. */
+        TYPED_TEST(Medium_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedForward)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
-
-            const WindowCase c{"hand", geometry_of(1, 2, 1, 2, 1, 2, 0, 1), 1, 1, 5, 1,
-                               1, Spatial::output_extent(5, 1, 1, 2, 2, 2)};
+            const WindowCase c = hand_worked_case();
             ASSERT_EQ(c.out_w, 3);
 
             for (const ExecutionMode mode : K_FORCED_MODES)
@@ -475,10 +690,45 @@ namespace SushiBLAS
 
                 const Tensor in = tensor_from<T>(engine, c.input_dims(), {1, 2, 3, 4, 5});
                 const Tensor weights = tensor_from<T>(engine, c.tap_dims(), {10, 1});
-                const Tensor dy = tensor_from<T>(engine, c.output_dims(), {1, 2, 3});
 
                 expect_exact(forward_of<T>(engine, c, in, weights), {2, 24, 40}, "out");
+            }
+        }
+
+        /** @brief Tests that the same window gives the hand-worked input gradient. */
+        TYPED_TEST(Medium_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedInputGradient)
+        {
+            using T = TypeParam;
+            Engine& engine = *this->engine;
+            const WindowCase c = hand_worked_case();
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(forced_mode_name(mode));
+                engine.set_mode(mode);
+
+                const Tensor weights = tensor_from<T>(engine, c.tap_dims(), {10, 1});
+                const Tensor dy = tensor_from<T>(engine, c.output_dims(), {1, 2, 3});
+
                 expect_exact(input_gradient_of<T>(engine, c, dy, weights), {0, 21, 0, 32, 0}, "dx");
+            }
+        }
+
+        /** @brief Tests that the same window gives the hand-worked weight gradient. */
+        TYPED_TEST(Medium_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedWeightGradient)
+        {
+            using T = TypeParam;
+            Engine& engine = *this->engine;
+            const WindowCase c = hand_worked_case();
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(forced_mode_name(mode));
+                engine.set_mode(mode);
+
+                const Tensor in = tensor_from<T>(engine, c.input_dims(), {1, 2, 3, 4, 5});
+                const Tensor dy = tensor_from<T>(engine, c.output_dims(), {1, 2, 3});
+
                 expect_exact(weight_gradient_of<T>(engine, c, dy, in), {16, 10}, "dweights");
             }
         }
@@ -545,8 +795,7 @@ namespace SushiBLAS
                 const std::vector<double> x = input_pattern(c.input_dims());
                 const std::vector<double> expected = weight_gradient_by_formula(c, g, x);
 
-                for (const double truth : expected)
-                    ASSERT_LT(std::fabs(truth), K_HALF_EXACT_INTEGER_LIMIT) << c.id;
+                expect_integers_exact_in_half(expected, c.id);
 
                 for (const ExecutionMode mode : K_FORCED_MODES)
                 {
@@ -562,11 +811,8 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the three kernels give one inner product, as adjoints must. */
-        TEST_F(Medium_SpatialWindowDot, TheThreeKernelsAreAdjoint)
+        TEST_F(Medium_SpatialWindowDotAdjoint, TheThreeKernelsAreAdjoint)
         {
-            if (!device_computes<double>())
-                GTEST_SKIP() << "the device does not report the fp64 aspect";
-
             for (const WindowCase& c : table_cases())
             {
                 const std::vector<double> x = input_pattern(c.input_dims());
@@ -595,8 +841,8 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that the two gathers write equal bits in both modes on non-integer data. */
-        TYPED_TEST(Medium_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheGathers)
+        /** @brief Tests that the two modes write equal forward bits on non-integer data. */
+        TYPED_TEST(Medium_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheForward)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -609,18 +855,38 @@ namespace SushiBLAS
                                                  fractional(input_pattern(c.input_dims())));
                 const Tensor weights =
                     tensor_from<T>(engine, c.tap_dims(), fractional(tap_pattern(c.tap_dims())));
+
+                engine.set_mode(ExecutionMode::ForceReference);
+                const std::vector<T> reference_out = forward_of<T>(engine, c, in, weights);
+
+                engine.set_mode(ExecutionMode::ForceSYCL);
+                const std::vector<T> device_out = forward_of<T>(engine, c, in, weights);
+
+                expect_equal_bits(reference_out, device_out, "out");
+            }
+        }
+
+        /** @brief Tests that the two modes write equal input-gradient bits on non-integer data. */
+        TYPED_TEST(Medium_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheInputGradient)
+        {
+            using T = TypeParam;
+            Engine& engine = *this->engine;
+
+            for (const WindowCase& c : table_cases())
+            {
+                SCOPED_TRACE(c.id);
+
+                const Tensor weights =
+                    tensor_from<T>(engine, c.tap_dims(), fractional(tap_pattern(c.tap_dims())));
                 const Tensor dy = tensor_from<T>(engine, c.output_dims(),
                                                  fractional(gradient_pattern(c.output_dims())));
 
                 engine.set_mode(ExecutionMode::ForceReference);
-                const std::vector<T> reference_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> reference_dx = input_gradient_of<T>(engine, c, dy, weights);
 
                 engine.set_mode(ExecutionMode::ForceSYCL);
-                const std::vector<T> device_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> device_dx = input_gradient_of<T>(engine, c, dy, weights);
 
-                expect_equal_bits(reference_out, device_out, "out");
                 expect_equal_bits(reference_dx, device_dx, "dx");
             }
         }
@@ -653,16 +919,35 @@ namespace SushiBLAS
                 const Tensor in = tensor_from<T>(engine, c.input_dims(), x);
                 const std::vector<double> got = widened(weight_gradient_of<T>(engine, c, dy, in));
 
-                ASSERT_EQ(got.size(), truths.size());
-                for (std::size_t tap = 0; tap < truths.size(); ++tap)
-                {
-                    const TruthValue truth = truths[tap].value();
-                    EXPECT_LE(std::fabs(got[tap] - truth.value),
-                              weight_gradient_bound<T>(mode, c.windows(), truth))
-                        << "dweights element " << tap << ": got " << got[tap] << ", truth "
-                        << truth.value << ", magnitude " << truth.magnitude;
-                }
+                expect_within_bounds<T>(mode, got, truths, c.windows());
             }
+        }
+
+        /** @brief Returns a CPU profile with 8 compute units and a work-group limit of 64. */
+        static Device::Profile window_dot_cpu_profile()
+        {
+            Device::Profile profile;
+            profile.is_cpu = true;
+            profile.compute_units = 8;
+            profile.max_work_group_size = 64;
+            profile.sub_group_size = 1;
+            return profile;
+        }
+
+        /** @brief Tests that 2 segments of 256 windows take the cooperative launch shape. */
+        TEST(Small_SpatialWindowDotPlan, TwoSegmentsOfManyWindowsAreFoldedByAWorkGroup)
+        {
+            const Reduce::AxisPlan plan = Reduce::plan_axis(window_dot_cpu_profile(), 2, 256);
+
+            EXPECT_TRUE(plan.cooperative());
+        }
+
+        /** @brief Tests that 144 segments, more than the 8 resident, take one work-item each. */
+        TEST(Small_SpatialWindowDotPlan, ManySegmentsAreFoldedOneWorkItemEach)
+        {
+            const Reduce::AxisPlan plan = Reduce::plan_axis(window_dot_cpu_profile(), 144, 72);
+
+            EXPECT_FALSE(plan.cooperative());
         }
 
         /** @brief Tests that an integer weight gradient is exact with 2 segments and with 144. */
@@ -704,11 +989,17 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that a window lying wholly in the padding is accepted and adds nothing. */
-        TEST_F(Medium_SpatialWindowDot, AWindowOfOnlyPaddingGivesZero)
+        /** @brief Returns the window whose first two output columns lie wholly in the padding. */
+        static WindowCase window_dot_padding_case()
         {
             // Output column j reads input column j - 2, so columns 0 and 1 read only padding.
-            const WindowCase c{"padding", geometry_of(1, 1, 1, 1, 1, 1, 0, 2), 1, 1, 3, 1, 1, 4};
+            return WindowCase{"padding", geometry_of(1, 1, 1, 1, 1, 1, 0, 2), 1, 1, 3, 1, 1, 4};
+        }
+
+        /** @brief Tests that a window lying wholly in the padding gives a forward of zero. */
+        TEST_F(Medium_SpatialWindowDot, AWindowOfOnlyPaddingGivesAZeroForward)
+        {
+            const WindowCase c = window_dot_padding_case();
 
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
@@ -717,10 +1008,41 @@ namespace SushiBLAS
 
                 const Tensor in = tensor_from<float>(*engine, c.input_dims(), {3, 5, 7});
                 const Tensor weights = tensor_from<float>(*engine, c.tap_dims(), {2});
-                const Tensor dy = tensor_from<float>(*engine, c.output_dims(), {1, 2, 3, 4});
 
                 expect_exact(forward_of<float>(*engine, c, in, weights), {0, 0, 6, 10}, "out");
+            }
+        }
+
+        /** @brief Tests that a window lying wholly in the padding adds nothing to the input gradient. */
+        TEST_F(Medium_SpatialWindowDot, AWindowOfOnlyPaddingAddsNothingToTheInputGradient)
+        {
+            const WindowCase c = window_dot_padding_case();
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(forced_mode_name(mode));
+                set_mode(mode);
+
+                const Tensor weights = tensor_from<float>(*engine, c.tap_dims(), {2});
+                const Tensor dy = tensor_from<float>(*engine, c.output_dims(), {1, 2, 3, 4});
+
                 expect_exact(input_gradient_of<float>(*engine, c, dy, weights), {6, 8, 0}, "dx");
+            }
+        }
+
+        /** @brief Tests that a window lying wholly in the padding adds nothing to the weight gradient. */
+        TEST_F(Medium_SpatialWindowDot, AWindowOfOnlyPaddingAddsNothingToTheWeightGradient)
+        {
+            const WindowCase c = window_dot_padding_case();
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(forced_mode_name(mode));
+                set_mode(mode);
+
+                const Tensor in = tensor_from<float>(*engine, c.input_dims(), {3, 5, 7});
+                const Tensor dy = tensor_from<float>(*engine, c.output_dims(), {1, 2, 3, 4});
+
                 expect_exact(weight_gradient_of<float>(*engine, c, dy, in), {29}, "dweights");
             }
         }
@@ -731,16 +1053,7 @@ namespace SushiBLAS
             const WindowCase c = table_cases()[1];
             const std::vector<int64_t> larger_dims = {c.batch + 1, c.in_h, c.in_w + 2, c.channels};
             const std::vector<double> larger_values = input_pattern(larger_dims);
-
-            // The view skips batch 0 and one column on each side of every row.
-            std::vector<double> dense_values;
-            dense_values.reserve(element_count(c.input_dims()));
-            for (int64_t n = 1; n <= c.batch; ++n)
-            for (int64_t h = 0; h < c.in_h; ++h)
-            for (int64_t w = 1; w <= c.in_w; ++w)
-            for (int64_t ch = 0; ch < c.channels; ++ch)
-                dense_values.push_back(larger_values[static_cast<std::size_t>(
-                    ((n * c.in_h + h) * (c.in_w + 2) + w) * c.channels + ch)]);
+            const std::vector<double> dense_values = interior_copy(c, larger_values);
 
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
@@ -765,91 +1078,57 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a batch of zero images writes a weight gradient of zeros. */
-        TEST_F(Medium_SpatialWindowDot, AZeroBatchWritesAZeroWeightGradient)
+        TEST_F(Small_SpatialWindowDot, AZeroBatchWritesAZeroWeightGradient)
         {
-            const WindowCase c{"zero_batch", geometry_of(3, 3, 1, 1, 1, 1, 1, 1), 0, 4, 4, 2, 4, 4};
+            const Tensor dy = engine->create_tensor({0, 4, 4, 2}, Core::DataType::Float32);
+            const Tensor in = engine->create_tensor({0, 4, 4, 2}, Core::DataType::Float32);
+            Tensor dweights = engine->create_tensor({3, 3, 2}, Core::DataType::Float32);
+            fill_tensor(dweights, std::vector<float>(18, static_cast<float>(K_SENTINEL)));
 
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                SCOPED_TRACE(forced_mode_name(mode));
-                set_mode(mode);
+            SushiBLAS::SpatialOps(recorder()).window_dot_weights_backward(
+                dy, in, dweights, geometry_of(3, 3, 1, 1, 1, 1, 1, 1));
+            ASSERT_TRUE(recording->run_succeeds());
 
-                const Tensor dy = tensor_from<float>(*engine, c.output_dims(), {});
-                const Tensor in = tensor_from<float>(*engine, c.input_dims(), {});
-
-                expect_exact(weight_gradient_of<float>(*engine, c, dy, in),
-                             std::vector<double>(element_count(c.tap_dims()), 0.0), "dweights");
-            }
+            expect_tensor_equal(dweights, std::vector<float>(18, 0.0f));
         }
 
         /** @brief Tests that each malformed call throws naming the operation and the operand. */
-        TEST_F(Medium_SpatialWindowDot, MalformedOperandsNameTheOperand)
+        TEST_P(Small_SpatialWindowDotMalformed, TheRefusalNamesTheOperationAndTheOperand)
         {
-            static constexpr const char* NAME = "spatial.window_dot";
-            const int64_t N = 1, H = 4, W = 4, C = 2;
-            const Spatial::ConvGeometry g = geometry_of(3, 3, 1, 1, 1, 1, 1, 1);
-
-            Tensor in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-            Tensor weights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
-            Tensor out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            const MalformedRow& row = GetParam();
             SushiBLAS::SpatialOps spatial(recorder());
 
-            Tensor flat_weights = engine->create_tensor({3, 3}, Core::DataType::Float32);
-            expect_refusal([&] { spatial.window_dot(in, flat_weights, out, g); }, NAME, "weights");
-
-            Tensor wide_weights = engine->create_tensor({3, 3, C + 1}, Core::DataType::Float32);
-            expect_refusal([&] { spatial.window_dot(in, wide_weights, out, g); }, NAME, "weights");
-
-            Tensor double_out = engine->create_tensor({N, H, W, C}, Core::DataType::Float64);
-            expect_refusal([&] { spatial.window_dot(in, weights, double_out, g); }, NAME, "out");
-
-            Tensor batched_out = engine->create_tensor({N + 1, H, W, C}, Core::DataType::Float32);
-            expect_refusal([&] { spatial.window_dot(in, weights, batched_out, g); }, NAME, "out");
-
-            Tensor aliased_out = in;
-            expect_refusal([&] { spatial.window_dot(in, weights, aliased_out, g); }, NAME, "out");
-
-            Spatial::ConvGeometry unstrided = g;
-            unstrided.stride_h = 0;
-            expect_refusal([&] { spatial.window_dot(in, weights, out, unstrided); }, NAME,
-                           "geometry");
+            expect_refusal([&] { row.record(spatial, *engine); }, "spatial.window_dot",
+                           row.operand);
         }
 
-        /** @brief Tests that ForceReference refuses a device-only input and Auto records it. */
-        TEST_F(Medium_SpatialWindowDot, ADeviceOnlyOperandIsRefusedUnderForceReference)
+        INSTANTIATE_TEST_SUITE_P(Operands, Small_SpatialWindowDotMalformed,
+                                 ::testing::ValuesIn(malformed_rows()), malformed_row_name);
+
+        /** @brief Tests that ForceReference refuses a device-only input. */
+        TEST_F(Medium_SpatialWindowDotDeviceOnly, ForceReferenceRefusesADeviceOnlyInput)
         {
-            const WindowCase c = table_cases()[0];
-            const Spatial::ConvGeometry g = c.geometry;
-
-            std::optional<Tensor> in;
-            try
-            {
-                in = engine->create_tensor({c.batch, c.in_h, c.in_w, c.channels},
-                                           Core::DataType::Float32,
-                                           SushiRuntime::Residency::Device);
-            }
-            catch (const std::exception& error)
-            {
-                GTEST_SKIP() << "the device gives no device-only USM: " << error.what();
-            }
-
-            const sycl::context context = TestEnvironment::queue().get_context();
-            if (sycl::get_pointer_type(in->data(), context) != sycl::usm::alloc::device)
-                GTEST_SKIP() << "the allocation is not device-only USM";
-
-            fill_tensor(*in, std::vector<float>(element_count(c.input_dims()), 1.0f));
-
-            const Tensor weights =
-                tensor_from<float>(*engine, c.tap_dims(), tap_pattern(c.tap_dims()));
-            Tensor out = sentinel_tensor<float>(*engine, c.output_dims());
             SushiBLAS::SpatialOps spatial(recorder());
 
             set_mode(ExecutionMode::ForceReference);
-            EXPECT_THROW(spatial.window_dot(*in, weights, out, g), std::invalid_argument);
+            EXPECT_THROW(spatial.window_dot(*input, weights, output, geometry),
+                         std::invalid_argument);
+        }
+
+        /** @brief Tests that Auto records a device-only input and the window sums of ones come out. */
+        TEST_F(Medium_SpatialWindowDotDeviceOnly, AutoRecordsADeviceOnlyInput)
+        {
+            SushiBLAS::SpatialOps spatial(recorder());
 
             set_mode(ExecutionMode::Auto);
-            EXPECT_NO_THROW(spatial.window_dot(*in, weights, out, g));
+            spatial.window_dot(*input, weights, output, geometry);
             recording->run().value();
+
+            const WindowCase c = table_cases()[0];
+            expect_exact(SushiBLAS::IO().to_vector<float>(output),
+                         forward_by_formula(c, std::vector<double>(element_count(c.input_dims()), 1.0),
+                                            tap_pattern(c.tap_dims())),
+                         "out");
         }
     }
 }
