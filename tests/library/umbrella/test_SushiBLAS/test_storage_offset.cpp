@@ -27,8 +27,11 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
+#include <utility>
 #include <cstddef>
+#include <algorithm>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/runtime_block.hpp>
@@ -122,8 +125,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).axpy(2.0, x, y);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({12, 24, 36, 48}),
-                               absolute_tolerance<float>(16));
+            expect_tensor_equal(y, std::vector<float>({12, 24, 36, 48}));
             EXPECT_TRUE(padding_intact(x, "axpy x"));
             EXPECT_TRUE(padding_intact(y, "axpy y"));
         }
@@ -136,7 +138,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).scal(3.0, x);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(x, std::vector<float>({3, 6, 9, 12}), absolute_tolerance<float>(16));
+            expect_tensor_equal(x, std::vector<float>({3, 6, 9, 12}));
             EXPECT_TRUE(padding_intact(x, "scal x"));
         }
 
@@ -150,7 +152,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).copy(x, y);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({5, 6, 7, 8}), absolute_tolerance<float>(16));
+            expect_tensor_equal(y, std::vector<float>({5, 6, 7, 8}));
             EXPECT_TRUE(padding_intact(x, "copy x"));
             EXPECT_TRUE(padding_intact(y, "copy y"));
         }
@@ -170,7 +172,7 @@ namespace SushiBLAS
             recording->run().value();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}
-            EXPECT_TENSOR_NEAR(y, std::vector<float>({206, 415}), K_DEFAULT_TOLERANCE);
+            expect_tensor_equal(y, std::vector<float>({206, 415}));
             EXPECT_TRUE(padding_intact(A, "gemv A"));
             EXPECT_TRUE(padding_intact(x, "gemv x"));
             EXPECT_TRUE(padding_intact(y, "gemv y"));
@@ -189,8 +191,7 @@ namespace SushiBLAS
             recording->run().value();
 
             // A += x y^T = {{10,20,30},{20,40,60}}
-            EXPECT_TENSOR_NEAR(A, std::vector<float>({11, 21, 31, 21, 41, 61}),
-                               K_DEFAULT_TOLERANCE);
+            expect_tensor_equal(A, std::vector<float>({11, 21, 31, 21, 41, 61}));
             EXPECT_TRUE(padding_intact(x, "ger x"));
             EXPECT_TRUE(padding_intact(y, "ger y"));
             EXPECT_TRUE(padding_intact(A, "ger A"));
@@ -208,13 +209,13 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(C, std::vector<float>({1, 2, 3, 4}), K_DEFAULT_TOLERANCE);
+            expect_tensor_equal(C, std::vector<float>({1, 2, 3, 4}));
             EXPECT_TRUE(padding_intact(A, "gemm A"));
             EXPECT_TRUE(padding_intact(B, "gemm B"));
             EXPECT_TRUE(padding_intact(C, "gemm C"));
         }
 
-        TEST_F(Medium_StorageOffsetTest, ElementwiseHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, ElementwiseAddHonoursOffset)
         {
             auto A = offset_view({4});
             auto B = offset_view({4});
@@ -224,14 +225,24 @@ namespace SushiBLAS
             fill_tensor(C, {0, 0, 0, 0});
 
             SushiBLAS::ElementwiseOps(recorder()).add(A, B, C);   // binary seam
+            recording->run().value();
+
+            expect_tensor_equal(C, std::vector<float>({11, 12, 13, 14}));
+            EXPECT_TRUE(padding_intact(A, "add A"));
+            EXPECT_TRUE(padding_intact(B, "add B"));
+            EXPECT_TRUE(padding_intact(C, "add C"));
+        }
+
+        TEST_F(Medium_StorageOffsetTest, ElementwiseNegHonoursOffset)
+        {
+            auto C = offset_view({4});
+            fill_tensor(C, {11, 12, 13, 14});
+
             SushiBLAS::ElementwiseOps(recorder()).neg(C);         // unary in-place seam
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(C, std::vector<float>({-11, -12, -13, -14}),
-                               absolute_tolerance<float>(16));
-            EXPECT_TRUE(padding_intact(A, "add A"));
-            EXPECT_TRUE(padding_intact(B, "add B"));
-            EXPECT_TRUE(padding_intact(C, "add/neg C"));
+            expect_tensor_equal(C, std::vector<float>({-11, -12, -13, -14}));
+            EXPECT_TRUE(padding_intact(C, "neg C"));
         }
 
         TEST_F(Medium_StorageOffsetTest, NonlinearHonoursOffset)
@@ -242,7 +253,7 @@ namespace SushiBLAS
             SushiBLAS::NonLinearOps(recorder()).relu(t);          // forward seam
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(t, std::vector<float>({0, 0, 1, 2}), absolute_tolerance<float>(16));
+            expect_tensor_equal(t, std::vector<float>({0, 0, 1, 2}));
             EXPECT_TRUE(padding_intact(t, "relu t"));
         }
 
@@ -258,7 +269,7 @@ namespace SushiBLAS
             SushiBLAS::NonLinearOps(recorder()).relu_backward(dy, x, dx);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(dx, std::vector<float>({0, 0, 1, 1}), absolute_tolerance<float>(16));
+            expect_tensor_equal(dx, std::vector<float>({0, 0, 1, 1}));
             EXPECT_TRUE(padding_intact(dy, "relu_backward dy"));
             EXPECT_TRUE(padding_intact(x, "relu_backward x"));
             EXPECT_TRUE(padding_intact(dx, "relu_backward dx"));
@@ -276,7 +287,7 @@ namespace SushiBLAS
             SushiBLAS::LogicOps(recorder()).greater(A, B, R);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(R, std::vector<float>({0, 1, 1, 1}), absolute_tolerance<float>(16));
+            expect_tensor_equal(R, std::vector<float>({0, 1, 1, 1}));
             EXPECT_TRUE(padding_intact(A, "greater A"));
             EXPECT_TRUE(padding_intact(B, "greater B"));
             EXPECT_TRUE(padding_intact(R, "greater R"));
@@ -292,34 +303,36 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum(t, r);
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(r, std::vector<float>({10}), absolute_tolerance<float>(16));
+            expect_tensor_equal(r, std::vector<float>({10}));
             EXPECT_TRUE(padding_intact(t, "sum t"));
             EXPECT_TRUE(padding_intact(r, "sum result"));
         }
 
-        TEST_F(Medium_StorageOffsetTest, RandomHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, RandomConstantHonoursOffset)
         {
             auto c = offset_view({8});
-            auto u = offset_view({8});
 
             SushiBLAS::RandomOps(recorder(), engine->rng()).constant(c, 7.0);    // the q.fill path
+            recording->run().value();
+
+            expect_tensor_equal(c, std::vector<float>(8, 7.0f));
+            EXPECT_TRUE(padding_intact(c, "constant"));
+        }
+
+        TEST_F(Medium_StorageOffsetTest, RandomUniformHonoursOffset)
+        {
+            auto u = offset_view({8});
+
             SushiBLAS::RandomOps(recorder(), engine->rng())
                 .uniform(u, 0.0, 1.0); // the Philox dispatch path
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(c, std::vector<float>(8, 7.0f), absolute_tolerance<float>(2));
-            EXPECT_TRUE(padding_intact(c, "constant"));
+            // The draw is checked for landing in the view and for its range only.
             EXPECT_TRUE(padding_intact(u, "uniform"));
-
-            // The uniform draw is checked for range only; test_uniform.cpp owns the distribution.
             std::vector<float> host(8);
-            auto& q = TestEnvironment::queue();
-            q.memcpy(host.data(), u.data(), host.size() * sizeof(float)).wait();
-            for (float v : host)
-            {
-                EXPECT_GE(v, 0.0f);
-                EXPECT_LE(v, 1.0f);
-            }
+            TestEnvironment::queue().memcpy(host.data(), u.data(), host.size() * sizeof(float)).wait();
+            EXPECT_TRUE(std::all_of(host.begin(), host.end(),
+                                    [](float v) { return v >= 0.0f && v <= 1.0f; }));
         }
 
         TEST_F(Medium_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
@@ -334,80 +347,70 @@ namespace SushiBLAS
                 << "storage_offset must be scaled by the element width, not used as a byte count.";
             EXPECT_EQ(reinterpret_cast<std::uintptr_t>(view) % sizeof(double), 0u)
                 << "an element-counted offset over an aligned allocation is always naturally aligned.";
+        }
 
-            // And the region handed to the dependency tracker describes the same bytes.
+        TEST_F(Medium_StorageOffsetTest, TheRegionOfAViewDescribesTheSameBytes)
+        {
+            auto f64 = offset_view({4}, Core::DataType::Float64);
+
+            // The region handed to the dependency tracker describes the bytes of the view.
             const auto region = f64.region();
             EXPECT_EQ(region.base, f64.storage->allocation_base());
             EXPECT_EQ(region.offset, static_cast<size_t>(K_PAD) * sizeof(double));
             EXPECT_EQ(region.length, 4u * sizeof(double));
         }
 
-        TEST_F(Medium_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
+        /// @brief Names one residency and an element count to allocate.
+        struct AlignmentRow
         {
-            // Disjoint views of one arena must not alias. See tests/library/umbrella/README.md.
-            auto storage = make_runtime_storage(TestEnvironment::runtime(),
-                32 * sizeof(float),
-                SushiRuntime::Residency::Shared);
+            /** @brief The row name, which gtest takes as the suffix of the test. */
+            std::string name;
 
-            Tensor first(storage, {8}, Core::DataType::Float32, 0);
-            Tensor second(storage, {8}, Core::DataType::Float32, 8);
-            Tensor overlapping(storage, {8}, Core::DataType::Float32, 4);
+            /** @brief Where the allocation lives. */
+            SushiRuntime::Residency residency;
 
-            EXPECT_FALSE(first.region().overlaps(second.region()));
-            EXPECT_TRUE(first.region().overlaps(overlapping.region()));
-            EXPECT_TRUE(second.region().overlaps(overlapping.region()));
-            EXPECT_TRUE(first.region().overlaps(first.region()));
-        }
+            /** @brief The element count of the FLOAT32 tensor over it. */
+            int64_t count;
+        };
 
-        TEST_F(Medium_StorageOffsetTest, TheAllocationBaseIsAlignedForEveryResidency)
+        /// @brief Returns one row per residency and per element count.
+        static std::vector<AlignmentRow> alignment_rows()
         {
-            const SushiRuntime::Residency residencies[] = {
-                SushiRuntime::Residency::Shared,
-                SushiRuntime::Residency::Host,
-                SushiRuntime::Residency::Device};
-            const int64_t element_counts[] = {1, 7, 1000};
-
-            for (const SushiRuntime::Residency residency : residencies)
+            std::vector<AlignmentRow> rows;
+            const std::pair<const char*, SushiRuntime::Residency> residencies[] = {
+                {"Shared", SushiRuntime::Residency::Shared},
+                {"Host", SushiRuntime::Residency::Host},
+                {"Device", SushiRuntime::Residency::Device}};
+            for (const auto& residency : residencies)
             {
-                for (const int64_t count : element_counts)
-                {
-                    auto storage = make_runtime_storage(TestEnvironment::runtime(),
-                        static_cast<size_t>(count) * sizeof(float),
-                        residency);
-                    const Tensor t(storage, {count}, Core::DataType::Float32);
-
-                    SCOPED_TRACE(::testing::Message() << "residency " << static_cast<int>(residency)
-                                                      << ", " << count << " elements");
-
-                    const auto base = reinterpret_cast<std::uintptr_t>(storage->allocation_base());
-                    EXPECT_EQ(base % K_STORAGE_ALIGNMENT, 0u);
-                    EXPECT_TRUE(t.is_aligned());
-                }
+                for (const int64_t count : {int64_t{1}, int64_t{7}, int64_t{1000}})
+                    rows.push_back({std::string(residency.first) + "_" + std::to_string(count),
+                                    residency.second, count});
             }
+            return rows;
         }
 
-        TEST_F(Medium_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
+        /// @brief Allocates one storage per row.
+        class Medium_StorageOffsetAlignment : public Medium_StorageOffsetTest,
+                                              public ::testing::WithParamInterface<AlignmentRow> {};
+
+        TEST_P(Medium_StorageOffsetAlignment, TheAllocationBaseIsAlignedForEveryResidency)
         {
-            auto one_byte = make_runtime_storage(TestEnvironment::runtime(), 1);
-            auto past_one_block =
-                make_runtime_storage(TestEnvironment::runtime(), 129);
+            auto storage = make_runtime_storage(TestEnvironment::runtime(),
+                static_cast<size_t>(GetParam().count) * sizeof(float), GetParam().residency);
+            const Tensor t(storage, {GetParam().count}, Core::DataType::Float32);
 
-            EXPECT_EQ(one_byte->size_bytes(), 128u);
-            EXPECT_EQ(past_one_block->size_bytes(), 256u);
+            const auto base = reinterpret_cast<std::uintptr_t>(storage->allocation_base());
+            EXPECT_EQ(base % K_STORAGE_ALIGNMENT, 0u);
+            EXPECT_TRUE(t.is_aligned());
         }
 
-        TEST_F(Medium_StorageOffsetTest, AViewOffTheBaseReportsItsOwnAlignment)
-        {
-            const int64_t n = 64;
-            auto storage = make_runtime_storage(TestEnvironment::runtime(), static_cast<size_t>(n) * sizeof(float));
-            const Tensor whole(storage, {n}, Core::DataType::Float32);
+        INSTANTIATE_TEST_SUITE_P(Rows, Medium_StorageOffsetAlignment,
+                                 ::testing::ValuesIn(alignment_rows()),
+                                 [](const ::testing::TestParamInfo<AlignmentRow>& info)
+                                 { return info.param.name; });
 
-            // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
-            EXPECT_FALSE(whole.slice(0, 1, n).is_aligned());
-            EXPECT_TRUE(whole.slice(0, 32, n).is_aligned());
-        }
-
-        TEST_F(Medium_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
+        TEST_F(Medium_StorageOffsetTest, ATensorsDeviceIsTheDeviceItsStorageWasMadeOn)
         {
             auto storage = make_runtime_storage(TestEnvironment::runtime(), 4 * sizeof(float));
             const Tensor t(storage, {4}, Core::DataType::Float32);

@@ -338,5 +338,56 @@ namespace SushiBLAS
 
             EXPECT_THROW((void)empty.device(), std::runtime_error);
         }
+
+        /// @brief Returns the two disjoint views and the overlapping one over a 32-element host storage.
+        struct RegionViews
+        {
+            Tensor first;       ///< Elements 0 to 7.
+            Tensor second;      ///< Elements 8 to 15.
+            Tensor overlapping; ///< Elements 4 to 11.
+        };
+
+        /// @brief Returns views of 8 elements at the offsets 0, 8 and 4 of one 32-element storage.
+        static RegionViews region_views()
+        {
+            auto storage = make_host_storage(32 * sizeof(float));
+
+            return {Tensor(storage, {8}, Core::DataType::Float32, 0),
+                    Tensor(storage, {8}, Core::DataType::Float32, 8),
+                    Tensor(storage, {8}, Core::DataType::Float32, 4)};
+        }
+
+        TEST(Small_Tensor, TheRegionsOfDisjointViewsDoNotOverlap)
+        {
+            const RegionViews views = region_views();
+
+            EXPECT_FALSE(views.first.region().overlaps(views.second.region()));
+        }
+
+        TEST(Small_Tensor, TheRegionsOfViewsThatShareElementsOverlap)
+        {
+            const RegionViews views = region_views();
+
+            EXPECT_TRUE(views.first.region().overlaps(views.overlapping.region()));
+            EXPECT_TRUE(views.second.region().overlaps(views.overlapping.region()));
+        }
+
+        TEST(Small_Tensor, ARegionOverlapsItself)
+        {
+            const RegionViews views = region_views();
+
+            EXPECT_TRUE(views.first.region().overlaps(views.first.region()));
+        }
+
+        TEST(Small_Tensor, ASliceOffTheBaseReportsItsOwnAlignment)
+        {
+            constexpr int64_t K_ELEMENTS = 64;
+            const Tensor whole(make_host_storage(K_ELEMENTS * sizeof(float)), {K_ELEMENTS},
+                               Core::DataType::Float32);
+
+            // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
+            EXPECT_FALSE(whole.slice(0, 1, K_ELEMENTS).is_aligned());
+            EXPECT_TRUE(whole.slice(0, 32, K_ELEMENTS).is_aligned());
+        }
     } // namespace Test
 } // namespace SushiBLAS

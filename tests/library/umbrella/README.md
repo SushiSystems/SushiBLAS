@@ -46,7 +46,7 @@ are the same address. That the poison bytes before and after the view survive un
 pass by accident, because an operation that ignores the offset writes over them.
 
 The tests run in family order: BLAS levels 1 to 3, elementwise, nonlinear, logic, reductions,
-random, the two tests about what an offset counts, and last three about alignment and one
+random, the two tests about what an offset counts, the alignment rows and last one test
 about `device`.
 
 `OffsetIsCountedInElementsNotBytes`: the unit of `storage_offset` is a decision, not an
@@ -55,9 +55,10 @@ the element width can never land an fp64 view on a 4-byte boundary. The test pin
 "offsets are bytes" cannot be introduced later and pass the family tests, which use one dtype
 at a time and would not notice.
 
-`DisjointViewsOfOneAllocationDoNotAlias` is what the memory planner in the layer above needs:
-two tensors packed into one arena must not be reported as touching the same memory, or every
-operation in the graph serialises behind every other one.
+The region of a view and the overlap of two regions need no device. `Small_Tensor` in
+`tests/data/tensor/test_tensor/test_tensor.cpp` holds `TheRegionsOfDisjointViewsDoNotOverlap` and
+its two siblings: two tensors packed into one arena must not be reported as touching the same
+memory, or every operation in the graph serialises behind every other one.
 
 ## test_SushiBLAS/test_dispatch_complex.cpp
 
