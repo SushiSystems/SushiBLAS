@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_NegTest : public SushiBLASTest {};
+class Small_NegTest : public HostEngineTest {};
 
-TEST_F(Medium_NegTest, FloatForward) 
+/**
+ * @brief Tests that the recorded neg flips the sign of each element when the task runs.
+ */
+TEST_F(Small_NegTest, NegFlipsTheSignOfEachElement) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).neg(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {-1.00000f, -2.00000f, 3.00000f, -0.50000f});
 }
