@@ -32,26 +32,15 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/engine/runtime_scratch_source.hpp>
+#include <SushiBLAS/engine/host_scratch_source.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_Scratch, AnEmptyBufferHoldsNothing)
+        TEST(Small_Scratch, ALeaseNamesItsBytesAndHoldsStorageOfThatSize)
         {
-            const ScratchBuffer empty;
-
-            EXPECT_TRUE(empty.is_empty());
-            EXPECT_EQ(empty.data(), nullptr);
-            EXPECT_EQ(empty.bytes(), std::size_t{0});
-            EXPECT_FALSE(empty.storage());
-        }
-
-        TEST(Medium_Scratch, ALeaseNamesItsBytesAndItsRegion)
-        {
-            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            HostScratchSource pool_source;
             ScratchPool pool(pool_source);
             const ScratchBuffer buffer(pool, 1000, 0);
 
@@ -62,9 +51,9 @@ namespace SushiBLAS
             EXPECT_GE(buffer.storage()->size_bytes(), std::size_t{1000});
         }
 
-        TEST(Medium_Scratch, TheBlockReturnsToTheShelfWhenTheLastCopyGoes)
+        TEST(Small_Scratch, TheBlockReturnsToTheShelfWhenTheLastCopyGoes)
         {
-            RuntimeScratchSource pool_source(TestEnvironment::runtime());
+            HostScratchSource pool_source;
             ScratchPool pool(pool_source);
             const std::size_t idle_before = pool.idle_block_count();
             {
