@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -71,21 +72,32 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_RecordingFixture, RunSucceedsAcceptsAnEmptyFixture)
+        /** @brief Records count tasks that do nothing. */
+        static void record_nothing_times(RecordingFixture& fixture, std::size_t count)
+        {
+            for (std::size_t index = 0; index < count; ++index)
+                record_nothing(fixture);
+        }
+
+        /** @brief Runs the success test for an empty fixture and for one with a recorded task. */
+        class Medium_RecordingFixtureRun : public SushiBLASTest,
+                                           public ::testing::WithParamInterface<std::size_t>
+        {
+
+        };
+
+        TEST_P(Medium_RecordingFixtureRun, RunSucceedsReportsSuccess)
         {
             RecordingFixture fixture(TestEnvironment::runtime(), *engine);
+            record_nothing_times(fixture, GetParam());
+            ASSERT_EQ(fixture.recorded_count(), GetParam());
 
             EXPECT_TRUE(fixture.run_succeeds());
         }
 
-        TEST_F(Medium_RecordingFixture, RunSucceedsRunsTheRecordedTaskAndEmptiesTheFixture)
-        {
-            RecordingFixture fixture(TestEnvironment::runtime(), *engine);
-            record_nothing(fixture);
-            EXPECT_EQ(fixture.recorded_count(), std::size_t{1});
-
-            EXPECT_TRUE(fixture.run_succeeds());
-            EXPECT_TRUE(fixture.is_empty());
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RecordingFixtureRun, ::testing::Values(std::size_t{0}, std::size_t{1}),
+            [](const ::testing::TestParamInfo<std::size_t>& info)
+            { return "Recorded" + std::to_string(info.param); });
     } // namespace Test
 } // namespace SushiBLAS
