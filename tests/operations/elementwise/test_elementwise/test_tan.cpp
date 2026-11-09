@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_TanTest : public SushiBLASTest {};
+class Small_TanTest : public HostEngineTest {};
 
-TEST_F(Medium_TanTest, FloatForward) 
+/**
+ * @brief Tests that the recorded tan replaces each element with its tangent when the task runs.
+ */
+TEST_F(Small_TanTest, TanReplacesEachElementWithItsTangent) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).tan(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.55741f, -2.18504f, 0.14255f, 0.54630f});
 }
