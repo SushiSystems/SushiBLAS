@@ -38,6 +38,11 @@ error, which would be off by a factor of H, of W or of N.
 
 ## test_spatial/test_spatial_channels.cpp
 
+The value and refusal tests run `Small_` on the host engine; only the agreement of the two
+paths, once for the concat and once for the slice, needs a device and stays `Medium_`. The four
+malformed operands of `Small_SpatialChannelsMalformedTest` are rows, one per operation and
+operand, and the `concat_channels` destination row is the only test of a negative offset.
+
 `ConcatPlacesEachSourceAtItsOffset` uses two pixels, so a source that ignored its column stride
 would still pass the first pixel and fail the second.
 
