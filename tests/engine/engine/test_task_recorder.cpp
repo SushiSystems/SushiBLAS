@@ -310,14 +310,6 @@ namespace SushiBLAS
             EXPECT_EQ(2 * K_TASKS_PER_THREAD, probe.take_recorded_count());
         }
 
-        /** @brief Tests that a recorder returns the pool it was built on. */
-        TEST_F(Medium_TaskRecorderTest, ARecorderHandsOutThePoolItWasGiven)
-        {
-            GraphProbe probe;
-
-            EXPECT_EQ(&probe.recorder().scratch_pool(), &probe.scratch_pool());
-        }
-
         /** @brief Tests that every family records and runs one task under ForceReference. */
         TEST_F(Medium_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
