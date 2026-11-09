@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_SinhTest : public SushiBLASTest {};
+class Small_SinhTest : public HostEngineTest {};
 
-TEST_F(Medium_SinhTest, FloatForward) 
+/**
+ * @brief Tests that the recorded sinh replaces each element with its hyperbolic sine when the task runs.
+ */
+TEST_F(Small_SinhTest, SinhReplacesEachElementWithItsHyperbolicSine) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).sinh(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.17520f, 3.62686f, -10.01787f, 0.52110f});
 }
