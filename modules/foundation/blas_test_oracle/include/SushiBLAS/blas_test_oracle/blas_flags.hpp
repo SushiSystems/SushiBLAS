@@ -30,6 +30,7 @@
 #pragma once
 
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/core/common.hpp>
 
 namespace SushiBLAS
 {
@@ -57,6 +58,23 @@ namespace SushiBLAS
         [[nodiscard]] constexpr Core::Side side_of(bool left) noexcept
         {
             return left ? Core::Side::Left : Core::Side::Right;
+        }
+
+        /** @brief Returns ROW_MAJOR for true and COLUMN_MAJOR for false. */
+        [[nodiscard]] constexpr Core::Layout layout_of(bool row_major) noexcept
+        {
+            return row_major ? Core::Layout::RowMajor : Core::Layout::ColumnMajor;
+        }
+
+        /** @brief Returns the name of the row a layout and a transpose flag make, such as "RowMajorTrans". */
+        [[nodiscard]] constexpr const char* layout_transpose_label(bool row_major, bool transposed) noexcept
+        {
+            if (row_major)
+            {
+                return transposed ? "RowMajorTrans" : "RowMajorNoTrans";
+            }
+
+            return transposed ? "ColumnMajorTrans" : "ColumnMajorNoTrans";
         }
     } // namespace Test
 } // namespace SushiBLAS
