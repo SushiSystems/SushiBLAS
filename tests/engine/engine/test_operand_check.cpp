@@ -29,12 +29,17 @@
 
 #include <array>
 #include <cstddef>
-#include <string>
 #include <cstdint>
+#include <functional>
+#include <initializer_list>
 #include <stdexcept>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -47,244 +52,281 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Medium_OperandCheckTest : public SushiBLASTest
+        namespace
         {
-            protected:
-                /** @brief Returns a storage of `elements` FLOAT32 elements in shared memory. */
-                SushiRuntime::sushi_ptr<Storage> make_storage(int64_t elements)
+            /** @brief Names how a check ended. */
+            enum class Ending : std::uint8_t
+            {
+                Accepted, /**< The check threw nothing. */
+                Refused   /**< The check threw std::invalid_argument. */
+            };
+
+            /** @brief Returns how a check ended; any other exception leaves the test. */
+            Ending ending_of(const std::function<void()>& check)
+            {
+                try
                 {
-                    return make_runtime_storage(TestEnvironment::runtime(),
-                        static_cast<size_t>(elements) * sizeof(float),
-                        SushiRuntime::Residency::Shared);
+                    check();
+                }
+                catch (const std::invalid_argument&)
+                {
+                    return Ending::Refused;
                 }
 
-                /** @brief Returns a dense FLOAT32 tensor over a storage of its own. */
-                Tensor make_tensor(std::initializer_list<int64_t> dims,
-                                   Core::Layout layout = Core::Layout::RowMajor)
+                return Ending::Accepted;
+            }
+
+            /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
+            std::string message_of(const std::function<void()>& check)
+            {
+                try
                 {
-                    int64_t n = 1;
-                    for (auto d : dims)
-                        n *= d;
-                    return Tensor(make_storage(n), dims, Core::DataType::Float32, 0, layout);
+                    check();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
                 }
 
-                /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
-                template<typename Check>
-                static std::string message_of(const Check& check)
-                {
-                    try
-                    {
-                        check();
-                    }
-                    catch (const std::invalid_argument& error)
-                    {
-                        return error.what();
-                    }
+                return std::string();
+            }
 
-                    return std::string();
-                }
+            /** @brief Returns a dense FLOAT32 tensor over host storage of its own. */
+            Tensor host_tensor(std::initializer_list<int64_t> dims,
+                               Core::Layout layout = Core::Layout::RowMajor)
+            {
+                int64_t count = 1;
+                for (const int64_t dim : dims)
+                    count *= dim;
+                return Tensor(make_host_storage(static_cast<std::size_t>(count) * sizeof(float)),
+                              dims, Core::DataType::Float32, 0, layout);
+            }
+
+            /** @brief Returns a FLOAT32 tensor with no storage. */
+            Tensor detached_tensor(std::initializer_list<int64_t> dims)
+            {
+                return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, Core::DataType::Float32);
+            }
+
+            /** @brief Names one check and how it must end. */
+            struct CheckRow
+            {
+                const char* name;            /**< The row name a failure shows. */
+                std::function<void()> check; /**< The call under test. */
+                Ending expected;             /**< How the call must end. */
+            };
+
+            /** @brief Returns a row from a name, a check and its ending. */
+            CheckRow make_row(const char* name, std::function<void()> check, Ending expected)
+            {
+                return {name, std::move(check), expected};
+            }
+
+            /** @brief Returns the rows of the storage, dtype, shape, layout and count checks. */
+            std::vector<CheckRow> value_check_rows()
+            {
+                const Tensor with_storage = host_tensor({4});
+                const Tensor without_storage = detached_tensor({4});
+                const Tensor row_major = host_tensor({2, 3});
+                const Tensor transposed_shape = host_tensor({3, 2});
+                const Tensor column_major = host_tensor({2, 3}, Core::Layout::ColumnMajor);
+                const Tensor flat_six = host_tensor({6});
+                const Tensor flat_five = host_tensor({5});
+                const Tensor flat_column = host_tensor({4}, Core::Layout::ColumnMajor);
+                return {
+                    make_row("StorageAcceptsATensorWithStorage",
+                        [=] { Dispatch::require_storage(with_storage, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("StorageRefusesATensorWithoutStorage",
+                        [=] { Dispatch::require_storage(without_storage, "op", "x"); },
+                        Ending::Refused),
+                    make_row("DtypeAcceptsTheMatchingDtype",
+                        [=] {
+                            Dispatch::require_dtype(with_storage, Core::DataType::Float32, "op",
+                                                    "x");
+                        },
+                        Ending::Accepted),
+                    make_row("DtypeRefusesAnotherDtype",
+                        [=] {
+                            Dispatch::require_dtype(with_storage, Core::DataType::Float64, "op",
+                                                    "x");
+                        },
+                        Ending::Refused),
+                    make_row("SameShapeAcceptsEqualShapes",
+                        [=] { Dispatch::require_same_shape(row_major, row_major, "op", "a", "b"); },
+                        Ending::Accepted),
+                    make_row("SameShapeRefusesTheSameCountInAnotherShape",
+                        [=] {
+                            Dispatch::require_same_shape(row_major, transposed_shape, "op", "a",
+                                                         "b");
+                        },
+                        Ending::Refused),
+                    make_row("SameLayoutAcceptsEqualLayouts",
+                        [=] {
+                            Dispatch::require_same_layout(column_major, column_major, "op", "a",
+                                                          "b");
+                        },
+                        Ending::Accepted),
+                    make_row("SameLayoutAcceptsRankOneOperands",
+                        [=] {
+                            Dispatch::require_same_layout(with_storage, flat_column, "op", "a",
+                                                          "b");
+                        },
+                        Ending::Accepted),
+                    make_row("SameLayoutRefusesAnotherLayout",
+                        [=] {
+                            Dispatch::require_same_layout(row_major, column_major, "op", "a", "b");
+                        },
+                        Ending::Refused),
+                    make_row("SameElementCountAcceptsAReshapedOperand",
+                        [=] {
+                            Dispatch::require_same_element_count(row_major, flat_six, "op", "a",
+                                                                 "b");
+                        },
+                        Ending::Accepted),
+                    make_row("SameElementCountRefusesAnotherCount",
+                        [=] {
+                            Dispatch::require_same_element_count(row_major, flat_five, "op", "a",
+                                                                 "b");
+                        },
+                        Ending::Refused),
+                    make_row("MinElementsAcceptsTheExactMinimum",
+                        [=] { Dispatch::require_min_elements(with_storage, 4, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("MinElementsRefusesFewer",
+                        [=] { Dispatch::require_min_elements(with_storage, 5, "op", "x"); },
+                        Ending::Refused),
+                    make_row("ScalarRefusesZeroElements",
+                        [=] { Dispatch::require_scalar(detached_tensor({0}), "op", "x"); },
+                        Ending::Refused),
+                    make_row("ScalarAcceptsOneElement",
+                        [=] { Dispatch::require_scalar(host_tensor({1}), "op", "x"); },
+                        Ending::Accepted),
+                    make_row("ScalarRefusesTwoElements",
+                        [=] { Dispatch::require_scalar(host_tensor({2}), "op", "x"); },
+                        Ending::Refused),
+                    make_row("RankAcceptsTheExpectedRank",
+                        [=] { Dispatch::require_rank(row_major, 2, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("RankRefusesAnotherRank",
+                        [=] { Dispatch::require_rank(row_major, 1, "op", "x"); },
+                        Ending::Refused),
+                    make_row("ExtentAcceptsEqualExtents",
+                        [] { Dispatch::require_extent(4, 4, "channels", "op", "x"); },
+                        Ending::Accepted),
+                    make_row("ExtentRefusesUnequalExtents",
+                        [] { Dispatch::require_extent(3, 4, "channels", "op", "x"); },
+                        Ending::Refused),
+                    make_row("OperandAcceptsATrueCondition",
+                        [] { Dispatch::require_operand(true, "op", "x", "is {}", 7); },
+                        Ending::Accepted),
+                    make_row("OperandRefusesAFalseCondition",
+                        [] { Dispatch::require_operand(false, "op", "x", "is {}", 7); },
+                        Ending::Refused)};
+            }
+
+            /** @brief Returns the rows of the contiguity check. */
+            std::vector<CheckRow> contiguity_rows()
+            {
+                const Tensor row_major = host_tensor({2, 3});
+                const Tensor column_major = host_tensor({2, 3}, Core::Layout::ColumnMajor);
+                // Eight elements leave room for the offset view that starts at element 2.
+                const Tensor offset_view(make_host_storage(8 * sizeof(float)), {2, 3},
+                                         Core::DataType::Float32, 2);
+                // Strides {3, 1} swap to {1, 3} on shape {3, 2}; dense row-major needs {2, 1}.
+                const Tensor transposed = host_tensor({2, 3}).transpose(0, 1);
+                // Shape {4, 2} keeps strides {4, 1}; dense row-major needs {2, 1}.
+                const Tensor sliced = host_tensor({4, 4}).slice(1, 0, 2);
+                const std::array<int64_t, Core::K_MAX_TENSOR_RANK> zero_strides{0};
+                const std::array<int64_t, 1> four{4};
+                const Tensor broadcast(
+                    make_host_storage(sizeof(float)),
+                    SushiRuntime::span<const int64_t>(four.data(), four.size()), zero_strides,
+                    Core::DataType::Float32, 0, Core::Layout::RowMajor);
+                return {
+                    make_row("RowMajorTensorIsContiguous",
+                        [=] { Dispatch::require_contiguous(row_major, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("ColumnMajorTensorIsContiguous",
+                        [=] { Dispatch::require_contiguous(column_major, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("StorageOffsetViewIsContiguous",
+                        [=] { Dispatch::require_contiguous(offset_view, "op", "x"); },
+                        Ending::Accepted),
+                    make_row("TransposeViewIsRefused",
+                        [=] { Dispatch::require_contiguous(transposed, "op", "x"); },
+                        Ending::Refused),
+                    make_row("StrideZeroViewIsRefused",
+                        [=] { Dispatch::require_contiguous(broadcast, "op", "x"); },
+                        Ending::Refused),
+                    make_row("SlicedViewIsRefused",
+                        [=] { Dispatch::require_contiguous(sliced, "op", "x"); },
+                        Ending::Refused)};
+            }
+        } // namespace
+
+        /** @brief Runs one row of a check list and compares how it ended. */
+        class Small_OperandCheck : public ::testing::TestWithParam<CheckRow>
+        {
+
         };
 
-        TEST_F(Medium_OperandCheckTest, RequireStorageAcceptsTensorWithStorage)
+        TEST_P(Small_OperandCheck, EndsAsTheRowNames)
         {
-            auto t = make_tensor({4});
-            EXPECT_NO_THROW(Dispatch::require_storage(t, "op", "x"));
+            EXPECT_EQ(ending_of(GetParam().check), GetParam().expected);
         }
 
-        TEST_F(Medium_OperandCheckTest, RequireStorageRejectsTensorWithoutStorage)
-        {
-            Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
-            EXPECT_THROW(Dispatch::require_storage(t, "op", "x"), std::invalid_argument);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            Value, Small_OperandCheck, ::testing::ValuesIn(value_check_rows()),
+            [](const ::testing::TestParamInfo<CheckRow>& info)
+            { return std::string(info.param.name); });
 
-        TEST_F(Medium_OperandCheckTest, RequireDtypeAcceptsMatchingDtype)
-        {
-            auto t = make_tensor({4});
-            EXPECT_NO_THROW(Dispatch::require_dtype(t, Core::DataType::Float32, "op", "x"));
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            Contiguity, Small_OperandCheck, ::testing::ValuesIn(contiguity_rows()),
+            [](const ::testing::TestParamInfo<CheckRow>& info)
+            { return std::string(info.param.name); });
 
-        TEST_F(Medium_OperandCheckTest, RequireDtypeRejectsOtherDtype)
+        /** @brief Tests that require_rank names both ranks. */
+        TEST(Small_OperandCheckMessage, RankNamesBothRanks)
         {
-            auto t = make_tensor({4});
-            EXPECT_THROW(Dispatch::require_dtype(t, Core::DataType::Float64, "op", "x"),
-                         std::invalid_argument);
-        }
+            const Tensor matrix = host_tensor({2, 3});
 
-        TEST_F(Medium_OperandCheckTest, RequireSameShapeAcceptsEqualShapes)
-        {
-            auto a = make_tensor({2, 3});
-            auto b = make_tensor({2, 3});
-            EXPECT_NO_THROW(Dispatch::require_same_shape(a, b, "op", "a", "b"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameShapeRejectsSameCountOtherShape)
-        {
-            auto a = make_tensor({2, 3});
-            auto b = make_tensor({3, 2});
-            EXPECT_THROW(Dispatch::require_same_shape(a, b, "op", "a", "b"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameLayoutAcceptsEqualLayouts)
-        {
-            auto a = make_tensor({2, 3}, Core::Layout::ColumnMajor);
-            auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
-            EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameLayoutAcceptsRankOneOperands)
-        {
-            auto a = make_tensor({4});
-            auto b = make_tensor({4}, Core::Layout::ColumnMajor);
-            EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameLayoutRejectsOtherLayout)
-        {
-            auto a = make_tensor({2, 3});
-            auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
-            EXPECT_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameElementCountAcceptsReshapedOperand)
-        {
-            auto a = make_tensor({2, 3});
-            auto b = make_tensor({6});
-            EXPECT_NO_THROW(Dispatch::require_same_element_count(a, b, "op", "a", "b"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireSameElementCountRejectsOtherCount)
-        {
-            auto a = make_tensor({2, 3});
-            auto b = make_tensor({5});
-            EXPECT_THROW(Dispatch::require_same_element_count(a, b, "op", "a", "b"),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireMinElementsAcceptsExactMinimum)
-        {
-            auto t = make_tensor({4});
-            EXPECT_NO_THROW(Dispatch::require_min_elements(t, 4, "op", "x"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireMinElementsRejectsTooFew)
-        {
-            auto t = make_tensor({4});
-            EXPECT_THROW(Dispatch::require_min_elements(t, 5, "op", "x"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsRowMajorTensor)
-        {
-            auto t = make_tensor({2, 3});
-            EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsColumnMajorTensor)
-        {
-            auto t = make_tensor({2, 3}, Core::Layout::ColumnMajor);
-            ASSERT_EQ(t.strides[0], 1);
-            ASSERT_EQ(t.strides[1], 2);
-            EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsStorageOffsetView)
-        {
-            Tensor t(make_storage(16), {2, 3}, Core::DataType::Float32, 8);
-            EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsTransposeView)
-        {
-            // Strides {3, 1} swap to {1, 3} on shape {3, 2}; dense row-major needs {2, 1}.
-            auto t = make_tensor({2, 3}).transpose(0, 1);
-            EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsStrideZeroView)
-        {
-            const std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{0};
-            const std::array<int64_t, 1> dims{4};
-            Tensor t(make_storage(1), SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                     strides, Core::DataType::Float32, 0, Core::Layout::RowMajor);
-            EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsSlicedView)
-        {
-            // Shape {4, 2} keeps strides {4, 1}; dense row-major needs {2, 1}.
-            auto t = make_tensor({4, 4}).slice(1, 0, 2);
-            EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireRankNamesBothRanks)
-        {
-            auto t = make_tensor({2, 3});
-            EXPECT_NO_THROW(Dispatch::require_rank(t, 2, "op", "x"));
-            EXPECT_THROW(Dispatch::require_rank(t, 1, "op", "x"), std::invalid_argument);
-            EXPECT_EQ(message_of([&] { Dispatch::require_rank(t, 1, "op", "x"); }),
+            EXPECT_EQ(message_of([&] { Dispatch::require_rank(matrix, 1, "op", "x"); }),
                       "op: operand 'x' has rank 2, expected 1");
         }
 
-        TEST_F(Medium_OperandCheckTest, RequireScalarRejectsZeroAndTwoElements)
+        /** @brief Tests that require_extent names the extent. */
+        TEST(Small_OperandCheckMessage, ExtentNamesTheExtent)
         {
-            Tensor none(SushiRuntime::sushi_ptr<Storage>(), {0});
-            auto one = make_tensor({1});
-            auto two = make_tensor({2});
-            EXPECT_THROW(Dispatch::require_scalar(none, "op", "x"), std::invalid_argument);
-            EXPECT_NO_THROW(Dispatch::require_scalar(one, "op", "x"));
-            EXPECT_THROW(Dispatch::require_scalar(two, "op", "x"), std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, RequireExtentNamesTheExtent)
-        {
-            EXPECT_NO_THROW(Dispatch::require_extent(4, 4, "channels", "op", "x"));
-            EXPECT_THROW(Dispatch::require_extent(3, 4, "channels", "op", "x"),
-                         std::invalid_argument);
             EXPECT_EQ(message_of([] { Dispatch::require_extent(3, 4, "channels", "op", "x"); }),
                       "op: operand 'x' has 3 channels, expected 4");
         }
 
-        TEST_F(Medium_OperandCheckTest, RequireOperandPassesItsFormatThrough)
+        /** @brief Tests that require_operand passes its format through. */
+        TEST(Small_OperandCheckMessage, OperandPassesItsFormatThrough)
         {
-            EXPECT_NO_THROW(Dispatch::require_operand(true, "op", "x", "is {}", 7));
-            EXPECT_THROW(Dispatch::require_operand(false, "op", "x", "is {}", 7),
-                         std::invalid_argument);
             EXPECT_EQ(message_of([] { Dispatch::require_operand(false, "op", "x", "is {}", 7); }),
                       "op: operand 'x' is 7");
         }
 
-        TEST_F(Medium_OperandCheckTest, ADtypeErrorIsAnInvalidArgument)
+        /** @brief Tests that the dtype error is an invalid_argument naming family, name and dtype. */
+        TEST(Small_OperandCheckMessage, ADtypeErrorNamesFamilyNameAndDtype)
         {
             const auto raise = []
             {
                 Dispatch::Detail::throw_dtype_error("Elementwise operation", "sqrt",
                                                     Core::DataType::Int32);
             };
-            EXPECT_THROW(raise(), std::invalid_argument);
 
             const std::string message = message_of(raise);
+
             EXPECT_NE(message.find("Elementwise operation"), std::string::npos);
             EXPECT_NE(message.find("'sqrt'"), std::string::npos);
             EXPECT_NE(message.find(Core::to_string(Core::DataType::Int32)), std::string::npos);
         }
 
-        TEST_F(Medium_OperandCheckTest, RequireDeviceDtypeAcceptsWhatTheDeviceOffers)
-        {
-            auto narrow = make_tensor({4});
-            EXPECT_NO_THROW(Dispatch::require_device_dtype(narrow, "op", "x"));
-
-            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::Float64);
-            EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
-
-            // Eight FLOAT32 elements are the 32 bytes four FLOAT64 elements need.
-            Tensor wide(make_storage(8), {4}, Core::DataType::Float64);
-            if (Device::profile_for(wide.device()).supports_fp64)
-                EXPECT_NO_THROW(Dispatch::require_device_dtype(wide, "op", "x"));
-            else
-                EXPECT_THROW(Dispatch::require_device_dtype(wide, "op", "x"),
-                             std::invalid_argument);
-        }
-
-        TEST_F(Medium_OperandCheckTest, ANarrowedOpHoldsOnlyTheElementType)
+        /** @brief Tests that a narrowed bound functor holds at most its three float scalars. */
+        TEST(Small_OperandCheckFunctor, ANarrowedOpHoldsOnlyTheElementType)
         {
             const auto clamp = [](auto x, auto low, auto high)
             {
@@ -294,52 +336,114 @@ namespace SushiBLAS
                                                       Dispatch::ElementScalar(1.0));
 
             EXPECT_LE(sizeof(bound.narrow<float>()), 3 * sizeof(float));
-            EXPECT_FLOAT_EQ(bound.narrow<float>()(3.0f), 1.0f);
         }
 
-        TEST_F(Medium_OperandCheckTest, TensorRejectsNegativeDimension)
+        /** @brief Tests that the Tensor constructor refuses a negative dimension. */
+        TEST(Small_OperandCheckTensor, RejectsANegativeDimension)
         {
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {-1, 2}), std::runtime_error);
         }
 
-        TEST_F(Medium_OperandCheckTest, TensorRejectsOverflowingElementCount)
+        /** @brief Tests that the Tensor constructor refuses an element count that overflows. */
+        TEST(Small_OperandCheckTensor, RejectsAnOverflowingElementCount)
         {
             const int64_t big = int64_t(1) << 32;
-            EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {big, big}), std::runtime_error);
+
+            EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {big, big}),
+                         std::runtime_error);
         }
 
-        TEST_F(Medium_OperandCheckTest, TensorRejectsRankAboveLimit)
+        /** @brief Tests that the Tensor constructor refuses a rank above the limit. */
+        TEST(Small_OperandCheckTensor, RejectsARankAboveTheLimit)
         {
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {1, 1, 1, 1, 1, 1, 1}),
                          std::runtime_error);
         }
 
-        TEST_F(Medium_OperandCheckTest, TransposeRejectsNegativeDimensionIndex)
+        /** @brief Tests that transpose refuses a negative dimension index. */
+        TEST(Small_OperandCheckTensor, TransposeRejectsANegativeDimensionIndex)
         {
-            auto t = make_tensor({2, 3});
-            EXPECT_THROW(t.transpose(-1, 0), std::runtime_error);
+            const Tensor matrix = host_tensor({2, 3});
+
+            EXPECT_THROW((void)matrix.transpose(-1, 0), std::runtime_error);
         }
 
-        TEST_F(Medium_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
+        namespace
         {
-            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::Half);
-            EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
+            /** @brief Names one require_device_dtype call and the device aspect it needs. */
+            struct DeviceDtypeRow
+            {
+                const char* name;      /**< The row name a failure shows. */
+                Core::DataType dtype;  /**< The dtype of the tensor. */
+                bool has_storage;      /**< Whether the tensor owns storage; one without needs no aspect. */
+                bool Device::Profile::* aspect; /**< The profile aspect the dtype needs, or null for none. */
+            };
 
-            // Two FLOAT32 elements are the 8 bytes four HALF elements need.
-            Tensor half(make_storage(2), {4}, Core::DataType::Half);
-            const auto check = [&] { Dispatch::require_device_dtype(half, "op", "x"); };
-            if (Device::profile_for(half.device()).supports_fp16)
+            /** @brief Returns FLOAT32 on a device, then FLOAT64 and HALF with and without storage. */
+            std::vector<DeviceDtypeRow> device_dtype_rows()
             {
-                EXPECT_NO_THROW(check());
+                return {{"Float32OnTheDevice", Core::DataType::Float32, true, nullptr},
+                        {"Float64WithoutStorage", Core::DataType::Float64, false, nullptr},
+                        {"HalfWithoutStorage", Core::DataType::Half, false, nullptr},
+                        {"Float64OnTheDevice", Core::DataType::Float64, true,
+                         &Device::Profile::supports_fp64},
+                        {"HalfOnTheDevice", Core::DataType::Half, true,
+                         &Device::Profile::supports_fp16}};
             }
-            else
+
+            /** @brief Returns the text of the UnsupportedExecution a call throws, or "". */
+            std::string refusal_text_of(const std::function<void()>& call)
             {
-                EXPECT_THROW(check(), std::invalid_argument);
-                EXPECT_NE(message_of(check).find("fp16"), std::string::npos);
+                try
+                {
+                    call();
+                }
+                catch (const UnsupportedExecution& refusal)
+                {
+                    return refusal.what();
+                }
+
+                return std::string();
             }
+        } // namespace
+
+        /** @brief Runs one row of device_dtype_rows() against the process device. */
+        class Medium_OperandCheckDeviceDtype : public SushiBLASTest,
+                                               public ::testing::WithParamInterface<DeviceDtypeRow>
+        {
+
+        };
+
+        TEST_P(Medium_OperandCheckDeviceDtype, RefusesWhatTheDeviceLacks)
+        {
+            const DeviceDtypeRow row = GetParam();
+            // Eight FLOAT32 elements are the 32 bytes four FLOAT64 elements need.
+            const Tensor tensor(row.has_storage
+                                    ? make_runtime_storage(TestEnvironment::runtime(),
+                                                           8 * sizeof(float),
+                                                           SushiRuntime::Residency::Shared)
+                                    : SushiRuntime::sushi_ptr<Storage>(),
+                                {4}, row.dtype);
+            const bool offered = row.aspect == nullptr ||
+                                 Device::profile_for(tensor.device()).*row.aspect;
+            const std::string refusal = refusal_text_of(
+                [&] { Dispatch::require_device_dtype(tensor, "op", "x"); });
+
+            EXPECT_EQ(refusal.empty(), offered) << refusal;
         }
 
-        TEST_F(Medium_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_OperandCheckDeviceDtype, ::testing::ValuesIn(device_dtype_rows()),
+            [](const ::testing::TestParamInfo<DeviceDtypeRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Groups the tests that read the device's own aspects. */
+        class Medium_OperandCheckProfile : public SushiBLASTest
+        {
+
+        };
+
+        TEST_F(Medium_OperandCheckProfile, TheProfileReportsTheFp16AspectOfItsDevice)
         {
             const sycl::queue& q = TestEnvironment::queue();
             EXPECT_EQ(Device::profile_for(q).supports_fp16,

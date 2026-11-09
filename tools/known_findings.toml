@@ -7,34 +7,6 @@ backlog = "RW-133"
 
 [[finding]]
 checker = "testing/check_test_value.py"
-rule = "rule_small_reaches_outside"
-path = "tests/engine/engine/test_profile_hooks.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/engine/test_operand_check.cpp"
-count = 9
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/engine/test_operation_options.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
-path = "tests/engine/engine/test_profile_hooks.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
 path = "tests/foundation/sparse_assembly/test_sparse_assembly.cpp"
 count = 1

@@ -20,7 +20,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
 | `test_late_count_hold.cpp` | Tests that a late count's token holds every storage and dies at release |
 | `test_kernel_pair_dispatcher.cpp` | Tests that the dispatcher picks the reference body under ForceReference only |
-| `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
+| `test_operand_check.cpp` | Tests the operand checks as rows on host tensors, the size of a narrowed functor, the Tensor constructor and transpose guards and the device dtype rows |
 | `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive and its merge |
 | `test_operation_options.cpp` | Tests that OperationOptions names a node and states no determinism class unless told to, and the record-time check every family shares |
 | `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |

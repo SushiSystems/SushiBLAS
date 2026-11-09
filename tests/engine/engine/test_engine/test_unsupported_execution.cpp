@@ -203,17 +203,6 @@ namespace SushiBLAS
             EXPECT_EQ(outcome, Outcome::UnsupportedExecution);
         }
 
-        TEST_F(Medium_UnsupportedExecutionSites, ADtypeTheDeviceLacksIsARefusal)
-        {
-            const Tensor wide = engine->create_tensor({4}, Core::DataType::Float64);
-            const Tensor half = engine->create_tensor({4}, Core::DataType::Half);
-
-            EXPECT_EQ(outcome_of([&] { Dispatch::require_device_dtype(wide, "op", "x"); }),
-                      outcome_on(Device::profile_for(wide.device()).supports_fp64));
-            EXPECT_EQ(outcome_of([&] { Dispatch::require_device_dtype(half, "op", "x"); }),
-                      outcome_on(Device::profile_for(half.device()).supports_fp16));
-        }
-
         TEST_F(Medium_UnsupportedExecutionSites, PoissonWithoutFp64IsARefusal)
         {
             Tensor t = engine->create_tensor({4});
