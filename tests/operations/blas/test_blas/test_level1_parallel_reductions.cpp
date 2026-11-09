@@ -38,6 +38,7 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/tolerance.hpp"
 
@@ -64,6 +65,9 @@ namespace SushiBLAS
 
             /** @brief Holds the first index of the run of equal magnitudes in the tie test. */
             constexpr std::size_t K_TIE_START = 12345;
+
+            /** @brief Holds the length of the vector the device HALF sum test folds. */
+            constexpr std::size_t K_HALF_FOLD_LENGTH = 4096;
 
             /** @brief Returns element i of the x operand: ((7i mod 13) - 6) / 8. */
             [[nodiscard]] float x_at(std::size_t i)
@@ -323,6 +327,38 @@ namespace SushiBLAS
             recording->run().value();
 
             EXPECT_EQ(read_scalar<int64_t>(r), static_cast<int64_t>(K_TIE_START));
+        }
+
+        /**
+         * @brief Tests that the device HALF sum matches the double sum of its operands within its derived bound.
+         *
+         * The device fold accumulates in float and rounds once into HALF, so the bound is one HALF
+         * roundoff of the sum plus K_HALF_FOLD_LENGTH float roundoffs of the sum of magnitudes.
+         * @see tests/operations/blas/README.md
+         */
+        TEST_F(Medium_Level1ParallelReductions, HalfSumMatchesTheHostDoubleSum)
+        {
+            std::vector<sycl::half> host(K_HALF_FOLD_LENGTH);
+            double reference = 0.0;
+            double magnitude = 0.0;
+            for (std::size_t i = 0; i < host.size(); ++i)
+            {
+                host[i] = sycl::half(0.1f + static_cast<float>(i % 97) * 0.0137f);
+                const double element = static_cast<double>(static_cast<float>(host[i]));
+                reference += element;
+                magnitude += std::fabs(element);
+            }
+
+            auto t = create_initialized_tensor<sycl::half>({static_cast<int64_t>(host.size())}, host);
+            auto r = engine->create_tensor({1}, Core::DataType::Half);
+
+            SushiBLAS::ReductionOps(recorder()).sum(t, r);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            const double computed = static_cast<double>(static_cast<float>(read_tensor<sycl::half>(r)[0]));
+            const double bound = half_absolute_tolerance(1, std::fabs(reference))
+                               + absolute_tolerance<float>(K_HALF_FOLD_LENGTH, magnitude);
+            EXPECT_NEAR(computed, reference, bound);
         }
 
         /**
