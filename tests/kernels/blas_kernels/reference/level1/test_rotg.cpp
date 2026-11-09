@@ -64,20 +64,29 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(b, -0.6f);
         }
 
-        TEST(Small_ReferenceRotg, AZeroComponentGivesTheIdentityOrTheSwap)
+        TEST(Small_ReferenceRotg, AZeroSecondComponentGivesTheIdentity)
         {
             double a = 2.0;
             double b = 0.0;
             double c = 0.0;
             double s = 7.0;
+
             Kernels::Reference::rotg(&a, &b, &c, &s);
+
             EXPECT_EQ(a, 2.0);
             EXPECT_EQ(c, 1.0);
             EXPECT_EQ(s, 0.0);
+        }
 
-            a = 0.0;
-            b = -3.0;
+        TEST(Small_ReferenceRotg, AZeroFirstComponentGivesTheSwap)
+        {
+            double a = 0.0;
+            double b = -3.0;
+            double c = 0.0;
+            double s = 7.0;
+
             Kernels::Reference::rotg(&a, &b, &c, &s);
+
             EXPECT_EQ(a, -3.0);
             EXPECT_EQ(c, 0.0);
             EXPECT_EQ(s, 1.0);
