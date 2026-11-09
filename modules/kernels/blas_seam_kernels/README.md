@@ -30,7 +30,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
 | `sycl/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
 | `sycl/level3/gemm_joint_matrix.hpp` | The HALF GEMM kernel that multiplies on the matrix units through `joint_matrix` |
-| `sycl/level3/gemm_log.hpp` | `GemmFallbackLog` and its sink, which write the no-local fallback and the applied pin once |
+| `sycl/level3/gemm_log.hpp` | `GemmFallbackLog` and its sink, which write the no-local fallback, the rejected pin and the applied pin once |
 | `sycl/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
 | `sycl/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
 | `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |

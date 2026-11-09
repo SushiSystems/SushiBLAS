@@ -135,5 +135,33 @@ namespace SushiBLAS
 
             EXPECT_EQ(sink.infos.size(), std::size_t{0});
         }
+
+        TEST_F(Small_GemmFallbackLog, AUnknownPinIsWarnedOncePerLog)
+        {
+            log.warn_rejected_gemm_tile_pin(Kernels::GemmTilePinStatus::Unknown);
+            log.warn_rejected_gemm_tile_pin(Kernels::GemmTilePinStatus::Unknown);
+
+            ASSERT_EQ(sink.warnings.size(), std::size_t{1});
+            EXPECT_NE(sink.warnings.front().find("names no catalog shape"), std::string::npos);
+            EXPECT_NE(sink.warnings.front().find(Device::K_GEMM_TILE_PIN_VARIABLE),
+                      std::string::npos);
+        }
+
+        TEST_F(Small_GemmFallbackLog, ARefusedPinNamesTheHardLimit)
+        {
+            log.warn_rejected_gemm_tile_pin(Kernels::GemmTilePinStatus::Refused);
+
+            ASSERT_EQ(sink.warnings.size(), std::size_t{1});
+            EXPECT_NE(sink.warnings.front().find("is past a hard limit of the device"),
+                      std::string::npos);
+        }
+
+        TEST_F(Small_GemmFallbackLog, AnAppliedOrAbsentPinWarnsNothing)
+        {
+            log.warn_rejected_gemm_tile_pin(Kernels::GemmTilePinStatus::Applied);
+            log.warn_rejected_gemm_tile_pin(Kernels::GemmTilePinStatus::None);
+
+            EXPECT_EQ(sink.warnings.size(), std::size_t{0});
+        }
     } // namespace Test
 } // namespace SushiBLAS

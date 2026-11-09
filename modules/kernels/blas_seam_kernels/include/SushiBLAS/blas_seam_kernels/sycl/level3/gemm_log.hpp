@@ -143,6 +143,26 @@ namespace SushiBLAS
                             });
                         }
 
+                        /**
+                         * @brief Writes one WARN when the pin names no catalog shape or is past a
+                         *        hard limit of the device, and no more.
+                         */
+                        void warn_rejected_gemm_tile_pin(GemmTilePinStatus status)
+                        {
+                            if (status != GemmTilePinStatus::Unknown && status != GemmTilePinStatus::Refused)
+                                return;
+
+                            std::call_once(rejected_, [&]()
+                            {
+                                sink_.warn(SushiLog::format_text(
+                                    "SYCL GEMM: {}={} {}; the tile is chosen as if unpinned.",
+                                    Device::K_GEMM_TILE_PIN_VARIABLE, Device::gemm_tile_pin(),
+                                    status == GemmTilePinStatus::Unknown
+                                        ? "names no catalog shape"
+                                        : "is past a hard limit of the device"));
+                            });
+                        }
+
                     private:
                         /// @brief Receives each record.
                         GemmLogSink& sink_;
@@ -155,6 +175,9 @@ namespace SushiBLAS
 
                         /// @brief Set once the applied pin is written.
                         std::once_flag stated_;
+
+                        /// @brief Set once the rejected pin is written.
+                        std::once_flag rejected_;
                 };
 
                 /** @brief Returns the log of the process: once per process, to the process logger. */

@@ -921,26 +921,6 @@ namespace SushiBLAS
                         return Core::DataType::Float32;
                 }
 
-                /**
-                 * @brief Logs one WARN per process for a pin the chooser could not apply.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                inline void warn_rejected_gemm_tile_pin(GemmTilePinStatus status)
-                {
-                    if (status != GemmTilePinStatus::Unknown && status != GemmTilePinStatus::Refused)
-                        return;
-
-                    static std::once_flag warned;
-                    std::call_once(warned, [status]()
-                    {
-                        SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
-                                    "SYCL GEMM: {}={} {}; the tile is chosen as if unpinned.",
-                                    Device::K_GEMM_TILE_PIN_VARIABLE, Device::gemm_tile_pin(),
-                                    status == GemmTilePinStatus::Unknown
-                                        ? "names no catalog shape"
-                                        : "is past a hard limit of the device");
-                    });
-                }
             } // namespace Detail
 
             /**
@@ -1001,7 +981,7 @@ namespace SushiBLAS
                         profile, gemm_tile_traits<T>(),
                         GemmTileProduct{m, n, k, batch_size, Detail::gemm_tile_dtype<T>()},
                         Device::gemm_tile_pin());
-                    Detail::warn_rejected_gemm_tile_pin(choice.pin);
+                    Detail::process_gemm_fallback_log().warn_rejected_gemm_tile_pin(choice.pin);
                     Detail::process_gemm_fallback_log().state_applied_gemm_tile_pin(choice, m, n, k);
 
                     if (choice.role)
