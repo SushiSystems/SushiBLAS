@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -46,30 +47,60 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        /** @brief Holds one layout and the two transposes of an unpacked gemm. */
+        struct UnpackedGemmCase
+        {
+            Core::Layout layout; /**< The storage order of the operands. */
+            bool trans_a;        /**< Whether A is transposed. */
+            bool trans_b;        /**< Whether B is transposed. */
+        };
+
+        /** @brief Returns both layouts crossed with the four transpose pairs. */
+        static std::vector<UnpackedGemmCase> unpacked_gemm_cases()
+        {
+            std::vector<UnpackedGemmCase> cases;
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
+                for (const bool trans_a : {false, true})
+                    for (const bool trans_b : {false, true})
+                        cases.push_back({layout, trans_a, trans_b});
+            return cases;
+        }
+
+        /** @brief Names a case for the test name. */
+        static std::string unpacked_gemm_case_name(
+            const ::testing::TestParamInfo<UnpackedGemmCase>& info)
+        {
+            return std::string(info.param.layout == Core::Layout::RowMajor ? "RowMajor"
+                                                                            : "ColumnMajor") +
+                   (info.param.trans_a ? "TransA" : "PlainA") +
+                   (info.param.trans_b ? "TransB" : "PlainB");
+        }
+
         /** @brief Runs the unpacked gemm on the host CPU queue. */
         class Medium_SYCLGemm : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Medium_SYCLGemm, MatchesTheReferenceInEveryLayoutTransposeAndBatch)
+        /** @brief Runs the unpacked gemm on the host CPU queue, one case at a time. */
+        class Medium_SYCLGemmCases : public HostDeviceTest,
+                                     public ::testing::WithParamInterface<UnpackedGemmCase>
+        {
+
+        };
+
+        TEST_P(Medium_SYCLGemmCases, MatchesTheReferenceInEveryLayoutTransposeAndBatch)
         {
             // The patterned operands are small integers, so both kernels compute exactly.
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool trans_a : {false, true})
-                {
-                    for (const bool trans_b : {false, true})
-                    {
-                        SCOPED_TRACE(2 * trans_a + trans_b);
-                        GemmProblem<double> problem(queue(), layout, transpose_of(trans_a),
-                                                    transpose_of(trans_b), 37, 29, 41, 2);
+            const UnpackedGemmCase row = GetParam();
+            GemmProblem<double> problem(queue(), row.layout, transpose_of(row.trans_a),
+                                        transpose_of(row.trans_b), 37, 29, 41, 2);
 
-                        EXPECT_EQ(problem.unpacked(2.0, -1.0), problem.expected(2.0, -1.0));
-                    }
-                }
-            }
+            EXPECT_EQ(problem.unpacked(2.0, -1.0), problem.expected(2.0, -1.0));
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLGemmCases, ::testing::ValuesIn(unpacked_gemm_cases()),
+                                 unpacked_gemm_case_name);
 
         TEST_F(Medium_SYCLGemm, FloatAndAZeroBetaMatchTheReference)
         {
