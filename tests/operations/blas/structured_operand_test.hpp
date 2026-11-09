@@ -37,6 +37,7 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -50,6 +51,29 @@ namespace SushiBLAS
         /// @brief Holds the two layouts every case runs under.
         inline constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ColumnMajor,
                                                      Core::Layout::RowMajor};
+
+        /**
+         * @brief Returns a dense tensor over host storage of its own, which needs no runtime.
+         * @param dims The extents; none is zero.
+         */
+        [[nodiscard]] inline Tensor host_matrix(std::initializer_list<int64_t> dims,
+                                                Core::Layout layout = Core::Layout::RowMajor,
+                                                Core::DataType dtype = Core::DataType::Float32)
+        {
+            int64_t elements = 1;
+            for (const int64_t extent : dims)
+                elements *= extent;
+            return Tensor(make_host_storage(static_cast<std::size_t>(elements) *
+                                            Core::bytes_per_element(dtype)),
+                          dims, dtype, 0, layout);
+        }
+
+        /** @brief Returns a tensor of a shape that owns no storage, which needs no runtime. */
+        [[nodiscard]] inline Tensor detached_matrix(std::initializer_list<int64_t> dims,
+                                                    Core::Layout layout = Core::Layout::RowMajor)
+        {
+            return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, Core::DataType::Float32, 0, layout);
+        }
 
         /**
          * @brief Builds the tensors the band, packed and scalar operand suites describe.

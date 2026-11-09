@@ -28,8 +28,11 @@
  */
 
 #include <cstdint>
-#include <string>
+#include <functional>
+#include <initializer_list>
 #include <stdexcept>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas/band_operand.hpp>
@@ -44,190 +47,265 @@ namespace SushiBLAS
             using Core::Layout;
             using Core::Uplo;
 
-            /// @brief Names the suite of the band operand cases.
-            using Medium_BandOperand = StructuredOperandTest;
+            /** @brief Returns the text of the invalid_argument a check throws, or "" when it throws none. */
+            std::string refusal_message(const std::function<void()>& check)
+            {
+                try
+                {
+                    check();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+                return std::string();
+            }
+
+            /** @brief One band tensor the geometry check describes, with the geometry it must give. */
+            struct GeometryRow
+            {
+                const char* name;   /**< Names the row. */
+                int64_t rows;       /**< Rows of the tensor. */
+                int64_t cols;       /**< Columns of the tensor. */
+                Layout layout;      /**< Layout of the tensor. */
+                int64_t kl;         /**< Sub-diagonals asked. */
+                int64_t ku;         /**< Super-diagonals asked. */
+                int64_t lines;      /**< Lines the operand must give. */
+                int64_t leading;    /**< Leading dimension the operand must give. */
+            };
+
+            /** @brief Returns the tensors a band operand describes without a refusal. */
+            std::vector<GeometryRow> geometry_rows()
+            {
+                return {
+                    {"ColumnMajorStoresOneLinePerColumn", 4, 5, Layout::ColumnMajor, 1, 2, 5, 4},
+                    {"RowMajorStoresOneLinePerRow", 4, 4, Layout::RowMajor, 1, 2, 4, 4},
+                    {"SpareSlotsPerLineAreAccepted", 6, 5, Layout::ColumnMajor, 1, 2, 5, 6},
+                    {"AWidthBeyondTheMatrixIsAccepted", 4, 2, Layout::ColumnMajor, 3, 0, 2, 4},
+                };
+            }
+
+            /** @brief Names the suite of the band geometry rows. */
+            class Small_BandOperandGeometry : public ::testing::TestWithParam<GeometryRow>
+            {
+            };
+
+            /** @brief One width the line-capacity check meets, on a square tensor of side four. */
+            struct CapacityRow
+            {
+                std::string name; /**< Names the row. */
+                Layout layout;    /**< Layout of the tensor. */
+                int64_t kl;       /**< Sub-diagonals asked. */
+                int64_t ku;       /**< Super-diagonals asked. */
+            };
+
+            /** @brief Returns the widths a line of four slots holds (@p accepted) or does not, under each layout. */
+            std::vector<CapacityRow> capacity_rows(bool accepted)
+            {
+                struct Width
+                {
+                    const char* label;
+                    int64_t kl;
+                    int64_t ku;
+                    bool accepted;
+                };
+                const Width widths[] = {
+                    {"Kl1Ku2", 1, 2, true},
+                    {"Kl3Ku0", 3, 0, true},
+                    {"Kl0Ku3", 0, 3, true},
+                    {"Kl2Ku2", 2, 2, false},
+                    {"Kl4Ku0", 4, 0, false},
+                    {"Kl0Ku4", 0, 4, false},
+                    {"BothMax", INT64_MAX, INT64_MAX, false},
+                    {"KlMax", INT64_MAX, 0, false},
+                    {"KuMax", 0, INT64_MAX, false},
+                };
+                std::vector<CapacityRow> rows;
+                for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
+                {
+                    const std::string prefix = layout == Layout::RowMajor ? "RowMajor" : "ColumnMajor";
+                    for (const Width& width : widths)
+                        if (width.accepted == accepted)
+                            rows.push_back({prefix + width.label, layout, width.kl, width.ku});
+                }
+                return rows;
+            }
+
+            /** @brief Names the suite of the widths a line holds. */
+            class Small_BandOperandFits : public ::testing::TestWithParam<CapacityRow>
+            {
+            };
+
+            /** @brief Names the suite of the widths a line does not hold. */
+            class Small_BandOperandOverflows : public ::testing::TestWithParam<CapacityRow>
+            {
+            };
+
+            /** @brief One tensor that is no dense rank-2 matrix, built on demand. */
+            struct ShapeRow
+            {
+                const char* name;               /**< Names the row. */
+                std::function<Tensor()> build;  /**< Builds the tensor the check must refuse. */
+            };
+
+            /** @brief Returns the tensors a band operand refuses for their shape. */
+            std::vector<ShapeRow> shape_rows()
+            {
+                return {
+                    {"ARankOneVector", [] { return host_matrix({20}, Layout::ColumnMajor); }},
+                    {"ARankThreeBatch", [] { return host_matrix({2, 4, 5}, Layout::ColumnMajor); }},
+                    {"ATransposedView",
+                     [] { return host_matrix({4, 5}, Layout::ColumnMajor).transpose(0, 1); }},
+                };
+            }
+
+            /** @brief Names the suite of the shape rows. */
+            class Small_BandOperandShape : public ::testing::TestWithParam<ShapeRow>
+            {
+            };
+
+            /** @brief One band width the check refuses as negative, and the name its message gives. */
+            struct NegativeWidthRow
+            {
+                const char* name; /**< Names the row. */
+                int64_t kl;       /**< Sub-diagonals asked. */
+                int64_t ku;       /**< Super-diagonals asked. */
+                const char* named; /**< The parameter the message must name, quoted. */
+            };
+
+            /** @brief Names the suite of the negative band width rows. */
+            class Small_BandOperandNegativeWidth : public ::testing::TestWithParam<NegativeWidthRow>
+            {
+            };
+
+            /** @brief One side of the triangle band and the widths it must give. */
+            struct TriangleRow
+            {
+                const char* name; /**< Names the row. */
+                Uplo uplo;        /**< Which triangle the band lies in. */
+                int64_t lower;    /**< Sub-diagonals the operand must give for a width of three. */
+                int64_t upper;    /**< Super-diagonals the operand must give for a width of three. */
+            };
+
+            /** @brief Names the suite of the triangle band rows, one per side. */
+            class Small_TriangleBandOperand : public ::testing::TestWithParam<TriangleRow>
+            {
+            };
         } // namespace
 
-        /**
-         * @brief Tests that a column-major band tensor gives its columns as lines.
-         */
-        TEST_F(Medium_BandOperand, AColumnMajorTensorStoresOneLinePerColumn)
+        TEST_P(Small_BandOperandGeometry, TheOperandGivesTheLinesTheLeadingDimensionAndTheWidths)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
-            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
+            const GeometryRow row = GetParam();
+            const Tensor t = host_matrix({row.rows, row.cols}, row.layout);
 
-            EXPECT_EQ(5, band.lines);
-            EXPECT_EQ(4, band.leading_dimension);
-            EXPECT_EQ(1, band.lower);
-            EXPECT_EQ(2, band.upper);
-            EXPECT_EQ(Layout::ColumnMajor, band.layout);
+            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, row.kl, row.ku, "op", "A");
+
+            EXPECT_EQ(row.lines, band.lines);
+            EXPECT_EQ(row.leading, band.leading_dimension);
+            EXPECT_EQ(row.kl, band.lower);
+            EXPECT_EQ(row.ku, band.upper);
+            EXPECT_EQ(row.layout, band.layout);
         }
 
-        /**
-         * @brief Tests that a row-major band tensor gives its rows as lines.
-         */
-        TEST_F(Medium_BandOperand, ARowMajorTensorStoresOneLinePerRow)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_BandOperandGeometry, ::testing::ValuesIn(geometry_rows()),
+            [](const ::testing::TestParamInfo<GeometryRow>& info) { return std::string(info.param.name); });
+
+        TEST(Small_BandOperand, AnEmptyTensorHasNoLine)
         {
-            const Tensor t = make_tensor({4, 4}, Layout::RowMajor);
-            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
+            const Tensor t = detached_matrix({3, 0}, Layout::ColumnMajor);
 
-            EXPECT_EQ(4, band.lines);
-            EXPECT_EQ(4, band.leading_dimension);
-            EXPECT_EQ(1, band.lower);
-            EXPECT_EQ(2, band.upper);
-            EXPECT_EQ(Layout::RowMajor, band.layout);
-        }
-
-        /**
-         * @brief Tests that a line may hold more slots than the band needs.
-         */
-        TEST_F(Medium_BandOperand, SpareSlotsPerLineAreAccepted)
-        {
-            const Tensor t = make_tensor({6, 5}, Layout::ColumnMajor);
-            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
-
-            EXPECT_EQ(5, band.lines);
-            EXPECT_EQ(6, band.leading_dimension);
-        }
-
-        /**
-         * @brief Tests that a band width may exceed what the matrix has diagonals for.
-         */
-        TEST_F(Medium_BandOperand, AWidthBeyondTheMatrixIsAccepted)
-        {
-            const Tensor t = make_tensor({4, 2}, Layout::ColumnMajor);
-            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 3, 0, "op", "A");
-
-            EXPECT_EQ(2, band.lines);
-            EXPECT_EQ(4, band.leading_dimension);
-            EXPECT_EQ(3, band.lower);
-            EXPECT_EQ(0, band.upper);
-        }
-
-        /**
-         * @brief Tests that a band tensor of no line is accepted and keeps its line length.
-         */
-        TEST_F(Medium_BandOperand, AnEmptyTensorHasNoLine)
-        {
-            const Tensor t = make_tensor_without_storage({3, 0}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 1, "op", "A");
 
             EXPECT_EQ(0, band.lines);
             EXPECT_EQ(3, band.leading_dimension);
         }
 
-        /**
-         * @brief Tests that a triangle band puts its k off-diagonals on the side uplo names.
-         */
-        TEST_F(Medium_BandOperand, ATriangleBandPutsItsWidthOnOneSide)
+        TEST_P(Small_TriangleBandOperand, TheWidthLandsOnTheSideUploNames)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
+            const TriangleRow row = GetParam();
+            const Tensor t = host_matrix({4, 5}, Layout::ColumnMajor);
 
-            const Dispatch::BandOperand upper =
-                Dispatch::describe_triangle_band_operand(t, Uplo::Upper, 3, "op", "A");
-            EXPECT_EQ(0, upper.lower);
-            EXPECT_EQ(3, upper.upper);
-            EXPECT_EQ(5, upper.lines);
-            EXPECT_EQ(4, upper.leading_dimension);
+            const Dispatch::BandOperand band =
+                Dispatch::describe_triangle_band_operand(t, row.uplo, 3, "op", "A");
 
-            const Dispatch::BandOperand lower =
-                Dispatch::describe_triangle_band_operand(t, Uplo::Lower, 3, "op", "A");
-            EXPECT_EQ(3, lower.lower);
-            EXPECT_EQ(0, lower.upper);
+            EXPECT_EQ(row.lower, band.lower);
+            EXPECT_EQ(row.upper, band.upper);
+            EXPECT_EQ(5, band.lines);
+            EXPECT_EQ(4, band.leading_dimension);
         }
 
-        /**
-         * @brief Tests that a negative band width is refused under the name the call gave it.
-         */
-        TEST_F(Medium_BandOperand, ANegativeWidthIsRefusedByName)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_TriangleBandOperand,
+            ::testing::Values(TriangleRow{"Upper", Uplo::Upper, 0, 3}, TriangleRow{"Lower", Uplo::Lower, 3, 0}),
+            [](const ::testing::TestParamInfo<TriangleRow>& info) { return std::string(info.param.name); });
+
+        TEST_P(Small_BandOperandNegativeWidth, ANegativeBandWidthIsRefusedUnderItsName)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
+            const NegativeWidthRow row = GetParam();
+            const Tensor t = host_matrix({4, 5}, Layout::ColumnMajor);
 
-            const auto band_refusal = [&](int64_t kl, int64_t ku)
-            {
-                return message_of([&]()
-                                  {
-                                      (void)Dispatch::describe_band_operand(t, kl, ku, "op", "A");
-                                  });
-            };
-            const auto triangle_refusal = [&](Uplo uplo)
-            {
-                return message_of([&]()
-                                  {
-                                      (void)Dispatch::describe_triangle_band_operand(
-                                          t, uplo, -1, "op", "A");
-                                  });
-            };
+            const std::string message = refusal_message(
+                [&] { (void)Dispatch::describe_band_operand(t, row.kl, row.ku, "op", "A"); });
 
-            EXPECT_THROW((void)Dispatch::describe_band_operand(t, -1, 2, "op", "A"),
-                         std::invalid_argument);
-            EXPECT_THROW((void)Dispatch::describe_band_operand(t, 1, -1, "op", "A"),
-                         std::invalid_argument);
-            EXPECT_NE(std::string::npos, band_refusal(-1, 2).find("'kl'"));
-            EXPECT_NE(std::string::npos, band_refusal(1, -1).find("'ku'"));
-
-            for (const Uplo uplo : {Uplo::Upper, Uplo::Lower})
-            {
-                SCOPED_TRACE(Core::to_string(uplo));
-
-                EXPECT_THROW(
-                    (void)Dispatch::describe_triangle_band_operand(t, uplo, -1, "op", "A"),
-                    std::invalid_argument);
-                EXPECT_NE(std::string::npos, triangle_refusal(uplo).find("'k'"));
-            }
+            EXPECT_NE(std::string::npos, message.find(row.named));
         }
 
-        /**
-         * @brief Tests that a band operand must be one dense matrix of rank 2.
-         */
-        TEST_F(Medium_BandOperand, ATensorThatIsNoDenseMatrixIsRefused)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_BandOperandNegativeWidth,
+            ::testing::Values(NegativeWidthRow{"SubDiagonals", -1, 2, "'kl'"},
+                              NegativeWidthRow{"SuperDiagonals", 1, -1, "'ku'"}),
+            [](const ::testing::TestParamInfo<NegativeWidthRow>& info) { return std::string(info.param.name); });
+
+        TEST_P(Small_TriangleBandOperand, ANegativeTriangleWidthIsRefusedUnderK)
         {
-            const Tensor vector = make_tensor({20}, Layout::ColumnMajor);
-            EXPECT_THROW((void)Dispatch::describe_band_operand(vector, 0, 0, "op", "A"),
-                         std::invalid_argument);
+            const TriangleRow row = GetParam();
+            const Tensor t = host_matrix({4, 5}, Layout::ColumnMajor);
 
-            const Tensor batch = make_tensor({2, 4, 5}, Layout::ColumnMajor);
-            EXPECT_THROW((void)Dispatch::describe_band_operand(batch, 0, 0, "op", "A"),
-                         std::invalid_argument);
+            const std::string message = refusal_message(
+                [&] { (void)Dispatch::describe_triangle_band_operand(t, row.uplo, -1, "op", "A"); });
 
-            const Tensor matrix = make_tensor({4, 5}, Layout::ColumnMajor);
-            ASSERT_NO_THROW((void)Dispatch::describe_band_operand(matrix, 0, 0, "op", "A"));
-            const Tensor transposed = matrix.transpose(0, 1);
-            EXPECT_THROW((void)Dispatch::describe_band_operand(transposed, 0, 0, "op", "A"),
+            EXPECT_NE(std::string::npos, message.find("'k'"));
+        }
+
+        TEST_P(Small_BandOperandShape, ATensorThatIsNoDenseMatrixIsRefused)
+        {
+            const Tensor t = GetParam().build();
+
+            EXPECT_THROW((void)Dispatch::describe_band_operand(t, 0, 0, "op", "A"), std::invalid_argument);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_BandOperandShape, ::testing::ValuesIn(shape_rows()),
+            [](const ::testing::TestParamInfo<ShapeRow>& info) { return std::string(info.param.name); });
+
+        TEST_P(Small_BandOperandFits, ABandAWholeLineHoldsIsAccepted)
+        {
+            const CapacityRow row = GetParam();
+            const Tensor t = host_matrix({4, 4}, row.layout);
+
+            const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, row.kl, row.ku, "op", "A");
+
+            EXPECT_EQ(row.kl, band.lower);
+            EXPECT_EQ(row.ku, band.upper);
+            EXPECT_EQ(4, band.lines);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_BandOperandFits, ::testing::ValuesIn(capacity_rows(true)),
+            [](const ::testing::TestParamInfo<CapacityRow>& info) { return info.param.name; });
+
+        TEST_P(Small_BandOperandOverflows, ABandWiderThanALineIsRefusedWithoutOverflow)
+        {
+            const CapacityRow row = GetParam();
+            const Tensor t = host_matrix({4, 4}, row.layout);
+
+            EXPECT_THROW((void)Dispatch::describe_band_operand(t, row.kl, row.ku, "op", "A"),
                          std::invalid_argument);
         }
 
-        /**
-         * @brief Tests that a band wider than a stored line is refused, without overflow for
-         *        the largest widths.
-         */
-        TEST_F(Medium_BandOperand, ABandWiderThanALineIsRefused)
-        {
-            for (const Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(layout == Layout::RowMajor ? "row-major" : "column-major");
-
-                // Both extents are 4, so a line holds 4 slots under either layout.
-                const Tensor t = make_tensor({4, 4}, layout);
-
-                EXPECT_NO_THROW((void)Dispatch::describe_band_operand(t, 1, 2, "op", "A"));
-                EXPECT_NO_THROW((void)Dispatch::describe_band_operand(t, 3, 0, "op", "A"));
-                EXPECT_NO_THROW((void)Dispatch::describe_band_operand(t, 0, 3, "op", "A"));
-
-                EXPECT_THROW((void)Dispatch::describe_band_operand(t, 2, 2, "op", "A"),
-                             std::invalid_argument);
-                EXPECT_THROW((void)Dispatch::describe_band_operand(t, 4, 0, "op", "A"),
-                             std::invalid_argument);
-                EXPECT_THROW((void)Dispatch::describe_band_operand(t, 0, 4, "op", "A"),
-                             std::invalid_argument);
-                EXPECT_THROW(
-                    (void)Dispatch::describe_band_operand(t, INT64_MAX, INT64_MAX, "op", "A"),
-                    std::invalid_argument);
-                EXPECT_THROW((void)Dispatch::describe_band_operand(t, INT64_MAX, 0, "op", "A"),
-                             std::invalid_argument);
-                EXPECT_THROW((void)Dispatch::describe_band_operand(t, 0, INT64_MAX, "op", "A"),
-                             std::invalid_argument);
-            }
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_BandOperandOverflows, ::testing::ValuesIn(capacity_rows(false)),
+            [](const ::testing::TestParamInfo<CapacityRow>& info) { return info.param.name; });
     } // namespace Test
 } // namespace SushiBLAS
