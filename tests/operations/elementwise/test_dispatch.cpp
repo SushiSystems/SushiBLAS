@@ -48,6 +48,7 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -768,15 +769,28 @@ namespace SushiBLAS
             expect_integer_operations_agree<int64_t>();
         }
 
-        /** @brief Tests that convert agrees to the bit for each ordered pair of real dtypes. */
-        TEST_F(Medium_FunctorReference, ConvertAgreesToTheBit)
+        /** @brief Runs the cases that need a device with the fp16 aspect; skips them on one without. */
+        class Medium_FunctorReferenceHalf : public Medium_FunctorReference
+        {
+            protected:
+                void SetUp() override
+                {
+                    Medium_FunctorReference::SetUp();
+                    if (!device_has_fp16())
+                        GTEST_SKIP() << "the device does not report the fp16 aspect";
+                }
+        };
+
+        /** @brief Tests that convert agrees to the bit between FLOAT32 and FLOAT64. */
+        TEST_F(Medium_FunctorReference, ConvertAgreesToTheBitBetweenFloatAndDouble)
         {
             expect_convert_agrees<float, double>();
             expect_convert_agrees<double, float>();
+        }
 
-            if (!device_has_fp16())
-                GTEST_SKIP() << "the device does not report the fp16 aspect, so no HALF pair ran";
-
+        /** @brief Tests that convert agrees to the bit for each ordered pair that includes HALF. */
+        TEST_F(Medium_FunctorReferenceHalf, ConvertAgreesToTheBitForEachPairWithHalf)
+        {
             expect_convert_agrees<sycl::half, float>();
             expect_convert_agrees<float, sycl::half>();
             expect_convert_agrees<sycl::half, double>();
@@ -784,11 +798,8 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that HALF arithmetic agrees to the bit on normal and zero results. */
-        TEST_F(Medium_FunctorReference, HalfOperationsAgreeOutsideTheSubnormalRange)
+        TEST_F(Medium_FunctorReferenceHalf, HalfOperationsAgreeOutsideTheSubnormalRange)
         {
-            if (!device_has_fp16())
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
-
             HostInputs<sycl::half> host;
             host.a = signed_pattern<sycl::half>(K_ELEMENTS, 3.0);
             host.b = filled<sycl::half>(K_ELEMENTS, [](int64_t i) -> sycl::half
@@ -837,13 +848,26 @@ namespace SushiBLAS
             expect_equal_bits(x_result);
         }
 
-        /** @brief Tests that Auto takes the device-only operand that ForceReference refuses. */
-        TEST_F(Medium_FunctorReference, AutoRunsTheSYCLPath)
+        /** @brief Holds a device-only operand; skips the cases on a device that offers no device-only USM. */
+        class Medium_FunctorReferenceDeviceOnly : public Medium_FunctorReference
         {
-            std::optional<Tensor> a = device_only_vector(4);
-            if (!a)
-                GTEST_SKIP() << "This device offers no device-only USM.";
-            fill_tensor(*a, {1.0f, 2.0f, 3.0f, 4.0f});
+            protected:
+                void SetUp() override
+                {
+                    Medium_FunctorReference::SetUp();
+                    device_only = device_only_vector(4);
+                    if (!device_only)
+                        GTEST_SKIP() << "This device offers no device-only USM.";
+                    fill_tensor(*device_only, {1.0f, 2.0f, 3.0f, 4.0f});
+                }
+
+                /** @brief The device-only operand: 1, 2, 3, 4. */
+                std::optional<Tensor> device_only;
+        };
+
+        /** @brief Tests that Auto and ForceSYCL compute a device-only operand to the right values. */
+        TEST_F(Medium_FunctorReferenceDeviceOnly, AutoAndForceSYCLComputeADeviceOnlyOperand)
+        {
             const Tensor b = tensor_of(std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f});
 
             for (const ExecutionMode mode : K_SYCL_MODES)
@@ -851,34 +875,39 @@ namespace SushiBLAS
                 GraphProbe probe(mode);
                 Tensor c = engine->create_tensor({4});
 
-                EXPECT_NO_THROW(ElementwiseOps(probe.recorder()).add(*a, b, c));
+                EXPECT_NO_THROW(ElementwiseOps(probe.recorder()).add(*device_only, b, c));
                 probe.execute().value();
 
                 expect_tensor_equal(c, {11.0f, 22.0f, 33.0f, 44.0f});
             }
+        }
 
+        /** @brief Tests that ForceReference refuses a device-only operand, naming the mode, and records nothing. */
+        TEST_F(Medium_FunctorReferenceDeviceOnly, ForceReferenceRefusesADeviceOnlyOperandNamingTheMode)
+        {
+            const Tensor b = tensor_of(std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f});
             GraphProbe reference(ExecutionMode::ForceReference);
             Tensor c = engine->create_tensor({4});
+
             const std::string message =
-                refusal_of([&] { ElementwiseOps(reference.recorder()).add(*a, b, c); });
+                refusal_of([&] { ElementwiseOps(reference.recorder()).add(*device_only, b, c); });
 
             EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
             EXPECT_EQ(0u, reference.take_recorded_count());
         }
 
-        /** @brief Tests that add over empty tensors records no task under either forced mode. */
-        TEST_F(Medium_FunctorReference, AnEmptyTensorRecordsNothingInEitherMode)
-        {
-            for (const ExecutionMode mode : K_FORCED_MODES)
-            {
-                GraphProbe probe(mode);
-                Tensor a = engine->create_tensor({0, 3});
-                Tensor b = engine->create_tensor({0, 3});
-                Tensor c = engine->create_tensor({0, 3});
+        /** @brief Records on a host engine, where only the reference path is admitted. */
+        class Small_ElementwiseEmptyOperand : public HostEngineTest {};
 
-                EXPECT_FALSE(ElementwiseOps(probe.recorder()).add(a, b, c).is_valid());
-                EXPECT_EQ(0u, probe.take_recorded_count());
-            }
+        /** @brief Tests that add over empty tensors records no task. */
+        TEST_F(Small_ElementwiseEmptyOperand, AddOverEmptyTensorsRecordsNothing)
+        {
+            Tensor a = engine->create_tensor({0, 3});
+            Tensor b = engine->create_tensor({0, 3});
+            Tensor c = engine->create_tensor({0, 3});
+
+            EXPECT_FALSE(ElementwiseOps(recorder()).add(a, b, c).is_valid());
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
     } // namespace Test
 } // namespace SushiBLAS
