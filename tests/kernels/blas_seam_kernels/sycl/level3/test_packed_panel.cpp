@@ -33,7 +33,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
-#include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
@@ -158,13 +157,6 @@ namespace SushiBLAS
                 return source;
             }
 
-            /** @brief Returns the source of the given rows in both storage orders. */
-            template<typename T>
-            [[nodiscard]] std::array<StoredSource<T>, 2> both_storage_orders(int64_t rows)
-            {
-                return {row_major_source<T>(rows), column_major_source<T>(rows)};
-            }
-
             /** @brief Reads a row-major source of K_SOURCE_COLS columns and offers only `at`. */
             struct AtOnlyAccess
             {
@@ -252,24 +244,120 @@ namespace SushiBLAS
                     }
                 }
             }
-        }
+
+            /** @brief Expects the panel of columns of a source to hold element (term, line). */
+            template<typename T>
+            void expect_column_lines_read_the_second_factor(const StoredSource<T>& source)
+            {
+                expect_common_panel<T, PanelLines::Columns>(
+                    pack_common<T, PanelLines::Columns>(source.elements, source.access));
+            }
+
+            /** @brief Expects a conjugated access to negate the imaginary plane and no other. */
+            template<typename T>
+            void expect_conjugation_negates_the_imaginary_plane(const StoredSource<T>& source)
+            {
+                using W = Kernels::Accumulator<T>;
+
+                Kernels::OperandAccess conjugated = source.access;
+                conjugated.conjugated = true;
+
+                const auto plain = pack_common<T, PanelLines::Rows>(source.elements, source.access);
+                const auto flipped = pack_common<T, PanelLines::Rows>(source.elements, conjugated);
+
+                ASSERT_EQ(plain.size(), flipped.size());
+                for (std::size_t i = 0; i + 1 < plain.size(); ++i)
+                {
+                    const bool imaginary = (i / K_WIDTH) % parts_of<W>() == 1;
+                    EXPECT_EQ(flipped[i], imaginary ? -plain[i] : plain[i]) << "real " << i;
+                }
+            }
+
+            /** @brief Expects a slice to be Width real parts followed by Width imaginary parts. */
+            template<typename T>
+            void expect_parts_are_stored_in_planes(const StoredSource<T>& source)
+            {
+                using W = Kernels::Accumulator<T>;
+
+                const int64_t depth = 2;
+                const auto panel = pack_guarded<T, PanelLines::Rows>(source.elements, source.access,
+                                                                     0, K_WIDTH, 0, depth);
+
+                ASSERT_EQ(panel.size(),
+                          static_cast<std::size_t>(depth * parts_of<W>() * K_WIDTH) + 1);
+                for (int64_t l = 0; l < depth; ++l)
+                    for (int64_t plane = 0; plane < parts_of<W>(); ++plane)
+                        for (int64_t i = 0; i < K_WIDTH; ++i)
+                            EXPECT_EQ(panel[static_cast<std::size_t>(l * parts_of<W>() * K_WIDTH +
+                                                                     plane * K_WIDTH + i)],
+                                      part_of(source_value<T>(i, l), plane))
+                                << "line " << i << ", term " << l << ", plane " << plane;
+            }
+
+            /** @brief Expects the first slice of a packed panel to hold the first column. */
+            template<typename T>
+            void expect_the_first_slice_converts_exactly(const StoredSource<T>& source)
+            {
+                using R = Kernels::RealType<Kernels::Accumulator<T>>;
+
+                const std::vector<R> panel = pack_guarded<T, PanelLines::Rows>(
+                    source.elements, source.access, 0, K_WIDTH, 0, 1);
+
+                for (int64_t i = 0; i < K_WIDTH; ++i)
+                    EXPECT_EQ(panel[static_cast<std::size_t>(i)], static_cast<R>(10 * i))
+                        << "line " << i;
+            }
+
+            /** @brief Expects the real after a panel of count lines to be left alone. */
+            template<typename T>
+            void expect_nothing_is_written_past_the_panel(const StoredSource<T>& source,
+                                                          int64_t count)
+            {
+                using R = Kernels::RealType<Kernels::Accumulator<T>>;
+
+                const auto panel = pack_guarded<T, PanelLines::Rows>(
+                    source.elements, source.access, 0, count, K_TERM_FIRST, K_DEPTH);
+
+                ASSERT_EQ(panel.size(), static_cast<std::size_t>(panel_reals<T>(count, K_DEPTH)) + 1);
+                EXPECT_EQ(panel.back(), static_cast<R>(K_SENTINEL)) << "count " << count;
+                EXPECT_NE(panel[panel.size() - 2], static_cast<R>(K_SENTINEL))
+                    << "count " << count;
+            }
+
+            /** @brief Expects a panel of no lines, and one of no terms, to write no real. */
+            template<typename T>
+            void expect_a_zero_count_or_depth_writes_nothing(const StoredSource<T>& source)
+            {
+                using R = Kernels::RealType<Kernels::Accumulator<T>>;
+
+                const auto no_lines = pack_guarded<T, PanelLines::Rows>(
+                    source.elements, source.access, K_FIRST, 0, K_TERM_FIRST, K_DEPTH);
+                const auto no_terms = pack_guarded<T, PanelLines::Rows>(
+                    source.elements, source.access, K_FIRST, K_COUNT, K_TERM_FIRST, 0);
+
+                ASSERT_EQ(no_lines.size(), std::size_t{1});
+                ASSERT_EQ(no_terms.size(), std::size_t{1});
+                EXPECT_EQ(no_lines[0], static_cast<R>(K_SENTINEL));
+                EXPECT_EQ(no_terms[0], static_cast<R>(K_SENTINEL));
+            }
+        } // namespace
 
         /**
          * @brief Names the element type a panel is packed from.
          * @tparam T The stored element type; the panel holds reals of Accumulator<T>.
          */
         template<typename T>
-        class Medium_PackedPanel : public ::testing::Test
+        class Small_PackedPanel : public ::testing::Test
         {
 
         };
 
         using PackedPanelTypes =
             ::testing::Types<sycl::half, float, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_PackedPanel, PackedPanelTypes);
+        SB_TYPED_TEST_SUITE(Small_PackedPanel, PackedPanelTypes);
 
         /** @brief Tests that lines are grouped into micro-panels and terms into slices. */
-        TYPED_TEST(Medium_PackedPanel, LinesAreGroupedAndTermsAreSlices)
+        TYPED_TEST(Small_PackedPanel, LinesAreGroupedAndTermsAreSlices)
         {
             using T = TypeParam;
 
@@ -281,7 +369,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the storage order of the source does not change the panel. */
-        TYPED_TEST(Medium_PackedPanel, BothStorageOrdersGiveTheSamePanel)
+        TYPED_TEST(Small_PackedPanel, BothStorageOrdersGiveTheSamePanel)
         {
             using T = TypeParam;
 
@@ -301,18 +389,21 @@ namespace SushiBLAS
             EXPECT_EQ(columns_of_rows, columns_of_columns);
         }
 
-        /** @brief Tests that a panel of columns holds element (term, line) of the source. */
-        TYPED_TEST(Medium_PackedPanel, ColumnLinesReadTheSecondFactor)
+        /** @brief Tests that a panel of columns holds element (term, line) of a row-major source. */
+        TYPED_TEST(Small_PackedPanel, ColumnLinesReadTheSecondFactorFromRowMajorStorage)
         {
-            using T = TypeParam;
+            expect_column_lines_read_the_second_factor(row_major_source<TypeParam>(K_SOURCE_ROWS));
+        }
 
-            for (const StoredSource<T>& source : both_storage_orders<T>(K_SOURCE_ROWS))
-                expect_common_panel<T, PanelLines::Columns>(
-                    pack_common<T, PanelLines::Columns>(source.elements, source.access));
+        /** @brief Tests that a panel of columns holds element (term, line) of a column-major source. */
+        TYPED_TEST(Small_PackedPanel, ColumnLinesReadTheSecondFactorFromColumnMajorStorage)
+        {
+            expect_column_lines_read_the_second_factor(
+                column_major_source<TypeParam>(K_SOURCE_ROWS));
         }
 
         /** @brief Tests that an access brick whose only member is `at` is packed. */
-        TYPED_TEST(Medium_PackedPanel, ABrickWithOnlyAtIsPacked)
+        TYPED_TEST(Small_PackedPanel, ABrickWithOnlyAtIsPacked)
         {
             using T = TypeParam;
 
@@ -331,109 +422,66 @@ namespace SushiBLAS
             EXPECT_EQ(columns_by_at, columns_by_access);
         }
 
-        /** @brief Tests that a conjugated access negates the imaginary plane and no other. */
-        TYPED_TEST(Medium_PackedPanel, AConjugatedAccessNegatesTheImaginaryPlane)
+        /** @brief Tests that a conjugated access negates the imaginary plane of a row-major source. */
+        TYPED_TEST(Small_PackedPanel, AConjugatedAccessNegatesTheImaginaryPlaneOfRowMajorStorage)
         {
-            using T = TypeParam;
-            using W = Kernels::Accumulator<T>;
+            expect_conjugation_negates_the_imaginary_plane(
+                row_major_source<TypeParam>(K_SOURCE_ROWS));
+        }
 
-            for (const StoredSource<T>& source : both_storage_orders<T>(K_SOURCE_ROWS))
-            {
-                Kernels::OperandAccess conjugated = source.access;
-                conjugated.conjugated = true;
-
-                const auto plain = pack_common<T, PanelLines::Rows>(source.elements, source.access);
-                const auto flipped = pack_common<T, PanelLines::Rows>(source.elements, conjugated);
-
-                ASSERT_EQ(plain.size(), flipped.size());
-                for (std::size_t i = 0; i + 1 < plain.size(); ++i)
-                {
-                    const bool imaginary = (i / K_WIDTH) % parts_of<W>() == 1;
-                    EXPECT_EQ(flipped[i], imaginary ? -plain[i] : plain[i]) << "real " << i;
-                }
-            }
+        /** @brief Tests that a conjugated access negates the imaginary plane of a column-major source. */
+        TYPED_TEST(Small_PackedPanel, AConjugatedAccessNegatesTheImaginaryPlaneOfColumnMajorStorage)
+        {
+            expect_conjugation_negates_the_imaginary_plane(
+                column_major_source<TypeParam>(K_SOURCE_ROWS));
         }
 
         /** @brief Tests that a slice is Width real parts followed by Width imaginary parts. */
-        TYPED_TEST(Medium_PackedPanel, ComplexPartsAreStoredInPlanes)
+        TYPED_TEST(Small_PackedPanel, ComplexPartsAreStoredInPlanes)
         {
-            using T = TypeParam;
-            using W = Kernels::Accumulator<T>;
-
-            const int64_t depth = 2;
-            const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
-            const auto panel = pack_guarded<T, PanelLines::Rows>(source.elements, source.access, 0,
-                                                                 K_WIDTH, 0, depth);
-
-            ASSERT_EQ(panel.size(), static_cast<std::size_t>(depth * parts_of<W>() * K_WIDTH) + 1);
-            for (int64_t l = 0; l < depth; ++l)
-                for (int64_t plane = 0; plane < parts_of<W>(); ++plane)
-                    for (int64_t i = 0; i < K_WIDTH; ++i)
-                        EXPECT_EQ(panel[static_cast<std::size_t>(l * parts_of<W>() * K_WIDTH +
-                                                                 plane * K_WIDTH + i)],
-                                  part_of(source_value<T>(i, l), plane))
-                            << "line " << i << ", term " << l << ", plane " << plane;
+            expect_parts_are_stored_in_planes(row_major_source<TypeParam>(K_SOURCE_ROWS));
         }
 
         /** @brief Tests that the panel holds reals of Accumulator<T> and converts each exactly. */
-        TYPED_TEST(Medium_PackedPanel, HalfIsPackedAsFloat)
+        TYPED_TEST(Small_PackedPanel, HalfIsPackedAsFloat)
         {
-            using T = TypeParam;
-            using R = Kernels::RealType<Kernels::Accumulator<T>>;
-
             using HalfReal = Kernels::RealType<Kernels::Accumulator<sycl::half>>;
+            const bool half_holds_float = std::is_same_v<HalfReal, float>;
 
-            static_assert(std::is_same_v<HalfReal, float>, "A HALF panel must hold FLOAT32 reals.");
-
-            const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
-            const std::vector<R> panel =
-                pack_guarded<T, PanelLines::Rows>(source.elements, source.access, 0, K_WIDTH, 0, 1);
-
-            for (int64_t i = 0; i < K_WIDTH; ++i)
-                EXPECT_EQ(panel[static_cast<std::size_t>(i)], static_cast<R>(10 * i))
-                    << "line " << i;
+            EXPECT_TRUE(half_holds_float);
+            expect_the_first_slice_converts_exactly(row_major_source<TypeParam>(K_SOURCE_ROWS));
         }
 
-        /** @brief Tests that the real after the last micro-panel is left alone. */
-        TYPED_TEST(Medium_PackedPanel, NothingIsWrittenPastThePanel)
+        /** @brief Tests that the real after the last micro-panel of a row-major source is left alone. */
+        TYPED_TEST(Small_PackedPanel, NothingIsWrittenPastThePanelOfRowMajorStorage)
         {
-            using T = TypeParam;
-            using R = Kernels::RealType<Kernels::Accumulator<T>>;
+            const StoredSource<TypeParam> source = row_major_source<TypeParam>(K_WHOLE_PANEL_ROWS);
 
-            for (const StoredSource<T>& source : both_storage_orders<T>(K_WHOLE_PANEL_ROWS))
-            {
-                for (const int64_t count : {K_COUNT, K_WHOLE_PANEL_ROWS})
-                {
-                    const auto panel = pack_guarded<T, PanelLines::Rows>(
-                        source.elements, source.access, 0, count, K_TERM_FIRST, K_DEPTH);
-
-                    ASSERT_EQ(panel.size(),
-                              static_cast<std::size_t>(panel_reals<T>(count, K_DEPTH)) + 1);
-                    EXPECT_EQ(panel.back(), static_cast<R>(K_SENTINEL)) << "count " << count;
-                    EXPECT_NE(panel[panel.size() - 2], static_cast<R>(K_SENTINEL))
-                        << "count " << count;
-                }
-            }
+            expect_nothing_is_written_past_the_panel(source, K_COUNT);
+            expect_nothing_is_written_past_the_panel(source, K_WHOLE_PANEL_ROWS);
         }
 
-        /** @brief Tests that a panel of no lines, or of no terms, writes no real. */
-        TYPED_TEST(Medium_PackedPanel, ACountOrADepthOfZeroWritesNothing)
+        /** @brief Tests that the real after the last micro-panel of a column-major source is left alone. */
+        TYPED_TEST(Small_PackedPanel, NothingIsWrittenPastThePanelOfColumnMajorStorage)
         {
-            using T = TypeParam;
-            using R = Kernels::RealType<Kernels::Accumulator<T>>;
+            const StoredSource<TypeParam> source =
+                column_major_source<TypeParam>(K_WHOLE_PANEL_ROWS);
 
-            for (const StoredSource<T>& source : both_storage_orders<T>(K_SOURCE_ROWS))
-            {
-                const auto no_lines = pack_guarded<T, PanelLines::Rows>(
-                    source.elements, source.access, K_FIRST, 0, K_TERM_FIRST, K_DEPTH);
-                const auto no_terms = pack_guarded<T, PanelLines::Rows>(
-                    source.elements, source.access, K_FIRST, K_COUNT, K_TERM_FIRST, 0);
+            expect_nothing_is_written_past_the_panel(source, K_COUNT);
+            expect_nothing_is_written_past_the_panel(source, K_WHOLE_PANEL_ROWS);
+        }
 
-                ASSERT_EQ(no_lines.size(), std::size_t{1});
-                ASSERT_EQ(no_terms.size(), std::size_t{1});
-                EXPECT_EQ(no_lines[0], static_cast<R>(K_SENTINEL));
-                EXPECT_EQ(no_terms[0], static_cast<R>(K_SENTINEL));
-            }
+        /** @brief Tests that a panel of no lines, or of no terms, of a row-major source writes no real. */
+        TYPED_TEST(Small_PackedPanel, ACountOrADepthOfZeroWritesNothingFromRowMajorStorage)
+        {
+            expect_a_zero_count_or_depth_writes_nothing(row_major_source<TypeParam>(K_SOURCE_ROWS));
+        }
+
+        /** @brief Tests that a panel of no lines, or of no terms, of a column-major source writes no real. */
+        TYPED_TEST(Small_PackedPanel, ACountOrADepthOfZeroWritesNothingFromColumnMajorStorage)
+        {
+            expect_a_zero_count_or_depth_writes_nothing(
+                column_major_source<TypeParam>(K_SOURCE_ROWS));
         }
     } // namespace Test
 } // namespace SushiBLAS
