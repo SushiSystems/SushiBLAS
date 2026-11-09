@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,27 +44,35 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSpr, UpdatesThePackedTriangle)
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs spr for one layout and one triangle, as a row of (row major, upper).
+        class Small_ReferenceSpr : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that spr adds alpha x x^T to the named packed triangle and leaves the other entries.
+        TEST_P(Small_ReferenceSpr, UpdatesThePackedTriangle)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);
             const std::vector<double> x = small_integers<double>(n, 2);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
-                    const std::vector<double> expected = to_packed(
-                        triangle_update(a, n, upper, 2.0, x, {}, false), n, uplo_of(upper),
-                        layout);
+            std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
+            const std::vector<double> expected = to_packed(
+                triangle_update(a, n, upper, 2.0, x, {}, false), n, uplo_of(upper),
+                layout);
 
-                    Kernels::Reference::spr(layout, uplo_of(upper), n, 2.0, x.data(), 1,
-                                            packed.data());
+            Kernels::Reference::spr(layout, uplo_of(upper), n, 2.0, x.data(), 1,
+                                    packed.data());
 
-                    EXPECT_EQ(packed, expected);
-                }
-            }
+            EXPECT_EQ(packed, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Small_ReferenceSpr,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
