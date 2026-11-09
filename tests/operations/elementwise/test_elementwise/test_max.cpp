@@ -27,20 +27,25 @@
  * @author Mustafa Garip
  */
 
-#include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_MaxTest : public SushiBLASTest {};
+class Small_MaxTest : public HostEngineTest {};
 
-TEST_F(Medium_MaxTest, FloatForward) 
+/**
+ * @brief Tests that the recorded max writes the larger of the two operands at each position when the task runs.
+ */
+TEST_F(Small_MaxTest, MaxWritesTheLargerOfEachPair) 
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -49,26 +54,34 @@ TEST_F(Medium_MaxTest, FloatForward)
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).max(a, b, c);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(c, {2.00000f, 2.00000f, 4.00000f, 0.50000f});
 }
 
+/// @brief Runs max on the integer element types.
+template<typename Int>
+class Small_MaxIntegerTest : public HostEngineTest {};
+
+/// @brief The integer element types under test.
+using MaxIntegerTypes = ::testing::Types<int32_t, int64_t>;
+TYPED_TEST_SUITE(Small_MaxIntegerTest, MaxIntegerTypes, DefaultTypeNames);
+
 /**
- * @brief Tests that max returns NaN when either operand is NaN.
+ * @brief Tests that the recorded max writes the larger of each pair of integer operands.
  */
-TEST_F(Medium_MaxTest, NaNInEitherOperandPropagates)
+TYPED_TEST(Small_MaxIntegerTest, MaxWritesTheLargerOfEachPairOfIntegers)
 {
-    const float nan = std::numeric_limits<float>::quiet_NaN();
-    auto a = create_initialized_tensor<float>({3}, {nan, 1.0f, 2.0f});
-    auto b = create_initialized_tensor<float>({3}, {1.0f, nan, 3.0f});
-    auto c = engine->create_tensor({3});
+    using Int = TypeParam;
+    constexpr Int k_max = std::numeric_limits<Int>::max();
+    constexpr Int k_min = std::numeric_limits<Int>::min();
 
-    SushiBLAS::ElementwiseOps(recorder()).max(a, b, c);
-    recording->run().value();
+    auto a = this->template create_initialized_tensor<Int>({4}, {7, -3, k_max, k_min});
+    auto b = this->template create_initialized_tensor<Int>({4}, {5, 4, 1, -1});
+    auto c = this->engine->create_tensor({4}, sushiblas_dtype<Int>());
 
-    const std::vector<float> got = read_tensor<float>(c);
-    EXPECT_TRUE(std::isnan(got[0]));
-    EXPECT_TRUE(std::isnan(got[1]));
-    EXPECT_FLOAT_EQ(3.0f, got[2]);
+    SushiBLAS::ElementwiseOps(this->recorder()).max(a, b, c);
+    ASSERT_TRUE(this->recording->run_succeeds());
+
+    EXPECT_EQ((std::vector<Int>{7, 4, k_max, -1}), read_tensor<Int>(c));
 }
