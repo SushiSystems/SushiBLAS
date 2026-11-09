@@ -71,8 +71,8 @@ standard defines as real (`rot`'s `c` and `s`, the `alpha` of `her`, `hpr` and `
 of `herk` and `her2k`, and `ger`'s `alpha`) are `double`.
 
 ```cpp
-SushiBLAS::BLASOps(this->recorder())
-    .herk(A, C, uplo, Core::Transpose::ConjTrans, 2.0, 3.0);
+SushiBLAS::BLASOps(recorder())
+    .herk(A, C, form.uplo, Core::Transpose::ConjTrans, 2.0, 3.0);
 // ...
 SushiBLAS::BLASOps(recorder()).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
 ```
