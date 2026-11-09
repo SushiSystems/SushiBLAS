@@ -28,6 +28,8 @@
  */
 
 #include <array>
+#include <iterator>
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
@@ -118,6 +120,10 @@ namespace SushiBLAS
 
             EXPECT_EQ(sycl_a.values(), ref_a.values());
             EXPECT_EQ(sycl_b.values(), ref_b.values());
+            std::vector<double> negated_second;
+            std::transform(second.begin(), second.end(), std::back_inserter(negated_second),
+                           [](double value) { return -value; });
+            EXPECT_EQ(ref_a.values(), negated_second);
             EXPECT_EQ(ref_b.values(), first);
         }
     } // namespace Test
