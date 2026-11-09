@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -53,18 +54,39 @@ namespace SushiBLAS
             return ran;
         }
 
-        TEST(Medium_KernelPairDispatcher, ForceReferenceRunsTheReferenceBody)
+        /** @brief Names a mode and the body a dispatcher in it runs: 1 for reference, 2 for SYCL. */
+        struct ModeRow
         {
-            EXPECT_EQ(body_run_in(ExecutionMode::ForceReference), 1);
+            const char* name;    /**< The row name a failure shows. */
+            ExecutionMode mode;  /**< The mode of the dispatcher. */
+            int body;            /**< The body that must run. */
+        };
+
+        /** @brief Returns ForceReference with the reference body and every other mode with the SYCL body. */
+        static std::vector<ModeRow> mode_rows()
+        {
+            return {{"ForceReference", ExecutionMode::ForceReference, 1},
+                    {"Auto", ExecutionMode::Auto, 2},
+                    {"ForceSYCL", ExecutionMode::ForceSYCL, 2}};
         }
 
-        TEST(Medium_KernelPairDispatcher, EveryOtherModeRunsTheSYCLBody)
+        /** @brief Runs one row of mode_rows() on the process queue. */
+        class Medium_KernelPairDispatcher : public ::testing::TestWithParam<ModeRow>
         {
-            EXPECT_EQ(body_run_in(ExecutionMode::Auto), 2);
-            EXPECT_EQ(body_run_in(ExecutionMode::ForceSYCL), 2);
+
+        };
+
+        TEST_P(Medium_KernelPairDispatcher, RunsTheBodyTheModeNames)
+        {
+            EXPECT_EQ(body_run_in(GetParam().mode), GetParam().body);
         }
 
-        TEST(Medium_KernelPairDispatcher, TheReferenceBodyRunsAfterItsDependencies)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_KernelPairDispatcher, ::testing::ValuesIn(mode_rows()),
+            [](const ::testing::TestParamInfo<ModeRow>& info)
+            { return std::string(info.param.name); });
+
+        TEST(Medium_KernelPairDispatcherOrder, TheReferenceBodyRunsAfterItsDependencies)
         {
             sycl::queue& queue = TestEnvironment::queue();
             int* flag = sycl::malloc_shared<int>(1, queue);
