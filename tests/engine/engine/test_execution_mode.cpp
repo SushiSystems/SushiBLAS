@@ -31,6 +31,7 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -61,7 +62,13 @@ static Tensor run_axpy(Engine& engine, ExecutionMode mode)
     return y;
 }
 
-TEST_F(Medium_ExecutionModeTest, SetModeIsReadBack)
+/// @brief Fixture for the execution-mode tests that need no runtime.
+class Small_ExecutionModeTest : public HostEngineTest
+{
+
+};
+
+TEST_F(Small_ExecutionModeTest, SetModeIsReadBack)
 {
     engine->set_mode(ExecutionMode::ForceReference);
 
