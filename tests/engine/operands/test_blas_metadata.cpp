@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Medium_BLASMetadata, FillsTheSlotsInTheOrderGiven)
+        TEST(Small_BLASMetadata, FillsTheSlotsInTheOrderGiven)
         {
             Internal::BLASMetadata metadata("gemm", SushiRuntime::OperationID());
             metadata.scalar(BLASScalar(std::complex<double>(2.0, -3.0)))
