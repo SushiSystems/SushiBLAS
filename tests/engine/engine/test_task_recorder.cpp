@@ -36,6 +36,7 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <stdexcept>
 #include <functional>
 #include <optional>
@@ -44,6 +45,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
@@ -430,87 +432,108 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that a GEMM node states 2*m*n*k FLOPs, its operands' bytes and its dtype class. */
-        TEST_F(Medium_TaskRecorderCost, GemmNodeStatesFlopsBytesAndDtype)
+        /** @brief Records on a host engine and reads the cost each task stated back from the host sink. */
+        class Small_TaskRecorderCost : public HostEngineTest
         {
-            GraphProbe probe;
-            const Tensor a = floats({2, 3});
-            const Tensor b = floats({3, 4});
-            Tensor c = floats({2, 4});
+            protected:
+                /** @brief Returns a FLOAT32 host tensor of the given extents. */
+                [[nodiscard]] Tensor floats(std::initializer_list<std::int64_t> extents)
+                {
+                    return engine->create_tensor(extents, Core::DataType::Float32);
+                }
 
-            SushiBLAS::BLASOps(probe.recorder()).gemm(a, b, c);
+                /** @brief Records a 2x3 by 3x4 GEMM into a 2x4 result with the given beta. */
+                void record_gemm(double beta)
+                {
+                    const Tensor a = floats({2, 3});
+                    const Tensor b = floats({3, 4});
+                    Tensor c = floats({2, 4});
+                    SushiBLAS::BLASOps(recorder()).gemm(a, b, c, Core::Transpose::NoTrans,
+                                                        Core::Transpose::NoTrans, 1.0, beta);
+                }
 
-            const RecordedTask task = first_task_of(probe);
-            ASSERT_TRUE(task.cost.has_value());
-            EXPECT_EQ(task.cost->flops, std::uint64_t{2 * 2 * 3 * 4});
-            EXPECT_EQ(task.cost->bytes, std::uint64_t{(6 + 12 + 8) * sizeof(float)});
-            EXPECT_EQ(task.cost->dtype, SushiRuntime::NodeDType::F32);
+                /** @brief Returns the one task the test recorded. */
+                [[nodiscard]] HostTaskRecord only_record() const
+                {
+                    const std::vector<HostTaskRecord> records = recording->records();
+                    EXPECT_EQ(records.size(), std::size_t{1});
+                    return records.empty() ? HostTaskRecord{} : records.front();
+                }
+        };
+
+        /** @brief Tests that a GEMM node states 2*m*n*k FLOPs. */
+        TEST_F(Small_TaskRecorderCost, AGemmNodeStatesTwoMNKFlops)
+        {
+            record_gemm(0.0);
+
+            const Cost cost = only_record().cost;
+            EXPECT_TRUE(cost.is_costed());
+            EXPECT_EQ(cost.flops, std::uint64_t{2 * 2 * 3 * 4});
         }
 
-        /** @brief Tests that a beta of zero declares C as written only, so the bytes count it once. */
-        TEST_F(Medium_TaskRecorderCost, ABetaZeroGemmReadsNoC)
+        /** @brief Tests that a GEMM node states the bytes of A, B and a C that is written only. */
+        TEST_F(Small_TaskRecorderCost, AGemmNodeStatesTheBytesOfItsOperands)
         {
-            GraphProbe probe;
-            const Tensor a = floats({2, 3});
-            const Tensor b = floats({3, 4});
-            Tensor c = floats({2, 4});
+            record_gemm(0.0);
 
-            SushiBLAS::BLASOps(probe.recorder()).gemm(a, b, c, Core::Transpose::NoTrans,
-                                                       Core::Transpose::NoTrans, 1.0, 0.0);
-
-            const RecordedTask task = first_task_of(probe);
-            EXPECT_EQ(task.reads.size(), std::size_t{2});
-            EXPECT_EQ(task.writes.size(), std::size_t{1});
+            EXPECT_EQ(only_record().cost.bytes, std::uint64_t{(6 + 12 + 8) * sizeof(float)});
         }
 
-        /** @brief Tests that an updated operand counts twice in the bytes. */
-        TEST_F(Medium_TaskRecorderCost, AnUpdatedOperandCountsTwiceInTheBytes)
+        /** @brief Tests that a GEMM node of FLOAT32 operands states the FLOAT32 class. */
+        TEST_F(Small_TaskRecorderCost, AGemmNodeStatesTheFloat32Class)
         {
-            GraphProbe probe;
-            const Tensor a = floats({2, 3});
-            const Tensor b = floats({3, 4});
-            Tensor c = floats({2, 4});
+            record_gemm(0.0);
 
-            SushiBLAS::BLASOps(probe.recorder()).gemm(a, b, c, Core::Transpose::NoTrans,
-                                                       Core::Transpose::NoTrans, 1.0, 1.0);
+            EXPECT_EQ(only_record().cost.dtype, Core::DataType::Float32);
+        }
 
-            const RecordedTask task = first_task_of(probe);
-            ASSERT_TRUE(task.cost.has_value());
-            EXPECT_EQ(task.cost->bytes, std::uint64_t{(6 + 12 + 2 * 8) * sizeof(float)});
+        /** @brief Tests that a beta of zero declares C as written only: two reads and one write. */
+        TEST_F(Small_TaskRecorderCost, ABetaZeroGemmReadsNoC)
+        {
+            record_gemm(0.0);
+
+            const HostTaskRecord record = only_record();
+            EXPECT_EQ(record.reads.size(), std::size_t{2});
+            EXPECT_EQ(record.writes.size(), std::size_t{1});
+        }
+
+        /** @brief Tests that a beta of one updates C, so its bytes count twice. */
+        TEST_F(Small_TaskRecorderCost, AnUpdatedOperandCountsTwiceInTheBytes)
+        {
+            record_gemm(1.0);
+
+            EXPECT_EQ(only_record().cost.bytes, std::uint64_t{(6 + 12 + 2 * 8) * sizeof(float)});
         }
 
         /** @brief Tests that an elementwise node states one FLOP per element. */
-        TEST_F(Medium_TaskRecorderCost, AnElementwiseNodeStatesItsElementCount)
+        TEST_F(Small_TaskRecorderCost, AnElementwiseNodeStatesItsElementCount)
         {
-            GraphProbe probe;
             const Tensor a = floats({4});
             const Tensor b = floats({4});
             Tensor out = floats({4});
 
-            SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, out);
+            SushiBLAS::ElementwiseOps(recorder()).add(a, b, out);
 
-            const RecordedTask task = first_task_of(probe);
-            ASSERT_TRUE(task.cost.has_value());
-            EXPECT_EQ(task.cost->flops, std::uint64_t{4});
-            EXPECT_EQ(task.cost->bytes, std::uint64_t{3 * 4 * sizeof(float)});
+            const Cost cost = only_record().cost;
+            EXPECT_EQ(cost.flops, std::uint64_t{4});
+            EXPECT_EQ(cost.bytes, std::uint64_t{3 * 4 * sizeof(float)});
         }
 
         /** @brief Tests that a task whose call site states no shape and whose body returns an empty event has no cost. */
-        TEST_F(Medium_TaskRecorderCost, AnEmptyEventTaskIsUncosted)
+        TEST_F(Small_TaskRecorderCost, AnEmptyEventTaskIsUncosted)
         {
-            GraphProbe probe;
             Tensor out = floats({4});
             OperandSet operands;
             operands.writes(out);
 
-            probe.recorder().record_pair(
+            recorder().record_pair(
                 TaskDescription(), operands, "test",
                 [](const KernelPairDispatcher&, const std::vector<sycl::event>&)
                 {
                     return sycl::event();
                 });
 
-            EXPECT_FALSE(first_task_of(probe).cost.has_value());
+            EXPECT_FALSE(only_record().cost.is_costed());
         }
 
         /** @brief Tests that a late-count task, whose width is read at run time, states no cost. */
@@ -632,92 +655,68 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Holds the checks of the origin a recorder stamps on its nodes. */
-        class Medium_TaskRecorderOrigin : public Medium_TaskRecorderTest
+        /** @brief Records on a host engine and reads the origin label each task carried from the host sink. */
+        class Small_TaskRecorderOrigin : public HostEngineTest
         {
+            protected:
+                /** @brief Records one add of two fresh FLOAT32 vectors of four elements. */
+                void record_add()
+                {
+                    const Tensor a = engine->create_tensor({4}, Core::DataType::Float32);
+                    Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
+                    SushiBLAS::ElementwiseOps(recorder()).add(a, a, out);
+                }
+
+                /** @brief Returns the origin of every recorded task, in record order. */
+                [[nodiscard]] std::vector<std::string> origins() const
+                {
+                    std::vector<std::string> labels;
+                    for (const HostTaskRecord& record : recording->records())
+                        labels.push_back(record.origin);
+                    return labels;
+                }
         };
 
-        /** @brief Tests that tasks recorded inside a scope carry its label, and a task after it carries none. */
-        TEST_F(Medium_TaskRecorderOrigin, TasksInAScopeCarryItsLabelAndOneAfterItCarriesNone)
+        /** @brief Tests that tasks inside a scope carry its label, and a task before it and one after it carry none. */
+        TEST_F(Small_TaskRecorderOrigin, TasksInAScopeCarryItsLabelAndTheOnesAroundItCarryNone)
         {
-            GraphProbe probe;
-            const Tensor a = vector_of_four();
-            Tensor first = vector_of_four();
-            Tensor second = vector_of_four();
-            Tensor after = vector_of_four();
-
+            record_add();
             {
-                const TaskRecorder::OriginScope scope = probe.recorder().origin("layer.3");
-                SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, first);
-                SushiBLAS::ElementwiseOps(probe.recorder()).add(first, a, second);
+                const TaskRecorder::OriginScope scope = recorder().origin("layer.3");
+                record_add();
+                record_add();
             }
-            SushiBLAS::ElementwiseOps(probe.recorder()).add(second, a, after);
+            record_add();
 
-            auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value());
-            ASSERT_EQ(tasks->size(), std::size_t{3});
-            EXPECT_EQ((*tasks)[0].origin, "layer.3");
-            EXPECT_EQ((*tasks)[1].origin, "layer.3");
-            EXPECT_TRUE((*tasks)[2].origin.empty());
+            EXPECT_EQ((std::vector<std::string>{"", "layer.3", "layer.3", ""}), origins());
         }
 
         /** @brief Tests that a nested scope restores the label of the scope around it. */
-        TEST_F(Medium_TaskRecorderOrigin, ANestedScopeRestoresTheOuterLabel)
+        TEST_F(Small_TaskRecorderOrigin, ANestedScopeRestoresTheOuterLabel)
         {
-            GraphProbe probe;
-            const Tensor a = vector_of_four();
-            Tensor out = vector_of_four();
-
             {
-                const TaskRecorder::OriginScope outer = probe.recorder().origin("outer");
+                const TaskRecorder::OriginScope outer = recorder().origin("outer");
                 {
-                    const TaskRecorder::OriginScope inner = probe.recorder().origin("inner");
-                    SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
+                    const TaskRecorder::OriginScope inner = recorder().origin("inner");
+                    record_add();
                 }
-                SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
+                record_add();
             }
 
-            auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value());
-            ASSERT_EQ(tasks->size(), std::size_t{2});
-            EXPECT_EQ((*tasks)[0].origin, "inner");
-            EXPECT_EQ((*tasks)[1].origin, "outer");
-        }
-
-        /** @brief Tests that a recorder that never opens a scope records every node with an empty origin. */
-        TEST_F(Medium_TaskRecorderOrigin, ARecorderWithNoScopeStampsNoOrigin)
-        {
-            GraphProbe probe;
-            const Tensor a = vector_of_four();
-            Tensor out = vector_of_four();
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
-
-            auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value());
-            ASSERT_EQ(tasks->size(), std::size_t{1});
-            EXPECT_TRUE((*tasks)[0].origin.empty());
+            EXPECT_EQ((std::vector<std::string>{"inner", "outer"}), origins());
         }
 
         /** @brief Tests that a moved scope restores the label once, when the last owner ends. */
-        TEST_F(Medium_TaskRecorderOrigin, AMovedScopeRestoresTheLabelOnce)
+        TEST_F(Small_TaskRecorderOrigin, AMovedScopeRestoresTheLabelOnce)
         {
-            GraphProbe probe;
-            const Tensor a = vector_of_four();
-            Tensor out = vector_of_four();
-
             {
-                TaskRecorder::OriginScope moved_from = probe.recorder().origin("moved");
+                TaskRecorder::OriginScope moved_from = recorder().origin("moved");
                 const TaskRecorder::OriginScope moved_to = std::move(moved_from);
-                SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
+                record_add();
             }
-            SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
+            record_add();
 
-            auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value());
-            ASSERT_EQ(tasks->size(), std::size_t{2});
-            EXPECT_EQ((*tasks)[0].origin, "moved");
-            EXPECT_TRUE((*tasks)[1].origin.empty());
+            EXPECT_EQ((std::vector<std::string>{"moved", ""}), origins());
         }
 
 #if SB_ENABLE_PROFILER
