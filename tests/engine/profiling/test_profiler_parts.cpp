@@ -29,6 +29,9 @@
  */
 
 #include <map>
+#include <utility>
+#include <optional>
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -93,6 +96,7 @@ namespace SushiBLAS
             const Profiling::SushiBLASProfilerParts second =
                 Profiling::register_profiler_parts(second_registry, no_devices(), "");
 
+            EXPECT_EQ(first_registry.contributors().size(), std::size_t{1});
             EXPECT_EQ(second_registry.contributors().size(), std::size_t{1});
         }
 
@@ -119,7 +123,8 @@ namespace SushiBLAS
                     }
 
                     /** @brief Writes ceilings for the first device and records the given number of periods of the two operations. */
-                    void record(std::uint32_t steps)
+                    void record(std::uint32_t steps, Core::DataType dtype = Core::DataType::Float32,
+                                bool with_add = true)
                     {
                         SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
                         const std::string device = runtime.advanced().devices().front().name;
@@ -154,16 +159,17 @@ namespace SushiBLAS
 
                         Engine engine(runtime);
                         RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
-                        const Tensor a = engine.create_tensor({64, 64}, Core::DataType::Float32);
-                        const Tensor b = engine.create_tensor({64, 64}, Core::DataType::Float32);
-                        Tensor c = engine.create_tensor({64, 64}, Core::DataType::Float32);
-                        Tensor d = engine.create_tensor({64, 64}, Core::DataType::Float32);
+                        const Tensor a = engine.create_tensor({64, 64}, dtype);
+                        const Tensor b = engine.create_tensor({64, 64}, dtype);
+                        Tensor c = engine.create_tensor({64, 64}, dtype);
+                        Tensor d = engine.create_tensor({64, 64}, dtype);
                         SushiProfiler::PeriodTimeline& timeline = started.session->timeline("blas.step");
                         for (std::uint32_t step = 0; step < steps; ++step)
                         {
                             timeline.mark();
                             BLASOps(graph.recorder()).gemm(a, b, c);
-                            ElementwiseOps(graph.recorder()).add(c, c, d);
+                            if (with_add)
+                                ElementwiseOps(graph.recorder()).add(c, c, d);
                             graph.run().value();
                         }
                         timeline.mark();
@@ -194,6 +200,51 @@ namespace SushiBLAS
                                std::to_string(record_.drops.spans_dropped) + " spans dropped";
                     }
 
+                    /** @brief Returns the period and row of the first span that states the given FLOPs. */
+                    std::optional<std::pair<const SushiProfiler::PeriodRecord*, std::size_t>>
+                    span_with_flops(std::int64_t flops) const
+                    {
+                        for (const SushiProfiler::PeriodRecord& period : record_.periods)
+                        {
+                            for (std::size_t row = 0; row < period.spans.size(); ++row)
+                            {
+                                if (attribute_of(period, row, "flops") == flops)
+                                    return std::make_pair(&period, row);
+                            }
+                        }
+                        return std::nullopt;
+                    }
+
+                    /** @brief Expects a roofline row to state a limit of compute or memory and a positive share. */
+                    static void expect_row_has_a_bound(const SushiProfiler::Row& row,
+                                                       std::size_t limit, std::size_t share)
+                    {
+                        ASSERT_NE(row[limit].as_text(), nullptr);
+                        EXPECT_TRUE(*row[limit].as_text() == "compute" ||
+                                    *row[limit].as_text() == "memory");
+                        ASSERT_NE(row[share].as_real(), nullptr);
+                        EXPECT_GT(*row[share].as_real(), 0.0);
+                    }
+
+                    /** @brief Returns how many roofline rows each period holds, in period order. */
+                    std::vector<std::size_t> roofline_rows_per_period() const
+                    {
+                        const SushiProfiler::Table* table = roofline();
+                        std::map<std::int64_t, std::size_t> counted;
+                        if (table == nullptr)
+                            return {};
+                        const std::size_t period = table->column("period");
+                        for (const SushiProfiler::Row& row : table->rows)
+                        {
+                            if (row[period].as_whole() != nullptr)
+                                ++counted[*row[period].as_whole()];
+                        }
+                        std::vector<std::size_t> rows;
+                        for (const auto& entry : counted)
+                            rows.push_back(entry.second);
+                        return rows;
+                    }
+
                     /** @brief Returns the roofline table, or null when the session made none. */
                     const SushiProfiler::Table* roofline() const
                     {
@@ -216,32 +267,37 @@ namespace SushiBLAS
             };
         } // namespace
 
+        /** @brief Runs the end-to-end case on HALF operands, which only a device with fp16 computes. */
+        class Medium_ProfilingEndToEndHalf : public Medium_ProfilingEndToEnd
+        {
+            protected:
+                void SetUp() override
+                {
+                    if (!TestEnvironment::queue(0).get_device().has(sycl::aspect::fp16))
+                        GTEST_SKIP() << "the device computes no half precision";
+                    Medium_ProfilingEndToEnd::SetUp();
+                }
+        };
+
         TEST_F(Medium_ProfilingEndToEnd, AGemmSpanCarriesFlopsBytesAndAType)
         {
             record(2);
 
-            bool found = false;
-            for (const SushiProfiler::PeriodRecord& period : record_.periods)
-            {
-                for (std::size_t row = 0; row < period.spans.size(); ++row)
-                {
-                    if (attribute_of(period, row, "flops") == 2 * 64 * 64 * 64)
-                    {
-                        found = true;
-                        EXPECT_EQ(attribute_of(period, row, "bytes"), std::int64_t{3 * 64 * 64 * 4});
-                        const SushiProfiler::AttributeColumn* dtype =
-                            period.spans.attribute(record_.find_name("dtype"));
-                        ASSERT_NE(dtype, nullptr);
-                        EXPECT_EQ(record_.name_of(static_cast<SushiProfiler::NameID>(dtype->integers[row])),
-                                  "f32");
-                    }
-                }
-            }
-            EXPECT_TRUE(found) << "no span carries the FLOPs of the GEMM; the record holds "
-                               << record_summary();
+            const std::optional<std::pair<const SushiProfiler::PeriodRecord*, std::size_t>> gemm =
+                span_with_flops(2 * 64 * 64 * 64);
+            ASSERT_TRUE(gemm.has_value()) << "no span carries the FLOPs of the GEMM; the record holds "
+                                          << record_summary();
+            const SushiProfiler::PeriodRecord& period = *gemm->first;
+            const std::size_t row = gemm->second;
+            const SushiProfiler::AttributeColumn* dtype =
+                period.spans.attribute(record_.find_name("dtype"));
+            ASSERT_NE(dtype, nullptr);
+            EXPECT_EQ(attribute_of(period, row, "bytes"), std::int64_t{3 * 64 * 64 * 4});
+            EXPECT_EQ(record_.name_of(static_cast<SushiProfiler::NameID>(dtype->integers[row])),
+                      "f32");
         }
 
-        TEST_F(Medium_ProfilingEndToEnd, TheRooflineRowNamesTheCeiling)
+        TEST_F(Medium_ProfilingEndToEnd, SomeRooflineRowIsJudgedAgainstACeiling)
         {
             record(2);
 
@@ -250,13 +306,13 @@ namespace SushiBLAS
             ASSERT_FALSE(table->rows.empty());
             const std::size_t bound = table->column("bound_flops_per_s");
             ASSERT_LT(bound, table->columns.size());
-            bool judged = false;
-            for (const SushiProfiler::Row& row : table->rows)
-                judged = judged || !row[bound].empty();
-            EXPECT_TRUE(judged) << "no row was judged against a ceiling";
+            EXPECT_TRUE(std::any_of(table->rows.begin(), table->rows.end(),
+                                    [bound](const SushiProfiler::Row& row)
+                                    { return !row[bound].empty(); }))
+                << "no row was judged against a ceiling";
         }
 
-        TEST_F(Medium_ProfilingEndToEnd, TheRooflineRowHasABound)
+        TEST_F(Medium_ProfilingEndToEnd, EveryRooflineRowHasABound)
         {
             record(2);
 
@@ -266,89 +322,24 @@ namespace SushiBLAS
             const std::size_t share = table->column("bound_share");
             ASSERT_LT(limit, table->columns.size());
             ASSERT_LT(share, table->columns.size());
-            for (const SushiProfiler::Row& row : table->rows)
-            {
-                ASSERT_NE(row[limit].as_text(), nullptr);
-                EXPECT_TRUE(*row[limit].as_text() == "compute" || *row[limit].as_text() == "memory");
-                ASSERT_NE(row[share].as_real(), nullptr);
-                EXPECT_GT(*row[share].as_real(), 0.0);
-            }
+            std::for_each(table->rows.begin(), table->rows.end(),
+                          [limit, share](const SushiProfiler::Row& row)
+                          { expect_row_has_a_bound(row, limit, share); });
         }
 
-        TEST_F(Medium_ProfilingEndToEnd, AnUncostedOperationHasNoRow)
+        TEST_F(Medium_ProfilingEndToEnd, EachActivePeriodHasOneRooflineRowPerCostedNode)
         {
             record(2);
 
-            const SushiProfiler::Table* table = roofline();
-            ASSERT_NE(table, nullptr);
-            const std::size_t period = table->column("period");
-            ASSERT_LT(period, table->columns.size());
-            std::map<std::int64_t, std::size_t> rows_per_period;
-            for (const SushiProfiler::Row& row : table->rows)
-            {
-                ASSERT_NE(row[period].as_whole(), nullptr);
-                ++rows_per_period[*row[period].as_whole()];
-            }
-            EXPECT_EQ(rows_per_period.size(), std::size_t{2}) << "one group of rows per active period";
-            for (const auto& [index, rows] : rows_per_period)
-                EXPECT_EQ(rows, std::size_t{2})
-                    << "period " << index << ": one row per costed node, the GEMM and the add";
+            // The GEMM and the add are the two costed nodes of a period.
+            EXPECT_EQ(roofline_rows_per_period(), (std::vector<std::size_t>{2, 2}));
         }
 
-        TEST_F(Medium_ProfilingEndToEnd, AnF16SpanIsJudgedAgainstTheF16Ceiling)
+        TEST_F(Medium_ProfilingEndToEndHalf, AnF16SpanIsJudgedAgainstTheF16Ceiling)
         {
-            SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
-            if (!TestEnvironment::queue(0).get_device().has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device computes no half precision";
-            const std::string device = runtime.advanced().devices().front().name;
-            Profiling::DeviceCeilings ceilings;
-            ceilings.device_name = device;
-            ceilings.backend = "test";
-            ceilings.driver = "1";
-            ceilings.smoke_only = true;
-            ceilings.method = {1, 3, 1.0, 1.0};
-            ceilings.compute = {{"f32", 1.0e12, 0.0, 3}, {"f16", 4.0e12, 0.0, 3}};
-            ceilings.bandwidth = {1.0e11, 0.0, 3};
-            std::ofstream(folder_ / Profiling::ceilings_file_name(device), std::ios::binary)
-                << Profiling::write_ceilings(ceilings);
+            record(2, Core::DataType::Half, false);
 
-            SushiProfiler::Registry registry;
-            SushiRuntime::RuntimeProfilerParts runtime_parts(registry, runtime);
-            const Profiling::SushiBLASProfilerParts blas_parts =
-                Profiling::register_profiler_parts(registry, runtime, folder_.string());
-            SushiProfiler::ProfilerConfig config;
-            config.timeline = "blas.step";
-            config.window.warmup = 0U;
-            config.window.active = 2U;
-            config.sources = {SushiProfiler::NamedSettings{"sushiruntime.device",
-                                                          SushiProfiler::JsonValue::object()}};
-            config.analyses = {"roofline"};
-            config.buffers.linger_ms = 0U;
-            SushiProfiler::SessionStart started = SushiProfiler::Session::start(config, registry);
-            ASSERT_TRUE(started.ok()) << started.error;
-
-            Engine engine(runtime);
-            RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
-            const Tensor a = engine.create_tensor({64, 64}, Core::DataType::Half);
-            const Tensor b = engine.create_tensor({64, 64}, Core::DataType::Half);
-            Tensor c = engine.create_tensor({64, 64}, Core::DataType::Half);
-            SushiProfiler::PeriodTimeline& timeline = started.session->timeline("blas.step");
-            for (int step = 0; step < 2; ++step)
-            {
-                timeline.mark();
-                BLASOps(graph.recorder()).gemm(a, b, c);
-                graph.run().value();
-            }
-            timeline.mark();
-            SushiProfiler::SessionStop stopped = started.session->stop();
-            const std::vector<SushiProfiler::Table> tables = started.session->report(stopped.record).tables;
-
-            const SushiProfiler::Table* table = nullptr;
-            for (const SushiProfiler::Table& candidate : tables)
-            {
-                if (candidate.name == "roofline")
-                    table = &candidate;
-            }
+            const SushiProfiler::Table* table = roofline();
             ASSERT_NE(table, nullptr);
             const std::size_t bound = table->column("bound_flops_per_s");
             ASSERT_LT(bound, table->columns.size());
