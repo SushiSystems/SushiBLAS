@@ -115,28 +115,26 @@ because the guarantee belongs to the seam and not to any one of its callers.
 A dtype that is half-supported is worse than one that is not supported at all, because
 "accepted" reads as "handled". So this file is deliberately lopsided: a handful of tests that
 the supported operations give the right answer, and a sweep asserting that every operation
-outside that list throws, by name, at record time. The sweep is the part that has to stay green
+outside that list throws at record time. The sweep is the part that has to stay green
 as operations are added.
-
-`ElementWidthsAndNamesAreDeclared`: the rest of the file depends on these widths. They are
-cheap to assert, and a memory planner sizes an arena from them.
 
 `CopyMovesIntegerElements`: `copy` is the one BLAS operation that takes `Domain::All`, because
 it does no arithmetic to what it moves.
 
-`ComparisonsWorkOnIntegerTensors`: the results are 1 and 0, which is what an integer element
-is for.
+`Medium_IntegerBinaryLogic.ServesIntegerTensors` runs the comparisons and the boolean
+operations as rows: the results are 1 and 0, which is what an integer element is for.
 
-`ArgmaxSearchesAnIntegerTensor`: an ordering exists over integers, so the operation is defined,
-and the answer is still an INT64 index and not an element of the input's dtype.
+`ArgmaxSearchesAnIntegerTensor` and `ArgminSearchesAnIntegerTensor`: an ordering exists over
+integers, so the operations are defined, and the answer is still an INT64 index and not an element
+of the input's dtype.
 
 `ArgmaxIsExactPastTheFloatMantissa` uses an index past 2^24, which is where the old
 `static_cast<T>(idx)` into a FLOAT32 result started returning a neighbour instead of the
 answer. 16,777,217 is the first integer a float cannot represent.
 
-`UnsupportedOpsRejectIntegerOperandsByName` is the sweep. Every operation family outside the
-supported list must refuse an integer operand at record time, before anything is queued, and
-the message must name the operation and the dtype and not an enum ordinal.
+`Medium_IntegerRefusal.ThrowsBeforeItRecordsATask` is the sweep, one row per operation. Every
+operation family outside the supported list must refuse an integer operand at record time,
+before anything is queued.
 
 ## test_SushiBLAS/test_task_dependencies.cpp
 

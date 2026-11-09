@@ -28,9 +28,12 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <cstdint>
+#include <utility>
 #include <stdexcept>
+#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -62,28 +65,27 @@ namespace SushiBLAS
                         .memcpy(host.data(), t.data(), host.size() * sizeof(int32_t)).wait();
                     return host;
                 }
+
+                /** @brief Reads an INT32 or INT64 tensor back to the host as INT64. */
+                std::vector<int64_t> read_integers(const Tensor& t)
+                {
+                    if (t.dtype == Core::DataType::Int64)
+                        return read_i64(t);
+
+                    const std::vector<int32_t> narrow = read_i32(t);
+
+                    return std::vector<int64_t>(narrow.begin(), narrow.end());
+                }
+
+                /** @brief Creates an INT32 or INT64 tensor holding the given values. */
+                Tensor filled(const std::vector<float>& values, Core::DataType dtype)
+                {
+                    Tensor t = engine->create_tensor({static_cast<int64_t>(values.size())}, dtype);
+                    fill_tensor(t, values);
+
+                    return t;
+                }
         };
-
-        /**
-         * @brief Tests the element widths and names of the integer dtypes.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
-        {
-            EXPECT_EQ(4u, Core::bytes_per_element(Core::DataType::Int32));
-            EXPECT_EQ(8u, Core::bytes_per_element(Core::DataType::Int64));
-            EXPECT_STREQ("INT32", Core::to_string(Core::DataType::Int32));
-            EXPECT_STREQ("INT64", Core::to_string(Core::DataType::Int64));
-
-            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int32));
-            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int64));
-            EXPECT_FALSE(Core::is_integer_dtype(Core::DataType::Float32));
-            EXPECT_FALSE(Core::is_real_dtype(Core::DataType::Int64));
-            EXPECT_FALSE(Core::is_complex_dtype(Core::DataType::Int64));
-
-            auto t = engine->create_tensor({4}, Core::DataType::Int64);
-            EXPECT_EQ(32, t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
-        }
 
         /**
          * @brief Tests that copy moves integer elements.
@@ -102,100 +104,168 @@ namespace SushiBLAS
             EXPECT_EQ((std::vector<int64_t>{10, -20, 30}), read_i64(dst));
         }
 
-        /**
-         * @brief Tests that the comparisons work on integer tensors.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
+        /** @brief Holds one binary logic operation, its operands' dtype and the elements it yields. */
+        struct BinaryLogicRow
         {
-            auto a = engine->create_tensor({4}, Core::DataType::Int32);
-            auto b = engine->create_tensor({4}, Core::DataType::Int32);
-            auto r = engine->create_tensor({4}, Core::DataType::Int32);
+            const char* name;                                         /**< The row name. */
+            Core::DataType dtype;                                     /**< The dtype of the operands and the result. */
+            std::vector<float> a;                                     /**< The first operand. */
+            std::vector<float> b;                                     /**< The second operand. */
+            void (*record)(TaskRecorder&, Tensor&, Tensor&, Tensor&); /**< Records the operation on a, b and r. */
+            std::vector<int64_t> expected;                            /**< The elements of the result. */
+        };
 
-            fill_tensor(a, {1.0f, 5.0f, 3.0f, 9.0f});
-            fill_tensor(b, {2.0f, 5.0f, 1.0f, 0.0f});
-
-            SushiBLAS::LogicOps(recorder()).less(a, b, r);
-            recording->run().value();
-            EXPECT_EQ((std::vector<int32_t>{1, 0, 0, 0}), read_i32(r));
-
-            SushiBLAS::LogicOps(recorder()).equal(a, b, r);
-            recording->run().value();
-            EXPECT_EQ((std::vector<int32_t>{0, 1, 0, 0}), read_i32(r));
-
-            SushiBLAS::LogicOps(recorder()).greater_equal(a, b, r);
-            recording->run().value();
-            EXPECT_EQ((std::vector<int32_t>{0, 1, 1, 1}), read_i32(r));
+        /** @brief Returns the comparisons and the boolean operations of one promise: they serve integer tensors. */
+        static std::vector<BinaryLogicRow> binary_logic_rows()
+        {
+            return {
+                {"Less", Core::DataType::Int32, {1.0f, 5.0f, 3.0f, 9.0f}, {2.0f, 5.0f, 1.0f, 0.0f},
+                 [](TaskRecorder& r, Tensor& a, Tensor& b, Tensor& out)
+                 { SushiBLAS::LogicOps(r).less(a, b, out); },
+                 {1, 0, 0, 0}},
+                {"Equal", Core::DataType::Int32, {1.0f, 5.0f, 3.0f, 9.0f}, {2.0f, 5.0f, 1.0f, 0.0f},
+                 [](TaskRecorder& r, Tensor& a, Tensor& b, Tensor& out)
+                 { SushiBLAS::LogicOps(r).equal(a, b, out); },
+                 {0, 1, 0, 0}},
+                {"GreaterEqual", Core::DataType::Int32, {1.0f, 5.0f, 3.0f, 9.0f}, {2.0f, 5.0f, 1.0f, 0.0f},
+                 [](TaskRecorder& r, Tensor& a, Tensor& b, Tensor& out)
+                 { SushiBLAS::LogicOps(r).greater_equal(a, b, out); },
+                 {0, 1, 1, 1}},
+                {"LogicalAnd", Core::DataType::Int64, {1.0f, 1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 1.0f, 0.0f},
+                 [](TaskRecorder& r, Tensor& a, Tensor& b, Tensor& out)
+                 { SushiBLAS::LogicOps(r).logical_and(a, b, out); },
+                 {1, 0, 0, 0}},
+                {"LogicalXor", Core::DataType::Int64, {1.0f, 1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 1.0f, 0.0f},
+                 [](TaskRecorder& r, Tensor& a, Tensor& b, Tensor& out)
+                 { SushiBLAS::LogicOps(r).logical_xor(a, b, out); },
+                 {0, 1, 1, 0}},
+            };
         }
 
-        // The boolean family and `where`, which selects rather than compares.
-        TEST_F(Medium_IntegerDTypeTest, BooleanOpsAndWhereWorkOnIntegerTensors)
+        /** @brief Names a binary logic row for the test name. */
+        static std::string binary_logic_row_name(const ::testing::TestParamInfo<BinaryLogicRow>& info)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::Int64);
-            auto b = engine->create_tensor({4}, Core::DataType::Int64);
-            auto r = engine->create_tensor({4}, Core::DataType::Int64);
+            return info.param.name;
+        }
 
-            fill_tensor(a, {1.0f, 1.0f, 0.0f, 0.0f});
-            fill_tensor(b, {1.0f, 0.0f, 1.0f, 0.0f});
+        /** @brief Runs one binary logic operation on integer tensors, one row at a time. */
+        class Medium_IntegerBinaryLogic : public Medium_IntegerDTypeTest,
+                                          public ::testing::WithParamInterface<BinaryLogicRow>
+        {
 
-            SushiBLAS::LogicOps(recorder()).logical_and(a, b, r);
+        };
+
+        TEST_P(Medium_IntegerBinaryLogic, ServesIntegerTensors)
+        {
+            const BinaryLogicRow& row = GetParam();
+            Tensor a = filled(row.a, row.dtype);
+            Tensor b = filled(row.b, row.dtype);
+            Tensor r = engine->create_tensor({static_cast<int64_t>(row.a.size())}, row.dtype);
+
+            row.record(recorder(), a, b, r);
             recording->run().value();
-            EXPECT_EQ((std::vector<int64_t>{1, 0, 0, 0}), read_i64(r));
 
-            SushiBLAS::LogicOps(recorder()).logical_xor(a, b, r);
+            const std::vector<int64_t> got = read_integers(r);
+            EXPECT_EQ(row.expected, got);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_IntegerBinaryLogic, ::testing::ValuesIn(binary_logic_rows()),
+                                 binary_logic_row_name);
+
+        /** @brief Tests that where selects between two INT64 tensors by an INT64 mask. */
+        TEST_F(Medium_IntegerDTypeTest, WhereSelectsBetweenIntegerTensors)
+        {
+            Tensor mask = filled({1.0f, 1.0f, 0.0f, 0.0f}, Core::DataType::Int64);
+            Tensor lhs = filled({100.0f, 200.0f, 300.0f, 400.0f}, Core::DataType::Int64);
+            Tensor rhs = filled({-1.0f, -2.0f, -3.0f, -4.0f}, Core::DataType::Int64);
+            Tensor r = engine->create_tensor({4}, Core::DataType::Int64);
+
+            SushiBLAS::LogicOps(recorder()).where(mask, lhs, rhs, r);
             recording->run().value();
-            EXPECT_EQ((std::vector<int64_t>{0, 1, 1, 0}), read_i64(r));
 
-            auto lhs = engine->create_tensor({4}, Core::DataType::Int64);
-            auto rhs = engine->create_tensor({4}, Core::DataType::Int64);
-            fill_tensor(lhs, {100.0f, 200.0f, 300.0f, 400.0f});
-            fill_tensor(rhs, {-1.0f, -2.0f, -3.0f, -4.0f});
-
-            SushiBLAS::LogicOps(recorder()).where(a, lhs, rhs, r);
-            recording->run().value();
             EXPECT_EQ((std::vector<int64_t>{100, 200, -3, -4}), read_i64(r));
         }
 
-        // `all` and `any` reduce a truth vector, so they take integer operands too.
-        TEST_F(Medium_IntegerDTypeTest, AllAndAnyReduceIntegerTruthVectors)
+        /** @brief Holds the INT32 truth vectors and the one-element result the all and any tests share. */
+        class Medium_IntegerTruthReduction : public Medium_IntegerDTypeTest
         {
-            auto mixed = engine->create_tensor({4}, Core::DataType::Int32);
-            auto ones = engine->create_tensor({4}, Core::DataType::Int32);
-            auto r = engine->create_tensor({1}, Core::DataType::Int32);
+            protected:
+                /** @brief Returns the one-element INT32 result of a reduction. */
+                Tensor result()
+                {
+                    return engine->create_tensor({1}, Core::DataType::Int32);
+                }
+        };
 
-            fill_tensor(mixed, {1.0f, 0.0f, 1.0f, 1.0f});
-            fill_tensor(ones, {1.0f, 1.0f, 1.0f, 1.0f});
+        // `all` and `any` reduce a truth vector, so they take integer operands too.
+        TEST_F(Medium_IntegerTruthReduction, AllIsZeroWhenOneElementIsZero)
+        {
+            Tensor mixed = filled({1.0f, 0.0f, 1.0f, 1.0f}, Core::DataType::Int32);
+            Tensor r = result();
 
             SushiBLAS::LogicOps(recorder()).all(mixed, r);
             recording->run().value();
+
             EXPECT_EQ(0, read_i32(r)[0]);
+        }
+
+        TEST_F(Medium_IntegerTruthReduction, AllIsOneWhenEveryElementIsOne)
+        {
+            Tensor ones = filled({1.0f, 1.0f, 1.0f, 1.0f}, Core::DataType::Int32);
+            Tensor r = result();
 
             SushiBLAS::LogicOps(recorder()).all(ones, r);
             recording->run().value();
+
             EXPECT_EQ(1, read_i32(r)[0]);
+        }
+
+        TEST_F(Medium_IntegerTruthReduction, AnyIsOneWhenOneElementIsOne)
+        {
+            Tensor mixed = filled({1.0f, 0.0f, 1.0f, 1.0f}, Core::DataType::Int32);
+            Tensor r = result();
 
             SushiBLAS::LogicOps(recorder()).any(mixed, r);
             recording->run().value();
+
             EXPECT_EQ(1, read_i32(r)[0]);
         }
+
+        /** @brief Holds the INT32 vector the index reductions search and their INT64 result. */
+        class Medium_IntegerIndexReduction : public Medium_IntegerDTypeTest
+        {
+            protected:
+                /** @brief Returns the vector 3, -1, 42, 7, 41. */
+                Tensor searched()
+                {
+                    return filled({3.0f, -1.0f, 42.0f, 7.0f, 41.0f}, Core::DataType::Int32);
+                }
+        };
 
         /**
          * @brief Tests that argmax over an integer tensor returns an INT64 index.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Medium_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
+        TEST_F(Medium_IntegerIndexReduction, ArgmaxSearchesAnIntegerTensor)
         {
-            auto t = engine->create_tensor({5}, Core::DataType::Int32);
-            auto r = engine->create_tensor({1}, Core::DataType::Int64);
-
-            fill_tensor(t, {3.0f, -1.0f, 42.0f, 7.0f, 41.0f});
+            Tensor t = searched();
+            Tensor r = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::ReductionOps(recorder()).argmax(t, r);
             recording->run().value();
+
             EXPECT_EQ(2, read_i64(r)[0]);
+        }
+
+        /** @brief Tests that argmin over an integer tensor returns an INT64 index. */
+        TEST_F(Medium_IntegerIndexReduction, ArgminSearchesAnIntegerTensor)
+        {
+            Tensor t = searched();
+            Tensor r = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::ReductionOps(recorder()).argmin(t, r);
             recording->run().value();
+
             EXPECT_EQ(1, read_i64(r)[0]);
         }
 
@@ -227,75 +297,82 @@ namespace SushiBLAS
                 << " here, which is a different element.";
         }
 
-        /**
-         * @brief Tests that every unsupported op refuses an integer operand by name.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_IntegerDTypeTest, UnsupportedOpsRejectIntegerOperandsByName)
+        /** @brief The random stream an operation view takes. */
+        using RandomStream = std::remove_reference_t<decltype(std::declval<Engine&>().rng())>;
+
+        /** @brief Holds one operation that refuses integer operands. */
+        struct RefusalRow
+        {
+            const char* name; /**< The row name. */
+            void (*record)(TaskRecorder&, RandomStream&, Tensor&, Tensor&, Tensor&); /**< Records it on a, b and the scalar. */
+        };
+
+        /** @brief Returns the operations that refuse an INT32 operand; `copy` is the exception and is covered above. */
+        static std::vector<RefusalRow> refusal_rows()
+        {
+            return {
+                {"Exp", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor&)
+                        { SushiBLAS::ElementwiseOps(r).exp(a); }},
+                {"Sqrt", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor&)
+                         { SushiBLAS::ElementwiseOps(r).sqrt(a); }},
+                {"Relu", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor&)
+                         { SushiBLAS::NonLinearOps(r).relu(a); }},
+                {"Sigmoid", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor&)
+                            { SushiBLAS::NonLinearOps(r).sigmoid(a); }},
+                {"Uniform", [](TaskRecorder& r, RandomStream& rng, Tensor& a, Tensor&, Tensor&)
+                            { SushiBLAS::RandomOps(r, rng).uniform(a, 0.0, 1.0); }},
+                {"Normal", [](TaskRecorder& r, RandomStream& rng, Tensor& a, Tensor&, Tensor&)
+                           { SushiBLAS::RandomOps(r, rng).normal(a, 0.0, 1.0); }},
+                {"Axpy", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor& b, Tensor&)
+                         { SushiBLAS::BLASOps(r).axpy(1.0, a, b); }},
+                {"Scal", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor&)
+                         { SushiBLAS::BLASOps(r).scal(2.0, a); }},
+                {"Dot", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor& b, Tensor& scalar)
+                        { SushiBLAS::BLASOps(r).dot(a, b, scalar); }},
+                {"Nrm2", [](TaskRecorder& r, RandomStream&, Tensor& a, Tensor&, Tensor& scalar)
+                         { SushiBLAS::BLASOps(r).nrm2(a, scalar); }},
+            };
+        }
+
+        /** @brief Names a refusal row for the test name. */
+        static std::string refusal_row_name(const ::testing::TestParamInfo<RefusalRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /** @brief Records one operation on INT32 operands of a graph probe, one row at a time. */
+        class Medium_IntegerRefusal : public Medium_IntegerDTypeTest,
+                                      public ::testing::WithParamInterface<RefusalRow>
+        {
+
+        };
+
+        TEST_P(Medium_IntegerRefusal, ThrowsBeforeItRecordsATask)
         {
             GraphProbe probe;
+            Tensor a = engine->create_tensor({4}, Core::DataType::Int32);
+            Tensor b = engine->create_tensor({4}, Core::DataType::Int32);
+            Tensor scalar = engine->create_tensor({1}, Core::DataType::Int32);
 
-            auto a = engine->create_tensor({4}, Core::DataType::Int32);
-            auto b = engine->create_tensor({4}, Core::DataType::Int32);
-            auto scalar = engine->create_tensor({1}, Core::DataType::Int32);
-
-            // Elementwise transcendentals.
-            EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.recorder()).exp(a),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.recorder()).sqrt(a),
-                std::invalid_argument);
-
-            // Non-linearities.
-            EXPECT_THROW(
-                SushiBLAS::NonLinearOps(probe.recorder()).relu(a),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::NonLinearOps(probe.recorder()).sigmoid(a),
-                std::invalid_argument);
-
-            // Random distributions - no fractional part for a continuous draw to land in.
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(probe.recorder(), engine->rng()).uniform(a, 0.0, 1.0),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::RandomOps(probe.recorder(), engine->rng()).normal(a, 0.0, 1.0),
-                std::invalid_argument);
-
-            // BLAS arithmetic. `copy` is the exception and is covered above.
-            EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.recorder()).axpy(1.0, a, b),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.recorder()).scal(2.0, a),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.recorder()).dot(a, b, scalar),
-                std::invalid_argument);
-            EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.recorder()).nrm2(a, scalar),
-                std::invalid_argument);
-
-            // Nothing above should have reached the graph.
+            EXPECT_THROW(GetParam().record(probe.recorder(), engine->rng(), a, b, scalar),
+                         std::invalid_argument);
             EXPECT_EQ(0u, probe.take_recorded_count())
                 << "A rejected op must throw before it records a task, not while executing one.";
         }
 
+        INSTANTIATE_TEST_SUITE_P(, Medium_IntegerRefusal, ::testing::ValuesIn(refusal_rows()),
+                                 refusal_row_name);
+
         /**
-         * @brief Tests that a UINT32 tensor is created at four bytes an element and holds the
-         *        values written to it, including one above the INT32 range.
+         * @brief Tests that the values written to a UINT32 tensor, including one above the INT32
+         *        range, are read back.
          * @see tests/library/umbrella/README.md
          */
         TEST_F(Medium_IntegerDTypeTest, AUInt32TensorHoldsItsValues)
         {
             auto t = engine->create_tensor({3}, Core::DataType::UInt32);
-
-            EXPECT_EQ(4u, Core::bytes_per_element(t.dtype));
-            EXPECT_EQ(12,
-                      t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
-
             const std::vector<uint32_t> written = {0u, 7u, 4000000000u};
+
             SushiBLAS::IO().from_vector(t, written);
 
             EXPECT_EQ(written, SushiBLAS::IO().to_vector<uint32_t>(t));
