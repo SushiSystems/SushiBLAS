@@ -27,8 +27,11 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -72,63 +75,90 @@ namespace SushiBLAS
             return c;
         }
 
-        TEST(Small_ReferenceSyrk, MatchesADenseUpdateForEveryLayoutTriangleAndTranspose)
+        /** @brief Returns the transpose of an m x n dense matrix given row by row. */
+        static std::vector<double> transpose(const std::vector<double>& dense, int64_t m, int64_t n)
         {
-            const std::vector<double> g = small_integers<double>(K_ORDER * K_DEPTH, 1);
-            const std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        SCOPED_TRACE(2 * upper + transposed);
-                        // op(A) = G, so A is G itself or its transpose.
-                        std::vector<double> a_dense = g;
-                        int64_t rows = K_ORDER;
-                        int64_t columns = K_DEPTH;
-                        if (transposed)
-                        {
-                            for (int64_t i = 0; i < K_ORDER; ++i)
-                                for (int64_t p = 0; p < K_DEPTH; ++p)
-                                    a_dense[static_cast<std::size_t>(p * K_ORDER + i)] =
-                                        element(g, K_DEPTH, i, p);
-                            rows = K_DEPTH;
-                            columns = K_ORDER;
-                        }
-                        const std::vector<double> a = in_layout(a_dense, rows, columns, layout);
-                        const int64_t lda = (layout == Core::Layout::RowMajor) ? columns : rows;
-                        std::vector<double> stored = in_layout(c, K_ORDER, K_ORDER, layout);
-
-                        Kernels::Reference::syrk(layout, uplo_of(upper), transpose_of(transposed),
-                                                 K_ORDER, K_DEPTH, 2.0, a.data(), lda, -1.0,
-                                                 stored.data(), K_ORDER);
-
-                        EXPECT_EQ(stored, in_layout(rank_k(g, c, upper, 2.0, -1.0), K_ORDER,
-                                                    K_ORDER, layout));
-                    }
-                }
-            }
+            std::vector<double> out(dense.size());
+            for (int64_t i = 0; i < m; ++i)
+                for (int64_t j = 0; j < n; ++j)
+                    out[static_cast<std::size_t>(j * m + i)] = element(dense, n, i, j);
+            return out;
         }
 
-        TEST(Small_ReferenceSyrk, TheBatchedFormUpdatesEachMatrixOfTheBatch)
+        /// @brief Names a row after its layout, triangle and transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool>>& info)
         {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param)) +
+                   (std::get<2>(info.param) ? "Trans" : "NoTrans");
+        }
+
+        /// @brief Runs syrk for one layout, triangle and transpose, as a row of (row major, upper, transposed).
+        class Small_ReferenceSyrk : public ::testing::TestWithParam<std::tuple<bool, bool, bool>> {};
+
+        /// @brief Tests that syrk matches a dense update on the named triangle.
+        TEST_P(Small_ReferenceSyrk, MatchesADenseUpdateForEveryLayoutTriangleAndTranspose)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const std::vector<double> g = small_integers<double>(K_ORDER * K_DEPTH, 1);
+            const std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
+            // op(A) = G, so A is G itself or its transpose.
+            const int64_t rows = transposed ? K_DEPTH : K_ORDER;
+            const int64_t columns = transposed ? K_ORDER : K_DEPTH;
+            const std::vector<double> a_dense = transposed ? transpose(g, K_ORDER, K_DEPTH) : g;
+            const std::vector<double> a = in_layout(a_dense, rows, columns, layout);
+            const int64_t lda = (layout == Core::Layout::RowMajor) ? columns : rows;
+            std::vector<double> stored = in_layout(c, K_ORDER, K_ORDER, layout);
+
+            Kernels::Reference::syrk(layout, uplo_of(upper), transpose_of(transposed), K_ORDER,
+                                     K_DEPTH, 2.0, a.data(), lda, -1.0, stored.data(), K_ORDER);
+
+            EXPECT_EQ(stored, in_layout(rank_k(g, c, upper, 2.0, -1.0), K_ORDER, K_ORDER, layout));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesAndTransposes, Small_ReferenceSyrk,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool()),
+                                 row_name);
+
+        /// @brief Names a row after the matrix of the batch it checks.
+        static std::string matrix_name(const ::testing::TestParamInfo<int64_t>& info)
+        {
+            return "Matrix" + std::to_string(info.param);
+        }
+
+        /// @brief Runs the batched syrk and checks one matrix of the batch, as a row of (matrix).
+        class Small_ReferenceSyrkBatch : public ::testing::TestWithParam<int64_t> {};
+
+        /// @brief Tests that the batched syrk updates one matrix as a dense update would and leaves the rest.
+        TEST_P(Small_ReferenceSyrkBatch, TheBatchedFormUpdatesEachMatrixOfTheBatch)
+        {
+            const int64_t matrix = GetParam();
             const int64_t batch = 2;
-            const std::vector<double> a = small_integers<double>(batch * K_ORDER * K_DEPTH, 3);
-            std::vector<double> batched = small_integers<double>(batch * K_ORDER * K_ORDER, 4);
-            std::vector<double> one_by_one = batched;
+            const int64_t panel = K_ORDER * K_DEPTH;
+            const int64_t square = K_ORDER * K_ORDER;
+            const std::vector<double> a = small_integers<double>(batch * panel, 3);
+            const std::vector<double> c = small_integers<double>(batch * square, 4);
+            const auto slice = [](const std::vector<double>& all, int64_t index, int64_t size)
+            {
+                return std::vector<double>(all.begin() + index * size,
+                                           all.begin() + (index + 1) * size);
+            };
+            const std::vector<double> updated =
+                rank_k(slice(a, matrix, panel), slice(c, matrix, square), false, 1.0, 1.0);
+            std::vector<double> expected = c;
+            std::copy(updated.begin(), updated.end(), expected.begin() + matrix * square);
+            std::vector<double> batched = c;
 
             Kernels::Reference::syrk(Core::Layout::RowMajor, Core::Uplo::Lower,
                                      Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 1.0, a.data(),
-                                     K_DEPTH, K_ORDER * K_DEPTH, 1.0, batched.data(), K_ORDER,
-                                     K_ORDER * K_ORDER, batch);
-            for (int64_t b = 0; b < batch; ++b)
-                Kernels::Reference::syrk(Core::Layout::RowMajor, Core::Uplo::Lower,
-                                         Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 1.0,
-                                         a.data() + b * K_ORDER * K_DEPTH, K_DEPTH, 1.0,
-                                         one_by_one.data() + b * K_ORDER * K_ORDER, K_ORDER);
+                                     K_DEPTH, panel, 1.0, batched.data(), K_ORDER, square, batch);
 
-            EXPECT_EQ(batched, one_by_one);
+            EXPECT_EQ(batched, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(Matrices, Small_ReferenceSyrkBatch, ::testing::Values(0, 1),
+                                 matrix_name);
     } // namespace Test
 } // namespace SushiBLAS
