@@ -29,7 +29,8 @@
 
 #include <complex>
 #include <cstdint>
-#include <initializer_list>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -69,12 +70,6 @@ namespace SushiBLAS
                                                     {Layout::ColumnMajor, Uplo::Lower},
                                                     {Layout::RowMajor, Uplo::Upper},
                                                     {Layout::RowMajor, Uplo::Lower}};
-
-            /** @brief Returns the name of a layout for a failure message. */
-            [[nodiscard]] constexpr const char* layout_name(Layout layout) noexcept
-            {
-                return (layout == Layout::RowMajor) ? "row-major" : "column-major";
-            }
 
             /** @brief Returns the row of the element a CBLAS walk visits at (line, along). */
             [[nodiscard]] constexpr int64_t walked_row(Layout layout, int64_t line,
@@ -157,74 +152,80 @@ namespace SushiBLAS
                 }
                 return true;
             }
-        } // namespace
 
-        /**
-         * @brief Tests at compile time that the four packed storages follow the CBLAS order.
-         */
-        TEST(Medium_PackedAccess, TheMappingIsTheCblasOrder)
-        {
-            static_assert(packed_matches_cblas(Layout::ColumnMajor, Uplo::Upper),
-                          "A column-major upper packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::ColumnMajor, Uplo::Lower),
-                          "A column-major lower packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::RowMajor, Uplo::Upper),
-                          "A row-major upper packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::RowMajor, Uplo::Lower),
-                          "A row-major lower packed triangle is the CBLAS one.");
-        }
-
-        /**
-         * @brief Tests that a walk of the triangle in CBLAS order meets the offsets 0, 1, 2
-         *        and on, and ends at n * (n + 1) / 2.
-         */
-        TEST(Medium_PackedAccess, AWalkInCblasOrderCountsWithoutAGap)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Holds one packed storage, a Transpose and an order of one case. */
+            struct PackedCase
             {
-                for (const int64_t n : {int64_t{1}, int64_t{2}, int64_t{5}})
-                {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(storage.layout) << ", "
-                                 << Core::to_string(storage.uplo) << ", order " << n);
+                PackedStorage storage; /**< The packed storage of the case. */
+                Transpose trans;       /**< The transpose applied to the stored triangle. */
+                int64_t order;         /**< The order of the matrix. */
+            };
 
-                    const Kernels::PackedAccess access = Kernels::packed_access(
-                        storage.layout, storage.uplo, Transpose::NoTrans, n);
-                    EXPECT_EQ(n, access.order);
-
-                    int64_t next = 0;
-                    for (int64_t line = 0; line < n; ++line)
-                    {
-                        for (int64_t along = 0; along < n; ++along)
-                        {
-                            const int64_t i = walked_row(storage.layout, line, along);
-                            const int64_t j = walked_col(storage.layout, line, along);
-                            const bool stored = is_in_triangle(storage.uplo, i, j);
-                            EXPECT_EQ(stored, access.holds(i, j))
-                                << "at (" << i << ", " << j << ")";
-                            if (!stored)
-                                continue;
-
-                            EXPECT_EQ(next, access.index(i, j))
-                                << "at (" << i << ", " << j << ")";
-                            ++next;
-                        }
-                    }
-                    EXPECT_EQ(n * (n + 1) / 2, next);
-                }
+            /** @brief Returns the four storages crossed with the given transposes and orders. */
+            [[nodiscard]] std::vector<PackedCase> packed_cases(std::vector<Transpose> transposes,
+                                                               std::vector<int64_t> orders)
+            {
+                std::vector<PackedCase> cases;
+                for (const PackedStorage& storage : K_STORAGES)
+                    for (const Transpose trans : transposes)
+                        for (const int64_t order : orders)
+                            cases.push_back({storage, trans, order});
+                return cases;
             }
-        }
 
-        /**
-         * @brief Tests that every element of the worked U and L is read from its slot.
-         */
-        TEST(Medium_PackedAccess, TheWorkedTrianglesReadBack)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Returns the four storages with no transpose and the worked order. */
+            [[nodiscard]] std::vector<PackedCase> worked_cases()
             {
-                SCOPED_TRACE(::testing::Message() << layout_name(storage.layout) << ", "
-                                                  << Core::to_string(storage.uplo));
+                return packed_cases({Transpose::NoTrans}, {K_WORKED_ORDER});
+            }
 
+            /** @brief Returns the CamelCase word of a Transpose, which a test name can hold. */
+            [[nodiscard]] const char* transpose_word(Transpose trans) noexcept
+            {
+                if (trans == Transpose::NoTrans)
+                    return "NoTrans";
+                return (trans == Transpose::Trans) ? "Trans" : "ConjTrans";
+            }
+
+            /** @brief Names a case for the test name. */
+            std::string packed_case_name(const ::testing::TestParamInfo<PackedCase>& info)
+            {
+                const PackedCase& row = info.param;
+                return std::string(row.storage.layout == Layout::RowMajor ? "RowMajor"
+                                                                          : "ColumnMajor") +
+                       (row.storage.uplo == Uplo::Upper ? "Upper" : "Lower") +
+                       transpose_word(row.trans) + "Order" + std::to_string(row.order);
+            }
+
+            /** @brief Expects that a walk of the triangle in CBLAS order counts without a gap. */
+            void expect_the_walk_counts_without_a_gap(const PackedStorage& storage, int64_t n)
+            {
+                const Kernels::PackedAccess access =
+                    Kernels::packed_access(storage.layout, storage.uplo, Transpose::NoTrans, n);
+                EXPECT_EQ(n, access.order);
+
+                int64_t next = 0;
+                for (int64_t line = 0; line < n; ++line)
+                {
+                    for (int64_t along = 0; along < n; ++along)
+                    {
+                        const int64_t i = walked_row(storage.layout, line, along);
+                        const int64_t j = walked_col(storage.layout, line, along);
+                        const bool stored = is_in_triangle(storage.uplo, i, j);
+                        EXPECT_EQ(stored, access.holds(i, j)) << "at (" << i << ", " << j << ")";
+                        if (!stored)
+                            continue;
+
+                        EXPECT_EQ(next, access.index(i, j)) << "at (" << i << ", " << j << ")";
+                        ++next;
+                    }
+                }
+                EXPECT_EQ(n * (n + 1) / 2, next);
+            }
+
+            /** @brief Expects that every element of the worked U and L is read from its slot. */
+            void expect_the_worked_triangle_reads_back(const PackedStorage& storage)
+            {
                 const Kernels::PackedAccess access = Kernels::packed_access(
                     storage.layout, storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
                 const double* p = worked_storage(storage);
@@ -245,135 +246,75 @@ namespace SushiBLAS
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests that TRANS and CONJ_TRANS address A(i, j) as (j, i) and report the
-         *        other triangle.
-         */
-        TEST(Medium_PackedAccess, ATransposedAccessAddressesTheMirror)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Expects that op(X) addresses A(i, j) as (j, i) over the worked triangle. */
+            void expect_the_mirror_is_addressed(const PackedStorage& storage, Transpose trans)
             {
                 const Kernels::PackedAccess plain = Kernels::packed_access(
                     storage.layout, storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
+                const Kernels::PackedAccess op = Kernels::packed_access(
+                    storage.layout, storage.uplo, trans, K_WORKED_ORDER);
                 const double* p = worked_storage(storage);
 
-                EXPECT_EQ(storage.uplo == Uplo::Upper, plain.is_upper());
-                EXPECT_FALSE(plain.conjugated);
-
-                for (const Transpose trans : {Transpose::Trans, Transpose::ConjTrans})
+                for (int64_t i = 0; i < K_WORKED_ORDER; ++i)
                 {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(storage.layout) << ", "
-                                 << Core::to_string(storage.uplo) << ", "
-                                 << Core::to_string(trans));
-
-                    const Kernels::PackedAccess op = Kernels::packed_access(
-                        storage.layout, storage.uplo, trans, K_WORKED_ORDER);
-                    EXPECT_EQ(storage.uplo != Uplo::Upper, op.is_upper());
-                    EXPECT_EQ(trans == Transpose::ConjTrans, op.conjugated);
-                    EXPECT_EQ(K_WORKED_ORDER, op.order);
-
-                    for (int64_t i = 0; i < K_WORKED_ORDER; ++i)
+                    for (int64_t j = 0; j < K_WORKED_ORDER; ++j)
                     {
-                        for (int64_t j = 0; j < K_WORKED_ORDER; ++j)
-                        {
-                            const bool stored = is_in_triangle(storage.uplo, i, j);
-                            EXPECT_EQ(stored, op.holds(j, i)) << "at (" << i << ", " << j << ")";
-                            if (!stored)
-                                continue;
+                        const bool stored = is_in_triangle(storage.uplo, i, j);
+                        EXPECT_EQ(stored, op.holds(j, i)) << "at (" << i << ", " << j << ")";
+                        if (!stored)
+                            continue;
 
-                            EXPECT_EQ(plain.index(i, j), op.index(j, i))
-                                << "at (" << i << ", " << j << ")";
-                            EXPECT_EQ(worked_element(storage.uplo, i, j), p[op.index(j, i)])
-                                << "at (" << i << ", " << j << ")";
-                        }
+                        EXPECT_EQ(plain.index(i, j), op.index(j, i))
+                            << "at (" << i << ", " << j << ")";
+                        EXPECT_EQ(worked_element(storage.uplo, i, j), p[op.index(j, i)])
+                            << "at (" << i << ", " << j << ")";
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
-         *        index gives for every stored column.
-         */
-        TEST(Medium_PackedAccess, ARowCursorReachesTheOffsetOfEveryColumn)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Expects that a cursor walked along each row stands on the offset of index. */
+            void expect_row_cursors_reach_every_column(const PackedCase& row)
             {
-                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
+                const Kernels::PackedAccess access = Kernels::packed_access(
+                    row.storage.layout, row.storage.uplo, row.trans, row.order);
+
+                for (int64_t r = 0; r < row.order; ++r)
                 {
-                    for (const int64_t n : {int64_t{1}, int64_t{2}, int64_t{7}})
-                    {
-                        SCOPED_TRACE(::testing::Message()
-                                     << layout_name(storage.layout) << ", "
-                                     << Core::to_string(storage.uplo) << ", "
-                                     << Core::to_string(trans) << ", order " << n);
+                    const int64_t first = access.first_column(r);
+                    const int64_t end = access.end_column(r, row.order);
 
-                        const Kernels::PackedAccess access =
-                            Kernels::packed_access(storage.layout, storage.uplo, trans, n);
+                    Kernels::RowCursor cursor = access.row_cursor(r, first);
+                    for (int64_t c = first; c < end; ++c, cursor.advance())
+                        EXPECT_EQ(access.index(r, c), cursor.offset)
+                            << "forward, row " << r << ", column " << c;
 
-                        for (int64_t r = 0; r < n; ++r)
-                        {
-                            const int64_t first = access.first_column(r);
-                            const int64_t end = access.end_column(r, n);
-
-                            Kernels::RowCursor cursor = access.row_cursor(r, first);
-                            for (int64_t c = first; c < end; ++c, cursor.advance())
-                                EXPECT_EQ(access.index(r, c), cursor.offset)
-                                    << "forward, row " << r << ", column " << c;
-
-                            cursor = access.row_cursor(r, end - 1);
-                            for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
-                                EXPECT_EQ(access.index(r, c), cursor.offset)
-                                    << "backward, row " << r << ", column " << c;
-                        }
-                    }
+                    cursor = access.row_cursor(r, end - 1);
+                    for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
+                        EXPECT_EQ(access.index(r, c), cursor.offset)
+                            << "backward, row " << r << ", column " << c;
                 }
             }
-        }
 
-        /**
-         * @brief Tests that a row of an upper triangle runs from its diagonal to the order and
-         *        a row of a lower one from zero through its diagonal.
-         */
-        TEST(Medium_PackedAccess, TheColumnRangeFollowsTheTriangle)
-        {
-            constexpr int64_t n = 5;
-
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Expects that every row of an access runs over the range its triangle names. */
+            void expect_the_column_range_follows_the_triangle(const PackedCase& row)
             {
-                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
+                const Kernels::PackedAccess access = Kernels::packed_access(
+                    row.storage.layout, row.storage.uplo, row.trans, row.order);
+                const bool upper =
+                    (row.storage.uplo == Uplo::Upper) != Core::is_transposed(row.trans);
+
+                for (int64_t i = 0; i < row.order; ++i)
                 {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(storage.layout) << ", "
-                                 << Core::to_string(storage.uplo) << ", "
-                                 << Core::to_string(trans));
-
-                    const Kernels::PackedAccess access =
-                        Kernels::packed_access(storage.layout, storage.uplo, trans, n);
-                    const bool upper = (storage.uplo == Uplo::Upper) != Core::is_transposed(trans);
-
-                    for (int64_t i = 0; i < n; ++i)
-                    {
-                        EXPECT_EQ(upper ? i : 0, access.first_column(i)) << "row " << i;
-                        EXPECT_EQ(upper ? n : i + 1, access.end_column(i, n)) << "row " << i;
-                    }
+                    EXPECT_EQ(upper ? i : 0, access.first_column(i)) << "row " << i;
+                    EXPECT_EQ(upper ? row.order : i + 1, access.end_column(i, row.order))
+                        << "row " << i;
                 }
             }
-        }
 
-        /**
-         * @brief Tests that at conjugates a complex element under CONJ_TRANS and no other read.
-         */
-        TEST(Medium_PackedAccess, AtConjugatesOnlyUnderConjTrans)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Expects that at conjugates only under CONJ_TRANS over the worked triangle. */
+            void expect_at_conjugates_only_under_conj_trans(const PackedStorage& storage)
             {
-                SCOPED_TRACE(::testing::Message() << layout_name(storage.layout) << ", "
-                                                  << Core::to_string(storage.uplo));
-
                 const double* real_storage = worked_storage(storage);
 
                 // The imaginary part of a slot is one more than its offset, so none is zero.
@@ -408,40 +349,143 @@ namespace SushiBLAS
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests that a triangle of order 0 has no row, so no element is ever asked for.
-         */
-        TEST(Medium_PackedAccess, AnOrderOfZeroHoldsNoElement)
-        {
-            for (const PackedStorage& storage : K_STORAGES)
+            /** @brief Returns how many elements the loop a kernel runs visits over an access. */
+            [[nodiscard]] int64_t elements_visited(const Kernels::PackedAccess& access)
             {
-                for (const Transpose trans : {Transpose::NoTrans, Transpose::ConjTrans})
-                {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(storage.layout) << ", "
-                                 << Core::to_string(storage.uplo) << ", "
-                                 << Core::to_string(trans));
-
-                    const Kernels::PackedAccess access =
-                        Kernels::packed_access(storage.layout, storage.uplo, trans, 0);
-                    EXPECT_EQ(0, access.order);
-
-                    // The loop is the one a kernel runs; with no row its body never executes.
-                    int64_t visited = 0;
-                    for (int64_t r = 0; r < access.order; ++r)
-                    {
-                        for (int64_t c = access.first_column(r);
-                             c < access.end_column(r, access.order); ++c)
-                        {
-                            EXPECT_TRUE(access.holds(r, c));
-                            ++visited;
-                        }
-                    }
-                    EXPECT_EQ(0, visited);
-                }
+                int64_t visited = 0;
+                for (int64_t r = 0; r < access.order; ++r)
+                    for (int64_t c = access.first_column(r); c < access.end_column(r, access.order);
+                         ++c)
+                        ++visited;
+                return visited;
             }
+        } // namespace
+
+        /** @brief Runs a packed access case once per storage, Transpose and order. */
+        class Small_PackedAccess : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccess, TheMappingIsTheCblasOrder)
+        {
+            EXPECT_TRUE(packed_matches_cblas(GetParam().storage.layout, GetParam().storage.uplo));
         }
+
+        TEST_P(Small_PackedAccess, TheWorkedTriangleReadsBack)
+        {
+            expect_the_worked_triangle_reads_back(GetParam().storage);
+        }
+
+        TEST_P(Small_PackedAccess, AtConjugatesOnlyUnderConjTrans)
+        {
+            expect_at_conjugates_only_under_conj_trans(GetParam().storage);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedAccess, ::testing::ValuesIn(worked_cases()),
+                                 packed_case_name);
+
+        /** @brief Walks the triangle of one storage at one order. */
+        class Small_PackedAccessWalks : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccessWalks, AWalkInCblasOrderCountsWithoutAGap)
+        {
+            expect_the_walk_counts_without_a_gap(GetParam().storage, GetParam().order);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedAccessWalks,
+                                 ::testing::ValuesIn(packed_cases({Transpose::NoTrans},
+                                                                  {1, 2, 5})),
+                                 packed_case_name);
+
+        /** @brief Reads the mirror of the worked triangle once per storage and transpose. */
+        class Small_PackedAccessMirrors : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccessMirrors, ATransposedAccessReportsTheOtherTriangle)
+        {
+            const PackedCase& row = GetParam();
+            const Kernels::PackedAccess plain = Kernels::packed_access(
+                row.storage.layout, row.storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
+            const Kernels::PackedAccess op = Kernels::packed_access(
+                row.storage.layout, row.storage.uplo, row.trans, K_WORKED_ORDER);
+
+            EXPECT_EQ(row.storage.uplo == Uplo::Upper, plain.is_upper());
+            EXPECT_FALSE(plain.conjugated);
+            EXPECT_EQ(row.storage.uplo != Uplo::Upper, op.is_upper());
+            EXPECT_EQ(row.trans == Transpose::ConjTrans, op.conjugated);
+            EXPECT_EQ(K_WORKED_ORDER, op.order);
+        }
+
+        TEST_P(Small_PackedAccessMirrors, ATransposedAccessAddressesTheMirror)
+        {
+            expect_the_mirror_is_addressed(GetParam().storage, GetParam().trans);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_PackedAccessMirrors,
+            ::testing::ValuesIn(packed_cases({Transpose::Trans, Transpose::ConjTrans},
+                                             {K_WORKED_ORDER})),
+            packed_case_name);
+
+        /** @brief Walks a row cursor once per storage, transpose and order. */
+        class Small_PackedAccessCursors : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccessCursors, ARowCursorReachesTheOffsetOfEveryColumn)
+        {
+            expect_row_cursors_reach_every_column(GetParam());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_PackedAccessCursors,
+            ::testing::ValuesIn(packed_cases({Transpose::NoTrans, Transpose::Trans}, {1, 2, 7})),
+            packed_case_name);
+
+        /** @brief Reads the column range of a row once per storage and transpose. */
+        class Small_PackedAccessRanges : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccessRanges, TheColumnRangeFollowsTheTriangle)
+        {
+            expect_the_column_range_follows_the_triangle(GetParam());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_PackedAccessRanges,
+            ::testing::ValuesIn(packed_cases({Transpose::NoTrans, Transpose::Trans}, {5})),
+            packed_case_name);
+
+        /** @brief Resolves an access of order zero once per storage and transpose. */
+        class Small_PackedAccessEmpty : public ::testing::TestWithParam<PackedCase>
+        {
+
+        };
+
+        TEST_P(Small_PackedAccessEmpty, AnOrderOfZeroHoldsNoElement)
+        {
+            const PackedCase& row = GetParam();
+
+            const Kernels::PackedAccess access = Kernels::packed_access(
+                row.storage.layout, row.storage.uplo, row.trans, 0);
+
+            EXPECT_EQ(0, access.order);
+            EXPECT_EQ(0, elements_visited(access));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_PackedAccessEmpty,
+            ::testing::ValuesIn(packed_cases({Transpose::NoTrans, Transpose::ConjTrans}, {0})),
+            packed_case_name);
     } // namespace Test
 } // namespace SushiBLAS
