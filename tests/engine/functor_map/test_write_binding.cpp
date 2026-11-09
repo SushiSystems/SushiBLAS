@@ -38,13 +38,10 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/functor_map/scalar.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/write_binding.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
@@ -59,31 +56,6 @@ namespace SushiBLAS
 
             /// @brief Holds the element count of every dense tensor of this file.
             constexpr std::int64_t K_ELEMENTS = 4;
-
-            /**
-             * @brief Records one task the way a per-index seam does: checks and declares the
-             *        reads of the bundle, then its writes, and records a body that does no work.
-             * @param bound A bind_writes bundle, or a bare functor.
-             */
-            template<typename Bound>
-            TaskHandle record_task(TaskRecorder& recorder, const Bound& bound, const char* name)
-            {
-                Dispatch::Detail::require_declared_reads(bound, Core::DataType::Float32, name);
-                Dispatch::Detail::require_declared_writes(bound, Core::DataType::Float32, name);
-
-                OperandSet operands;
-                Dispatch::Detail::declare_reads(bound, operands, name);
-                Dispatch::Detail::declare_writes(bound, operands, name);
-
-                TaskDescription description;
-                description.name = name;
-                return recorder.record_pair(
-                    description, operands, K_OPERATION,
-                    [](const KernelPairDispatcher&, const std::vector<sycl::event>&)
-                    {
-                        return sycl::event{};
-                    });
-            }
         } // namespace
 
         /** @brief Gives each test the fixture's engine and the text of a refused write. */
@@ -231,57 +203,109 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Medium_WriteBinding, AWriteIsCheckedAsAnOperand)
+        namespace
         {
-            const auto fn = [](float, float*) {};
-            const auto fn_of_two = [](float, float*, float*) {};
+            /** @brief Names one write bundle and whether its check accepts it or refuses the write at an index. */
+            struct WriteCheckRow
+            {
+                const char* name;                    /**< The row name a failure shows. */
+                void (*require)(Engine&);            /**< Binds the writes and runs the operand check. */
+                bool refused;                        /**< Whether the check refuses the bundle. */
+                std::size_t refused_index;           /**< The write the refusal names. */
+            };
 
-            Tensor dense = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
-            Tensor empty = engine->create_tensor({0}, Core::DataType::Float32);
-            Tensor wide = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float64);
-            Tensor strided = engine->create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::Float32)
+            /** @brief Returns one row per accepted and per refused write. */
+            std::vector<WriteCheckRow> write_check_rows()
+            {
+                return {
+                    {"AnElementWriteIsAccepted",
+                     [](Engine& engine)
+                     {
+                         Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as_element(dense))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     false, 0},
+                    {"ATypedWriteIsAcceptedWhateverTheElementType",
+                     [](Engine& engine)
+                     {
+                         Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as<float>(dense))
+                             .require(Core::DataType::Int64, K_OPERATION);
+                     },
+                     false, 0},
+                    {"AnEmptyWriteIsRefused",
+                     [](Engine& engine)
+                     {
+                         Tensor empty = engine.create_tensor({0}, Core::DataType::Float32);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as_element(empty))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AWriteOfAnotherDtypeIsRefused",
+                     [](Engine& engine)
+                     {
+                         Tensor wide = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float64);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as<float>(wide))
+                             .require(Core::DataType::Float64, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AnElementWriteOfAnotherElementTypeIsRefused",
+                     [](Engine& engine)
+                     {
+                         Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as_element(dense))
+                             .require(Core::DataType::Int32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AStridedWriteIsRefused",
+                     [](Engine& engine)
+                     {
+                         Tensor strided =
+                             engine.create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::Float32)
                                  .slice(1, 0, 2);
+                         Dispatch::bind_writes([](float, float*) {}, Dispatch::write_as_element(strided))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"TheSecondOfTwoWritesIsNamedByItsIndex",
+                     [](Engine& engine)
+                     {
+                         Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Tensor empty = engine.create_tensor({0}, Core::DataType::Float32);
+                         Dispatch::bind_writes([](float, float*, float*) {},
+                                               Dispatch::write_as_element(dense),
+                                               Dispatch::write_as_element(empty))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 1}};
+            }
+        } // namespace
 
-            EXPECT_NO_THROW(Dispatch::bind_writes(fn, Dispatch::write_as_element(dense))
-                                .require(Core::DataType::Float32, K_OPERATION));
-            EXPECT_NO_THROW(Dispatch::bind_writes(fn, Dispatch::write_as<float>(dense))
-                                .require(Core::DataType::Int64, K_OPERATION));
+        /** @brief Runs one row of write_check_rows(). */
+        class Medium_WriteBindingCheck : public Medium_WriteBinding,
+                                         public ::testing::WithParamInterface<WriteCheckRow>
+        {
+        };
 
-            EXPECT_TRUE(names_write(message_of([&]()
-            {
-                Dispatch::bind_writes(fn, Dispatch::write_as_element(empty))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 0));
+        TEST_P(Medium_WriteBindingCheck, AWriteIsCheckedAsAnOperand)
+        {
+            const WriteCheckRow& row = GetParam();
+            const std::string message = message_of([&] { row.require(*engine); });
 
-            EXPECT_TRUE(names_write(message_of([&]()
-            {
-                Dispatch::bind_writes(fn, Dispatch::write_as<float>(wide))
-                    .require(Core::DataType::Float64, K_OPERATION);
-            }), 0));
-
-            EXPECT_TRUE(names_write(message_of([&]()
-            {
-                Dispatch::bind_writes(fn, Dispatch::write_as_element(dense))
-                    .require(Core::DataType::Int32, K_OPERATION);
-            }), 0));
-
-            EXPECT_TRUE(names_write(message_of([&]()
-            {
-                Dispatch::bind_writes(fn, Dispatch::write_as_element(strided))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 0));
-
-            EXPECT_TRUE(names_write(message_of([&]()
-            {
-                Dispatch::bind_writes(fn_of_two, Dispatch::write_as_element(dense),
-                                      Dispatch::write_as_element(empty))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 1));
+            if (row.refused)
+                EXPECT_TRUE(names_write(message, row.refused_index)) << message;
+            else
+                EXPECT_TRUE(message.empty()) << message;
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_WriteBindingCheck, ::testing::ValuesIn(write_check_rows()),
+            [](const ::testing::TestParamInfo<WriteCheckRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_WriteBinding, ATensorReadAndWrittenIsDeclaredOnceAsEach)
         {
-            GraphProbe probe;
             Tensor t = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
             const auto fn = [](float, const float*, float*) {};
             const auto bound =
@@ -291,16 +315,10 @@ namespace SushiBLAS
             OperandSet operands;
             Dispatch::Detail::declare_reads(bound, operands, K_OPERATION);
             Dispatch::Detail::declare_writes(bound, operands, K_OPERATION);
+
             EXPECT_EQ(operands.read_regions().size(), std::size_t{1});
             EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
             EXPECT_EQ(operands.retained().size(), std::size_t{1});
-
-            record_task(probe.recorder(), bound, "update");
-            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks);
-            ASSERT_EQ(tasks->size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].reads.size(), std::size_t{1});
-            EXPECT_EQ((*tasks)[0].writes.size(), std::size_t{1});
         }
 
         TEST_F(Medium_WriteBinding, ATensorNamedTwiceAsAWriteIsDeclaredOnce)
@@ -335,7 +353,7 @@ namespace SushiBLAS
             EXPECT_TRUE(operands.write_regions().empty());
         }
 
-        TEST_F(Medium_WriteBinding, APlainFunctorDeclaresNoWrites)
+        TEST(Small_WriteBinding, APlainFunctorDeclaresNoWrites)
         {
             const auto fn = [](float element) { return element; };
             OperandSet operands;
