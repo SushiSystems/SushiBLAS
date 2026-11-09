@@ -40,7 +40,10 @@ using namespace SushiBLAS::Test;
 
 class Medium_AddTest : public SushiBLASTest {};
 
-TEST_F(Medium_AddTest, FloatForward) 
+/**
+ * @brief Tests that the recorded add writes the sum of the two operands when the task runs on the device.
+ */
+TEST_F(Medium_AddTest, AddWritesTheSumOfTheTwoOperands) 
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -107,7 +110,10 @@ namespace
     };
 }
 
-TEST_F(Medium_AddTest, BorrowedOperandsAreNamedByAddressAndAddedInPlace)
+/**
+ * @brief Tests that the plan reads the two borrowed bases and writes the output's base.
+ */
+TEST_F(Medium_AddTest, TheBorrowedBasesAreReadsAndTheOutputIsAWriteInThePlan)
 {
     const OwnedFloats left({1.0f, 2.0f, -3.0f, 0.5f});
     const OwnedFloats right({2.0f, 0.5f, 4.0f, -1.5f});
@@ -125,12 +131,29 @@ TEST_F(Medium_AddTest, BorrowedOperandsAreNamedByAddressAndAddedInPlace)
     EXPECT_EQ(plan->nodes[0].reads[1].base, static_cast<void*>(right.data()));
     ASSERT_EQ(plan->nodes[0].writes.size(), std::size_t{1});
     EXPECT_EQ(plan->nodes[0].writes[0].base, c.storage->allocation_base());
+}
+
+/**
+ * @brief Tests that the sum of two borrowed operands is written to a new output tensor.
+ */
+TEST_F(Medium_AddTest, TheSumOfTwoBorrowedOperandsIsWrittenToTheOutput)
+{
+    const OwnedFloats left({1.0f, 2.0f, -3.0f, 0.5f});
+    const OwnedFloats right({2.0f, 0.5f, 4.0f, -1.5f});
+    const SushiBLAS::Tensor a = left.tensor();
+    const SushiBLAS::Tensor b = right.tensor();
+    auto c = engine->create_tensor({4});
+
+    SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
 
     EXPECT_TRUE(recording->run_succeeds());
     expect_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
 }
 
-TEST_F(Medium_AddTest, ARunNamingABorrowedOperandWhoseOwnerLetGoIsRefused)
+/**
+ * @brief Tests that a run reading a borrowed operand whose owner let go is refused as dangling.
+ */
+TEST_F(Medium_AddTest, ARunReadingABorrowedOperandWhoseOwnerLetGoIsRefusedAsDangling)
 {
     OwnedFloats left({1.0f, 2.0f, -3.0f, 0.5f});
     const OwnedFloats right({2.0f, 0.5f, 4.0f, -1.5f});
