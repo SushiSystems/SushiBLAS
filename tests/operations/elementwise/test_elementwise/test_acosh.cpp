@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_AcoshTest : public SushiBLASTest {};
+class Small_AcoshTest : public HostEngineTest {};
 
-TEST_F(Medium_AcoshTest, FloatForward) 
+/**
+ * @brief Tests that the recorded acosh replaces each element with its inverse hyperbolic cosine when the task runs.
+ */
+TEST_F(Small_AcoshTest, AcoshReplacesEachElementWithItsInverseHyperbolicCosine) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 4.0f});
     
     SushiBLAS::ElementwiseOps(recorder()).acosh(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {0.00000f, 1.316957f, 1.762747f, 2.063437f});
 }
