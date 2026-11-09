@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -48,40 +49,84 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the packed gemm on the host CPU queue. */
-        class Medium_SYCLGemmPacked : public HostDeviceTest
+        /** @brief Names the cache blockings the packed gemm runs under. */
+        enum class BlockingName : std::uint8_t
+        {
+            Smallest,
+            Ragged,
+            Widest
+        };
+
+        /** @brief Holds one layout, one transpose of A and one blocking of a packed gemm. */
+        struct PackedGemmCase
+        {
+            Core::Layout layout; /**< The storage order of the operands. */
+            bool trans_a;        /**< Whether A is transposed. */
+            BlockingName blocking; /**< The cache blocking the plan is built from. */
+        };
+
+        /** @brief Returns the blocking a BlockingName stands for. */
+        static Device::CacheBlocking blocking_of(BlockingName name)
+        {
+            if (name == BlockingName::Smallest)
+                return smallest_blocking();
+            return (name == BlockingName::Ragged) ? ragged_blocking<double>() : widest_blocking();
+        }
+
+        /** @brief Returns both layouts crossed with the transposes of A and the three blockings. */
+        static std::vector<PackedGemmCase> packed_gemm_cases()
+        {
+            std::vector<PackedGemmCase> cases;
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
+                for (const bool trans_a : {false, true})
+                    for (const BlockingName blocking :
+                         {BlockingName::Smallest, BlockingName::Ragged, BlockingName::Widest})
+                        cases.push_back({layout, trans_a, blocking});
+            return cases;
+        }
+
+        /** @brief Names a case for the test name. */
+        static std::string packed_gemm_case_name(const ::testing::TestParamInfo<PackedGemmCase>& info)
+        {
+            static const char* const blockings[] = {"Smallest", "Ragged", "Widest"};
+            return std::string(info.param.layout == Core::Layout::RowMajor ? "RowMajor"
+                                                                            : "ColumnMajor") +
+                   (info.param.trans_a ? "TransA" : "PlainA") +
+                   blockings[static_cast<std::size_t>(info.param.blocking)];
+        }
+
+        /** @brief Runs the packed gemm on the host CPU queue, with one case at a time. */
+        class Medium_SYCLGemmPacked : public HostDeviceTest,
+                                      public ::testing::WithParamInterface<PackedGemmCase>
         {
 
         };
 
-        TEST_F(Medium_SYCLGemmPacked, EveryBlockingMatchesTheReference)
+        TEST_P(Medium_SYCLGemmPacked, EveryBlockingMatchesTheReference)
         {
             // The patterned operands are small integers, so every blocking computes exactly.
-            const Device::CacheBlocking blockings[] = {smallest_blocking(),
-                                                       ragged_blocking<double>(),
-                                                       widest_blocking()};
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool trans_a : {false, true})
-                {
-                    for (const Device::CacheBlocking& blocking : blockings)
-                    {
-                        SCOPED_TRACE(trans_a);
-                        GemmProblem<double> problem(queue(), layout, transpose_of(trans_a),
-                                                    Core::Transpose::NoTrans, 45, 38, 52, 2);
-                        Kernels::PackedProductPlan plan;
+            const PackedGemmCase row = GetParam();
+            GemmProblem<double> problem(queue(), row.layout, transpose_of(row.trans_a),
+                                        Core::Transpose::NoTrans, 45, 38, 52, 2);
+            Kernels::PackedProductPlan plan;
 
-                        const std::vector<double> packed =
-                            problem.packed(blocking, 4, 3.0, 1.0, &plan);
+            const std::vector<double> packed =
+                problem.packed(blocking_of(row.blocking), 4, 3.0, 1.0, &plan);
 
-                        ASSERT_GT(plan.blocks, 0);
-                        EXPECT_EQ(packed, problem.expected(3.0, 1.0));
-                    }
-                }
-            }
+            ASSERT_GT(plan.blocks, 0);
+            EXPECT_EQ(packed, problem.expected(3.0, 1.0));
         }
 
-        TEST_F(Medium_SYCLGemmPacked, TheEntryPointWithScratchMatchesTheReference)
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLGemmPacked, ::testing::ValuesIn(packed_gemm_cases()),
+                                 packed_gemm_case_name);
+
+        /** @brief Runs the packed gemm entry point on the host CPU queue. */
+        class Medium_SYCLGemmPackedEntry : public HostDeviceTest
+        {
+
+        };
+
+        TEST_F(Medium_SYCLGemmPackedEntry, TheEntryPointWithScratchMatchesTheReference)
         {
             const int64_t m = 70;
             const int64_t n = 66;
