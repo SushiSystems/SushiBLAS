@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,8 +44,20 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceGbmv, MatchesADenseLoopOverTheBand)
+        /// @brief Names a row after its layout and its transpose flag.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_transpose_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs gbmv for one layout and one transpose flag, as a row of (row major, transposed).
+        class Small_ReferenceGbmv : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that gbmv matches a dense product that reads only the band.
+        TEST_P(Small_ReferenceGbmv, MatchesADenseLoopOverTheBand)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool transposed = std::get<1>(GetParam());
             const int64_t m = 5;
             const int64_t n = 6;
             const int64_t kl = 1;
@@ -51,25 +65,18 @@ namespace SushiBLAS
             const int64_t ld = kl + ku + 2;
             const std::vector<double> dense = band_of(small_integers<double>(m * n, 1), m, n,
                                                       kl, ku);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool transposed : {false, true})
-                {
-                    SCOPED_TRACE(transposed);
-                    const std::vector<double> x =
-                        small_integers<double>(transposed ? m : n, 2);
-                    std::vector<double> y = small_integers<double>(transposed ? n : m, 3);
-                    const std::vector<double> expected =
-                        dense_matvec(dense, m, n, transposed, 2.0, x, 1.0, y);
-                    const std::vector<double> band =
-                        to_band(dense, m, n, kl, ku, ld, layout, 99.0);
+            const std::vector<double> x = small_integers<double>(transposed ? m : n, 2);
+            std::vector<double> y = small_integers<double>(transposed ? n : m, 3);
+            const std::vector<double> expected = dense_matvec(dense, m, n, transposed, 2.0, x, 1.0, y);
+            const std::vector<double> band = to_band(dense, m, n, kl, ku, ld, layout, 99.0);
 
-                    Kernels::Reference::gbmv(layout, transpose_of(transposed), m, n, kl, ku, 2.0,
-                                             band.data(), ld, x.data(), 1, 1.0, y.data(), 1);
+            Kernels::Reference::gbmv(layout, transpose_of(transposed), m, n, kl, ku, 2.0,
+                                     band.data(), ld, x.data(), 1, 1.0, y.data(), 1);
 
-                    EXPECT_EQ(y, expected);
-                }
-            }
+            EXPECT_EQ(y, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTransposes, Small_ReferenceGbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
