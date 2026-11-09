@@ -62,7 +62,7 @@ namespace
 
         recorder.record_pair(
             description, operands, "Test operation",
-            [](const auto&, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event
+            [](const auto&, const std::vector<sycl::event>&) -> sycl::event
             {
                 throw std::runtime_error(K_BODY_MESSAGE);
             });
