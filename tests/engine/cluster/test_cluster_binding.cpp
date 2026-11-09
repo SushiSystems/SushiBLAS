@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -70,39 +71,77 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Tests that a shared pack is known to the cluster and an unshared one is not. */
-        TEST(Medium_ClusterBinding, SharesAPackWithTheCluster)
+        /**
+         * @brief Holds the runtime and the master cluster every ClusterBinding test starts from.
+         *
+         * The runtime is a fixture member because Cluster::attach() changes the runtime it
+         * attaches to, so the shared test runtime cannot serve.
+         */
+        class Medium_ClusterBinding : public ::testing::Test
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            protected:
+                void SetUp() override
+                {
+                    if (sycl::device::get_devices().empty())
+                        GTEST_SKIP() << "SYCL reports no device.";
 
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            InProcessFabric fabric;
-            Cluster cluster =
-                Cluster::attach(runtime, InProcessTransport::make_master(fabric)).value();
-            ClusterBinding binding(cluster, SushiRuntime::make_sushi<KernelRegistry>());
+                    runtime_.emplace(SushiRuntime::Runtime::create().value());
+                    cluster_.emplace(
+                        Cluster::attach(*runtime_, InProcessTransport::make_master(fabric_))
+                            .value());
+                }
 
-            const TensorPack shared(runtime, sixteen_floats(), 0);
-            const TensorPack unshared(runtime, sixteen_floats(), 0);
+                /** @brief Returns a binding over the master cluster and an empty registry. */
+                ClusterBinding make_binding()
+                {
+                    return ClusterBinding(*cluster_, SushiRuntime::make_sushi<KernelRegistry>());
+                }
+
+                /** @brief The runtime the cluster attached to; empty when no device exists. */
+                std::optional<SushiRuntime::Runtime> runtime_;
+
+                /** @brief The fabric the master transport joins. */
+                InProcessFabric fabric_;
+
+                /** @brief The master cluster; empty when no device exists. */
+                std::optional<Cluster> cluster_;
+        };
+
+        /** @brief Tests that a pack handed to share() is reported shared. */
+        TEST_F(Medium_ClusterBinding, ASharedPackIsShared)
+        {
+            ClusterBinding binding = make_binding();
+            const TensorPack shared(*runtime_, sixteen_floats(), 0);
+
             binding.share(shared);
 
             EXPECT_TRUE(binding.is_shared(shared));
+        }
+
+        /** @brief Tests that a pack never handed to share() is not reported shared. */
+        TEST_F(Medium_ClusterBinding, AnUnsharedPackIsNotShared)
+        {
+            ClusterBinding binding = make_binding();
+            const TensorPack shared(*runtime_, sixteen_floats(), 0);
+            const TensorPack unshared(*runtime_, sixteen_floats(), 0);
+
+            binding.share(shared);
+
             EXPECT_FALSE(binding.is_shared(unshared));
+        }
+
+        /** @brief Tests that no worker is known for an operation before any worker joins. */
+        TEST_F(Medium_ClusterBinding, HasNoWorkerBeforeOneJoins)
+        {
+            const ClusterBinding binding = make_binding();
+
             EXPECT_FALSE(binding.has_worker_for(SushiRuntime::OperationID(1)));
         }
 
         /** @brief Tests that a binding refuses a null kernel registry. */
-        TEST(Medium_ClusterBinding, RefusesANullRegistry)
+        TEST_F(Medium_ClusterBinding, RefusesANullRegistry)
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
-
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            InProcessFabric fabric;
-            Cluster cluster =
-                Cluster::attach(runtime, InProcessTransport::make_master(fabric)).value();
-
-            EXPECT_THROW(ClusterBinding(cluster, SushiRuntime::sushi_ptr<KernelRegistry>()),
+            EXPECT_THROW(ClusterBinding(*cluster_, SushiRuntime::sushi_ptr<KernelRegistry>()),
                          std::runtime_error);
         }
     } // namespace Test
