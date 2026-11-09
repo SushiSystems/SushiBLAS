@@ -28,6 +28,7 @@
  */
 
 #include <string>
+#include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -186,57 +187,106 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Medium_ReadBinding, AReadIsCheckedAsAnOperand)
+        namespace
         {
-            const auto fn = [](float element, const float*) { return element; };
-            const auto fn_of_two = [](float element, const float*, const float*)
+            /** @brief Names one read bundle and whether its check accepts it or refuses the read at an index. */
+            struct ReadCheckRow
             {
-                return element;
+                const char* name;                    /**< The row name a failure shows. */
+                void (*require)(Engine&);            /**< Binds the reads and runs the operand check. */
+                bool refused;                        /**< Whether the check refuses the bundle. */
+                std::size_t refused_index;           /**< The read the refusal names. */
             };
 
-            const Tensor dense = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
-            const Tensor empty = engine->create_tensor({0}, Core::DataType::Float32);
-            const Tensor wide = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float64);
-            const Tensor strided =
-                engine->create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::Float32)
-                    .slice(1, 0, 2);
-
-            EXPECT_NO_THROW(Dispatch::bind_reads(fn, Dispatch::read_as_element(dense))
-                                .require(Core::DataType::Float32, K_OPERATION));
-            EXPECT_NO_THROW(Dispatch::bind_reads(fn, Dispatch::read_as<float>(dense))
-                                .require(Core::DataType::Int64, K_OPERATION));
-
-            EXPECT_TRUE(names_read(message_of([&]()
+            /** @brief Returns one row per accepted and per refused read. */
+            std::vector<ReadCheckRow> read_check_rows()
             {
-                Dispatch::bind_reads(fn, Dispatch::read_as_element(empty))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 0));
+                return {
+                    {"AnElementReadIsAccepted",
+                     [](Engine& engine)
+                     {
+                         const Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as_element(dense))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     false, 0},
+                    {"ATypedReadIsAcceptedWhateverTheElementType",
+                     [](Engine& engine)
+                     {
+                         const Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as<float>(dense))
+                             .require(Core::DataType::Int64, K_OPERATION);
+                     },
+                     false, 0},
+                    {"AnEmptyReadIsRefused",
+                     [](Engine& engine)
+                     {
+                         const Tensor empty = engine.create_tensor({0}, Core::DataType::Float32);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as_element(empty))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AReadOfAnotherDtypeIsRefused",
+                     [](Engine& engine)
+                     {
+                         const Tensor wide = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float64);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as<float>(wide))
+                             .require(Core::DataType::Float64, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AnElementReadOfAnotherElementTypeIsRefused",
+                     [](Engine& engine)
+                     {
+                         const Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as_element(dense))
+                             .require(Core::DataType::Int32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"AStridedReadIsRefused",
+                     [](Engine& engine)
+                     {
+                         const Tensor strided =
+                             engine.create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::Float32)
+                                 .slice(1, 0, 2);
+                         Dispatch::bind_reads([](float e, const float*) { return e; }, Dispatch::read_as_element(strided))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 0},
+                    {"TheSecondOfTwoReadsIsNamedByItsIndex",
+                     [](Engine& engine)
+                     {
+                         const Tensor dense = engine.create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+                         const Tensor empty = engine.create_tensor({0}, Core::DataType::Float32);
+                         Dispatch::bind_reads([](float e, const float*, const float*) { return e; },
+                                               Dispatch::read_as_element(dense),
+                                               Dispatch::read_as_element(empty))
+                             .require(Core::DataType::Float32, K_OPERATION);
+                     },
+                     true, 1}};
+            }
+        } // namespace
 
-            EXPECT_TRUE(names_read(message_of([&]()
-            {
-                Dispatch::bind_reads(fn, Dispatch::read_as<float>(wide))
-                    .require(Core::DataType::Float64, K_OPERATION);
-            }), 0));
+        /** @brief Runs one row of read_check_rows(). */
+        class Medium_ReadBindingCheck : public Medium_ReadBinding,
+                                         public ::testing::WithParamInterface<ReadCheckRow>
+        {
+        };
 
-            EXPECT_TRUE(names_read(message_of([&]()
-            {
-                Dispatch::bind_reads(fn, Dispatch::read_as_element(dense))
-                    .require(Core::DataType::Int32, K_OPERATION);
-            }), 0));
+        TEST_P(Medium_ReadBindingCheck, AReadIsCheckedAsAnOperand)
+        {
+            const ReadCheckRow& row = GetParam();
+            const std::string message = message_of([&] { row.require(*engine); });
 
-            EXPECT_TRUE(names_read(message_of([&]()
-            {
-                Dispatch::bind_reads(fn, Dispatch::read_as_element(strided))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 0));
-
-            EXPECT_TRUE(names_read(message_of([&]()
-            {
-                Dispatch::bind_reads(fn_of_two, Dispatch::read_as_element(dense),
-                                     Dispatch::read_as_element(empty))
-                    .require(Core::DataType::Float32, K_OPERATION);
-            }), 1));
+            if (row.refused)
+                EXPECT_TRUE(names_read(message, row.refused_index)) << message;
+            else
+                EXPECT_TRUE(message.empty()) << message;
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_ReadBindingCheck, ::testing::ValuesIn(read_check_rows()),
+            [](const ::testing::TestParamInfo<ReadCheckRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_ReadBinding, AReadMayNotOverlapAWrittenRegion)
         {
@@ -251,6 +301,13 @@ namespace SushiBLAS
                 bound.declare_into(writing, K_OPERATION);
             }), 0));
             EXPECT_TRUE(writing.read_regions().empty());
+        }
+
+        TEST_F(Medium_ReadBinding, AReadDeclaresItsRegion)
+        {
+            const auto fn = [](float element, const float*) { return element; };
+            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+            const auto bound = Dispatch::bind_reads(fn, Dispatch::read_as_element(a));
 
             OperandSet reading;
             reading.reads(a);
@@ -261,7 +318,7 @@ namespace SushiBLAS
             EXPECT_TRUE(reading.write_regions().empty());
         }
 
-        TEST_F(Medium_ReadBinding, APlainFunctorPassesThroughUntouched)
+        TEST(Small_ReadBinding, APlainFunctorPassesThroughUntouched)
         {
             const auto fn = [](float element) { return element; };
             OperandSet operands;
