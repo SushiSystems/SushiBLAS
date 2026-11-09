@@ -30,6 +30,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
 | `sycl/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
 | `sycl/level3/gemm_joint_matrix.hpp` | The HALF GEMM kernel that multiplies on the matrix units through `joint_matrix` |
+| `sycl/level3/gemm_log.hpp` | `GemmFallbackLog` and its sink, which write the no-local fallback and the applied pin once |
 | `sycl/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
 | `sycl/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
 | `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
@@ -718,4 +719,4 @@ parts in separate rows and adds each term by the four-product formula of
 
 Each launch notes the variant that ran through `Device::note_kernel_variant` (see [the launch module](../../foundation/launch/README.md)); the engine turns the note into a profiler instant, `blas.gemm.local_tiled`, `depth_split`, `joint_matrix`, `no_local` or `packed`, and no kernel header includes a profiler header. The instant has no node attached; a fact written from inside a task body and joined to its node needs a design on both sides.
 
-Three records are logged, each once. A pin that was rejected warns once per process, as before. A pin that was applied is an `INFO` once per process and names the pin and the tile it chose. A local tile that does not fit the device warns once for each device and tile, because a training or inference loop reaches it on every GEMM of every step.
+Three records are logged, each once. A pin that was rejected warns once per process, as before. A pin that was applied is an `INFO` once per process and names the pin and the tile it chose. A local tile that does not fit the device warns once for each device and tile, because a training or inference loop reaches it on every GEMM of every step. The last two go through a `GemmFallbackLog` (`sycl/level3/gemm_log.hpp`), which holds the sink and the memory of what it wrote; the GEMM uses `process_gemm_fallback_log()`, whose sink is the process logger, and a test builds its own over a recording sink.

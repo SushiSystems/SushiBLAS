@@ -24,6 +24,7 @@ sushiblas_add_test_program(
         level3/test_gemm_tile_table.cpp
         level3/test_packed_product_plan.cpp
         reference/level3/test_gemm.cpp
+        sycl/level3/test_gemm_log.cpp
         sycl/level3/test_memory_store.cpp
         sycl/level3/test_packed_micro_kernel.cpp
         sycl/level3/test_packed_panel.cpp

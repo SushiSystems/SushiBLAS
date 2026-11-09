@@ -38,9 +38,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
-#include <set>
-#include <tuple>
-#include <mutex>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/kernel_variant.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -58,6 +55,7 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_log.hpp>
 #include <SushiBLAS/blas_seam_kernels/extent_index.hpp>
 #include <SushiBLAS/blas_seam_kernels/gemm_index.hpp>
 
@@ -943,50 +941,6 @@ namespace SushiBLAS
                                         : "is past a hard limit of the device");
                     });
                 }
-
-                /**
-                 * @brief Logs one WARN for each device and local tile that does not fit it, and no more.
-                 *
-                 * A training or inference loop reaches this on every GEMM of every step, so the
-                 * record is kept to the first time a device meets a tile.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                inline void warn_no_local_fallback(const Device::Profile& profile,
-                                                   std::size_t tile_bytes, std::size_t tile_items)
-                {
-                    static std::mutex guard;
-                    static std::set<std::tuple<const Device::Profile*, std::size_t, std::size_t>> warned;
-
-                    const std::lock_guard<std::mutex> lock(guard);
-                    if (!warned.emplace(&profile, tile_bytes, tile_items).second)
-                        return;
-
-                    SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
-                                "SYCL GEMM: local tile wants {} B and {} work-items, device offers "
-                                "{} B and {}; falling back to the no-local variant.",
-                                tile_bytes, tile_items, profile.local_mem_bytes,
-                                profile.max_work_group_size);
-                }
-
-                /**
-                 * @brief Logs one INFO per process when the pin was applied: the pin read and the tile it chose.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                inline void state_applied_gemm_tile_pin(const GemmTileChoice& choice, int64_t m,
-                                                        int64_t n, int64_t k)
-                {
-                    if (choice.pin != GemmTilePinStatus::Applied || !choice.role)
-                        return;
-
-                    static std::once_flag stated;
-                    std::call_once(stated, [&]()
-                    {
-                        SB_LOG_INFO(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
-                                    "SYCL GEMM: {}={} selects the {} tile; first seen for {}x{}x{}",
-                                    Device::K_GEMM_TILE_PIN_VARIABLE, Device::gemm_tile_pin(),
-                                    to_string(*choice.role), m, n, k);
-                    });
-                }
             } // namespace Detail
 
             /**
@@ -1048,7 +1002,7 @@ namespace SushiBLAS
                         GemmTileProduct{m, n, k, batch_size, Detail::gemm_tile_dtype<T>()},
                         Device::gemm_tile_pin());
                     Detail::warn_rejected_gemm_tile_pin(choice.pin);
-                    Detail::state_applied_gemm_tile_pin(choice, m, n, k);
+                    Detail::process_gemm_fallback_log().state_applied_gemm_tile_pin(choice, m, n, k);
 
                     if (choice.role)
                         return Detail::gemm_local_tiled_as<T>(
@@ -1058,8 +1012,8 @@ namespace SushiBLAS
                             beta, c, c_access, str_c,
                             batch_size, deps, epilogue);
 
-                    Detail::warn_no_local_fallback(profile, Balanced::local_mem_bytes(),
-                                                   Balanced::K_WG_ITEMS);
+                    Detail::process_gemm_fallback_log().warn_no_local_fallback(
+                        profile, Balanced::local_mem_bytes(), Balanced::K_WG_ITEMS);
                 }
 
                 Device::note_kernel_variant(Device::KernelVariant::GemmNoLocal);
