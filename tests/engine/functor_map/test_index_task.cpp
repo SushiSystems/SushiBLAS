@@ -27,6 +27,7 @@
  */
 
 #include <string>
+#include <numeric>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
@@ -76,19 +77,6 @@ namespace SushiBLAS
 
                     return out.values();
                 }
-
-                /** @brief Returns the array after the host body of a late count ran over it. */
-                std::vector<float> run_late_host_body(std::uint32_t width)
-                {
-                    SharedArray<float> out(queue(), std::vector<float>(K_CAPACITY, 0.0f));
-                    const std::uint32_t live = width;
-
-                    const Dispatch::Detail::LateIndexHostRun<NumberTheIndex> body(
-                        NumberTheIndex{out.get()}, "index", K_CAPACITY, &live);
-                    body();
-
-                    return out.values();
-                }
         };
 
         TEST_F(Medium_IndexTask, BothPathsOfAFixedCountWriteEveryIndex)
@@ -101,36 +89,83 @@ namespace SushiBLAS
             EXPECT_EQ(by_reference.back(), static_cast<float>(K_CAPACITY));
         }
 
-        TEST_F(Medium_IndexTask, TheHostBodyOfALateCountStopsAtTheWidth)
+        /** @brief Returns K_CAPACITY zeros with 1, 2, ... written into the first count of them. */
+        std::vector<float> numbered_prefix(std::size_t count)
         {
-            const std::vector<float> written = run_late_host_body(7);
-
-            for (std::size_t i = 0; i < written.size(); ++i)
-                EXPECT_EQ(written[i], i < 7 ? static_cast<float>(i + 1) : 0.0f) << "index " << i;
+            std::vector<float> expected(K_CAPACITY, 0.0f);
+            std::iota(expected.begin(), expected.begin() + static_cast<std::ptrdiff_t>(count), 1.0f);
+            return expected;
         }
 
-        TEST_F(Medium_IndexTask, TheHostBodyOfALateCountReadsTheWidthWhenItRuns)
+        /** @brief Runs the host body of a late-count index task over plain host memory. */
+        class Small_LateIndexHostRun : public ::testing::Test
         {
-            SharedArray<float> out(queue(), std::vector<float>(K_CAPACITY, 0.0f));
+            protected:
+                /** @brief Returns the array after the host body ran over it with the width live. */
+                static std::vector<float> run(std::uint32_t width)
+                {
+                    std::vector<float> out(K_CAPACITY, 0.0f);
+                    const std::uint32_t live = width;
+
+                    const Dispatch::Detail::LateIndexHostRun<NumberTheIndex> body(
+                        NumberTheIndex{out.data()}, "index", K_CAPACITY, &live);
+                    body();
+
+                    return out;
+                }
+        };
+
+        TEST_F(Small_LateIndexHostRun, TheHostBodyStopsAtTheWidth)
+        {
+            EXPECT_EQ(run(7), numbered_prefix(7));
+        }
+
+        TEST_F(Small_LateIndexHostRun, TheHostBodyReadsTheWidthWhenItRuns)
+        {
+            std::vector<float> out(K_CAPACITY, 0.0f);
             std::uint32_t live = 2;
             const Dispatch::Detail::LateIndexHostRun<NumberTheIndex> body(
-                NumberTheIndex{out.get()}, "index", K_CAPACITY, &live);
+                NumberTheIndex{out.data()}, "index", K_CAPACITY, &live);
 
             live = 5;
             body();
 
-            const std::vector<float> written = out.values();
-            EXPECT_EQ(written[4], 5.0f);
-            EXPECT_EQ(written[5], 0.0f);
+            EXPECT_EQ(out, numbered_prefix(5));
         }
 
-        TEST_F(Medium_IndexTask, TheHostBodyOfALateCountRefusesAWidthOutsideTheCapacity)
+        namespace
         {
-            // A negative INT32 count is the word 0xFFFFFFFF, far above any capacity.
-            EXPECT_THROW(run_late_host_body(static_cast<std::uint32_t>(std::int32_t{-1})),
-                         std::runtime_error);
-            EXPECT_THROW(run_late_host_body(static_cast<std::uint32_t>(K_CAPACITY + 1)),
-                         std::runtime_error);
+            /** @brief Names a width the host body of a late count refuses. */
+            struct RefusedWidthRow
+            {
+                const char* name;     /**< The row name a failure shows. */
+                std::uint32_t width;  /**< The width the body reads. */
+            };
+
+            /** @brief Returns one row per width outside [0, capacity]. */
+            std::vector<RefusedWidthRow> refused_width_rows()
+            {
+                // A negative INT32 count is the word 0xFFFFFFFF, far above any capacity.
+                return {{"NegativeCount", static_cast<std::uint32_t>(std::int32_t{-1})},
+                        {"OneAboveTheCapacity", static_cast<std::uint32_t>(K_CAPACITY + 1)}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of refused_width_rows(). */
+        class Small_LateIndexHostRunRefusal
+            : public Small_LateIndexHostRun,
+              public ::testing::WithParamInterface<RefusedWidthRow>
+        {
+        };
+
+        TEST_P(Small_LateIndexHostRunRefusal, TheHostBodyRefusesAWidthOutsideTheCapacity)
+        {
+            EXPECT_THROW(run(GetParam().width), std::runtime_error);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_LateIndexHostRunRefusal, ::testing::ValuesIn(refused_width_rows()),
+            [](const ::testing::TestParamInfo<RefusedWidthRow>& info)
+            { return std::string(info.param.name); });
     } // namespace Test
 } // namespace SushiBLAS
