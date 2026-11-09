@@ -73,8 +73,7 @@ namespace SushiBLAS
 
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(out, (std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f}),
-                               absolute_tolerance<float>(16));
+            expect_tensor_equal(out, std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f});
             EXPECT_EQ(live_with_input - 1, live_allocations())
                 << "Once the task has run and is destroyed, x's storage must be freed.";
         }
@@ -106,9 +105,9 @@ namespace SushiBLAS
             recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] plus bias[column] = [1,-8,3] down every row.
-            EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
+            expect_tensor_equal(C, std::vector<float>{2, -6, 6,
                                                       5, -3, 9,
-                                                      6, -1, 12}), absolute_tolerance<float>(16));
+                                                      6, -1, 12});
         }
     } // namespace Test
 } // namespace SushiBLAS
