@@ -30,6 +30,8 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
@@ -107,6 +109,9 @@ namespace SushiBLAS
                         slice[line] = value;
                     }
                 }
+
+                static_assert(std::is_same_v<RealType<Accumulator<sycl::half>>, float>,
+                              "A HALF panel must hold FLOAT32 reals.");
 
                 /**
                  * @brief Packs count lines of op(X) over depth terms into micro-panels of Width

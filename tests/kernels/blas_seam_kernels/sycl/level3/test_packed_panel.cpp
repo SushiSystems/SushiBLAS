@@ -32,7 +32,6 @@
 #include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
@@ -443,12 +442,8 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the panel holds reals of Accumulator<T> and converts each exactly. */
-        TYPED_TEST(Small_PackedPanel, HalfIsPackedAsFloat)
+        TYPED_TEST(Small_PackedPanel, TheFirstSliceConvertsEachElementExactly)
         {
-            using HalfReal = Kernels::RealType<Kernels::Accumulator<sycl::half>>;
-            const bool half_holds_float = std::is_same_v<HalfReal, float>;
-
-            EXPECT_TRUE(half_holds_float);
             expect_the_first_slice_converts_exactly(row_major_source<TypeParam>(K_SOURCE_ROWS));
         }
 
