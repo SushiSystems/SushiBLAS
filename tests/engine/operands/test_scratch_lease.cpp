@@ -30,11 +30,9 @@
 #include <complex>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/substitution/running_solution.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
@@ -49,16 +47,18 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_ScratchLease, AnIntegerSolutionNeedsNoWorkspace)
+        TEST(Small_ScratchLease, AnIntegerSolutionNeedsNoWorkspace)
         {
             EXPECT_EQ(Internal::running_solution_bytes(Core::DataType::Int32), std::size_t{0});
-            EXPECT_EQ(Internal::running_solution_bytes(Core::DataType::Half),
-                      Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE
-                          ? sizeof(Kernels::RunningSolution<sycl::half>::Wide)
-                          : std::size_t{0});
         }
 
-        TEST_F(Medium_ScratchLease, ALeaseIsDeclaredAsAWrite)
+        TEST(Small_ScratchLease, AHalfSolutionIsWidenedToFourBytes)
+        {
+            // HALF accumulates in FLOAT32, so one widened element is four bytes.
+            EXPECT_EQ(Internal::running_solution_bytes(Core::DataType::Half), std::size_t{4});
+        }
+
+        TEST_F(Medium_ScratchLease, ALeaseReservesTheRequestedBytes)
         {
             GraphProbe probe;
             const Tensor anchor = engine->create_tensor({4});
@@ -68,20 +68,47 @@ namespace SushiBLAS
                 Internal::allocate_blas_scratch(probe.recorder(), anchor, 128, operands);
 
             EXPECT_EQ(scratch.bytes(), std::size_t{128});
+        }
+
+        TEST_F(Medium_ScratchLease, ALeaseIsDeclaredAsOneWrite)
+        {
+            GraphProbe probe;
+            const Tensor anchor = engine->create_tensor({4});
+            OperandSet operands;
+
+            (void)Internal::allocate_blas_scratch(probe.recorder(), anchor, 128, operands);
+
             EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
         }
 
-        TEST_F(Medium_ScratchLease, ForceReferenceAndAnEmptyRequestLeaseNothing)
+        TEST_F(Medium_ScratchLease, ForceReferenceLeasesNothing)
         {
             GraphProbe reference(ExecutionMode::ForceReference);
-            GraphProbe automatic;
             const Tensor anchor = engine->create_tensor({4});
             OperandSet operands;
 
             EXPECT_TRUE(Internal::allocate_blas_scratch(reference.recorder(), anchor, 128,
                                                         operands).is_empty());
+            EXPECT_TRUE(operands.write_regions().empty());
+        }
+
+        TEST_F(Medium_ScratchLease, AZeroByteRequestLeasesNothing)
+        {
+            GraphProbe automatic;
+            const Tensor anchor = engine->create_tensor({4});
+            OperandSet operands;
+
             EXPECT_TRUE(Internal::allocate_blas_scratch(automatic.recorder(), anchor, 0,
                                                         operands).is_empty());
+            EXPECT_TRUE(operands.write_regions().empty());
+        }
+
+        TEST_F(Medium_ScratchLease, ALevelOneRequestWithNoPartialsLeasesNothing)
+        {
+            GraphProbe automatic;
+            const Tensor anchor = engine->create_tensor({4});
+            OperandSet operands;
+
             EXPECT_TRUE(Internal::allocate_level1_scratch(automatic.recorder(), anchor, 0, 8,
                                                           operands).is_empty());
             EXPECT_TRUE(operands.write_regions().empty());
