@@ -29,6 +29,8 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -49,30 +51,38 @@ namespace SushiBLAS
         /// @brief Columns of the matrix.
         constexpr int64_t K_COLUMNS = 5;
 
-        TEST(Small_ReferenceGemv, MatchesADenseLoopInEveryLayoutAndTranspose)
+        /// @brief Names a row after its layout and its transpose flag.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
-            const std::vector<double> a = small_integers<double>(K_ROWS * K_COLUMNS, 1);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool transposed : {false, true})
-                {
-                    SCOPED_TRACE(transposed);
-                    const int64_t in_length = transposed ? K_ROWS : K_COLUMNS;
-                    const int64_t out_length = transposed ? K_COLUMNS : K_ROWS;
-                    const std::vector<double> x = small_integers<double>(in_length, 2);
-                    std::vector<double> y = small_integers<double>(out_length, 3);
-                    const std::vector<double> expected =
-                        dense_matvec(a, K_ROWS, K_COLUMNS, transposed, 2.0, x, -1.0, y);
-                    const int64_t lda = (layout == Core::Layout::RowMajor) ? K_COLUMNS : K_ROWS;
-
-                    Kernels::Reference::gemv(layout, transpose_of(transposed), K_ROWS, K_COLUMNS,
-                                             2.0, in_layout(a, K_ROWS, K_COLUMNS, layout).data(),
-                                             lda, x.data(), 1, -1.0, y.data(), 1);
-
-                    EXPECT_EQ(y, expected);
-                }
-            }
+            return layout_transpose_label(std::get<0>(info.param), std::get<1>(info.param));
         }
+
+        /// @brief Runs gemv for one layout and one transpose flag, as a row of (row major, transposed).
+        class Small_ReferenceGemvDense : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that gemv matches a dense product in the layout and transpose of the row.
+        TEST_P(Small_ReferenceGemvDense, MatchesADenseLoopInEveryLayoutAndTranspose)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool transposed = std::get<1>(GetParam());
+            const std::vector<double> a = small_integers<double>(K_ROWS * K_COLUMNS, 1);
+            const int64_t in_length = transposed ? K_ROWS : K_COLUMNS;
+            const int64_t out_length = transposed ? K_COLUMNS : K_ROWS;
+            const std::vector<double> x = small_integers<double>(in_length, 2);
+            std::vector<double> y = small_integers<double>(out_length, 3);
+            const std::vector<double> expected =
+                dense_matvec(a, K_ROWS, K_COLUMNS, transposed, 2.0, x, -1.0, y);
+            const int64_t lda = (layout == Core::Layout::RowMajor) ? K_COLUMNS : K_ROWS;
+
+            Kernels::Reference::gemv(layout, transpose_of(transposed), K_ROWS, K_COLUMNS,
+                                     2.0, in_layout(a, K_ROWS, K_COLUMNS, layout).data(),
+                                     lda, x.data(), 1, -1.0, y.data(), 1);
+
+            EXPECT_EQ(y, expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTransposes, Small_ReferenceGemvDense,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
 
         TEST(Small_ReferenceGemv, AZeroBetaIgnoresANaNInY)
         {
