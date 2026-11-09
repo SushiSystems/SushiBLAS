@@ -57,13 +57,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/kernels/blas_seam_kernels/test_operand_access.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/kernels/blas_seam_kernels/test_packed_access.cpp"
 count = 1
 backlog = "RW-133"

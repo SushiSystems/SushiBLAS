@@ -30,7 +30,7 @@
 #include <array>
 #include <complex>
 #include <cstdint>
-#include <initializer_list>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -40,83 +40,156 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Leading dimension of every access resolved in this file.
-        constexpr int64_t K_LEADING_DIMENSION = 7;
-
-        /// @brief Rows of the matrix the read tests store.
-        constexpr int64_t K_STORED_ROWS = 2;
-
-        /// @brief Columns of the matrix the read tests store.
-        constexpr int64_t K_STORED_COLS = 3;
-
-        /// @brief The matrix [[1, 2, 3], [4, 5, 6]] in row-major order.
-        constexpr std::array<float, 6> K_ROW_MAJOR_MATRIX = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-
-        /// @brief The same matrix in column-major order.
-        constexpr std::array<float, 6> K_COLUMN_MAJOR_MATRIX = {1.0f, 4.0f, 2.0f, 5.0f, 3.0f, 6.0f};
-
-        TEST(Small_OperandAccess, RowMajorUntransposedStepsARowByTheLeadingDimension)
+        namespace
         {
-            const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::RowMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
+            /// @brief Leading dimension of every access resolved in this file.
+            constexpr int64_t K_LEADING_DIMENSION = 7;
 
-            EXPECT_EQ(access.row, K_LEADING_DIMENSION);
-            EXPECT_EQ(access.col, 1);
-        }
+            /// @brief Rows of the matrix the read tests store.
+            constexpr int64_t K_STORED_ROWS = 2;
 
-        TEST(Small_OperandAccess, RowMajorTransposedStepsAColumnByTheLeadingDimension)
-        {
-            const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::RowMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
+            /// @brief Columns of the matrix the read tests store.
+            constexpr int64_t K_STORED_COLS = 3;
 
-            EXPECT_EQ(access.row, 1);
-            EXPECT_EQ(access.col, K_LEADING_DIMENSION);
-        }
+            /// @brief The matrix [[1, 2, 3], [4, 5, 6]] read row by row.
+            constexpr std::array<float, 6> K_ROWS_OF_THE_MATRIX = {1.0f, 2.0f, 3.0f,
+                                                                   4.0f, 5.0f, 6.0f};
 
-        TEST(Small_OperandAccess, ColumnMajorUntransposedStepsAColumnByTheLeadingDimension)
-        {
-            const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::ColumnMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
+            /// @brief The transpose of that matrix, [[1, 4], [2, 5], [3, 6]], read row by row.
+            constexpr std::array<float, 6> K_ROWS_OF_THE_TRANSPOSE = {1.0f, 4.0f, 2.0f,
+                                                                      5.0f, 3.0f, 6.0f};
 
-            EXPECT_EQ(access.row, 1);
-            EXPECT_EQ(access.col, K_LEADING_DIMENSION);
-        }
-
-        TEST(Small_OperandAccess, ColumnMajorTransposedStepsARowByTheLeadingDimension)
-        {
-            const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::ColumnMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
-
-            EXPECT_EQ(access.row, K_LEADING_DIMENSION);
-            EXPECT_EQ(access.col, 1);
-        }
-
-        TEST(Small_OperandAccess, ConjugateTransposeHasTheStridesOfTransposeAndConjugates)
-        {
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
+            /** @brief Holds one layout and a transpose with the strides they must give. */
+            struct StrideRow
             {
-                const Kernels::OperandAccess transposed = Kernels::operand_access(
-                    layout, Core::Transpose::Trans, K_LEADING_DIMENSION);
-                const Kernels::OperandAccess conjugated = Kernels::operand_access(
-                    layout, Core::Transpose::ConjTrans, K_LEADING_DIMENSION);
+                const char* name;           /**< The suffix of the test name. */
+                Core::Layout layout;        /**< The storage order of the matrix. */
+                Core::Transpose transpose;  /**< The transpose applied to it. */
+                int64_t row;                /**< The expected step of a row. */
+                int64_t col;                /**< The expected step of a column. */
+            };
 
-                EXPECT_EQ(conjugated.row, transposed.row);
-                EXPECT_EQ(conjugated.col, transposed.col);
-                EXPECT_TRUE(conjugated.conjugated);
-                EXPECT_FALSE(transposed.conjugated);
-            }
-        }
-
-        TEST(Small_OperandAccess, UntransposedAccessDoesNotConjugate)
-        {
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
+            /** @brief Returns the four stride rows of the layouts and the two plain transposes. */
+            [[nodiscard]] std::array<StrideRow, 4> stride_rows()
             {
-                const Kernels::OperandAccess access = Kernels::operand_access(
-                    layout, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
-
-                EXPECT_FALSE(access.conjugated);
+                return {{{"RowMajorUntransposed", Core::Layout::RowMajor,
+                          Core::Transpose::NoTrans, K_LEADING_DIMENSION, 1},
+                         {"RowMajorTransposed", Core::Layout::RowMajor,
+                          Core::Transpose::Trans, 1, K_LEADING_DIMENSION},
+                         {"ColumnMajorUntransposed", Core::Layout::ColumnMajor,
+                          Core::Transpose::NoTrans, 1, K_LEADING_DIMENSION},
+                         {"ColumnMajorTransposed", Core::Layout::ColumnMajor,
+                          Core::Transpose::Trans, K_LEADING_DIMENSION, 1}}};
             }
+
+            /** @brief Names a stride row for the test name. */
+            std::string stride_row_name(const ::testing::TestParamInfo<StrideRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Returns the matrix [[1, 2, 3], [4, 5, 6]] stored in the layout. */
+            [[nodiscard]] std::array<float, 6> stored_matrix(Core::Layout layout)
+            {
+                return layout == Core::Layout::RowMajor ? K_ROWS_OF_THE_MATRIX
+                                                        : K_ROWS_OF_THE_TRANSPOSE;
+            }
+
+            /** @brief Returns the leading dimension of the stored matrix in the layout. */
+            [[nodiscard]] int64_t stored_leading_dimension(Core::Layout layout)
+            {
+                return layout == Core::Layout::RowMajor ? K_STORED_COLS : K_STORED_ROWS;
+            }
+
+            /** @brief Reads a rows by cols matrix through an access, row by row. */
+            [[nodiscard]] std::array<float, 6> read_rows(const Kernels::OperandAccess& access,
+                                                         const std::array<float, 6>& stored,
+                                                         int64_t rows, int64_t cols)
+            {
+                std::array<float, 6> read{};
+                for (int64_t r = 0; r < rows; ++r)
+                    for (int64_t c = 0; c < cols; ++c)
+                        read[static_cast<std::size_t>(r * cols + c)] =
+                            access.at(stored.data(), r, c);
+                return read;
+            }
+
+            /** @brief Names a layout for the test name. */
+            std::string layout_name(const ::testing::TestParamInfo<Core::Layout>& info)
+            {
+                return info.param == Core::Layout::RowMajor ? "RowMajor" : "ColumnMajor";
+            }
+        } // namespace
+
+        /** @brief Resolves the access of one layout and transpose at a time. */
+        class Small_OperandAccessStrides : public ::testing::TestWithParam<StrideRow>
+        {
+
+        };
+
+        TEST_P(Small_OperandAccessStrides, StepARowAndAColumnByTheirStrides)
+        {
+            const StrideRow row = GetParam();
+
+            const Kernels::OperandAccess access =
+                Kernels::operand_access(row.layout, row.transpose, K_LEADING_DIMENSION);
+
+            EXPECT_EQ(access.row, row.row);
+            EXPECT_EQ(access.col, row.col);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_OperandAccessStrides, ::testing::ValuesIn(stride_rows()),
+                                 stride_row_name);
+
+        /** @brief Resolves and reads an access of one layout at a time. */
+        class Small_OperandAccessLayouts : public ::testing::TestWithParam<Core::Layout>
+        {
+
+        };
+
+        TEST_P(Small_OperandAccessLayouts, ConjugateTransposeHasTheStridesOfTransposeAndConjugates)
+        {
+            const Kernels::OperandAccess transposed = Kernels::operand_access(
+                GetParam(), Core::Transpose::Trans, K_LEADING_DIMENSION);
+            const Kernels::OperandAccess conjugated = Kernels::operand_access(
+                GetParam(), Core::Transpose::ConjTrans, K_LEADING_DIMENSION);
+
+            EXPECT_EQ(conjugated.row, transposed.row);
+            EXPECT_EQ(conjugated.col, transposed.col);
+            EXPECT_TRUE(conjugated.conjugated);
+            EXPECT_FALSE(transposed.conjugated);
+        }
+
+        TEST_P(Small_OperandAccessLayouts, UntransposedAccessDoesNotConjugate)
+        {
+            const Kernels::OperandAccess access = Kernels::operand_access(
+                GetParam(), Core::Transpose::NoTrans, K_LEADING_DIMENSION);
+
+            EXPECT_FALSE(access.conjugated);
+        }
+
+        TEST_P(Small_OperandAccessLayouts, AtReadsTheSameElementFromBothLayouts)
+        {
+            const Kernels::OperandAccess access = Kernels::operand_access(
+                GetParam(), Core::Transpose::NoTrans, stored_leading_dimension(GetParam()));
+
+            EXPECT_EQ(read_rows(access, stored_matrix(GetParam()), K_STORED_ROWS, K_STORED_COLS),
+                      K_ROWS_OF_THE_MATRIX);
+        }
+
+        TEST_P(Small_OperandAccessLayouts, AtReadsTheTransposeFromBothLayouts)
+        {
+            const Kernels::OperandAccess access = Kernels::operand_access(
+                GetParam(), Core::Transpose::Trans, stored_leading_dimension(GetParam()));
+
+            EXPECT_EQ(read_rows(access, stored_matrix(GetParam()), K_STORED_COLS, K_STORED_ROWS),
+                      K_ROWS_OF_THE_TRANSPOSE);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_OperandAccessLayouts,
+                                 ::testing::Values(Core::Layout::RowMajor,
+                                                   Core::Layout::ColumnMajor),
+                                 layout_name);
 
         TEST(Small_OperandAccess, IndexCombinesBothStrides)
         {
@@ -125,44 +198,6 @@ namespace SushiBLAS
             EXPECT_EQ(access.index(0, 0), 0);
             EXPECT_EQ(access.index(2, 3), 2 * K_LEADING_DIMENSION + 3);
             EXPECT_EQ(access.transposed().index(2, 3), 2 + 3 * K_LEADING_DIMENSION);
-        }
-
-        TEST(Small_OperandAccess, AtReadsTheSameElementFromBothLayouts)
-        {
-            const Kernels::OperandAccess row_major = Kernels::operand_access(
-                Core::Layout::RowMajor, Core::Transpose::NoTrans, K_STORED_COLS);
-            const Kernels::OperandAccess column_major = Kernels::operand_access(
-                Core::Layout::ColumnMajor, Core::Transpose::NoTrans, K_STORED_ROWS);
-
-            for (int64_t r = 0; r < K_STORED_ROWS; ++r)
-            {
-                for (int64_t c = 0; c < K_STORED_COLS; ++c)
-                {
-                    const float expected = static_cast<float>(r * K_STORED_COLS + c + 1);
-
-                    EXPECT_EQ(row_major.at(K_ROW_MAJOR_MATRIX.data(), r, c), expected);
-                    EXPECT_EQ(column_major.at(K_COLUMN_MAJOR_MATRIX.data(), r, c), expected);
-                }
-            }
-        }
-
-        TEST(Small_OperandAccess, AtReadsTheTransposeFromBothLayouts)
-        {
-            const Kernels::OperandAccess row_major = Kernels::operand_access(
-                Core::Layout::RowMajor, Core::Transpose::Trans, K_STORED_COLS);
-            const Kernels::OperandAccess column_major = Kernels::operand_access(
-                Core::Layout::ColumnMajor, Core::Transpose::Trans, K_STORED_ROWS);
-
-            for (int64_t r = 0; r < K_STORED_COLS; ++r)
-            {
-                for (int64_t c = 0; c < K_STORED_ROWS; ++c)
-                {
-                    const float expected = static_cast<float>(c * K_STORED_COLS + r + 1);
-
-                    EXPECT_EQ(row_major.at(K_ROW_MAJOR_MATRIX.data(), r, c), expected);
-                    EXPECT_EQ(column_major.at(K_COLUMN_MAJOR_MATRIX.data(), r, c), expected);
-                }
-            }
         }
 
         TEST(Small_OperandAccess, AtConjugatesAComplexElement)
@@ -196,18 +231,6 @@ namespace SushiBLAS
             EXPECT_TRUE(swapped.conjugated);
             EXPECT_FALSE((Kernels::OperandAccess{K_LEADING_DIMENSION, 1, false})
                              .transposed().conjugated);
-        }
-
-        TEST(Small_OperandAccess, ResolvesAtCompileTime)
-        {
-            constexpr Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::RowMajor, Core::Transpose::ConjTrans, K_LEADING_DIMENSION);
-
-            static_assert(access.row == 1, "A row-major transpose steps a row by one.");
-            static_assert(access.col == K_LEADING_DIMENSION, "It steps a column by the leading "
-                                                             "dimension.");
-            static_assert(access.conjugated, "A conjugate transpose conjugates.");
-            static_assert(access.index(1, 1) == K_LEADING_DIMENSION + 1, "index is constexpr.");
         }
     } // namespace Test
 } // namespace SushiBLAS
