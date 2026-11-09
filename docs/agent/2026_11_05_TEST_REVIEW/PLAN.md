@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open â€” T1 to T8 done; the M jobs next
+**Status:** Open — T1 to T8 done; the M jobs next
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -55,7 +55,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M34 | the tests of `operations/benchmark_harness` (3 files): 4 rewrite, 8 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M36 | the tests of `operations/blend` (1 file): 11 rewrite, 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M38 | the tests of `operations/experimental` (3 files): 6 rewrite, 11 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M39 | the tests of `operations/index` (1 file): 3 rewrite, 2 resize, 3 split, 11 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M40 | the tests of `operations/io` (5 files): 15 rewrite, 8 resize, 7 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -142,3 +142,5 @@ Resume note, 2026-11-10, M35 continued: `blas_rows.hpp` now also holds `device_r
 Resume note, 2026-11-10, M35 continued again: `unit_roundoff_of` and `K_HALF_UNIT_ROUNDOFF` now come from `blas_rows.hpp` and `tolerance_bounds.hpp` (`77a64bfe`). `Kernels::SYCL::gemm` and `gemm_accessed` take a trailing `GemmStrategy` (`level3/gemm_strategy.hpp`: `automatic()`, `no_local()`, `local_tiled(role)`; `eab2d31c`), and `test_gemm.cpp` asks for a kernel through it and names no `Detail::gemm_*`. The five GraphProbe tests of `test_gemm.cpp` wait on a different seam, a tensor without device storage in GraphProbe, so the variant seam does not unblock them and they stay `Medium_`. Rewritten: `test_level1_parallel_reductions.cpp` (`aaa5177e`, rows over length, the two HALF tests wait on a host accumulation seam), `test_level2_sycl_parity.cpp` (`2df3e269`), `test_packed_symm.cpp` (`e141000e`) and `test_packed_syrk.cpp` (`e719132e`, the `AStoreWantsOnlyBlocksThatTouchItsTriangle` test deleted as its record says); the packed files keep their `Detail::packed_gemm` and `Detail::packed_product` calls because no seam takes an injected blocking. M35 stays `todo`. Next file: `test_rotg.cpp`, then `test_rotm.cpp`, `test_rotmg.cpp`, `test_symm.cpp`, `test_syr2k.cpp`, `test_triangular_parallel.cpp`, the three of `test_dispatch/`, `test_level2.cpp`, `test_level3.cpp`, `test_local_tile.cpp` and `test_packed_product_scratch.cpp`. Syntax check: scratchpad `m35/chk35.py`; nothing was built or run.
 
 Resume note, 2026-11-09, M33 done (decisions 52 to 59): every `library` file is applied, `test_operand_refusals.cpp` and `test_spatial_random_refusals.cpp` are new `Small_` files under `TESTS`, and the `Medium_` leftovers are the device kernels, the USM counts and the IO files. Not done in M33: the resize of `ArgmaxIsExactPastTheFloatMantissa` (no host argmax seam) and the adds whose unit belongs to the modules of M35, M37, M47, M49 and S5. Nothing was built or run.
+
+Resume note, 2026-11-10, M37 done (decision 64): every record of the 38 `operations/elementwise` files is applied, the elementwise value tests run `Small_` on the host engine, and `ArgmaxIsExactPastTheFloatMantissa` is `Small_ArgmaxIndex`. Not applied: the reference-path half of the ordered-sum serial equality stays in the medium rows, and `HandWorkedSumIsExact` stays its own test. Nothing was built or run; the one build and test run still comes last.

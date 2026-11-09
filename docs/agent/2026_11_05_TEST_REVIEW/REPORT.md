@@ -1,6 +1,6 @@
 # Test review: report
 
-**Status:** Open â€” every test has a verdict; the plan's jobs are next
+**Status:** Open — every test has a verdict; the plan's jobs are next
 
 Every test in the repository has a verdict from `skills/testing/REVIEWING.md` of SushiSkills, reviewed
 on 2026-11-05 as part of J15 (`docs/agent/2026_11_03_INDUSTRIAL_TESTING/` in SushiSkills). The review read
@@ -126,6 +126,7 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 64. M35 ruling 3, ruled 2026-11-10 by the orchestrator. `HostGraphProbe` (`graph_probe/host_graph_probe.hpp`) is the probe of a test that makes no runtime: a `HostScratchSource`, a `ScratchPool`, a `HostTaskSink` and a `TaskRecorder` over them, recording under `ForceReference`. A tensor needs host storage only. `recorded_tasks()` returns `RecordedTask`s with `dependency_count` computed from the declared regions with `SushiRuntime::BufferRegion::overlaps` (a read after a write, a write after a read, a write after a write; an earlier task counts once); `cost` stays empty. The five dependency tests of `test_gemm.cpp` are `Small_GemmSeamDependencies` on `HostEngineTest`; the arena test builds its two views on `make_host_storage`. `GraphProbe` and its Medium tests are unchanged, so the runtime plan is still the reference for the rule; no test compares the two, and `test_host_graph_probe.cpp` checks the host rule on five cases. `GemmSeamValues` is split into `GemmSeamData` (the values) and the device fixture so the host fixture shares the values.
 65. M35 ruling 4, ruled 2026-11-10 by the orchestrator. No new seam was needed for the two HALF tests of `test_level1_parallel_reductions.cpp`: the host reference path of `execute_folding_reduction` already folds a HALF input in `Serial::Fold`, whose sum accumulator is `Kernels::ReferenceAccumulator` (double), and `HostEngineTest` records on it. Both tests are `Small_Level1HalfReductions` on `HostEngineTest`: the mean of two 60000 elements is 60000 and the sum is +inf. What they no longer show is the FLOAT32 accumulation of the SYCL fold, which the Medium rows over the lengths still cover for FLOAT32 only; the HALF device fold has no test now. The mean test is renamed `AMeanFoldsPastTheHalfRangeBeforeItDivides` for what the host path promises: the fold is wider than HALF.
 66. M35, `test_blas/test_rotg.cpp`, ruled 2026-11-10 under the orchestrator's delegation. The layout, kernel and table loops left the bodies: the real and complex design tables run as `TEST_P` rows over layout, kernel, element type and the place of the table row; the graph-ordering case and the kernel comparison are rows over layout, kernel and type; `with_real_element` joins `with_element` and `with_complex_element` in `blas_rows.hpp`. `K_MODE_ULPS` and `K_TABLE_TOLERANCE` are replaced by a bound of roundoffs measured through `TestSupport::measure_error` (agreement: 8 roundoffs at the larger modulus, floored at the least normal; table: 16 roundoffs at the row's magnitude, which is the old 8 epsilons). `AHalfRotationIsComputedInFloat` no longer compares against `Kernels::givens_rotation`, the function the reference rotg calls: it rotates 300 and 400, whose squares overflow HALF, and asserts the hand-rounded r = 500, c = 0.60009765625, s = 0.7998046875 and z = 1.6669921875. The 50 random HALF pairs of the old test are gone; the table rows already cover HALF. No row is `Small_`: every case records a graph on the device engine, and the givens logic has its `Small_` test in `tests/kernels/blas_kernels/reference/level1/test_rotg.cpp`.
+64. M37, ruled 2026-11-10 under the owner's delegation, one file at a time. The host engine already runs a recorded body: `HostTaskSink` replays it on the reference path over host tensors, so the elementwise value tests of an operation need no device. Every fixed-value test of `elementwise` runs `Small_` on `HostEngineTest` and the files move from `DEVICE_TESTS` to `TESTS` in `modules/operations/elementwise/CMakeLists.txt`; the device against host agreement stays with `test_dispatch.cpp`, and `test_add.cpp` (the borrowed-operand plan and the dangling refusal) and `test_ordered_sum.cpp` (the sum on both paths) stay `Medium_`. Seams, each keeping today's behaviour: `scalar_math.hpp` gains `scalar_sin`, `scalar_sinh`, `scalar_tan`, `scalar_round`, `scalar_square`, `scalar_reciprocal`, `scalar_pow` and `scalar_remainder`, and the eight kernel sources call them; `Dispatch::require_clamp_bounds` is the inverted-range check `clamp` makes at record time; `ordered_sum_element.hpp` gains `OrderedSumWeightOf` (with the weight-type checks as `static_assert`s, decision 49) and `ordered_sum_at`, the host form of the kernel; `Dispatch::host_arg_index` (`arg_reduction.hpp`) runs an arg accumulator over a function of the index. Rulings by file: `test_scalar_math.cpp` holds the host rows the per-operation files lost (zero, infinity, negative and NaN rows of sin, cos, exp, log and sqrt, the clamp bounds through `ElementScalar`, equal bounds accepted, the inverted range refused), so the zero, infinity, NaN and `ThousandElements` tests of cos, sin, exp, log and sqrt are deleted and the FLOAT64 test of each stays; the per-operation test names state the promise in place of `FloatForward`. `test_wrapping_math.cpp` is one call per test. `test_integer_arithmetic.cpp` keeps neg and abs as two typed tests; the integer sub, min and max are typed tests in their own files. `test_convert.cpp` runs `Small_` on the host engine as rows (rounding, overflow, underflow, non-finite, the nine dtype pairs); the refusals are one test each; the ordering tests assert the regions the convert declares from `HostTaskRecord`, and the edge count they used to assert belongs to the runtime tracker. `test_ordered_sum.cpp` runs the serial-sum equality as rows over element type and the input counts 1, 2, 5 and 32 (`K_MAX_ORDERED_SUM_INPUTS`), moves the type-skipping tests into typed suites of their own (`Medium_OrderedSumWeightedTest` checks a weight of 2 gives 6, `Medium_OrderedSumIntegerTest` checks the wrap), and runs the nine refusals and the two acceptances (the limit and a weight other than 1) `Small_`; an added refusals file would mirror no source, so they sit in the same file. `test_ordered_sum_element.cpp` checks the bits through `ordered_sum_at` as three hexadecimal-literal rows. `test_dispatch.cpp` moves the fp16 and device-only guards into fixtures and splits `AutoRunsTheSYCLPath` in two; the empty-tensor decision runs `Small_` on the host engine, which admits only `ForceReference`, so the `ForceSYCL` half of the old test is not repeated. `test_elementwise_log_category.cpp` is renamed `compile_elementwise_log_category.cpp`. `ArgmaxIsExactPastTheFloatMantissa` is `Small_ArgmaxIndex` over `host_arg_index`. Not applied: the reference-path half of the ordered-sum serial equality does not move to `OrderedSumElement` (both paths still run in the medium rows), and `HandWorkedSumIsExact` stays its own test, because its hand values are the oracle the serial sum is not.
 
 ## Risks the final build checks
 
@@ -488,38 +489,38 @@ Below the 80% aim: applications/benchmarks (67%), applications/examples (71%), d
 
 ## Dispatches
 
-dispatch: J15 review, 26 chunks â€” haiku high, 1 round each, passed, rung 1
-dispatch: J16 T1 tolerances (tests outside operations) â€” sonnet medium, 1 round, passed after lead fix of one bound, rung 1
-dispatch: J16 T1 tolerances (tests/operations) â€” sonnet medium, 1 round, passed after lead fix of two half bounds, rung 1
-dispatch: J16 T6 CLI seam and tests â€” sonnet medium, 1 round, passed after lead replaced its click import, rung 1
-dispatch: J16 T7 device-math rows â€” sonnet low, 1 round, passed after lead fixed one macro, rung 1
-dispatch: J16 T5 defects â€” sonnet medium, 1 round, passed, rung 1
-dispatch: J16 T3 duplicate deletions â€” sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
-dispatch: J16 T2 elementwise scalar functions â€” sonnet medium, 1 round, passed review unbuilt, rung 1
-dispatch: J16 T2 dense TRSV reference and task cost â€” sonnet medium, 1 round, passed review unbuilt, rung 1
-dispatch: J16 T2 trsv and scalar_math tests â€” sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
-dispatch: J16 T2 task_cost tests â€” sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
-dispatch: J16 M5 M6 M7 foundation tests â€” sonnet medium, 1 round, passed after lead added the multiply_add compile check and the CMake edit, rung 1
-dispatch: J16 M8 M9 M11 foundation tests â€” sonnet medium, 2 rounds (sent back: humanizer not run, tolerance names changed against decision 1), passed after lead added two compile checks, rung 1
-dispatch: J16 M15 M16 M20 M21 M22 foundation tests â€” sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
-dispatch: J16 M26 M28 M29 M30 kernels tests â€” sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
-dispatch: J16 M36 M38 M45 M48 operations and package tests â€” sonnet medium, 1 round, passed, rung 1
-dispatch: J16 M27 M31 M32 kernels tests â€” sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
-dispatch: J16 M10 M12 M19 foundation tests â€” sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
-dispatch: J16 RW-140..143 ports â€” sonnet medium, 1 round, stopped early on shutdown, rung 1
-dispatch: J16 RW-144..147 seams â€” sonnet medium, 1 round, stopped early on shutdown, rung 1
-dispatch: J16 RW-141 finish host_device â€” sonnet medium, 1 round, passed after lead renamed the contract helpers to expect_*, rung 1
-dispatch: J16 RW-144 RW-145 operand tests and helpers â€” sonnet medium, 1 round, passed, rung 1
-dispatch: J16 RW-140 profile reading port â€” sonnet medium, 1 round, passed, rung 1
-dispatch: J16 RW-146 RW-147 value seams â€” sonnet medium, 1 round, passed, RW-147 in part, rung 1
-dispatch: J16 M39 M40 M42 operations tests â€” sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
-dispatch: J16 M41 operations/logic tests â€” sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
-dispatch: J16 M43 operations/random tests â€” sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
-dispatch: J16 M44 operations/reductions tests â€” sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
-dispatch: J16 M46 operations/sparse tests â€” sonnet medium, 1 round, passed, all 82 records done as written, rung 1
-dispatch: J16 H1 host storage, host factory and shape-only tensor â€” sonnet medium, 1 round, passed after lead moved three test files to clear the mirror rule, rung 1
-dispatch: J16 H2 dispatcher queue and TaskSink port â€” sonnet medium, 2 rounds (sent back: no skills invoked, no humanizer), passed after lead allowed graph_task_sink.hpp in check_tier_contents, rung 1
-dispatch: J16 H3 host engine, block source port and HostEngineTest â€” sonnet medium, 1 round, passed after lead removed the superseded H2 test and fixed a shadowed Detail in test_scratch_shelf.cpp, rung 1
+dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
+dispatch: J16 T1 tolerances (tests outside operations) — sonnet medium, 1 round, passed after lead fix of one bound, rung 1
+dispatch: J16 T1 tolerances (tests/operations) — sonnet medium, 1 round, passed after lead fix of two half bounds, rung 1
+dispatch: J16 T6 CLI seam and tests — sonnet medium, 1 round, passed after lead replaced its click import, rung 1
+dispatch: J16 T7 device-math rows — sonnet low, 1 round, passed after lead fixed one macro, rung 1
+dispatch: J16 T5 defects — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T3 duplicate deletions — sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
+dispatch: J16 T2 elementwise scalar functions — sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 dense TRSV reference and task cost — sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 trsv and scalar_math tests — sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
+dispatch: J16 T2 task_cost tests — sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
+dispatch: J16 M5 M6 M7 foundation tests — sonnet medium, 1 round, passed after lead added the multiply_add compile check and the CMake edit, rung 1
+dispatch: J16 M8 M9 M11 foundation tests — sonnet medium, 2 rounds (sent back: humanizer not run, tolerance names changed against decision 1), passed after lead added two compile checks, rung 1
+dispatch: J16 M15 M16 M20 M21 M22 foundation tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
+dispatch: J16 M26 M28 M29 M30 kernels tests — sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
+dispatch: J16 M36 M38 M45 M48 operations and package tests — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 M27 M31 M32 kernels tests — sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
+dispatch: J16 M10 M12 M19 foundation tests — sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
+dispatch: J16 RW-140..143 ports — sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-144..147 seams — sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-141 finish host_device — sonnet medium, 1 round, passed after lead renamed the contract helpers to expect_*, rung 1
+dispatch: J16 RW-144 RW-145 operand tests and helpers — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-140 profile reading port — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-147 in part, rung 1
+dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
+dispatch: J16 M41 operations/logic tests — sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
+dispatch: J16 M43 operations/random tests — sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
+dispatch: J16 M44 operations/reductions tests — sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
+dispatch: J16 M46 operations/sparse tests — sonnet medium, 1 round, passed, all 82 records done as written, rung 1
+dispatch: J16 H1 host storage, host factory and shape-only tensor — sonnet medium, 1 round, passed after lead moved three test files to clear the mirror rule, rung 1
+dispatch: J16 H2 dispatcher queue and TaskSink port — sonnet medium, 2 rounds (sent back: no skills invoked, no humanizer), passed after lead allowed graph_task_sink.hpp in check_tier_contents, rung 1
+dispatch: J16 H3 host engine, block source port and HostEngineTest — sonnet medium, 1 round, passed after lead removed the superseded H2 test and fixed a shadowed Detail in test_scratch_shelf.cpp, rung 1
 
 ## Totals
 
