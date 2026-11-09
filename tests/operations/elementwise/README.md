@@ -26,7 +26,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_elementwise/test_exp.cpp` | Tests ElementwiseOps::exp against fixed expected values |
 | `test_elementwise/test_floor.cpp` | Tests ElementwiseOps::floor against fixed expected values |
 | `test_elementwise/test_fmod.cpp` | Tests ElementwiseOps::fmod against fixed expected values |
-| `test_elementwise/test_integer_arithmetic.cpp` | Tests integer elementwise arithmetic, wrap-around included, and double scalars |
+| `test_elementwise/test_integer_arithmetic.cpp` | Tests that neg and abs map the smallest integer to itself on the device |
 | `test_elementwise/test_log.cpp` | Tests ElementwiseOps::log against fixed expected values |
 | `test_elementwise/test_max.cpp` | Tests ElementwiseOps::max against fixed expected values |
 | `test_elementwise/test_min.cpp` | Tests ElementwiseOps::min against fixed expected values |
@@ -43,7 +43,8 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_elementwise/test_square.cpp` | Tests ElementwiseOps::square against fixed expected values |
 | `test_elementwise/test_sub.cpp` | Tests ElementwiseOps::sub against fixed expected values |
 | `test_elementwise/test_tan.cpp` | Tests ElementwiseOps::tan against fixed expected values |
-| `test_ordered_sum_element.cpp` | Tests that the ordered_sum kernel holds no double outside FLOAT64 and COMPLEX64, and the bits it writes |
+| `test_scalar_math.cpp` | Tests the host calls of the scalar functions elementwise applies to one element, the clamp bounds included |
+| `test_ordered_sum_element.cpp` | Tests the bits the ordered_sum kernel writes when a weight is rounded to float once on the host |
 | `test_wrapping_math.cpp` | Tests that integer arithmetic wraps modulo its width and floating arithmetic is plain |
 
 ## test_elementwise/test_convert.cpp
@@ -57,38 +58,38 @@ range must come back as an infinity, and one below it must come back as zero.
 
 The expectations are exact, and they are worked out by hand from IEEE-754 binary16. A
 differential oracle against `static_cast` on the host would agree with a device kernel that
-made the same mistake. The ordering cases assert on `dependency_count`; see "Ordering is asserted on
-in-degree".
+made the same mistake. The ordering cases assert on the byte regions the convert declares, read from the
+host recording; the edge count belongs to the runtime tracker.
 
-The file is laid out in five groups: the cases the conversion has to change a value to pass,
-the sanity case, what the operation refuses and whether the refusal says enough to act on, what
-it declares to the dependency tracker, and the offset case.
+The file runs `Small_` on the host engine and is laid out in five groups: the cases the conversion
+has to change a value to pass, the sanity case, what the operation refuses and whether the refusal
+says enough to act on, what it declares to the dependency tracker, and the offset case.
 
-`Fp32ToFp16RoundsToTheNearestRepresentableValue`: the assertion is on the exact correctly
-rounded neighbour, and a second assertion says the result is not the input. An implementation
-that widened, reinterpreted or otherwise carried the fp32 value through unchanged fails here.
+`Small_ConvertRounding` rows: the assertion is on the exact correctly rounded neighbour. An
+implementation that widened, reinterpreted or otherwise carried the fp32 value through unchanged
+fails the first row, because 0.1 is not representable in binary16.
 
-`Fp32ToFp16BreaksTiesToEven`: the rule is round-to-nearest-even, not round-away and not
+The `ATieGoesToTheEvenNeighbour` and `PastHalfwayRoundsUp` rows: the rule is round-to-nearest-even, not round-away and not
 truncate. `1 + 2^-11` sits exactly halfway between the binary16 neighbours 1.0 (mantissa even)
 and `1 + 2^-10` (mantissa odd), so only ties-to-even gives 1.0. The second value is just past
 halfway and must go the other way, which stops "always round down" from passing the first.
 
-`Fp32PastTheHalfRangeBecomesInfinity` is the behaviour a loss-scaling backoff is built on: a
+`Small_ConvertOverflow` rows are the behaviour a loss-scaling backoff is built on: a
 gradient scaled past fp16's range does not wrap, saturate or clamp. It becomes an infinity,
 which `count_nonfinite` can then find.
 
-`Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive`: 1e-8 is below half of the
+`Small_ConvertUnderflow` rows: 1e-8 is below half of the
 smallest subnormal and must flush to zero. 1e-7 is not, and must land on a subnormal and not be
 flushed with it.
 
-`NonFiniteValuesSurviveTheConversion`: this pairing makes `ReductionOps::count_nonfinite`
+`Small_ConvertNonFinite` rows: one per target dtype and value, this pairing makes `ReductionOps::count_nonfinite`
 meaningful on a converted tensor. If a cast quietly turned a NaN into a number, screening the
 fp16 copy would say the fp32 original was clean.
 
 `ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold` is the complement of the sanity case: it says
 what the round trip costs when the value is one fp16 cannot hold.
 
-`EveryRealDTypePairConvertsExactlyRepresentableValues` is the sanity case. Exactly representable
+`Small_ConvertPair` rows, one per dtype pair, are the sanity case. Exactly representable
 values survive every conversion, which is necessary and nowhere near sufficient: it would pass
 for an implementation that had the element widths right and the rounding wrong. Its whole job
 is to cover all nine arms of the dtype cross product in one place.
@@ -106,12 +107,11 @@ its elements are not where a flat walk would look for them.
 `OverlappingOperandsAreRefused`: overlapping operands are a race between work-items, not an
 in-place update, because each item reads one element and writes another of a different width.
 
-`AConvertIsOrderedBehindTheOpThatWroteItsSource`: the source is a view at a non-zero offset,
-for the reason given under "Views at a non-zero offset". Verified by mutation: rewriting
-`src.region()` as the bare pointer makes the assertion report 0.
+`AConvertReadsTheByteIntervalOfItsSource` and `AConvertWritesTheByteIntervalOfItsTarget`: the
+operand is a view at a non-zero offset, for the reason given under "Views at a non-zero offset".
+The declared region must overlap the view and not the bytes beside it.
 
-`ConvertsOverDisjointViewsOfOneArenaDoNotSerialise` is the control: two converts over disjoint
-views of one arena must not serialise. The two ordering tests catch an under-declared operand
-(no edge where one is needed); this one catches an over-declared operand (an edge where none
-is). Verified by mutation as well: declaring `src.storage->allocation_base()` in place of
-`src.region()` makes the assertion report 1, while both ordering tests stay green.
+`ConvertsOverDisjointViewsOfOneArenaDeclareNoSharedBytes` is the control: two converts over
+disjoint views of one arena must declare regions that share no bytes. The two region tests catch
+an under-declared operand; this one catches an over-declared operand, such as the whole
+allocation in place of `src.region()`.
