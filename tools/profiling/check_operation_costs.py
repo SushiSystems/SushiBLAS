@@ -17,6 +17,7 @@ import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -30,6 +31,41 @@ K_OPERATION_LITERAL = re.compile(r'"([A-Za-z0-9_.]+)"_op\b')
 K_COST_ROW = re.compile(r'\b(?:costed|uncosted)\(\s*"([A-Za-z0-9_.]+)"_op\b')
 
 
+def operation_sites_in(files: Iterable[tuple[Path, str]], skipped: Path) -> dict[str, tuple[Path, int]]:
+    """Returns the first place each operation id is written in files, leaving out the files under skipped."""
+    sites: dict[str, tuple[Path, int]] = {}
+    for path, text in files:
+        if path.suffix not in K_SOURCE_SUFFIXES or skipped in path.parents:
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            for name in K_OPERATION_LITERAL.findall(line):
+                sites.setdefault(name, (path, number))
+    return sites
+
+
+def row_sites_in(text: str) -> dict[str, int]:
+    """Returns the line of each row in the text of a cost table."""
+    rows: dict[str, int] = {}
+    for number, line in enumerate(text.splitlines(), 1):
+        for name in K_COST_ROW.findall(line):
+            rows.setdefault(name, number)
+    return rows
+
+
+class CostSource(Protocol):
+    """Gives the rules the operation ids a library records and the rows of its cost table."""
+
+    root: Path
+
+    def operation_sites(self) -> dict[str, tuple[Path, int]]:
+        """Returns the first place each operation id is written outside the cost module."""
+        ...
+
+    def row_sites(self) -> dict[str, int]:
+        """Returns the line of each row of the cost table."""
+        ...
+
+
 @dataclass(frozen=True, slots=True)
 class Repository:
     """Holds the root of a repository whose operation ids and cost table the rules compare."""
@@ -38,29 +74,38 @@ class Repository:
 
     def operation_sites(self) -> dict[str, tuple[Path, int]]:
         """Returns the first place each operation id is written outside the cost module."""
-        sites: dict[str, tuple[Path, int]] = {}
         base = self.root / K_MODULES_FOLDER
         if not base.is_dir():
-            return sites
-        skipped = self.root / K_COST_MODULE
-        for path in sorted(base.rglob("*")):
-            if path.suffix not in K_SOURCE_SUFFIXES or skipped in path.parents:
-                continue
-            for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                for name in K_OPERATION_LITERAL.findall(line):
-                    sites.setdefault(name, (path, number))
-        return sites
+            return {}
+        files = (
+            (path, path.read_text(encoding="utf-8", errors="replace"))
+            for path in sorted(base.rglob("*")) if path.suffix in K_SOURCE_SUFFIXES
+        )
+        return operation_sites_in(files, self.root / K_COST_MODULE)
 
     def row_sites(self) -> dict[str, int]:
         """Returns the line of each row of the cost table."""
         table = self.root / K_COST_TABLE
         if not table.is_file():
             return {}
-        rows: dict[str, int] = {}
-        for number, line in enumerate(table.read_text(encoding="utf-8").splitlines(), 1):
-            for name in K_COST_ROW.findall(line):
-                rows.setdefault(name, number)
-        return rows
+        return row_sites_in(table.read_text(encoding="utf-8"))
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryRepository:
+    """Holds the operation sites and the cost rows as values, for a rule that needs no file."""
+
+    sites: dict[str, tuple[Path, int]]
+    rows: dict[str, int]
+    root: Path = Path(".")
+
+    def operation_sites(self) -> dict[str, tuple[Path, int]]:
+        """Returns the first place each operation id is written."""
+        return dict(self.sites)
+
+    def row_sites(self) -> dict[str, int]:
+        """Returns the line of each row of the cost table."""
+        return dict(self.rows)
 
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
@@ -68,7 +113,7 @@ def collect(paths: list[Path]) -> Iterable[Repository]:
     return [Repository(path) for path in paths if path.is_dir()]
 
 
-def rule_operation_without_row(repository: Repository) -> Iterator[Issue]:
+def rule_operation_without_row(repository: CostSource) -> Iterator[Issue]:
     """Yields an issue for each operation id the library records that the cost table has no row for."""
     rows = repository.row_sites()
     for name, (path, line) in sorted(repository.operation_sites().items()):
@@ -76,7 +121,7 @@ def rule_operation_without_row(repository: Repository) -> Iterator[Issue]:
             yield Issue(path, line, f'operation "{name}" has no row in {K_COST_TABLE.as_posix()}')
 
 
-def rule_row_without_operation(repository: Repository) -> Iterator[Issue]:
+def rule_row_without_operation(repository: CostSource) -> Iterator[Issue]:
     """Yields an issue for each row of the cost table whose operation id no code records."""
     operations = repository.operation_sites()
     table = repository.root / K_COST_TABLE
