@@ -1046,40 +1046,5 @@ namespace SushiBLAS
             ::testing::ValuesIn(rows_of({DataType::Float32, DataType::Float64, DataType::Complex32},
                                         {ExecutionMode::ForceSYCL}, tile_shape_cases())),
             row_name<GemmCase>);
-
-        /**
-         * @brief Tests that a transpose equals a flipped layout, on integer data the host sums exactly.
-         *
-         * A k x m row-major buffer read transposed is the m x k column-major buffer of the same
-         * bytes read as given, so the two calls must give C and its column-major copy.
-         */
-        TEST(Small_GemmStrideTable, ATransposeEqualsAFlippedLayout)
-        {
-            constexpr int64_t K_M = 5;
-            constexpr int64_t K_N = 4;
-            constexpr int64_t K_K = 3;
-
-            std::vector<float> a(static_cast<std::size_t>(K_K * K_M));
-            std::vector<float> b(static_cast<std::size_t>(K_K * K_N));
-            for (std::size_t i = 0; i < a.size(); ++i)
-                a[i] = static_cast<float>(static_cast<int>(i % 7) - 3);
-            for (std::size_t i = 0; i < b.size(); ++i)
-                b[i] = static_cast<float>(static_cast<int>(i % 5) - 2);
-
-            std::vector<float> row_major_c(static_cast<std::size_t>(K_M * K_N), 0.0f);
-            std::vector<float> column_major_c(row_major_c.size(), 0.0f);
-            Kernels::Reference::gemm<float>(Layout::RowMajor, Transpose::Trans, Transpose::NoTrans,
-                                            K_M, K_N, K_K, 1.0f, a.data(), K_M, b.data(), K_N, 0.0f,
-                                            row_major_c.data(), K_N);
-            Kernels::Reference::gemm<float>(Layout::ColumnMajor, Transpose::NoTrans, Transpose::Trans,
-                                            K_M, K_N, K_K, 1.0f, a.data(), K_M, b.data(), K_N, 0.0f,
-                                            column_major_c.data(), K_M);
-
-            for (int64_t row = 0; row < K_M; ++row)
-                for (int64_t col = 0; col < K_N; ++col)
-                    EXPECT_EQ(column_major_c[static_cast<std::size_t>(row + col * K_M)],
-                              row_major_c[static_cast<std::size_t>(row * K_N + col)])
-                        << "element (" << row << ", " << col << ")";
-        }
     } // namespace Test
 } // namespace SushiBLAS

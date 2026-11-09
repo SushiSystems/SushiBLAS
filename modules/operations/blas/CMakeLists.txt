@@ -56,9 +56,11 @@ sushiblas_add_test_program(
     MODULE blas
     TESTS
         test_band_operand.cpp
+        test_blas/test_gemm_reference.cpp
         test_blas/test_iamax.cpp
         test_blas/test_level1_reference.cpp
         test_blas/test_level2_reference.cpp
+        test_blas/test_reduction_half.cpp
         test_blas_task.cpp
         test_level1.cpp
         test_level2.cpp
