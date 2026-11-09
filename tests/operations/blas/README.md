@@ -224,7 +224,7 @@ ColumnMajor arm the moment it was written.
 
 IAMAX answers "which element has the largest |Re| + |Im|", so its result is an index and its
 result tensor is INT64. The index itself, ties included, is pinned by
-`IamaxReturnsTheFirstLargestMagnitude` in the reference level 1 tests.
+`IamaxOfARealVectorReturnsTheFirstLargestMagnitude` in the reference level 1 tests.
 
 `ADtypeOtherThanInt64IsRefused` pins the defect the INT64 dtype was added for.
 `iamax` writes eight bytes; a FLOAT32 result element is four. With tensors packed into an arena
@@ -233,10 +233,12 @@ four-byte write, so the dependency tracker did not order anything against the co
 either. Nothing can detect that from outside, which is why the fix is a refusal and not a
 repair: a result tensor that cannot hold the answer is rejected at record time, by name.
 
-## The `Medium_Level2SyclParityTest` fixture
+## The `Level2Parity` fixture
 
 `tests/operations/blas/test_blas/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
 and measures each against a `TruthSum`, as `modules/foundation/blas_test_oracle/README.md` describes under `blas_truth.hpp`.
+A row is an element type, a kernel and a shape; `Medium_Level2ParityBound`, `Medium_Level2ParityExact` and
+`Medium_Level2ParityRepeat` each run their own list of shapes over it.
 
 ## test_dispatch/test_channel_bias_epilogue.cpp
 

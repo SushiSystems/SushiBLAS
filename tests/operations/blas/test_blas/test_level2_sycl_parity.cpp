@@ -29,6 +29,7 @@
  */
 
 #include <cmath>
+#include <string>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -39,10 +40,10 @@
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -105,15 +106,90 @@ namespace SushiBLAS
         /// @brief Exact data: every partial sum of every case is an integer below 2^24.
         constexpr ParityData K_INTEGER_VALUED{&integer_value, 2.0, -1.0};
 
+        /** @brief Names the product a row runs; a SYMV reads one triangle of A. */
+        enum class ParityProduct
+        {
+            Gemv,      /**< y = alpha * A * x + beta * y for an m x n A. */
+            SymvUpper, /**< The same for a symmetric A of order n, read from its upper triangle. */
+            SymvLower  /**< The same, read from its lower triangle. */
+        };
+
+        /** @brief Holds a product and the extent of its A; a SYMV takes m equal to n. */
+        struct ParityShape
+        {
+            ParityProduct product; /**< The product the row runs. */
+            int64_t m;             /**< The rows of A. */
+            int64_t n;             /**< The columns of A, and the terms of every sum. */
+        };
+
+        /** @brief Holds one row: the element type, the kernel and the shape. */
+        struct ParityRow
+        {
+            Core::DataType type; /**< FLOAT32 or FLOAT64. */
+            ExecutionMode mode;  /**< The kernel the engine selects. */
+            ParityShape shape;   /**< The product and its extent. */
+        };
+
+        /** @brief Returns every row over the two element types, the given kernels and shapes. */
+        [[nodiscard]] inline std::vector<ParityRow> parity_rows(
+            const std::vector<ExecutionMode>& modes, const std::vector<ParityShape>& shapes)
+        {
+            std::vector<ParityRow> rows;
+            for (const Core::DataType type : {Core::DataType::Float32, Core::DataType::Float64})
+                for (const ExecutionMode mode : modes)
+                    for (const ParityShape& shape : shapes)
+                        rows.push_back({type, mode, shape});
+            return rows;
+        }
+
+        /** @brief Returns the name of a row: type, kernel, product and extent. */
+        [[nodiscard]] inline std::string parity_row_name(
+            const ::testing::TestParamInfo<ParityRow>& info)
+        {
+            const ParityShape& shape = info.param.shape;
+            const char* product = shape.product == ParityProduct::Gemv        ? "Gemv"
+                                  : shape.product == ParityProduct::SymvUpper ? "SymvUpper"
+                                                                              : "SymvLower";
+            return std::string(Core::to_string(info.param.type)) + "_" + word(info.param.mode) + "_" +
+                   product +
+                   "_" + std::to_string(shape.m) + "x" + std::to_string(shape.n);
+        }
+
+        /// @brief The kernels a truth case runs in.
+        const std::vector<ExecutionMode> K_TRUTH_MODES = {ExecutionMode::ForceReference,
+                                                          ExecutionMode::ForceSYCL};
+
+        /// @brief The shapes the bound is measured at.
+        const std::vector<ParityShape> K_BOUND_SHAPES = {
+            {ParityProduct::Gemv, K_SMALL_N, K_SMALL_N},
+            {ParityProduct::Gemv, K_LARGE_N, K_LARGE_N},
+            {ParityProduct::Gemv, K_WIDE_ROWS, K_WIDE_COLS},
+            {ParityProduct::SymvUpper, K_SMALL_N, K_SMALL_N},
+            {ParityProduct::SymvLower, K_SMALL_N, K_SMALL_N},
+            {ParityProduct::SymvUpper, K_LARGE_N, K_LARGE_N},
+            {ParityProduct::SymvLower, K_LARGE_N, K_LARGE_N}};
+
+        /// @brief The shapes that are exact on small integers.
+        const std::vector<ParityShape> K_EXACT_SHAPES = {
+            {ParityProduct::Gemv, K_LARGE_N, K_LARGE_N},
+            {ParityProduct::Gemv, K_WIDE_ROWS, K_WIDE_COLS},
+            {ParityProduct::SymvUpper, K_LARGE_N, K_LARGE_N},
+            {ParityProduct::SymvLower, K_LARGE_N, K_LARGE_N}};
+
+        /// @brief The shapes that repeat to the bit: the two-stage reduction and the large SYMV.
+        const std::vector<ParityShape> K_REPEAT_SHAPES = {
+            {ParityProduct::Gemv, K_WIDE_ROWS, K_WIDE_COLS},
+            {ParityProduct::SymvUpper, K_LARGE_N, K_LARGE_N}};
+
         /**
          * @brief Runs GEMV and SYMV in a chosen execution mode and measures them against a truth.
          * @see tests/operations/blas/README.md
          */
-        template<typename T>
-        class Medium_Level2SyclParityTest : public SushiBLASTest
+        class Level2Parity : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the element a tensor of T holds at index of data, as a double. */
+                template<typename T>
                 [[nodiscard]] static double element(const ParityData& data,
                                                     std::size_t index) noexcept
                 {
@@ -121,6 +197,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns a tensor of dims filled from data, starting at index seed. */
+                template<typename T>
                 [[nodiscard]] Tensor filled(std::initializer_list<int64_t> dims,
                                             const ParityData& data, std::size_t seed)
                 {
@@ -134,6 +211,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Copies a tensor to the host. */
+                template<typename T>
                 [[nodiscard]] static std::vector<T> read_back(const Tensor& t)
                 {
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
@@ -143,34 +221,47 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns y = alpha * A * x + beta * y for an m x n A, computed in mode. */
+                template<typename T>
                 [[nodiscard]] std::vector<T> run_gemv(ExecutionMode mode, int64_t m, int64_t n,
-                                                      const ParityData& data = K_PATTERNED)
+                                                      const ParityData& data)
                 {
                     set_mode(mode);
-                    Tensor A = filled({m, n}, data, K_SEED_A);
-                    Tensor x = filled({n}, data, K_SEED_X);
-                    Tensor y = filled({m}, data, K_SEED_Y);
+                    Tensor A = filled<T>({m, n}, data, K_SEED_A);
+                    Tensor x = filled<T>({n}, data, K_SEED_X);
+                    Tensor y = filled<T>({m}, data, K_SEED_Y);
                     SushiBLAS::BLASOps(recorder()).gemv(A, x, y, Core::Transpose::NoTrans,
                                                      data.alpha, data.beta);
                     recording->run().value();
-                    return read_back(y);
+                    return read_back<T>(y);
                 }
 
                 /** @brief Returns y = alpha * A * x + beta * y for a symmetric A, run in mode. */
+                template<typename T>
                 [[nodiscard]] std::vector<T> run_symv(ExecutionMode mode, int64_t n, bool upper,
-                                                      const ParityData& data = K_PATTERNED)
+                                                      const ParityData& data)
                 {
                     set_mode(mode);
-                    Tensor A = filled({n, n}, data, K_SEED_A);
-                    Tensor x = filled({n}, data, K_SEED_X);
-                    Tensor y = filled({n}, data, K_SEED_Y);
+                    Tensor A = filled<T>({n, n}, data, K_SEED_A);
+                    Tensor x = filled<T>({n}, data, K_SEED_X);
+                    Tensor y = filled<T>({n}, data, K_SEED_Y);
                     SushiBLAS::BLASOps(recorder()).symv(A, x, y, uplo_of(upper), data.alpha,
                                                      data.beta);
                     recording->run().value();
-                    return read_back(y);
+                    return read_back<T>(y);
+                }
+
+                /** @brief Returns the product of a shape on data, computed in mode. */
+                template<typename T>
+                [[nodiscard]] std::vector<T> run_product(const ParityShape& shape,
+                                                         ExecutionMode mode, const ParityData& data)
+                {
+                    if (shape.product == ParityProduct::Gemv)
+                        return run_gemv<T>(mode, shape.m, shape.n, data);
+                    return run_symv<T>(mode, shape.n, shape.product == ParityProduct::SymvUpper, data);
                 }
 
                 /** @brief Returns the exact result of run_gemv on data, element by element. */
+                template<typename T>
                 [[nodiscard]] static std::vector<TruthValue> truth_gemv(int64_t m, int64_t n,
                                                                         const ParityData& data)
                 {
@@ -181,15 +272,16 @@ namespace SushiBLAS
                     {
                         TruthSum sum;
                         for (std::size_t j = 0; j < cols; ++j)
-                            sum.add_product(data.alpha * element(data, K_SEED_A + i * cols + j),
-                                            element(data, K_SEED_X + j));
-                        sum.add_product(data.beta, element(data, K_SEED_Y + i));
+                            sum.add_product(data.alpha * element<T>(data, K_SEED_A + i * cols + j),
+                                            element<T>(data, K_SEED_X + j));
+                        sum.add_product(data.beta, element<T>(data, K_SEED_Y + i));
                         truth[i] = sum.value();
                     }
                     return truth;
                 }
 
                 /** @brief Returns the exact result of run_symv on data, read from one triangle. */
+                template<typename T>
                 [[nodiscard]] static std::vector<TruthValue> truth_symv(int64_t n, bool upper,
                                                                         const ParityData& data)
                 {
@@ -202,16 +294,27 @@ namespace SushiBLAS
                         {
                             const bool stored = upper ? i <= j : i >= j;
                             const std::size_t index = stored ? i * order + j : j * order + i;
-                            sum.add_product(data.alpha * element(data, K_SEED_A + index),
-                                            element(data, K_SEED_X + j));
+                            sum.add_product(data.alpha * element<T>(data, K_SEED_A + index),
+                                            element<T>(data, K_SEED_X + j));
                         }
-                        sum.add_product(data.beta, element(data, K_SEED_Y + i));
+                        sum.add_product(data.beta, element<T>(data, K_SEED_Y + i));
                         truth[i] = sum.value();
                     }
                     return truth;
                 }
 
+                /** @brief Returns the exact result of the product of a shape on data. */
+                template<typename T>
+                [[nodiscard]] static std::vector<TruthValue> truth_of(const ParityShape& shape,
+                                                                      const ParityData& data)
+                {
+                    if (shape.product == ParityProduct::Gemv)
+                        return truth_gemv<T>(shape.m, shape.n, data);
+                    return truth_symv<T>(shape.n, shape.product == ParityProduct::SymvUpper, data);
+                }
+
                 /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
+                template<typename T>
                 [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                 {
                     return mode == ExecutionMode::ForceReference
@@ -220,6 +323,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the roundings the kernel of mode makes on a sum of len terms. */
+                template<typename T>
                 [[nodiscard]] static std::size_t roundings(ExecutionMode mode,
                                                            int64_t len) noexcept
                 {
@@ -230,13 +334,14 @@ namespace SushiBLAS
                 }
 
                 /** @brief Expects every element within the bound of mode for a sum of len terms. */
+                template<typename T>
                 static void expect_within_bound(const std::vector<T>& actual,
                                                 const std::vector<TruthValue>& truth, int64_t len,
                                                 ExecutionMode mode)
                 {
                     ASSERT_EQ(actual.size(), truth.size());
-                    const double unit = summing_unit(mode);
-                    const std::size_t count = roundings(mode, len);
+                    const double unit = summing_unit<T>(mode);
+                    const std::size_t count = roundings<T>(mode, len);
                     for (std::size_t i = 0; i < actual.size(); ++i)
                     {
                         const double bound = rounding_bound(count, unit, truth[i].magnitude) +
@@ -247,6 +352,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Expects every element to equal the truth with no tolerance. */
+                template<typename T>
                 static void expect_exact(const std::vector<T>& actual,
                                          const std::vector<TruthValue>& truth)
                 {
@@ -256,112 +362,98 @@ namespace SushiBLAS
                 }
 
                 /** @brief Expects two results to hold the same bits. */
+                template<typename T>
                 static void expect_same_bits(const std::vector<T>& first,
                                              const std::vector<T>& second)
                 {
                     ASSERT_EQ(first.size(), second.size());
                     EXPECT_EQ(0, std::memcmp(first.data(), second.data(), first.size() * sizeof(T)));
                 }
-
-                /** @brief Expects GEMV of an m x n A within its bound of the truth in each mode. */
-                void expect_gemv_within_bound(int64_t m, int64_t n)
-                {
-                    const auto truth = truth_gemv(m, n, K_PATTERNED);
-                    for (const ExecutionMode mode : K_MODES)
-                        expect_within_bound(run_gemv(mode, m, n), truth, n, mode);
-                }
-
-                /** @brief Expects SYMV of order n within its bound, for each mode and triangle. */
-                void expect_symv_within_bound(int64_t n)
-                {
-                    for (const bool upper : {true, false})
-                    {
-                        const auto truth = truth_symv(n, upper, K_PATTERNED);
-                        for (const ExecutionMode mode : K_MODES)
-                            expect_within_bound(run_symv(mode, n, upper), truth, n, mode);
-                    }
-                }
-
-                /** @brief Expects GEMV of an m x n A of small integers to equal the truth. */
-                void expect_gemv_exact(int64_t m, int64_t n)
-                {
-                    const auto truth = truth_gemv(m, n, K_INTEGER_VALUED);
-                    for (const ExecutionMode mode : K_MODES)
-                        expect_exact(run_gemv(mode, m, n, K_INTEGER_VALUED), truth);
-                }
-
-                /** @brief Expects SYMV of order n of small integers to equal the truth. */
-                void expect_symv_exact(int64_t n)
-                {
-                    for (const bool upper : {true, false})
-                    {
-                        const auto truth = truth_symv(n, upper, K_INTEGER_VALUED);
-                        for (const ExecutionMode mode : K_MODES)
-                            expect_exact(run_symv(mode, n, upper, K_INTEGER_VALUED), truth);
-                    }
-                }
-
-                /// @brief The two modes every truth case runs in.
-                static constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                            ExecutionMode::ForceSYCL};
         };
 
-        /// @brief Element types the parity tests run on.
-        using ParityTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Medium_Level2SyclParityTest, ParityTypes);
-
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthSmall)
+        /** @brief Calls body with the Element of FLOAT32 or FLOAT64, the two types the rows run on. */
+        template<typename Body>
+        void with_real_element(Core::DataType type, Body&& body)
         {
-            this->expect_gemv_within_bound(K_SMALL_N, K_SMALL_N);
+            if (type == Core::DataType::Float64)
+                body(Element<double>{});
+            else
+                body(Element<float>{});
         }
 
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthLarge)
+        /** @brief Runs a case once per row, and skips a device that lacks the type of the row. */
+        class Level2ParityRow : public Level2Parity, public ::testing::WithParamInterface<ParityRow>
         {
-            this->expect_gemv_within_bound(K_LARGE_N, K_LARGE_N);
+            protected:
+                /** @brief Skips the case when the device does not compute in the type of the row. */
+                void SetUp() override
+                {
+                    Level2Parity::SetUp();
+                    if (!device_runs(GetParam().type))
+                        GTEST_SKIP() << "the device does not compute in this element type";
+                }
+        };
+
+        /** @brief Measures the kernels against the truth on rounded data. */
+        class Medium_Level2ParityBound : public Level2ParityRow
+        {
+        };
+
+        /** @brief Measures the kernels against the truth on data whose sums are exact. */
+        class Medium_Level2ParityExact : public Level2ParityRow
+        {
+        };
+
+        /** @brief Runs the SYCL kernels twice and compares the bits. */
+        class Medium_Level2ParityRepeat : public Level2ParityRow
+        {
+        };
+
+        TEST_P(Medium_Level2ParityBound, TheKernelIsWithinItsBoundOfTheTruth)
+        {
+            const ParityRow& row = GetParam();
+            with_real_element(row.type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_within_bound<T>(run_product<T>(row.shape, row.mode, K_PATTERNED),
+                                       truth_of<T>(row.shape, K_PATTERNED), row.shape.n, row.mode);
+            });
         }
 
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthWide)
+        TEST_P(Medium_Level2ParityExact, TheKernelIsExactOnSmallIntegers)
         {
-            this->expect_gemv_within_bound(K_WIDE_ROWS, K_WIDE_COLS);
+            const ParityRow& row = GetParam();
+            with_real_element(row.type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_exact<T>(run_product<T>(row.shape, row.mode, K_INTEGER_VALUED),
+                                truth_of<T>(row.shape, K_INTEGER_VALUED));
+            });
         }
 
-        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthSmall)
+        TEST_P(Medium_Level2ParityRepeat, TheKernelRepeatsToTheBit)
         {
-            this->expect_symv_within_bound(K_SMALL_N);
+            const ParityRow& row = GetParam();
+            with_real_element(row.type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const auto first = run_product<T>(row.shape, row.mode, K_PATTERNED);
+                const auto second = run_product<T>(row.shape, row.mode, K_PATTERNED);
+                expect_same_bits<T>(first, second);
+            });
         }
 
-        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthLarge)
-        {
-            this->expect_symv_within_bound(K_LARGE_N);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Level2ParityBound,
+            ::testing::ValuesIn(parity_rows(K_TRUTH_MODES, K_BOUND_SHAPES)), parity_row_name);
 
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsExactOnSmallIntegersLarge)
-        {
-            this->expect_gemv_exact(K_LARGE_N, K_LARGE_N);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Level2ParityExact,
+            ::testing::ValuesIn(parity_rows(K_TRUTH_MODES, K_EXACT_SHAPES)), parity_row_name);
 
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsExactOnSmallIntegersWide)
-        {
-            this->expect_gemv_exact(K_WIDE_ROWS, K_WIDE_COLS);
-        }
-
-        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsExactOnSmallIntegersLarge)
-        {
-            this->expect_symv_exact(K_LARGE_N);
-        }
-
-        TYPED_TEST(Medium_Level2SyclParityTest, GemvRepeatsToTheBit)
-        {
-            const auto first = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
-            const auto second = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
-            this->expect_same_bits(first, second);
-        }
-
-        TYPED_TEST(Medium_Level2SyclParityTest, SymvRepeatsToTheBit)
-        {
-            const auto first = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);
-            const auto second = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);
-            this->expect_same_bits(first, second);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Level2ParityRepeat,
+            ::testing::ValuesIn(parity_rows({ExecutionMode::ForceSYCL}, K_REPEAT_SHAPES)),
+            parity_row_name);
     } // namespace Test
 } // namespace SushiBLAS
