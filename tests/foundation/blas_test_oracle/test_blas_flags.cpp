@@ -109,6 +109,10 @@ namespace SushiBLAS
             EXPECT_STREQ(layout_transpose_label(true, true), "RowMajorTrans");
             EXPECT_STREQ(layout_transpose_label(false, false), "ColumnMajorNoTrans");
             EXPECT_STREQ(layout_transpose_label(false, true), "ColumnMajorTrans");
+            EXPECT_EQ(layout_uplo_label(false, true), "ColumnMajorUpper");
+            EXPECT_EQ(layout_uplo_label(true, false), "RowMajorLower");
+            EXPECT_EQ(triangular_label(true, true, true, false), "RowMajorUpperTransNonUnit");
+            EXPECT_EQ(triangular_label(false, false, false, true), "ColumnMajorLowerNoTransUnit");
         }
     } // namespace Test
 } // namespace SushiBLAS
