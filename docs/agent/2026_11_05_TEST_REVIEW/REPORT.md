@@ -1,6 +1,6 @@
 # Test review: report
 
-**Status:** Open — every test has a verdict; the plan's jobs are next
+**Status:** Open â€” every test has a verdict; the plan's jobs are next
 
 Every test in the repository has a verdict from `skills/testing/REVIEWING.md` of SushiSkills, reviewed
 on 2026-11-05 as part of J15 (`docs/agent/2026_11_03_INDUSTRIAL_TESTING/` in SushiSkills). The review read
@@ -489,38 +489,38 @@ Below the 80% aim: applications/benchmarks (67%), applications/examples (71%), d
 
 ## Dispatches
 
-dispatch: J15 review, 26 chunks — haiku high, 1 round each, passed, rung 1
-dispatch: J16 T1 tolerances (tests outside operations) — sonnet medium, 1 round, passed after lead fix of one bound, rung 1
-dispatch: J16 T1 tolerances (tests/operations) — sonnet medium, 1 round, passed after lead fix of two half bounds, rung 1
-dispatch: J16 T6 CLI seam and tests — sonnet medium, 1 round, passed after lead replaced its click import, rung 1
-dispatch: J16 T7 device-math rows — sonnet low, 1 round, passed after lead fixed one macro, rung 1
-dispatch: J16 T5 defects — sonnet medium, 1 round, passed, rung 1
-dispatch: J16 T3 duplicate deletions — sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
-dispatch: J16 T2 elementwise scalar functions — sonnet medium, 1 round, passed review unbuilt, rung 1
-dispatch: J16 T2 dense TRSV reference and task cost — sonnet medium, 1 round, passed review unbuilt, rung 1
-dispatch: J16 T2 trsv and scalar_math tests — sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
-dispatch: J16 T2 task_cost tests — sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
-dispatch: J16 M5 M6 M7 foundation tests — sonnet medium, 1 round, passed after lead added the multiply_add compile check and the CMake edit, rung 1
-dispatch: J16 M8 M9 M11 foundation tests — sonnet medium, 2 rounds (sent back: humanizer not run, tolerance names changed against decision 1), passed after lead added two compile checks, rung 1
-dispatch: J16 M15 M16 M20 M21 M22 foundation tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
-dispatch: J16 M26 M28 M29 M30 kernels tests — sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
-dispatch: J16 M36 M38 M45 M48 operations and package tests — sonnet medium, 1 round, passed, rung 1
-dispatch: J16 M27 M31 M32 kernels tests — sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
-dispatch: J16 M10 M12 M19 foundation tests — sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
-dispatch: J16 RW-140..143 ports — sonnet medium, 1 round, stopped early on shutdown, rung 1
-dispatch: J16 RW-144..147 seams — sonnet medium, 1 round, stopped early on shutdown, rung 1
-dispatch: J16 RW-141 finish host_device — sonnet medium, 1 round, passed after lead renamed the contract helpers to expect_*, rung 1
-dispatch: J16 RW-144 RW-145 operand tests and helpers — sonnet medium, 1 round, passed, rung 1
-dispatch: J16 RW-140 profile reading port — sonnet medium, 1 round, passed, rung 1
-dispatch: J16 RW-146 RW-147 value seams — sonnet medium, 1 round, passed, RW-147 in part, rung 1
-dispatch: J16 M39 M40 M42 operations tests — sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
-dispatch: J16 M41 operations/logic tests — sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
-dispatch: J16 M43 operations/random tests — sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
-dispatch: J16 M44 operations/reductions tests — sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
-dispatch: J16 M46 operations/sparse tests — sonnet medium, 1 round, passed, all 82 records done as written, rung 1
-dispatch: J16 H1 host storage, host factory and shape-only tensor — sonnet medium, 1 round, passed after lead moved three test files to clear the mirror rule, rung 1
-dispatch: J16 H2 dispatcher queue and TaskSink port — sonnet medium, 2 rounds (sent back: no skills invoked, no humanizer), passed after lead allowed graph_task_sink.hpp in check_tier_contents, rung 1
-dispatch: J16 H3 host engine, block source port and HostEngineTest — sonnet medium, 1 round, passed after lead removed the superseded H2 test and fixed a shadowed Detail in test_scratch_shelf.cpp, rung 1
+dispatch: J15 review, 26 chunks â€” haiku high, 1 round each, passed, rung 1
+dispatch: J16 T1 tolerances (tests outside operations) â€” sonnet medium, 1 round, passed after lead fix of one bound, rung 1
+dispatch: J16 T1 tolerances (tests/operations) â€” sonnet medium, 1 round, passed after lead fix of two half bounds, rung 1
+dispatch: J16 T6 CLI seam and tests â€” sonnet medium, 1 round, passed after lead replaced its click import, rung 1
+dispatch: J16 T7 device-math rows â€” sonnet low, 1 round, passed after lead fixed one macro, rung 1
+dispatch: J16 T5 defects â€” sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T3 duplicate deletions â€” sonnet medium, 1 round, passed after lead added the compile-check target and two unused-helper fixes, rung 1
+dispatch: J16 T2 elementwise scalar functions â€” sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 dense TRSV reference and task cost â€” sonnet medium, 1 round, passed review unbuilt, rung 1
+dispatch: J16 T2 trsv and scalar_math tests â€” sonnet medium, 1 round, passed after lead dropped the instantiation prefix the size filter would miss, rung 1
+dispatch: J16 T2 task_cost tests â€” sonnet medium, 1 round, passed after lead moved it to TESTS and dropped the instantiation prefix, rung 1
+dispatch: J16 M5 M6 M7 foundation tests â€” sonnet medium, 1 round, passed after lead added the multiply_add compile check and the CMake edit, rung 1
+dispatch: J16 M8 M9 M11 foundation tests â€” sonnet medium, 2 rounds (sent back: humanizer not run, tolerance names changed against decision 1), passed after lead added two compile checks, rung 1
+dispatch: J16 M15 M16 M20 M21 M22 foundation tests â€” sonnet medium, 2 rounds (sent back: no evidence of rules 1 and 2, LogCapture), passed after lead wired three compile checks, rung 1
+dispatch: J16 M26 M28 M29 M30 kernels tests â€” sonnet medium, 1 round, passed after lead wired four compile checks, rung 1
+dispatch: J16 M36 M38 M45 M48 operations and package tests â€” sonnet medium, 1 round, passed, rung 1
+dispatch: J16 M27 M31 M32 kernels tests â€” sonnet medium, 1 round, passed after lead renamed three compile checks in CMake, rung 1
+dispatch: J16 M10 M12 M19 foundation tests â€” sonnet medium, 1 round, passed after lead wired two compile checks; the worker ran four opus medium sub-dispatches of its own against the routing rule, recorded here, rung 1
+dispatch: J16 RW-140..143 ports â€” sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-144..147 seams â€” sonnet medium, 1 round, stopped early on shutdown, rung 1
+dispatch: J16 RW-141 finish host_device â€” sonnet medium, 1 round, passed after lead renamed the contract helpers to expect_*, rung 1
+dispatch: J16 RW-144 RW-145 operand tests and helpers â€” sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-140 profile reading port â€” sonnet medium, 1 round, passed, rung 1
+dispatch: J16 RW-146 RW-147 value seams â€” sonnet medium, 1 round, passed, RW-147 in part, rung 1
+dispatch: J16 M39 M40 M42 operations tests â€” sonnet medium, 2 rounds (sent back: no evidence of rules 1, 2, 7, 9; it had loaded only sushiskills), passed after lead ran humanizer on its README prose; 12 resize records left Medium_ for seams outside its set (RW-148, RW-149), rung 1
+dispatch: J16 M41 operations/logic tests â€” sonnet medium, 1 round, passed after lead renamed 13 suites to Medium_LogicOps<Operation>; 13 resizes left Medium_ for a missing host tensor seam (RW-150), rung 1
+dispatch: J16 M43 operations/random tests â€” sonnet medium, 1 round, passed after lead fixed one brief; refusal resizes left Medium_ (RW-151); it started one `find /` against the brief and killed it, rung 1
+dispatch: J16 M44 operations/reductions tests â€” sonnet medium, 1 round, passed in part: the owner's seam order came late, so the refusal and lease resizes move to S5 and S6 (RW-152, RW-153), rung 1
+dispatch: J16 M46 operations/sparse tests â€” sonnet medium, 1 round, passed, all 82 records done as written, rung 1
+dispatch: J16 H1 host storage, host factory and shape-only tensor â€” sonnet medium, 1 round, passed after lead moved three test files to clear the mirror rule, rung 1
+dispatch: J16 H2 dispatcher queue and TaskSink port â€” sonnet medium, 2 rounds (sent back: no skills invoked, no humanizer), passed after lead allowed graph_task_sink.hpp in check_tier_contents, rung 1
+dispatch: J16 H3 host engine, block source port and HostEngineTest â€” sonnet medium, 1 round, passed after lead removed the superseded H2 test and fixed a shadowed Detail in test_scratch_shelf.cpp, rung 1
 
 ## Totals
 
