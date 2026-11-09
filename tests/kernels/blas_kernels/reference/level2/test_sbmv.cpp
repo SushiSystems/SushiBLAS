@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,32 +44,40 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSbmv, MatchesADenseLoopOverTheBandTriangle)
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs sbmv for one layout and one triangle, as a row of (row major, upper).
+        class Small_ReferenceSbmv : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that sbmv matches a dense product that reads only the named band triangle.
+        TEST_P(Small_ReferenceSbmv, MatchesADenseLoopOverTheBandTriangle)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 6;
             const int64_t k = 2;
             const int64_t ld = k + 2;
             const std::vector<double> a = small_integers<double>(n * n, 1);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    const std::vector<double> symmetric =
-                        band_of(symmetric_from(a, n, upper), n, n, k, k);
-                    const std::vector<double> x = small_integers<double>(n, 2);
-                    std::vector<double> y = small_integers<double>(n, 3);
-                    const std::vector<double> expected =
-                        dense_matvec(symmetric, n, n, false, -1.0, x, 2.0, y);
-                    const std::vector<double> band =
-                        to_triangle_band(symmetric, n, uplo_of(upper), k, ld, layout, 99.0);
+            const std::vector<double> symmetric =
+                band_of(symmetric_from(a, n, upper), n, n, k, k);
+            const std::vector<double> x = small_integers<double>(n, 2);
+            std::vector<double> y = small_integers<double>(n, 3);
+            const std::vector<double> expected =
+                dense_matvec(symmetric, n, n, false, -1.0, x, 2.0, y);
+            const std::vector<double> band =
+                to_triangle_band(symmetric, n, uplo_of(upper), k, ld, layout, 99.0);
 
-                    Kernels::Reference::sbmv(layout, uplo_of(upper), n, k, -1.0, band.data(), ld,
-                                             x.data(), 1, 2.0, y.data(), 1);
+            Kernels::Reference::sbmv(layout, uplo_of(upper), n, k, -1.0, band.data(), ld,
+                                     x.data(), 1, 2.0, y.data(), 1);
 
-                    EXPECT_EQ(y, expected);
-                }
-            }
+            EXPECT_EQ(y, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Small_ReferenceSbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
