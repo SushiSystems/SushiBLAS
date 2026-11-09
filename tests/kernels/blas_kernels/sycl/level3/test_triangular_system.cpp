@@ -32,6 +32,8 @@
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -56,6 +58,9 @@ namespace SushiBLAS
             /// @brief Holds the leading dimension of B in the decoding cases.
             constexpr int64_t K_LDB = 6;
 
+            /// @brief Holds the elements of A, each different, so a misaddressed read shows.
+            using Matrix = std::array<std::complex<float>, K_LDA * K_LDA>;
+
             /** @brief Returns the rows of B: the order on the left, else the vectors. */
             [[nodiscard]] constexpr int64_t rows_of(Core::Side side) noexcept
             {
@@ -68,120 +73,252 @@ namespace SushiBLAS
                 return side == Core::Side::Left ? K_VECTORS : K_ORDER;
             }
 
-            /// @brief Holds the two layouts every decoding case runs in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
-            /// @brief Holds the two sides every decoding case runs on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
-
-            /** @brief Holds the flags of one TRSM call. */
-            struct SolveFlags
+            /** @brief Returns the side of a flag: left when true. */
+            [[nodiscard]] constexpr Core::Side side_of_flag(bool left) noexcept
             {
-                Core::Layout layout;   /**< The memory order of A and B. */
-                Core::Side side;       /**< The side op(A) stands on. */
-                Core::Uplo uplo;       /**< The triangle of A that is read. */
-                Core::Transpose trans; /**< The op applied to A. */
-                Core::Diag diag;       /**< Whether the diagonal of A is one. */
+                return left ? Core::Side::Left : Core::Side::Right;
+            }
+
+            /** @brief Returns the layout of a flag: row major when true. */
+            [[nodiscard]] constexpr Core::Layout layout_of_flag(bool row_major) noexcept
+            {
+                return row_major ? Core::Layout::RowMajor : Core::Layout::ColumnMajor;
+            }
+
+            /** @brief Returns the system one call decodes to, with a non-unit lower triangle by default. */
+            [[nodiscard]] Kernels::SYCL::TriangularSystem decode(
+                Core::Layout layout, Core::Side side, Core::Uplo uplo, Core::Transpose trans,
+                Core::Diag diag)
+            {
+                return Kernels::SYCL::triangular_system(layout, side, uplo, trans, diag,
+                                                        rows_of(side), cols_of(side), K_LDA, K_LDB);
+            }
+
+            /** @brief Returns A with a different complex value in every element. */
+            [[nodiscard]] Matrix distinct_matrix()
+            {
+                Matrix a;
+                for (std::size_t i = 0; i < a.size(); ++i)
+                    a[i] = std::complex<float>(static_cast<float>(i + 1),
+                                               -static_cast<float>(i + 1) - 0.5f);
+                return a;
+            }
+
+            /** @brief Returns the coefficient of every (step, unknown) pair, read through an access. */
+            [[nodiscard]] std::vector<std::complex<float>> coefficients_of(
+                const Kernels::OperandAccess& access, const Matrix& a, bool transposed_pair)
+            {
+                std::vector<std::complex<float>> values;
+                for (int64_t s = 0; s < K_ORDER; ++s)
+                    for (int64_t t = 0; t < K_ORDER; ++t)
+                        values.push_back(transposed_pair ? access.at(a.data(), t, s)
+                                                         : access.at(a.data(), s, t));
+                return values;
+            }
+
+            /** @brief Returns the element index of every (step, vector) pair, read through an access. */
+            [[nodiscard]] std::vector<int64_t> indices_of(const Kernels::OperandAccess& access,
+                                                          bool transposed_pair)
+            {
+                std::vector<int64_t> values;
+                for (int64_t s = 0; s < K_ORDER; ++s)
+                    for (int64_t v = 0; v < K_VECTORS; ++v)
+                        values.push_back(transposed_pair ? access.index(v, s) : access.index(s, v));
+                return values;
+            }
+
+            /** @brief Returns the coefficient of every (step, unknown) pair of a decoded system. */
+            [[nodiscard]] std::vector<std::complex<float>> coefficients_of(
+                const Kernels::SYCL::TriangularSystem& system, const Matrix& a)
+            {
+                std::vector<std::complex<float>> values;
+                for (int64_t s = 0; s < K_ORDER; ++s)
+                    for (int64_t t = 0; t < K_ORDER; ++t)
+                        values.push_back(system.coefficient.at(a.data(), s, t));
+                return values;
+            }
+
+            /** @brief Returns the element index of every (step, vector) pair of a decoded system. */
+            [[nodiscard]] std::vector<int64_t> indices_of(const Kernels::SYCL::TriangularSystem& system)
+            {
+                std::vector<int64_t> values;
+                for (int64_t s = 0; s < K_ORDER; ++s)
+                    for (int64_t v = 0; v < K_VECTORS; ++v)
+                        values.push_back(system.unknown.index(s, v));
+                return values;
+            }
+
+            /** @brief Holds one decoding of the direction of a substitution and the direction it must take. */
+            struct DirectionRow
+            {
+                bool left;                /**< Whether op(A) stands on the left of X. */
+                Core::Uplo uplo;          /**< The triangle of A that is read. */
+                Core::Transpose trans;    /**< The op applied to A. */
+                bool forward;             /**< Whether the substitution runs from the first step. */
             };
 
-            /** @brief Returns every combination of layout, side, triangle, op and diagonal. */
-            [[nodiscard]] std::vector<SolveFlags> every_solve_flags()
+            /// @brief Names a row after its side and its flags.
+            std::string direction_row_name(const ::testing::TestParamInfo<DirectionRow>& info)
             {
-                std::vector<SolveFlags> all;
-                for (const Core::Layout layout : K_LAYOUTS)
-                    for (const Core::Side side : K_SIDES)
-                        for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
-                            for (const Core::Transpose trans :
-                                 {Core::Transpose::NoTrans, Core::Transpose::Trans,
-                                  Core::Transpose::ConjTrans})
-                                for (const Core::Diag diag :
-                                     {Core::Diag::NonUnit, Core::Diag::Unit})
-                                    all.push_back(SolveFlags{layout, side, uplo, trans, diag});
-                return all;
+                return std::string(info.param.left ? "Left" : "Right") +
+                       Core::to_string(info.param.uplo) + Core::to_string(info.param.trans);
+            }
+
+            /// @brief Names a row after its layout and its side.
+            std::string layout_side_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+            {
+                return std::string(std::get<0>(info.param) ? "RowMajor" : "ColumnMajor") +
+                       (std::get<1>(info.param) ? "Left" : "Right");
+            }
+
+            /// @brief Names a row after its layout, its side and its op.
+            std::string layout_side_op_name(
+                const ::testing::TestParamInfo<std::tuple<bool, bool, Core::Transpose>>& info)
+            {
+                return std::string(std::get<0>(info.param) ? "RowMajor" : "ColumnMajor") +
+                       (std::get<1>(info.param) ? "Left" : "Right") +
+                       Core::to_string(std::get<2>(info.param));
+            }
+
+            /// @brief Names a row after its side and its diagonal.
+            std::string side_diag_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
+            {
+                return std::string(std::get<0>(info.param) ? "Left" : "Right") +
+                       (std::get<1>(info.param) ? "Unit" : "NonUnit");
             }
         } // namespace
 
-        /**
-         * @brief Tests that every side and flag of TRSM decodes to its substitution loop of
-         *        sycl/level3/triangular_system.hpp.
-         */
-        TEST(Medium_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
+        /// @brief Decodes a call by side and diagonal, as a row of (left, unit).
+        class Small_TriangularSystemShape : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that the order, the vectors and the unit flag come from the side and the diagonal.
+        TEST_P(Small_TriangularSystemShape, TheSideAndTheDiagonalFixTheShape)
         {
-            std::array<std::complex<float>, K_LDA * K_LDA> a;
-            for (std::size_t i = 0; i < a.size(); ++i)
-                a[i] = std::complex<float>(static_cast<float>(i + 1),
-                                           -static_cast<float>(i + 1) - 0.5f);
+            const Core::Side side = side_of_flag(std::get<0>(GetParam()));
+            const bool unit = std::get<1>(GetParam());
 
-            for (const SolveFlags& flags : every_solve_flags())
-            {
-                const Core::Layout layout = flags.layout;
-                const Core::Side side = flags.side;
-                const Core::Uplo uplo = flags.uplo;
-                const Core::Transpose trans = flags.trans;
-                const Core::Diag diag = flags.diag;
+            const Kernels::SYCL::TriangularSystem system =
+                decode(Core::Layout::RowMajor, side, Core::Uplo::Lower, Core::Transpose::NoTrans,
+                       unit ? Core::Diag::Unit : Core::Diag::NonUnit);
 
-                SCOPED_TRACE(::testing::Message()
-                             << (layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR")
-                             << " " << Core::to_string(side) << " " << Core::to_string(uplo)
-                             << " " << Core::to_string(trans) << " " << Core::to_string(diag));
-
-                const bool left = (side == Core::Side::Left);
-                const Kernels::SYCL::TriangularSystem system = Kernels::SYCL::triangular_system(
-                    layout, side, uplo, trans, diag, rows_of(side), cols_of(side), K_LDA, K_LDB);
-
-                const Kernels::OperandAccess op_a = Kernels::operand_access(layout, trans, K_LDA);
-                const Kernels::OperandAccess at_b =
-                    Kernels::operand_access(layout, Core::Transpose::NoTrans, K_LDB);
-
-                EXPECT_EQ(K_ORDER, system.order);
-                EXPECT_EQ(K_VECTORS, system.vectors);
-                EXPECT_EQ(diag == Core::Diag::Unit, system.unit_diag);
-
-                // op(A) is upper when exactly one of an upper A and a transposing op holds.
-                const bool op_upper =
-                    (uplo == Core::Uplo::Upper) != (trans != Core::Transpose::NoTrans);
-                EXPECT_EQ(left ? !op_upper : op_upper, system.forward);
-
-                for (int64_t s = 0; s < K_ORDER; ++s)
-                {
-                    for (int64_t t = 0; t < K_ORDER; ++t)
-                        EXPECT_EQ(left ? op_a.at(a.data(), s, t) : op_a.at(a.data(), t, s),
-                                  system.coefficient.at(a.data(), s, t))
-                            << "step " << s << ", unknown " << t;
-
-                    for (int64_t v = 0; v < K_VECTORS; ++v)
-                        EXPECT_EQ(left ? at_b.index(s, v) : at_b.index(v, s),
-                                  system.unknown.index(s, v))
-                            << "step " << s << ", vector " << v;
-                }
-            }
+            EXPECT_EQ(K_ORDER, system.order);
+            EXPECT_EQ(K_VECTORS, system.vectors);
+            EXPECT_EQ(unit, system.unit_diag);
         }
 
-        /**
-         * @brief Tests that CONJ_TRANS conjugates the factors read from A and no element of B.
-         */
-        TEST(Medium_TriangularSystem, ConjTransConjugatesTheCoefficientAndNotTheUnknown)
-        {
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                for (const Core::Side side : K_SIDES)
-                {
-                    const Kernels::SYCL::TriangularSystem conjugating =
-                        Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::Lower, Core::Transpose::ConjTrans,
-                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
-                    EXPECT_TRUE(conjugating.coefficient.conjugated);
-                    EXPECT_FALSE(conjugating.unknown.conjugated);
+        INSTANTIATE_TEST_SUITE_P(SidesAndDiagonals, Small_TriangularSystemShape,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()),
+                                 side_diag_name);
 
-                    const Kernels::SYCL::TriangularSystem transposing =
-                        Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::Lower, Core::Transpose::Trans,
-                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
-                    EXPECT_FALSE(transposing.coefficient.conjugated);
-                    EXPECT_FALSE(transposing.unknown.conjugated);
-                }
-            }
+        /// @brief Decodes a call by side, triangle and op; on the left an upper op(A) runs from the last step, on the right from the first.
+        class Small_TriangularSystemDirection : public ::testing::TestWithParam<DirectionRow> {};
+
+        /// @brief Tests that the substitution runs forward exactly when the side and op(A) say so.
+        TEST_P(Small_TriangularSystemDirection, TheSideTheTriangleAndTheOpFixTheDirection)
+        {
+            const DirectionRow& row = GetParam();
+
+            const Kernels::SYCL::TriangularSystem system =
+                decode(Core::Layout::RowMajor, side_of_flag(row.left), row.uplo, row.trans,
+                       Core::Diag::NonUnit);
+
+            EXPECT_EQ(row.forward, system.forward);
         }
+
+        // A transposing op turns an upper A into a lower op(A).
+        INSTANTIATE_TEST_SUITE_P(
+            SidesTrianglesAndOps, Small_TriangularSystemDirection,
+            ::testing::Values(
+                DirectionRow{true, Core::Uplo::Upper, Core::Transpose::NoTrans, false},
+                DirectionRow{true, Core::Uplo::Lower, Core::Transpose::NoTrans, true},
+                DirectionRow{true, Core::Uplo::Upper, Core::Transpose::Trans, true},
+                DirectionRow{true, Core::Uplo::Lower, Core::Transpose::Trans, false},
+                DirectionRow{true, Core::Uplo::Upper, Core::Transpose::ConjTrans, true},
+                DirectionRow{true, Core::Uplo::Lower, Core::Transpose::ConjTrans, false},
+                DirectionRow{false, Core::Uplo::Upper, Core::Transpose::NoTrans, true},
+                DirectionRow{false, Core::Uplo::Lower, Core::Transpose::NoTrans, false},
+                DirectionRow{false, Core::Uplo::Upper, Core::Transpose::Trans, false},
+                DirectionRow{false, Core::Uplo::Lower, Core::Transpose::Trans, true},
+                DirectionRow{false, Core::Uplo::Upper, Core::Transpose::ConjTrans, false},
+                DirectionRow{false, Core::Uplo::Lower, Core::Transpose::ConjTrans, true}),
+            direction_row_name);
+
+        /// @brief Decodes a call by layout, side and op, as a row of (row major, left, op).
+        class Small_TriangularSystemCoefficient
+            : public ::testing::TestWithParam<std::tuple<bool, bool, Core::Transpose>>
+        {
+
+        };
+
+        /// @brief Tests that the coefficient of step s and unknown t addresses op(A) as the side says.
+        TEST_P(Small_TriangularSystemCoefficient, TheCoefficientAddressesOpAOnTheSide)
+        {
+            const Core::Layout layout = layout_of_flag(std::get<0>(GetParam()));
+            const bool left = std::get<1>(GetParam());
+            const Core::Transpose trans = std::get<2>(GetParam());
+            const Matrix a = distinct_matrix();
+            const Kernels::SYCL::TriangularSystem system =
+                decode(layout, side_of_flag(left), Core::Uplo::Lower, trans, Core::Diag::NonUnit);
+
+            EXPECT_EQ(coefficients_of(Kernels::operand_access(layout, trans, K_LDA), a, !left),
+                      coefficients_of(system, a));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            LayoutsSidesAndOps, Small_TriangularSystemCoefficient,
+            ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                               ::testing::Values(Core::Transpose::NoTrans, Core::Transpose::Trans,
+                                                 Core::Transpose::ConjTrans)),
+            layout_side_op_name);
+
+        /// @brief Decodes a call by layout and side, as a row of (row major, left).
+        class Small_TriangularSystemUnknown : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that the unknown of step s and vector v addresses B as the side says.
+        TEST_P(Small_TriangularSystemUnknown, TheUnknownAddressesBOnTheSide)
+        {
+            const Core::Layout layout = layout_of_flag(std::get<0>(GetParam()));
+            const bool left = std::get<1>(GetParam());
+            const Kernels::SYCL::TriangularSystem system =
+                decode(layout, side_of_flag(left), Core::Uplo::Lower, Core::Transpose::NoTrans,
+                       Core::Diag::NonUnit);
+
+            EXPECT_EQ(indices_of(Kernels::operand_access(layout, Core::Transpose::NoTrans, K_LDB), !left),
+                      indices_of(system));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndSides, Small_TriangularSystemUnknown,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()),
+                                 layout_side_name);
+
+        /// @brief Decodes a call by layout and side, as a row of (row major, left).
+        class Small_TriangularSystemConjugation
+            : public ::testing::TestWithParam<std::tuple<bool, bool>>
+        {
+
+        };
+
+        /// @brief Tests that CONJ_TRANS conjugates the factors read from A and no element of B.
+        TEST_P(Small_TriangularSystemConjugation, ConjTransConjugatesTheCoefficientAndNotTheUnknown)
+        {
+            const Core::Layout layout = layout_of_flag(std::get<0>(GetParam()));
+            const Core::Side side = side_of_flag(std::get<1>(GetParam()));
+
+            const Kernels::SYCL::TriangularSystem conjugating =
+                decode(layout, side, Core::Uplo::Lower, Core::Transpose::ConjTrans,
+                       Core::Diag::NonUnit);
+            const Kernels::SYCL::TriangularSystem transposing =
+                decode(layout, side, Core::Uplo::Lower, Core::Transpose::Trans,
+                       Core::Diag::NonUnit);
+
+            EXPECT_TRUE(conjugating.coefficient.conjugated);
+            EXPECT_FALSE(conjugating.unknown.conjugated);
+            EXPECT_FALSE(transposing.coefficient.conjugated);
+            EXPECT_FALSE(transposing.unknown.conjugated);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndSides, Small_TriangularSystemConjugation,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()),
+                                 layout_side_name);
     } // namespace Test
 } // namespace SushiBLAS

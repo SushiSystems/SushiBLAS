@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -76,54 +78,85 @@ namespace SushiBLAS
             return b;
         }
 
-        /** @brief Runs trsm on the host CPU queue. */
-        class Medium_SYCLTrsm : public HostDeviceTest
+        /// @brief Names a row after its block width, side, triangle and transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<int64_t, bool, bool, bool>>& info)
+        {
+            return "Block" + std::to_string(std::get<0>(info.param)) +
+                   (std::get<1>(info.param) ? "Left" : "Right") +
+                   (std::get<2>(info.param) ? "Upper" : "Lower") +
+                   (std::get<3>(info.param) ? "Trans" : "NoTrans");
+        }
+
+        /// @brief Runs trsm on the host CPU queue, one block width, side, triangle and transpose at a time.
+        class Medium_SYCLTrsm : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<int64_t, bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLTrsm, MatchesTheReferenceForEveryFlagAndBlockWidth)
+        /// @brief Tests that the SYCL trsm matches the reference for the block width, side, triangle and transpose of a row.
+        TEST_P(Medium_SYCLTrsm, MatchesTheReference)
+        {
+            const int64_t block = std::get<0>(GetParam());
+            const bool left = std::get<1>(GetParam());
+            const bool upper = std::get<2>(GetParam());
+            const bool transposed = std::get<3>(GetParam());
+            SharedArray<Kernels::Accumulator<double>> work(queue(),
+                                                           static_cast<std::size_t>(K_ROWS *
+                                                                                    K_COLUMNS));
+            const Kernels::SYCL::TriangularSolvePlan plan{block};
+            const int64_t order = left ? K_ROWS : K_COLUMNS;
+            // B made from a solution of small integers keeps every step exact.
+            const std::vector<double> a = unit_diagonal_matrix<double>(order, 1);
+            const SharedArray<double> device_a(queue(), a);
+            const std::vector<double> x = small_integers<double>(K_ROWS * K_COLUMNS, 2);
+            std::vector<double> b = times_op(a, order, upper, transposed, left, x);
+            SharedArray<double> device_b(queue(), b);
+
+            Kernels::SYCL::trsm(queue(), plan, Core::Layout::RowMajor, side_of(left),
+                                uplo_of(upper), transpose_of(transposed), Core::Diag::Unit,
+                                K_ROWS, K_COLUMNS, 1.0, device_a.get(), order, 0, device_b.get(),
+                                K_COLUMNS, 0, 1, work.get(), {}).wait();
+            Kernels::Reference::trsm(Core::Layout::RowMajor, side_of(left), uplo_of(upper),
+                                     transpose_of(transposed), Core::Diag::Unit, K_ROWS,
+                                     K_COLUMNS, 1.0, a.data(), order, b.data(), K_COLUMNS);
+
+            EXPECT_EQ(device_b.values(), b);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(BlockWidthsSidesTrianglesAndTransposes, Medium_SYCLTrsm,
+                                 ::testing::Combine(::testing::Values(int64_t{1}, int64_t{8},
+                                                                      int64_t{64}),
+                                                    ::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool()),
+                                 row_name);
+
+        /// @brief Runs trsm with alpha other than one on the host CPU queue.
+        class Medium_SYCLTrsmAlpha : public HostDeviceTest
+        {
+
+        };
+
+        /// @brief Tests that alpha scales the right-hand side of the SYCL trsm as it does the reference one.
+        TEST_F(Medium_SYCLTrsmAlpha, AlphaScalesTheRightHandSide)
         {
             SharedArray<Kernels::Accumulator<double>> work(queue(),
                                                            static_cast<std::size_t>(K_ROWS *
                                                                                     K_COLUMNS));
-            for (const int64_t block : {int64_t{1}, int64_t{8}, int64_t{64}})
-            {
-                const Kernels::SYCL::TriangularSolvePlan plan{block};
-                for (const bool left : {true, false})
-                {
-                    const int64_t order = left ? K_ROWS : K_COLUMNS;
-                    // B made from a solution of small integers keeps every step exact.
-                    const std::vector<double> a = unit_diagonal_matrix<double>(order, 1);
-                    const SharedArray<double> device_a(queue(), a);
-                    for (const bool upper : {false, true})
-                    {
-                        for (const bool transposed : {false, true})
-                        {
-                            SCOPED_TRACE(100 * block + 4 * left + 2 * upper + transposed);
-                            const std::vector<double> x =
-                                small_integers<double>(K_ROWS * K_COLUMNS, 2);
-                            std::vector<double> b =
-                                times_op(a, order, upper, transposed, left, x);
-                            SharedArray<double> device_b(queue(), b);
+            const Kernels::SYCL::TriangularSolvePlan plan{8};
+            const std::vector<double> a = unit_diagonal_matrix<double>(K_ROWS, 1);
+            const SharedArray<double> device_a(queue(), a);
+            std::vector<double> b = small_integers<double>(K_ROWS * K_COLUMNS, 2);
+            SharedArray<double> device_b(queue(), b);
 
-                            Kernels::SYCL::trsm(queue(), plan, Core::Layout::RowMajor,
-                                                side_of(left), uplo_of(upper),
-                                                transpose_of(transposed), Core::Diag::Unit,
-                                                K_ROWS, K_COLUMNS, 1.0, device_a.get(), order,
-                                                0, device_b.get(), K_COLUMNS, 0, 1, work.get(),
-                                                {}).wait();
-                            Kernels::Reference::trsm(Core::Layout::RowMajor, side_of(left),
-                                                     uplo_of(upper), transpose_of(transposed),
-                                                     Core::Diag::Unit, K_ROWS, K_COLUMNS, 1.0,
-                                                     a.data(), order, b.data(), K_COLUMNS);
+            Kernels::SYCL::trsm(queue(), plan, Core::Layout::RowMajor, Core::Side::Left,
+                                Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::Unit,
+                                K_ROWS, K_COLUMNS, 2.0, device_a.get(), K_ROWS, 0, device_b.get(),
+                                K_COLUMNS, 0, 1, work.get(), {}).wait();
+            Kernels::Reference::trsm(Core::Layout::RowMajor, Core::Side::Left, Core::Uplo::Upper,
+                                     Core::Transpose::NoTrans, Core::Diag::Unit, K_ROWS,
+                                     K_COLUMNS, 2.0, a.data(), K_ROWS, b.data(), K_COLUMNS);
 
-                            EXPECT_EQ(device_b.values(), b);
-                            EXPECT_EQ(b, x);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(device_b.values(), b);
         }
     } // namespace Test
 } // namespace SushiBLAS

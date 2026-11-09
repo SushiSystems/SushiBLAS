@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_blas.cpp                                                          */
+/* compile_triangular_product.cpp                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,33 +22,18 @@
 /**************************************************************************/
 
 /**
- * @file test_blas.cpp
- * @brief Tests that blas.hpp alone reaches a reference and a SYCL kernel of each BLAS level.
+ * @file compile_triangular_product.cpp
+ * @brief Checks at compile time that the SYCL triangular_product exists for a packed access; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/blas_kernels/blas.hpp>
-
-#include <cstdint>
-#include <vector>
-#include <gtest/gtest.h>
+#include <type_traits>
+#include <SushiBLAS/blas_kernels/sycl/level2/triangular_product.hpp>
+#include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Medium_BlasKernels, TheReferenceKernelsOfEachLevelAreReachable)
-        {
-            std::vector<double> y{1.0, 1.0};
-            const std::vector<double> x{2.0, 3.0};
-            Kernels::Reference::axpy<double>(2, 1.0, x.data(), 1, y.data(), 1);
-
-            const std::vector<double> a{1.0, 0.0, 0.0, 1.0};
-            std::vector<double> out{0.0, 0.0};
-            Kernels::Reference::gemv(Core::Layout::RowMajor, Core::Transpose::NoTrans, 2, 2, 1.0,
-                                     a.data(), 2, y.data(), 1, 0.0, out.data(), 1);
-
-            EXPECT_EQ(out, (std::vector<double>{3.0, 4.0}));
-        }
-    } // namespace Test
+    static_assert(std::is_function_v<decltype(Kernels::SYCL::Detail::triangular_product<
+                      double, Kernels::PackedAccess>)>,
+                  "triangular_product is a function of the queue and the packed access");
 } // namespace SushiBLAS

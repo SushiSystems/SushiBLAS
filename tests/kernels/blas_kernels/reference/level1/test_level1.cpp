@@ -96,6 +96,20 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{-1.0, -2.0}));
         }
 
+        /// @brief Tests that rot with a cosine and a sine that are both nonzero changes both components by the rotation formula.
+        TEST(Small_ReferenceLevel1, RotWithBothCosineAndSineNonzeroMixesTheComponents)
+        {
+            std::vector<double> x{1.0, 2.0};
+            std::vector<double> y{3.0, 4.0};
+
+            Ref::rot<double>(2, x.data(), 1, y.data(), 1, 0.6, 0.8);
+
+            EXPECT_DOUBLE_EQ(x[0], 3.0);
+            EXPECT_DOUBLE_EQ(x[1], 4.4);
+            EXPECT_DOUBLE_EQ(y[0], 1.0);
+            EXPECT_DOUBLE_EQ(y[1], 0.8);
+        }
+
         /// @brief Tests that asum of a real vector adds the magnitudes.
         TEST(Small_ReferenceLevel1, AsumAddsTheMagnitudesOfARealVector)
         {

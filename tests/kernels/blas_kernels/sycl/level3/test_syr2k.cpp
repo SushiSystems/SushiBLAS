@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -53,46 +55,52 @@ namespace SushiBLAS
         /// @brief The matrices of the batch.
         constexpr int64_t K_BATCH = 2;
 
-        /** @brief Runs syr2k on the host CPU queue. */
-        class Medium_SYCLSyr2k : public HostDeviceTest
+        /// @brief Names a row after its layout, triangle and transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool>>& info)
+        {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param)) +
+                   (std::get<2>(info.param) ? "Trans" : "NoTrans");
+        }
+
+        /// @brief Runs syr2k on the host CPU queue, one layout, triangle and transpose at a time.
+        class Medium_SYCLSyr2k : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLSyr2k, MatchesTheReferenceForEveryFlag)
+        /// @brief Tests that the SYCL syr2k matches the reference for one layout, triangle and transpose.
+        TEST_P(Medium_SYCLSyr2k, MatchesTheReference)
         {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
             const int64_t panel = K_ORDER * K_DEPTH;
             const std::vector<double> a = small_integers<double>(K_BATCH * panel, 1);
             const std::vector<double> b = small_integers<double>(K_BATCH * panel, 2);
             const SharedArray<double> device_a(queue(), a);
             const SharedArray<double> device_b(queue(), b);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        SCOPED_TRACE(2 * upper + transposed);
-                        const bool by_rows = (layout == Core::Layout::RowMajor) != transposed;
-                        const int64_t ld = by_rows ? K_DEPTH : K_ORDER;
-                        const int64_t square = K_ORDER * K_ORDER;
-                        std::vector<double> c = small_integers<double>(K_BATCH * square, 3);
-                        SharedArray<double> device_c(queue(), c);
+            const bool by_rows = (layout == Core::Layout::RowMajor) != transposed;
+            const int64_t ld = by_rows ? K_DEPTH : K_ORDER;
+            const int64_t square = K_ORDER * K_ORDER;
+            std::vector<double> c = small_integers<double>(K_BATCH * square, 3);
+            SharedArray<double> device_c(queue(), c);
 
-                        Kernels::SYCL::syr2k(queue(), layout, uplo_of(upper),
-                                             transpose_of(transposed), K_ORDER, K_DEPTH, 3.0,
-                                             device_a.get(), ld, panel, device_b.get(), ld,
-                                             panel, 2.0, device_c.get(), K_ORDER, square,
-                                             K_BATCH, {}).wait();
-                        Kernels::Reference::syr2k(layout, uplo_of(upper), transpose_of(transposed),
-                                                  K_ORDER, K_DEPTH, 3.0, a.data(), ld, panel,
-                                                  b.data(), ld, panel, 2.0, c.data(), K_ORDER,
-                                                  square, K_BATCH);
+            Kernels::SYCL::syr2k(queue(), layout, uplo_of(upper),
+                                 transpose_of(transposed), K_ORDER, K_DEPTH, 3.0,
+                                 device_a.get(), ld, panel, device_b.get(), ld,
+                                 panel, 2.0, device_c.get(), K_ORDER, square,
+                                 K_BATCH, {}).wait();
+            Kernels::Reference::syr2k(layout, uplo_of(upper), transpose_of(transposed),
+                                      K_ORDER, K_DEPTH, 3.0, a.data(), ld, panel,
+                                      b.data(), ld, panel, 2.0, c.data(), K_ORDER,
+                                      square, K_BATCH);
 
-                        EXPECT_EQ(device_c.values(), c);
-                    }
-                }
-            }
+            EXPECT_EQ(device_c.values(), c);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesAndTransposes, Medium_SYCLSyr2k,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS

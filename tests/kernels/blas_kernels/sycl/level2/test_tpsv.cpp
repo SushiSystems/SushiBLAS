@@ -98,5 +98,32 @@ namespace SushiBLAS
                                  ::testing::Combine(::testing::Bool(), ::testing::Bool(),
                                                     ::testing::Bool(), ::testing::Bool()),
                                  row_name);
+
+        /// @brief Runs tpsv with a stored diagonal that is not one on the host CPU queue.
+        class Medium_SYCLTpsvUnitDiagonal : public HostDeviceTest
+        {
+
+        };
+
+        /// @brief Tests that tpsv with Diag::Unit never reads the stored diagonal.
+        TEST_F(Medium_SYCLTpsvUnitDiagonal, TheStoredDiagonalIsNotRead)
+        {
+            const int64_t n = 40;
+            // The stored diagonal holds small integers other than one; the solve must read ones.
+            const std::vector<double> a = small_integers<double>(n * n, 1);
+            const std::vector<double> solution = small_integers<double>(n, 2);
+            const std::vector<double> packed = to_packed(a, n, Core::Uplo::Upper, Core::Layout::RowMajor);
+            const SharedArray<double> device_packed(queue(), packed);
+            SharedArray<Kernels::Accumulator<double>> work(queue(), static_cast<std::size_t>(n));
+            SharedArray<double> device_x(
+                queue(), dense_matvec(triangle_of(a, n, true, true), n, n, false, 1.0, solution,
+                                      0.0, solution));
+
+            Kernels::SYCL::tpsv(queue(), Core::Layout::RowMajor, Core::Uplo::Upper,
+                                Core::Transpose::NoTrans, Core::Diag::Unit, n, device_packed.get(),
+                                device_x.get(), 1, work.get(), {}).wait();
+
+            EXPECT_EQ(device_x.values(), solution);
+        }
     } // namespace Test
 } // namespace SushiBLAS

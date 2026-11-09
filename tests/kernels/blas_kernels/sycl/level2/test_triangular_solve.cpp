@@ -28,15 +28,16 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
-#include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
-#include <SushiBLAS/blas_kernels/reference/level2/triangular_solve.hpp>
-#include <SushiBLAS/blas_kernels/sycl/level2/triangular_solve.hpp>
+#include <SushiBLAS/blas_kernels/reference/level2/tpsv.hpp>
+#include <SushiBLAS/blas_kernels/sycl/level2/tpsv.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_structured.hpp>
@@ -49,49 +50,55 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the triangular solve on the host CPU queue. */
-        class Medium_SYCLTriangularSolve : public HostDeviceTest
+        /// @brief Names a row after its block width, triangle and transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<int64_t, bool, bool>>& info)
+        {
+            return "Block" + std::to_string(std::get<0>(info.param)) +
+                   (std::get<1>(info.param) ? "Upper" : "Lower") +
+                   (std::get<2>(info.param) ? "Trans" : "NoTrans");
+        }
+
+        /// @brief Runs the packed triangular solve on the host CPU queue, one block width, triangle and transpose at a time.
+        class Medium_SYCLTriangularSolve : public HostDeviceTest,
+                                           public ::testing::WithParamInterface<std::tuple<int64_t, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLTriangularSolve, RecoversTheSolutionTheReferenceRecovers)
+        /// @brief Tests that the blocked tpsv recovers the solution the reference tpsv recovers.
+        TEST_P(Medium_SYCLTriangularSolve, RecoversTheSolutionTheReferenceRecovers)
         {
             const int64_t n = 70;
+            const int64_t block = std::get<0>(GetParam());
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
             // A unit diagonal keeps every substitution exact in integers.
             const std::vector<double> a = unit_diagonal_matrix<double>(n, 1);
             const std::vector<double> solution = small_integers<double>(n, 2);
             SharedArray<Kernels::Accumulator<double>> work(queue(), static_cast<std::size_t>(n));
-            for (const int64_t block : {int64_t{1}, int64_t{16}, n})
-            {
-                const Kernels::SYCL::TriangularSolvePlan plan{block};
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        SCOPED_TRACE(100 * block + 2 * upper + transposed);
-                        const std::vector<double> packed =
-                            to_packed(a, n, uplo_of(upper), Core::Layout::RowMajor);
-                        const SharedArray<double> device_packed(queue(), packed);
-                        const Kernels::PackedAccess access =
-                            Kernels::packed_access(Core::Layout::RowMajor, uplo_of(upper),
-                                                   transpose_of(transposed), n);
-                        std::vector<double> x =
-                            dense_matvec(triangle_of(a, n, upper, false), n, n, transposed, 1.0,
-                                         solution, 0.0, solution);
-                        SharedArray<double> device_x(queue(), x);
+            const Kernels::SYCL::TriangularSolvePlan plan{block};
+            const std::vector<double> packed = to_packed(a, n, uplo_of(upper), Core::Layout::RowMajor);
+            const SharedArray<double> device_packed(queue(), packed);
+            std::vector<double> x = dense_matvec(triangle_of(a, n, upper, false), n, n, transposed,
+                                                 1.0, solution, 0.0, solution);
+            SharedArray<double> device_x(queue(), x);
 
-                        Kernels::SYCL::Detail::triangular_solve(
-                            queue(), plan, access, transposed != upper, false, n, n,
-                            device_packed.get(), device_x.get(), 1, work.get(), {}).wait();
-                        Kernels::Reference::Detail::triangular_solve(
-                            access, transposed != upper, false, n, packed.data(), x.data(), 1);
+            Kernels::SYCL::tpsv<double>(queue(), plan, Core::Layout::RowMajor, uplo_of(upper),
+                                        transpose_of(transposed), Core::Diag::NonUnit, n,
+                                        device_packed.get(), device_x.get(), 1, work.get(),
+                                        {}).wait();
+            Kernels::Reference::tpsv(Core::Layout::RowMajor, uplo_of(upper),
+                                     transpose_of(transposed), Core::Diag::NonUnit, n,
+                                     packed.data(), x.data(), 1);
 
-                        EXPECT_EQ(device_x.values(), x);
-                        EXPECT_EQ(x, solution);
-                    }
-                }
-            }
+            EXPECT_EQ(device_x.values(), x);
+            EXPECT_EQ(x, solution);
         }
+
+        INSTANTIATE_TEST_SUITE_P(BlockWidthsTrianglesAndTransposes, Medium_SYCLTriangularSolve,
+                                 ::testing::Combine(::testing::Values(int64_t{1}, int64_t{16},
+                                                                      int64_t{70}),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS

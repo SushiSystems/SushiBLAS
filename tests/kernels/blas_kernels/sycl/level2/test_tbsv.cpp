@@ -101,5 +101,35 @@ namespace SushiBLAS
                                  ::testing::Combine(::testing::Bool(), ::testing::Bool(),
                                                     ::testing::Bool(), ::testing::Bool()),
                                  row_name);
+
+        /// @brief Runs tbsv with a stored diagonal that is not one on the host CPU queue.
+        class Medium_SYCLTbsvUnitDiagonal : public HostDeviceTest
+        {
+
+        };
+
+        /// @brief Tests that tbsv with Diag::Unit never reads the stored diagonal.
+        TEST_F(Medium_SYCLTbsvUnitDiagonal, TheStoredDiagonalIsNotRead)
+        {
+            const int64_t n = 42;
+            const int64_t k = 2;
+            const int64_t ld = k + 1;
+            // The stored diagonal holds small integers other than one; the solve must read ones.
+            const std::vector<double> a = band_of(small_integers<double>(n * n, 1), n, n, k, k);
+            const std::vector<double> solution = small_integers<double>(n, 2);
+            const std::vector<double> band =
+                to_triangle_band(a, n, Core::Uplo::Upper, k, ld, Core::Layout::RowMajor, 0.0);
+            const SharedArray<double> device_band(queue(), band);
+            SharedArray<Kernels::Accumulator<double>> work(queue(), static_cast<std::size_t>(n));
+            SharedArray<double> device_x(
+                queue(), dense_matvec(triangle_of(a, n, true, true), n, n, false, 1.0, solution,
+                                      0.0, solution));
+
+            Kernels::SYCL::tbsv(queue(), Core::Layout::RowMajor, Core::Uplo::Upper,
+                                Core::Transpose::NoTrans, Core::Diag::Unit, n, k,
+                                device_band.get(), ld, device_x.get(), 1, work.get(), {}).wait();
+
+            EXPECT_EQ(device_x.values(), solution);
+        }
     } // namespace Test
 } // namespace SushiBLAS

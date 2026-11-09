@@ -29,6 +29,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -36,6 +38,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas_kernels/reference/level3/syrk.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/syrk.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
@@ -54,48 +57,54 @@ namespace SushiBLAS
         /// @brief The scratch the packed path may take; none sends the call down the tiled path.
         constexpr std::size_t K_SCRATCH_BYTES = std::size_t{8} << 20;
 
-        /** @brief Runs syrk on the host CPU queue. */
-        class Medium_SYCLSyrk : public HostDeviceTest
+        /// @brief Names a row after its path, layout, triangle and transpose.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
+        {
+            return std::string(std::get<0>(info.param) ? "Packed" : "Tiled") +
+                   layout_uplo_label(std::get<1>(info.param), std::get<2>(info.param)) +
+                   (std::get<3>(info.param) ? "Trans" : "NoTrans");
+        }
+
+        /// @brief Runs syrk on the host CPU queue, one path, layout, triangle and transpose at a time.
+        class Medium_SYCLSyrk : public HostDeviceTest, public ::testing::WithParamInterface<std::tuple<bool, bool, bool, bool>>
         {
 
         };
 
-        TEST_F(Medium_SYCLSyrk, BothPathsMatchTheReferenceForEveryFlag)
+        /// @brief Tests that the SYCL syrk matches the reference on the path, layout, triangle and transpose of a row.
+        TEST_P(Medium_SYCLSyrk, MatchesTheReference)
         {
+            const bool packed_path = std::get<0>(GetParam());
+            const Core::Layout layout = layout_of(std::get<1>(GetParam()));
+            const bool upper = std::get<2>(GetParam());
+            const bool transposed = std::get<3>(GetParam());
             // Every operand is a small integer, so both kernels compute without rounding.
             const std::vector<double> a = small_integers<double>(K_ORDER * K_DEPTH, 1);
             const SharedArray<double> device_a(queue(), a);
             SharedArray<std::byte> scratch(queue(), K_SCRATCH_BYTES);
-            for (const std::size_t scratch_bytes : {std::size_t{0}, K_SCRATCH_BYTES})
-            {
-                for (const Core::Layout layout :
-                     {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-                {
-                    for (const bool upper : {false, true})
-                    {
-                        for (const bool transposed : {false, true})
-                        {
-                            SCOPED_TRACE(4 * (scratch_bytes > 0) + 2 * upper + transposed);
-                            const bool by_rows = (layout == Core::Layout::RowMajor) != transposed;
-                            const int64_t lda = by_rows ? K_DEPTH : K_ORDER;
-                            std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
-                            SharedArray<double> device_c(queue(), c);
+            const std::size_t scratch_bytes = packed_path ? K_SCRATCH_BYTES : std::size_t{0};
+            const Kernels::PackedProductPlan plan = Kernels::plan_packed_product<double>(
+                Device::profile_for(queue()), K_ORDER, K_ORDER, K_DEPTH, 1);
+            if (packed_path && !Kernels::packed_product_is_ready(plan, scratch.get(), scratch_bytes))
+                GTEST_SKIP() << "the profile of the host queue does not select the packed kernel";
+            const bool by_rows = (layout == Core::Layout::RowMajor) != transposed;
+            const int64_t lda = by_rows ? K_DEPTH : K_ORDER;
+            std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
+            SharedArray<double> device_c(queue(), c);
 
-                            Kernels::SYCL::syrk(queue(), layout, uplo_of(upper),
-                                                transpose_of(transposed), K_ORDER, K_DEPTH, 2.0,
-                                                device_a.get(), lda, 0, -1.0, device_c.get(),
-                                                K_ORDER, 0, 1,
-                                                scratch_bytes ? scratch.get() : nullptr,
-                                                scratch_bytes, {}).wait();
-                            Kernels::Reference::syrk(layout, uplo_of(upper),
-                                                     transpose_of(transposed), K_ORDER, K_DEPTH,
-                                                     2.0, a.data(), lda, -1.0, c.data(), K_ORDER);
+            Kernels::SYCL::syrk(queue(), layout, uplo_of(upper), transpose_of(transposed),
+                                K_ORDER, K_DEPTH, 2.0, device_a.get(), lda, 0, -1.0,
+                                device_c.get(), K_ORDER, 0, 1,
+                                packed_path ? scratch.get() : nullptr, scratch_bytes, {}).wait();
+            Kernels::Reference::syrk(layout, uplo_of(upper), transpose_of(transposed), K_ORDER,
+                                     K_DEPTH, 2.0, a.data(), lda, -1.0, c.data(), K_ORDER);
 
-                            EXPECT_EQ(device_c.values(), c);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(device_c.values(), c);
         }
+
+        INSTANTIATE_TEST_SUITE_P(PathsLayoutsTrianglesAndTransposes, Medium_SYCLSyrk,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS

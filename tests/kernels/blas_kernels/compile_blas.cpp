@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_blas_kernels_log_category.cpp                                     */
+/* compile_blas.cpp                                                       */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,19 @@
 /**************************************************************************/
 
 /**
- * @file test_blas_kernels_log_category.cpp
- * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
+ * @file compile_blas.cpp
+ * @brief Checks at compile time that blas.hpp alone reaches a reference and a SYCL kernel of each BLAS level; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
+#include <type_traits>
+#include <SushiBLAS/blas_kernels/blas.hpp>
 
 namespace SushiBLAS
 {
-    static_assert(K_BLAS_KERNELS_LOG_CATEGORY.module() == "blas_kernels", "the folder name of the module");
-    static_assert(K_BLAS_KERNELS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+    static_assert(std::is_function_v<decltype(Kernels::Reference::axpy<double>)>, "blas.hpp reaches the reference level 1");
+    static_assert(std::is_function_v<decltype(Kernels::SYCL::axpy<double>)>, "blas.hpp reaches the SYCL level 1");
+    static_assert(std::is_function_v<decltype(Kernels::Reference::gemv<double>)>, "blas.hpp reaches the reference level 2");
+    static_assert(std::is_function_v<decltype(Kernels::SYCL::gemv<double>)>, "blas.hpp reaches the SYCL level 2");
+    static_assert(std::is_function_v<decltype(Kernels::SYCL::syrk<double>)>, "blas.hpp reaches the SYCL level 3");
 } // namespace SushiBLAS
