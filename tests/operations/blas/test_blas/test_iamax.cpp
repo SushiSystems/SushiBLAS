@@ -23,38 +23,58 @@
 
 /**
  * @file test_iamax.cpp
- * @brief Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64.
+ * @brief Tests that iamax refuses a result tensor that cannot hold the INT64 index.
  * @author Mustafa Garip
  */
 
 #include <vector>
 #include <cstdint>
+#include <string>
+#include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
-using namespace SushiBLAS::Test;
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/operands/scalar_result.hpp>
 
-class Medium_IAMAXTest : public SushiBLASTest {};
-
-/**
- * @brief Tests that iamax rejects a result tensor too narrow to hold the index.
- * @see tests/operations/blas/README.md
- */
-TEST_F(Medium_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
+namespace SushiBLAS
 {
-    auto X = engine->create_tensor({4});
-    fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
-
-    for (auto dtype : {SushiBLAS::Core::DataType::Float32,
-                       SushiBLAS::Core::DataType::Float64,
-                       SushiBLAS::Core::DataType::Int32,
-                       SushiBLAS::Core::DataType::Half})
+    namespace Test
     {
-        auto R = engine->create_tensor({1}, dtype);
-        EXPECT_THROW(SushiBLAS::BLASOps(recorder()).iamax(X, R), std::invalid_argument)
-            << "iamax must refuse a " << SushiBLAS::Core::to_string(dtype)
-            << " result rather than write an int64_t into it.";
-    }
-}
+        namespace
+        {
+            /** @brief Returns the name of a result dtype for GoogleTest. */
+            std::string dtype_name(const ::testing::TestParamInfo<Core::DataType>& info)
+            {
+                return Core::to_string(info.param);
+            }
+        } // namespace
+
+        /** @brief Runs the result check of iamax once per dtype that cannot hold the index. */
+        class Small_IamaxResult : public ::testing::TestWithParam<Core::DataType>
+        {
+
+        };
+
+        /**
+         * @brief Tests that iamax refuses a result of another dtype than INT64, which it would
+         *        write eight bytes into.
+         * @see tests/operations/blas/README.md
+         */
+        TEST_P(Small_IamaxResult, ADtypeOtherThanInt64IsRefused)
+        {
+            const std::vector<int64_t> dims = {1};
+            const Tensor result = Tensor::make_shape_only(
+                SushiRuntime::span<const int64_t>(dims.data(), dims.size()), GetParam());
+
+            EXPECT_THROW(Internal::require_scalar_result_shape(result, Core::DataType::Int64,
+                                                               "blas.lvl1.iamax"),
+                         std::invalid_argument);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_IamaxResult,
+            ::testing::Values(Core::DataType::Float32, Core::DataType::Float64,
+                              Core::DataType::Int32, Core::DataType::Half),
+            dtype_name);
+    } // namespace Test
+} // namespace SushiBLAS

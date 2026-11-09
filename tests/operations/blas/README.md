@@ -26,7 +26,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_blas_symmetric_bits.cpp` | Tests that the unconjugated reference kernels equal a plain host loop bit for bit |
 | `test_blas/test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations that need a device |
 | `test_blas/test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
-| `test_blas/test_iamax.cpp` | Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64 |
+| `test_blas/test_iamax.cpp` | Tests that iamax refuses a result tensor that cannot hold the INT64 index |
 | `test_blas/test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and HALF accumulation |
 | `test_blas/test_level1_reference.cpp` | Tests the BLAS Level 1 reference kernels against hand-computed results |
 | `test_blas/test_level2_reference.cpp` | Tests the BLAS Level 2 reference kernels against hand-computed results |
@@ -223,12 +223,10 @@ ColumnMajor arm the moment it was written.
 ## test_blas/test_iamax.cpp
 
 IAMAX answers "which element has the largest |Re| + |Im|", so its result is an index and its
-result tensor is INT64. An earlier version of this file allocated two FLOAT32 elements and
-hoped, with a comment reading "Wait, different sizes!", because there was no integer dtype to
-allocate instead. It then asserted `EXPECT_TRUE(true)`, so nothing checked the operation's
-answer. Now the result has a dtype that fits it, and the index is read back and compared.
+result tensor is INT64. The index itself, ties included, is pinned by
+`IamaxReturnsTheFirstLargestMagnitude` in the reference level 1 tests.
 
-`RejectsAResultTensorTooNarrowToHoldTheIndex` pins the defect the INT64 dtype was added for.
+`ADtypeOtherThanInt64IsRefused` pins the defect the INT64 dtype was added for.
 `iamax` writes eight bytes; a FLOAT32 result element is four. With tensors packed into an arena
 the neighbouring four bytes belong to something else, and `Tensor::region()` declared a
 four-byte write, so the dependency tracker did not order anything against the corruption
