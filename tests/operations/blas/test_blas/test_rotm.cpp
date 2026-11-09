@@ -21,6 +21,7 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+
 /**
  * @file test_rotm.cpp
  * @brief Tests rotm on each flag, on strided and empty vectors, across kernels and after rotmg.
@@ -32,10 +33,12 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <utility>
+#include <iterator>
+#include <type_traits>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -43,8 +46,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "blas_rows.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
@@ -72,14 +76,6 @@ namespace SushiBLAS
             /// @brief A full H, flag -1, whose entries HALF holds exactly.
             constexpr double K_FULL_PARAM[K_PARAMETERS] = {-1.0, 0.5, -0.25, 0.75, 1.25};
 
-            /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
-
-            /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
             /** @brief Holds one parameter array and what it makes of x = [1, 2], y = [3, 4]. */
             struct RotmRow
             {
@@ -95,27 +91,9 @@ namespace SushiBLAS
                 {{1.0, 2.0, K_UNREAD, K_UNREAD, 5.0}, {5.0, 8.0}, {14.0, 18.0}},
                 {{-2.0, K_UNREAD, K_UNREAD, K_UNREAD, K_UNREAD}, {1.0, 2.0}, {3.0, 4.0}}};
 
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
-            {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
-            }
-
-            /** @brief Returns whether the test device computes in T. */
-            template<typename T>
-            [[nodiscard]] bool device_runs()
-            {
-                const sycl::device device =
-                    TestEnvironment::queue().get_device();
-                if constexpr (std::is_same_v<T, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<T, double>)
-                    return device.has(sycl::aspect::fp64);
-                else
-                    return true;
-            }
+            /// @brief The suffixes of the rows of K_ROWS, in order: the flag each row carries.
+            constexpr const char* K_FLAG_WORDS[] = {"FlagMinusOne", "FlagZero", "FlagOne",
+                                                    "FlagMinusTwo"};
 
             /** @brief Returns value in the real element type T. */
             template<typename T>
@@ -147,34 +125,60 @@ namespace SushiBLAS
                     EXPECT_EQ(Detail::to_double(actual[i]), Detail::to_double(expected[i]))
                         << "index " << i;
             }
+
+            /** @brief Holds how many elements of two vectors differ and the first index that does. */
+            struct Differences
+            {
+                std::size_t count; /**< The number of elements that differ. */
+                std::size_t first; /**< The first index that differs, 0 when none does. */
+            };
+
+            /** @brief Returns the elements at which two vectors of one length differ. */
+            template<typename T>
+            [[nodiscard]] Differences differences(const std::vector<T>& a, const std::vector<T>& b)
+            {
+                Differences found{0, 0};
+                for (std::size_t i = 0; i < a.size(); ++i)
+                {
+                    if (Detail::to_double(a[i]) == Detail::to_double(b[i]))
+                        continue;
+                    if (found.count == 0)
+                        found.first = i;
+                    ++found.count;
+                }
+                return found;
+            }
         } // namespace
 
+        /// @brief Holds the index of the row of K_ROWS that completes a row of the flag suite.
+struct FlagAxis
+{
+    std::size_t index; /**< The row of K_ROWS the case applies. */
+};
+
+/** @brief Returns the row of K_ROWS that @p axis names. */
+[[nodiscard]] inline const RotmRow& table_row(const FlagAxis& axis)
+{
+    return K_ROWS[axis.index];
+}
+
+        /** @brief Returns the tail of a row named by the flag of its parameter array. */
+        [[nodiscard]] inline std::string axis_name(const FlagAxis& axis)
+        {
+            return std::string("_") + K_FLAG_WORDS[axis.index];
+        }
+
         /**
-         * @brief Builds the vectors and the parameter tensor of a rotm call in element type T.
+         * @brief Builds the vectors and the parameter tensor of a rotm call.
          */
-        template<typename T>
-        class RotmCases : public SushiBLASTest
+        class RotmStart : public BlasEngineStart
         {
             protected:
-                /** @brief Skips the case on a device that does not compute in T. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>())
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                }
-
-                /** @brief Rebuilds the engine in a layout and selects a kernel. */
-                void start(Core::Layout layout, ExecutionMode mode)
-                {
-                    this->reinit_engine(layout);
-                    this->set_mode(mode);
-                }
-
                 /** @brief Returns a rank-1 tensor that holds values. */
+                template<typename T>
                 [[nodiscard]] Tensor vector_of(const std::vector<T>& values)
                 {
-                    Tensor tensor = this->engine->create_tensor(
+                    Tensor tensor = engine->create_tensor(
                         {static_cast<int64_t>(values.size())}, sushiblas_dtype<T>());
                     if (!values.empty())
                         TestEnvironment::queue()
@@ -194,6 +198,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns count values drawn from [-1, 1]. */
+                template<typename T>
                 [[nodiscard]] static std::vector<T> random_values(std::mt19937& generator,
                                                                   int64_t count)
                 {
@@ -203,240 +208,243 @@ namespace SushiBLAS
                         value = make<T>(distribution(generator));
                     return values;
                 }
+
+                /** @brief Rotates x and y by the full H in the layout and kernel given; x then y. */
+                template<typename T>
+                [[nodiscard]] std::pair<std::vector<T>, std::vector<T>>
+                rotated_by_the_full_h(Core::Layout layout, ExecutionMode mode,
+                                      const std::vector<T>& x_values,
+                                      const std::vector<T>& y_values)
+                {
+                    start(layout, mode);
+                    Tensor x = vector_of(x_values);
+                    Tensor y = vector_of(y_values);
+                    const Tensor param = vector_of(make_all<T>(K_FULL_PARAM));
+
+                    SushiBLAS::BLASOps(recorder()).rotm(x, y, param);
+                    recording->run().value();
+
+                    return {read_tensor<T>(x), read_tensor<T>(y)};
+                }
         };
 
-        /** @brief Runs rotm over the real element types. */
-        template<typename T>
-        class Medium_Rotm : public RotmCases<T>
+        /** @brief Runs rotm once per flag, over the real element types, layouts and kernels. */
+        class Medium_RotmFlags : public BlasRowCase<RotmStart, FlagAxis>
+        {
+
+        };
+
+        /** @brief Runs the rotm cases that need no flag axis, over the real element types. */
+        class Medium_Rotm : public BlasRowCase<RotmStart, NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the comparison of the two kernels, over the real element types. */
+        class Medium_RotmKernels : public BlasRowCase<RotmStart, NoAxis>
         {
 
         };
 
         /** @brief Runs rotm after rotmg over the element types rotmg accepts. */
-        template<typename T>
-        class Medium_RotmChained : public RotmCases<T>
+        class Medium_RotmChained : public BlasRowCase<RotmStart, NoAxis>
         {
 
         };
 
-        /// @brief Names the real element types rotm accepts.
-        using RotmTypes = ::testing::Types<sycl::half, float, double>;
-        /// @brief Names the element types both rotm and rotmg accept.
-        using RotmChainedTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Medium_Rotm, RotmTypes);
-        SB_TYPED_TEST_SUITE(Medium_RotmChained, RotmChainedTypes);
+        /** @brief Returns the rows of the flag suite: every flag of K_ROWS on every real type. */
+        [[nodiscard]] inline std::vector<Row<FlagAxis>> flag_rows()
+        {
+            std::vector<FlagAxis> axes;
+            for (std::size_t index = 0; index < std::size(K_ROWS); ++index)
+                axes.push_back({index});
+            return rows_of({Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64},
+                           {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL}, axes);
+        }
+
+        /** @brief Returns the rows over the real element types and both kernels. */
+        [[nodiscard]] inline std::vector<Row<NoAxis>> real_rows()
+        {
+            return plain_rows({Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64},
+                              {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL});
+        }
 
         /**
          * @brief Tests each flag against its hand-computed result; an implied slot holds
          *        K_UNREAD.
          */
-        TYPED_TEST(Medium_Rotm, EachFlagAppliesOnlyTheEntriesItDoesNotImply)
+        TEST_P(Medium_RotmFlags, EachFlagAppliesOnlyTheEntriesItDoesNotImply)
         {
-            using T = TypeParam;
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            const RotmRow& row = table_row(GetParam().axis);
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    for (const RotmRow& row : K_ROWS)
-                    {
-                        SCOPED_TRACE(::testing::Message() << "flag " << row.param[0]);
-                        Tensor x = this->vector_of({make<T>(1.0), make<T>(2.0)});
-                        Tensor y = this->vector_of({make<T>(3.0), make<T>(4.0)});
-                        const Tensor param = this->vector_of(make_all<T>(row.param));
+                Tensor x = vector_of<T>({make<T>(1.0), make<T>(2.0)});
+                Tensor y = vector_of<T>({make<T>(3.0), make<T>(4.0)});
+                const Tensor param = vector_of(make_all<T>(row.param));
 
-                        SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
-                        this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).rotm(x, y, param);
+                recording->run().value();
 
-                        expect_equal(read_tensor<T>(x), make_all<T>(row.x));
-                        expect_equal(read_tensor<T>(y), make_all<T>(row.y));
-                    }
-                }
-            }
+                expect_equal(read_tensor<T>(x), make_all<T>(row.x));
+                expect_equal(read_tensor<T>(y), make_all<T>(row.y));
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_RotmFlags, ::testing::ValuesIn(flag_rows()),
+                                 row_name<FlagAxis>);
 
         /**
          * @brief Tests that flag -2 writes nothing: an infinity stays and makes no NaN.
          */
-        TYPED_TEST(Medium_Rotm, TheIdentityFlagLeavesAnInfinityAlone)
+        TEST_P(Medium_Rotm, TheIdentityFlagLeavesAnInfinityAlone)
         {
-            using T = TypeParam;
-            const double identity[K_PARAMETERS] = {-2.0, K_UNREAD, K_UNREAD, K_UNREAD, K_UNREAD};
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    Tensor x = this->vector_of(
-                        {make<T>(std::numeric_limits<double>::infinity()), make<T>(2.0)});
-                    Tensor y = this->vector_of({make<T>(3.0), make<T>(4.0)});
-                    const Tensor param = this->vector_of(make_all<T>(identity));
+                Tensor x = vector_of<T>(
+                    {make<T>(std::numeric_limits<double>::infinity()), make<T>(2.0)});
+                Tensor y = vector_of<T>({make<T>(3.0), make<T>(4.0)});
+                const Tensor param = vector_of(make_all<T>(K_ROWS[3].param));
 
-                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).rotm(x, y, param);
+                recording->run().value();
 
-                    const std::vector<T> x_after = read_tensor<T>(x);
-                    const std::vector<T> y_after = read_tensor<T>(y);
-                    EXPECT_TRUE(std::isinf(Detail::to_double(x_after[0])));
-                    EXPECT_GT(Detail::to_double(x_after[0]), 0.0);
-                    EXPECT_EQ(Detail::to_double(x_after[1]), 2.0);
-                    EXPECT_EQ(Detail::to_double(y_after[0]), 3.0);
-                    EXPECT_EQ(Detail::to_double(y_after[1]), 4.0);
-                }
-            }
+                const std::vector<T> x_after = read_tensor<T>(x);
+                const std::vector<T> y_after = read_tensor<T>(y);
+                EXPECT_TRUE(std::isinf(Detail::to_double(x_after[0])));
+                EXPECT_GT(Detail::to_double(x_after[0]), 0.0);
+                EXPECT_EQ(Detail::to_double(x_after[1]), 2.0);
+                EXPECT_EQ(Detail::to_double(y_after[0]), 3.0);
+                EXPECT_EQ(Detail::to_double(y_after[1]), 4.0);
+            });
         }
 
         /**
          * @brief Tests that a view of every second element is transformed and the elements
          *        between are left as they were.
          */
-        TYPED_TEST(Medium_Rotm, StridedVectorsLeaveTheSkippedElementsAlone)
+        TEST_P(Medium_Rotm, StridedVectorsLeaveTheSkippedElementsAlone)
         {
-            using T = TypeParam;
             const double x_values[] = {1.0, K_SKIPPED_IN_X, 2.0, K_SKIPPED_IN_X};
             const double y_values[] = {3.0, K_SKIPPED_IN_Y, 4.0, K_SKIPPED_IN_Y};
             const double x_expected[] = {11.0, K_SKIPPED_IN_X, 16.0, K_SKIPPED_IN_X};
             const double y_expected[] = {19.0, K_SKIPPED_IN_Y, 28.0, K_SKIPPED_IN_Y};
 
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    Tensor x_parent = this->vector_of(make_all<T>(x_values));
-                    Tensor y_parent = this->vector_of(make_all<T>(y_values));
-                    Tensor x = TestFixture::every_second_element(x_parent);
-                    Tensor y = TestFixture::every_second_element(y_parent);
-                    const Tensor param = this->vector_of(make_all<T>(K_ROWS[0].param));
+                Tensor x_parent = vector_of(make_all<T>(x_values));
+                Tensor y_parent = vector_of(make_all<T>(y_values));
+                Tensor x = every_second_element(x_parent);
+                Tensor y = every_second_element(y_parent);
+                const Tensor param = vector_of(make_all<T>(K_ROWS[0].param));
 
-                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).rotm(x, y, param);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(x_parent), make_all<T>(x_expected));
-                    expect_equal(read_tensor<T>(y_parent), make_all<T>(y_expected));
-                }
-            }
+                expect_equal(read_tensor<T>(x_parent), make_all<T>(x_expected));
+                expect_equal(read_tensor<T>(y_parent), make_all<T>(y_expected));
+            });
         }
 
         /**
-         * @brief Tests that vectors of no elements record and run.
+         * @brief Tests that vectors of no elements record and run, and leave the parameter.
          */
-        TYPED_TEST(Medium_Rotm, AnEmptyPairRecordsAndRuns)
+        TEST_P(Medium_Rotm, AnEmptyPairRecordsAndRuns)
         {
-            using T = TypeParam;
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    Tensor x = this->vector_of({});
-                    Tensor y = this->vector_of({});
-                    const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
+                Tensor x = vector_of(std::vector<T>{});
+                Tensor y = vector_of(std::vector<T>{});
+                const Tensor param = vector_of(make_all<T>(K_FULL_PARAM));
 
-                    EXPECT_NO_THROW(SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param));
-                    EXPECT_TRUE(this->recording->run().has_value());
-                    expect_equal(read_tensor<T>(param), make_all<T>(K_FULL_PARAM));
-                }
-            }
+                SushiBLAS::BLASOps(recorder()).rotm(x, y, param);
+
+                EXPECT_TRUE(recording->run().has_value());
+                expect_equal(read_tensor<T>(param), make_all<T>(K_FULL_PARAM));
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_Rotm, ::testing::ValuesIn(real_rows()),
+                                 row_name<NoAxis>);
 
         /**
          * @brief Tests that the two kernels give the same elements on K_LARGE_LENGTH pairs
          *        under a full H.
+         *
+         * The row names the layout and the element type; its kernel is the device one, and the
+         * reference run is made inside the case.
          */
-        TYPED_TEST(Medium_Rotm, BothModesAgreeElementForElement)
+        TEST_P(Medium_RotmKernels, BothModesAgreeElementForElement)
         {
-            using T = TypeParam;
-            std::mt19937 generator(K_SEED);
-            const std::vector<T> x_values = TestFixture::random_values(generator, K_LARGE_LENGTH);
-            const std::vector<T> y_values = TestFixture::random_values(generator, K_LARGE_LENGTH);
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
-                std::vector<T> results[2][2];
+                using T = typename decltype(element)::type;
 
-                for (std::size_t mode = 0; mode < 2; ++mode)
-                {
-                    this->start(layout, K_MODES[mode]);
-                    Tensor x = this->vector_of(x_values);
-                    Tensor y = this->vector_of(y_values);
-                    const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
+                std::mt19937 generator(K_SEED);
+                const std::vector<T> x_values = random_values<T>(generator, K_LARGE_LENGTH);
+                const std::vector<T> y_values = random_values<T>(generator, K_LARGE_LENGTH);
 
-                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
-                    this->recording->run().value();
+                const auto reference = rotated_by_the_full_h<T>(
+                    GetParam().layout, ExecutionMode::ForceReference, x_values, y_values);
+                const auto device = rotated_by_the_full_h<T>(
+                    GetParam().layout, ExecutionMode::ForceSYCL, x_values, y_values);
 
-                    results[mode][0] = read_tensor<T>(x);
-                    results[mode][1] = read_tensor<T>(y);
-                }
-
-                for (std::size_t vector = 0; vector < 2; ++vector)
-                {
-                    const std::vector<T>& reference = results[0][vector];
-                    const std::vector<T>& device = results[1][vector];
-                    ASSERT_EQ(device.size(), reference.size());
-
-                    std::size_t differing = 0;
-                    std::size_t first = 0;
-                    for (std::size_t i = 0; i < device.size(); ++i)
-                    {
-                        if (Detail::to_double(device[i]) == Detail::to_double(reference[i]))
-                            continue;
-                        if (differing == 0)
-                            first = i;
-                        ++differing;
-                    }
-                    EXPECT_EQ(differing, 0u) << (vector == 0 ? "x" : "y")
-                                             << " differs first at index " << first;
-                }
-            }
+                const Differences in_x = differences(device.first, reference.first);
+                const Differences in_y = differences(device.second, reference.second);
+                EXPECT_EQ(in_x.count, 0u) << "x differs first at index " << in_x.first;
+                EXPECT_EQ(in_y.count, 0u) << "y differs first at index " << in_y.first;
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotmKernels,
+            ::testing::ValuesIn(plain_rows({Core::DataType::Half, Core::DataType::Float32,
+                                            Core::DataType::Float64},
+                                           {ExecutionMode::ForceSYCL})),
+            row_name<NoAxis>);
 
         /**
          * @brief Tests that rotm reads the param an earlier rotmg of the same graph writes.
          */
-        TYPED_TEST(Medium_RotmChained, AParamWrittenByRotmgIsRead)
+        TEST_P(Medium_RotmChained, AParamWrittenByRotmgIsRead)
         {
-            using T = TypeParam;
             const double unwritten[K_PARAMETERS] = {K_UNREAD, K_UNREAD, K_UNREAD, K_UNREAD,
                                                     K_UNREAD};
 
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    Tensor d1 = this->vector_of({make<T>(5.0)});
-                    Tensor d2 = this->vector_of({make<T>(5.0)});
-                    Tensor x1 = this->vector_of({make<T>(4.0)});
-                    const Tensor y1 = this->vector_of({make<T>(2.0)});
-                    Tensor param = this->vector_of(make_all<T>(unwritten));
-                    Tensor x = this->vector_of({make<T>(4.0)});
-                    Tensor y = this->vector_of({make<T>(2.0)});
+                Tensor d1 = vector_of<T>({make<T>(5.0)});
+                Tensor d2 = vector_of<T>({make<T>(5.0)});
+                Tensor x1 = vector_of<T>({make<T>(4.0)});
+                const Tensor y1 = vector_of<T>({make<T>(2.0)});
+                Tensor param = vector_of(make_all<T>(unwritten));
+                Tensor x = vector_of<T>({make<T>(4.0)});
+                Tensor y = vector_of<T>({make<T>(2.0)});
 
-                    SushiBLAS::BLASOps ops(this->recorder());
-                    ops.rotmg(d1, d2, x1, y1, param);
-                    ops.rotm(x, y, param);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps ops(recorder());
+                ops.rotmg(d1, d2, x1, y1, param);
+                ops.rotm(x, y, param);
+                recording->run().value();
 
-                    // H is [1, 0.5; -0.5, 1], so (4, 2) becomes (5, 0).
-                    expect_equal(read_tensor<T>(x), std::vector<T>{make<T>(5.0)});
-                    expect_equal(read_tensor<T>(y), std::vector<T>{make<T>(0.0)});
-                }
-            }
+                // H is [1, 0.5; -0.5, 1], so (4, 2) becomes (5, 0).
+                expect_equal(read_tensor<T>(x), std::vector<T>{make<T>(5.0)});
+                expect_equal(read_tensor<T>(y), std::vector<T>{make<T>(0.0)});
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotmChained,
+            ::testing::ValuesIn(plain_rows({Core::DataType::Float32, Core::DataType::Float64},
+                                           {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})),
+            row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS
