@@ -346,14 +346,13 @@ namespace SushiBLAS
                         // The scratch starts off its alignment, so the kernel has to align it.
                         const USMArray<unsigned char> scratch(
                             queue_, used.scratch_bytes + K_PACKED_TEST_SCRATCH_SKEW);
-                        Kernels::SYCL::Detail::packed_gemm<T>(
-                            queue_, used, m_, n_, k_, alpha,
-                            a_.get(), Kernels::operand_access(layout_, transA_, lda_), str_a_,
-                            b_.get(), Kernels::operand_access(layout_, transB_, ldb_), str_b_,
-                            beta, c_.get(),
-                            Kernels::operand_access(layout_, Core::Transpose::NoTrans, ldc_),
-                            str_c_, scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
-                            epilogue).wait();
+                        Kernels::SYCL::gemm<T, Epilogue>(
+                            queue_, layout_, transA_, transB_, m_, n_, k_, alpha,
+                            a_.get(), lda_, str_a_, b_.get(), ldb_, str_b_,
+                            beta, c_.get(), ldc_, str_c_, batch_size_,
+                            scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, used.scratch_bytes, {},
+                            epilogue,
+                            Kernels::PackedBlockingOverride{blocking, compute_units}).wait();
                     }
 
                     return std::vector<T>(c_.get(), c_.get() + c_.size());
