@@ -124,6 +124,9 @@ forced modes" for why the comparison is made in the test.
 
 ## test_spatial/test_spatial_pool_avg.cpp
 
+The forward and backward value tests run `Small_` on the host engine and compare the whole
+output; the agreement of the two paths is the one `Medium_` test.
+
 `TheAverageIsOverTheWholeWindowIncludingPaddedTaps` is the pin for decision D-A4. Without a
 padded case the convention is invisible: an unpadded pool divides by the area and by the
 in-bounds count at once, so every other forward test in the file passes under either rule. The
@@ -132,7 +135,8 @@ divided by the in-bounds count it would be 4. That difference is the whole of `c
 
 `OverlappingWindowsSumTheirShares`: with a 2x2 stride-1 window over a 3x3 image, the centre
 pixel is covered by all four windows and the corners by one each. A gather that stopped at its
-first covering window would give the centre 0.25.
+first covering window would give the centre 0.25. The test writes all nine pixels out, so the
+edge pixels, which are the sum of two shares, are pinned as well.
 
 `TheBackwardOfAConstantForwardIsUniform`: a stride-1 pool padded so that every pixel is covered
 by exactly R*S windows. Each contributes 1/(R*S), so every pixel must come back exactly 1.0,
