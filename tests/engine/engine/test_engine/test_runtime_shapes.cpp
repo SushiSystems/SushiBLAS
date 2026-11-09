@@ -29,10 +29,12 @@
 
 #include <vector>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 namespace SushiBLAS
 {
     namespace Test
@@ -46,39 +48,59 @@ namespace SushiBLAS
         /** @brief Holds the row-major strides of K_DIMS: {3 * 4, 4, 1}. */
         const std::vector<int64_t> K_ROW_MAJOR_STRIDES{12, 4, 1};
 
-        /** @brief Supplies a row-major engine. */
-        class Medium_RuntimeShapes : public SushiBLASTest
+        namespace
+        {
+            /** @brief Names a create_tensor call by the dtype it passes, or by passing none. */
+            struct CreateRow
+            {
+                const char* name;                  /**< The row name a failure shows. */
+                std::optional<Core::DataType> arg; /**< The dtype argument; empty for the default call. */
+                Core::DataType expected;           /**< The dtype the tensor must have. */
+            };
+
+            /** @brief Returns the default call and an explicit Float64 call. */
+            std::vector<CreateRow> create_rows()
+            {
+                return {{"DefaultDtype", std::nullopt, Core::DataType::Float32},
+                        {"ExplicitFloat64", Core::DataType::Float64, Core::DataType::Float64}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of create_rows() on a host engine. */
+        class Small_RuntimeShapesCreate : public ::testing::WithParamInterface<CreateRow>,
+                                          public HostEngineTest
         {
 
         };
 
-        TEST_F(Medium_RuntimeShapes, CreateTensorTakesAVectorShape)
+        TEST_P(Small_RuntimeShapesCreate, TensorTakesAVectorShapeAndGivesItsRowMajorStrides)
         {
-            const Tensor t = engine->create_tensor(K_DIMS);
+            const CreateRow row = GetParam();
 
-            ASSERT_EQ(t.rank, static_cast<int32_t>(K_DIMS.size()));
+            const Tensor t = row.arg ? engine->create_tensor(K_DIMS, *row.arg)
+                                     : engine->create_tensor(K_DIMS);
+
+            ASSERT_EQ(t.rank, 3);
             EXPECT_EQ(t.num_elements, K_ELEMENTS);
-            EXPECT_EQ(t.dtype, Core::DataType::Float32);
-            for (size_t i = 0; i < K_DIMS.size(); ++i)
-            {
-                EXPECT_EQ(t.shape[i], K_DIMS[i]) << "axis " << i;
-                EXPECT_EQ(t.strides[i], K_ROW_MAJOR_STRIDES[i]) << "axis " << i;
-            }
+            EXPECT_EQ(t.dtype, row.expected);
+            EXPECT_EQ(std::vector<int64_t>(t.shape.begin(), t.shape.begin() + t.rank), K_DIMS);
+            EXPECT_EQ(std::vector<int64_t>(t.strides.begin(), t.strides.begin() + t.rank), K_ROW_MAJOR_STRIDES);
         }
 
-        TEST_F(Medium_RuntimeShapes, CreateTensorTakesAVectorShapeAndDtype)
-        {
-            const Tensor t = engine->create_tensor(K_DIMS, Core::DataType::Float64);
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_RuntimeShapesCreate, ::testing::ValuesIn(create_rows()),
+            [](const ::testing::TestParamInfo<CreateRow>& info)
+            { return std::string(info.param.name); });
 
-            EXPECT_EQ(t.dtype, Core::DataType::Float64);
-            EXPECT_EQ(t.num_elements, K_ELEMENTS);
-        }
-
-        TEST_F(Medium_RuntimeShapes, CreateTensorRejectsANegativeDimension)
+        /** @brief Tests that the allocation size of a negative dimension is refused before any allocation. */
+        TEST(Small_RuntimeShapes, AllocationRefusesANegativeDimension)
         {
             const std::vector<int64_t> negative{2, -3};
 
-            EXPECT_THROW((void)engine->create_tensor(negative), std::runtime_error);
+            EXPECT_THROW((void)TensorFactory::allocation_bytes(
+                             SushiRuntime::span<const int64_t>(negative.data(), negative.size()),
+                             Core::DataType::Float32),
+                         std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS

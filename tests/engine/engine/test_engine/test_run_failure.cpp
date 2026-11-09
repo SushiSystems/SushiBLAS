@@ -91,20 +91,10 @@ TEST_F(Medium_RunFailureTest, AThrowingBodyReturnsKernelFailedWithItsMessage)
         << "message: " << ran.error().message;
 }
 
-/** @brief Tests that a failed run leaves no task for the next run. */
-TEST_F(Medium_RunFailureTest, AFailedRunLeavesNothingRecorded)
-{
-    auto y = engine->create_tensor({4});
-    fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
-    record_throwing_task(recorder(), y);
-    ASSERT_FALSE(recording->run().has_value());
-
-    // A throwing task still on the graph would fail this run too.
-    EXPECT_TRUE(recording->run().has_value());
-    expect_tensor_equal(y, {10.0f, 20.0f, 30.0f, 40.0f});
-}
-
-/** @brief Tests that the graph records and runs a valid operation after a failed run. */
+/**
+ * @brief Tests that a failed run drops its tasks, so the next run leaves the output unchanged,
+ *        and that the graph then records and runs a valid operation.
+ */
 TEST_F(Medium_RunFailureTest, TheGraphRunsAgainAfterAFailedRun)
 {
     auto x = engine->create_tensor({4});
@@ -113,6 +103,10 @@ TEST_F(Medium_RunFailureTest, TheGraphRunsAgainAfterAFailedRun)
     fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
     record_throwing_task(recorder(), y);
     ASSERT_FALSE(recording->run().has_value());
+
+    // A throwing task still on the graph would fail this run too.
+    ASSERT_TRUE(recording->run().has_value());
+    expect_tensor_equal(y, {10.0f, 20.0f, 30.0f, 40.0f});
 
     BLASOps(recorder()).axpy(2.0, x, y);
     const SushiRuntime::Result<void> ran = recording->run();
