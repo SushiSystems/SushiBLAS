@@ -203,6 +203,17 @@ walks the block index by index, with no closed form the kernel could be wrong in
 `AScaleThatIsNotPositiveIsRefusedNamingTheOperand` has one row per refused scale, a zero row scale
 and a negative column scale, and asserts the whole message.
 
+## test_spatial/test_spatial_half.cpp
+
+The six `Small_SpatialHalf` tests run on the host engine, where the operation takes its reference
+path, and check that a HALF sum goes through FLOAT32: 2048 + 1 + 1 is 2050 where a HALF running
+sum stalls at 2048. `PoolMaxOfTwoHalfNegativesIsTheLargerElement` is named for its promise, that a window of
+two large negatives gives the larger one, not for the reason it holds. The device side of those sums is
+checked only through `TheKernelAgreesWithItsReferenceInHalf`, which has one row per routine and
+compares the HALF bits of the device result with the reference result on a pattern input; it skips
+a device without the fp16 aspect. The indices of `pool_max` are compared by
+`Medium_SpatialPoolMaxTest.TheSYCLKernelAgreesWithTheReferenceKernel`.
+
 ## test_spatial/test_spatial_determinism.cpp
 
 This file is the bit-reproducibility gate of the spatial domain.
