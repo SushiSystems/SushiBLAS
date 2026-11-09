@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_RoundTest : public SushiBLASTest {};
+class Small_RoundTest : public HostEngineTest {};
 
-TEST_F(Medium_RoundTest, FloatForward) 
+/**
+ * @brief Tests that the recorded round sends each element to the nearest whole number when the task runs.
+ */
+TEST_F(Small_RoundTest, RoundSendsEachElementToTheNearestWholeNumber) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.1f, 2.9f, -3.2f, 0.0f});
     
     SushiBLAS::ElementwiseOps(recorder()).round(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
 }
