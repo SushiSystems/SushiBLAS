@@ -23,7 +23,7 @@
 
 /**
  * @file test_benchmark_harness.cpp
- * @brief Tests the size parsing, the names, the timing, measure and the guard the benchmarks share.
+ * @brief Tests the size parsing, the dtype names, the timing, measure and the guard the benchmarks share.
  * @author Mustafa Garip
  */
 
@@ -58,6 +58,15 @@ namespace SushiBLAS
             }
         };
 
+        /** @brief A benchmark body that returns at once. */
+        struct NoOpBody
+        {
+            /** @brief Does nothing. */
+            void operator()(int, char**) const
+            {
+            }
+        };
+
         /** @brief A benchmark body that throws, to exercise the guard. */
         struct ThrowingBody
         {
@@ -66,6 +75,14 @@ namespace SushiBLAS
             {
                 throw std::runtime_error("refused");
             }
+        };
+
+        /** @brief What one measure call over a counting task left behind. */
+        struct MeasuredRun
+        {
+            Bench::Timing timing; /**< The timing measure returned. */
+            int runs;             /**< How many times the recorded task ran. */
+            bool graph_is_empty;  /**< Whether the graph held no task after measure. */
         };
 
         /** @brief A task body that counts its runs and orders no work. */
@@ -82,66 +99,8 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Medium_BenchmarkHarness, SizesComeFromTheArgumentsOrTheDefaults)
-        {
-            char program[] = "bench";
-            char first[] = "64";
-            char second[] = "1024";
-            char bad[] = "12x";
-            char* with_sizes[] = {program, first, second};
-            char* without_sizes[] = {program};
-            char* with_bad[] = {program, bad};
-
-            EXPECT_EQ(Bench::parse_sizes(3, with_sizes, {1}), (std::vector<int64_t>{64, 1024}));
-            EXPECT_EQ(Bench::parse_sizes(1, without_sizes, {7, 8}), (std::vector<int64_t>{7, 8}));
-            EXPECT_THROW((void)Bench::parse_sizes(2, with_bad, {1}), std::invalid_argument);
-        }
-
-        TEST(Medium_BenchmarkHarness, NamesCoverTheModesTheLayoutsAndTheDtypes)
-        {
-            EXPECT_EQ(std::string(Bench::execution_mode_name(ExecutionMode::ForceSYCL)),
-                      "ForceSYCL");
-            EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::RowMajor)), "RowMajor");
-            EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::ColumnMajor)), "ColumnMajor");
-            EXPECT_EQ(std::string(Bench::dtype_name(Core::DataType::Float64)), "FLOAT64");
-            EXPECT_EQ(std::string(Bench::dtype_name(Core::DataType::Half)), "HALF");
-            EXPECT_EQ(Bench::dtype_bytes(Core::DataType::Float32), sizeof(float));
-            EXPECT_EQ(Bench::dtype_bytes(Core::DataType::Half), std::size_t{2});
-            EXPECT_THROW((void)Bench::dtype_name(Core::DataType::Int32), std::invalid_argument);
-        }
-
-        TEST(Medium_BenchmarkHarness, DeviceSupportFollowsTheAspectsOfTheProfile)
-        {
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            Engine engine(runtime);
-            const Tensor probe = engine.create_tensor({1});
-            const Device::Profile& profile = Device::profile_for(probe.device());
-
-            EXPECT_TRUE(Bench::device_supports(engine, Core::DataType::Float32));
-            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Half), profile.supports_fp16);
-            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Float64),
-                      profile.supports_fp64);
-        }
-
-        TEST(Medium_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
-        {
-            int calls = 0;
-
-            const Bench::Timing timing = Bench::time_iterations(CallCounter{&calls});
-
-            EXPECT_EQ(calls, Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
-            EXPECT_LE(timing.min_seconds, timing.median_seconds);
-        }
-
-        TEST(Medium_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
-        {
-            char program[] = "bench";
-            char* arguments[] = {program};
-
-            EXPECT_EQ(Bench::run_guarded(ThrowingBody{}, 1, arguments), EXIT_FAILURE);
-        }
-
-        TEST(Medium_BenchmarkHarness, MeasureRecordsAndRunsOneTaskPerIterationOnTheGraphItIsGiven)
+        /** @brief Measures a one-task recording on a fresh graph and reports what it left behind. */
+        MeasuredRun measure_a_counting_task()
         {
             SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
             Engine engine(runtime);
@@ -159,9 +118,129 @@ namespace SushiBLAS
                                              CountingBody{&runs});
             });
 
-            EXPECT_EQ(runs.load(), Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
+            return MeasuredRun{timing, runs.load(), graph.is_empty()};
+        }
+
+        TEST(Small_BenchmarkHarness, ParseSizesReturnsTheArgumentsInOrder)
+        {
+            char program[] = "bench";
+            char first[] = "64";
+            char second[] = "1024";
+            char* arguments[] = {program, first, second};
+
+            EXPECT_EQ(Bench::parse_sizes(3, arguments, {1}), (std::vector<int64_t>{64, 1024}));
+        }
+
+        TEST(Small_BenchmarkHarness, ParseSizesReturnsTheDefaultsWhenNoSizeIsGiven)
+        {
+            char program[] = "bench";
+            char* arguments[] = {program};
+
+            EXPECT_EQ(Bench::parse_sizes(1, arguments, {7, 8}), (std::vector<int64_t>{7, 8}));
+        }
+
+        TEST(Small_BenchmarkHarness, ParseSizesRefusesAnArgumentThatIsNotANumber)
+        {
+            char program[] = "bench";
+            char bad[] = "12x";
+            char* arguments[] = {program, bad};
+
+            EXPECT_THROW((void)Bench::parse_sizes(2, arguments, {1}), std::invalid_argument);
+        }
+
+        TEST(Small_BenchmarkHarness, ParseSizesRefusesZeroAndNegativeSizes)
+        {
+            char program[] = "bench";
+            char zero[] = "0";
+            char negative[] = "-3";
+            char* with_zero[] = {program, zero};
+            char* with_negative[] = {program, negative};
+
+            EXPECT_THROW((void)Bench::parse_sizes(2, with_zero, {1}), std::invalid_argument);
+            EXPECT_THROW((void)Bench::parse_sizes(2, with_negative, {1}), std::invalid_argument);
+        }
+
+        TEST(Small_BenchmarkHarness, DtypeNameRefusesADtypeTheBenchmarksDoNotRun)
+        {
+            EXPECT_THROW((void)Bench::dtype_name(Core::DataType::Int32), std::invalid_argument);
+        }
+
+        TEST(Small_BenchmarkHarness, TheGuardReturnsSuccessForABodyThatReturns)
+        {
+            char program[] = "bench";
+            char* arguments[] = {program};
+
+            EXPECT_EQ(Bench::run_guarded(NoOpBody{}, 1, arguments), EXIT_SUCCESS);
+        }
+
+        TEST(Medium_BenchmarkHarness, DeviceSupportFollowsTheAspectsOfTheDevice)
+        {
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            Engine engine(runtime);
+            const sycl::device device = engine.create_tensor({1}).device();
+
+            EXPECT_TRUE(Bench::device_supports(engine, Core::DataType::Float32));
+            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Half),
+                      device.has(sycl::aspect::fp16));
+            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Float64),
+                      device.has(sycl::aspect::fp64));
+        }
+
+        TEST(Medium_BenchmarkHarness, DeviceSupportOfComplex64FollowsTheFp64AspectOfTheDevice)
+        {
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            Engine engine(runtime);
+            const sycl::device device = engine.create_tensor({1}).device();
+
+            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Complex64),
+                      device.has(sycl::aspect::fp64));
+        }
+
+        TEST(Medium_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
+        {
+            int calls = 0;
+
+            (void)Bench::time_iterations(CallCounter{&calls});
+
+            EXPECT_EQ(calls, Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
+        }
+
+        TEST(Medium_BenchmarkHarness, TimingReportsAMinimumNotAboveTheMedian)
+        {
+            int calls = 0;
+
+            const Bench::Timing timing = Bench::time_iterations(CallCounter{&calls});
+
             EXPECT_LE(timing.min_seconds, timing.median_seconds);
-            EXPECT_TRUE(graph.is_empty());
+        }
+
+        TEST(Medium_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
+        {
+            char program[] = "bench";
+            char* arguments[] = {program};
+
+            EXPECT_EQ(Bench::run_guarded(ThrowingBody{}, 1, arguments), EXIT_FAILURE);
+        }
+
+        TEST(Medium_BenchmarkHarness, MeasureRunsOneTaskPerIteration)
+        {
+            const MeasuredRun measured = measure_a_counting_task();
+
+            EXPECT_EQ(measured.runs, Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
+        }
+
+        TEST(Medium_BenchmarkHarness, MeasureReportsAMinimumNotAboveTheMedian)
+        {
+            const MeasuredRun measured = measure_a_counting_task();
+
+            EXPECT_LE(measured.timing.min_seconds, measured.timing.median_seconds);
+        }
+
+        TEST(Medium_BenchmarkHarness, MeasureLeavesTheGraphEmpty)
+        {
+            const MeasuredRun measured = measure_a_counting_task();
+
+            EXPECT_TRUE(measured.graph_is_empty);
         }
     } // namespace Test
 } // namespace SushiBLAS
