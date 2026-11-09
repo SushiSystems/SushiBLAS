@@ -62,9 +62,9 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Medium_SYCLLevel1, TheElementwiseKernelsMatchTheReference)
+        /// @brief Tests that the SYCL axpy matches the reference; the values are small integers, so no rounding.
+        TEST_F(Medium_SYCLLevel1, AxpyMatchesTheReference)
         {
-            // Every value is a small integer, so both kernels compute without rounding.
             const std::vector<float> x = operand(1);
             std::vector<float> y = operand(2);
             SharedArray<float> device_x(queue(), x);
@@ -72,61 +72,120 @@ namespace SushiBLAS
 
             Kernels::SYCL::axpy<float>(queue(), K_LENGTH, 3.0f, device_x.get(), 1,
                                        device_y.get(), 1, {}).wait();
-            Kernels::SYCL::scal<float>(queue(), K_LENGTH, -2.0f, device_y.get(), 1, {}).wait();
-            Kernels::SYCL::rot<float>(queue(), K_LENGTH, device_x.get(), 1, device_y.get(), 1,
-                                      0.0f, 1.0f, {}).wait();
             Ref::axpy<float>(K_LENGTH, 3.0f, x.data(), 1, y.data(), 1);
-            Ref::scal<float>(K_LENGTH, -2.0f, y.data(), 1);
-            std::vector<float> rotated_x = x;
-            Ref::rot<float>(K_LENGTH, rotated_x.data(), 1, y.data(), 1, 0.0f, 1.0f);
 
-            EXPECT_EQ(device_x.values(), rotated_x);
             EXPECT_EQ(device_y.values(), y);
         }
 
-        TEST_F(Medium_SYCLLevel1, CopyAndSwapMoveEveryOtherElement)
+        /// @brief Tests that the SYCL scal matches the reference.
+        TEST_F(Medium_SYCLLevel1, ScalMatchesTheReference)
+        {
+            std::vector<float> y = operand(2);
+            SharedArray<float> device_y(queue(), y);
+
+            Kernels::SYCL::scal<float>(queue(), K_LENGTH, -2.0f, device_y.get(), 1, {}).wait();
+            Ref::scal<float>(K_LENGTH, -2.0f, y.data(), 1);
+
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        /// @brief Tests that the SYCL rot matches the reference on both vectors.
+        TEST_F(Medium_SYCLLevel1, RotMatchesTheReference)
+        {
+            std::vector<float> x = operand(1);
+            std::vector<float> y = operand(2);
+            SharedArray<float> device_x(queue(), x);
+            SharedArray<float> device_y(queue(), y);
+
+            Kernels::SYCL::rot<float>(queue(), K_LENGTH, device_x.get(), 1, device_y.get(), 1,
+                                      0.0f, 1.0f, {}).wait();
+            Ref::rot<float>(K_LENGTH, x.data(), 1, y.data(), 1, 0.0f, 1.0f);
+
+            EXPECT_EQ(device_x.values(), x);
+            EXPECT_EQ(device_y.values(), y);
+        }
+
+        /// @brief Tests that the SYCL copy reads every other element of x into y.
+        TEST_F(Medium_SYCLLevel1, CopyReadsEveryOtherElement)
         {
             const std::vector<float> x = operand(3);
             SharedArray<float> device_x(queue(), x);
             SharedArray<float> device_y(queue(), static_cast<std::size_t>(K_LENGTH / 2));
+            std::vector<float> expected(static_cast<std::size_t>(K_LENGTH / 2));
 
             Kernels::SYCL::copy<float>(queue(), K_LENGTH / 2, device_x.get(), 2, device_y.get(),
                                        1, {}).wait();
-            std::vector<float> expected(static_cast<std::size_t>(K_LENGTH / 2));
             Ref::copy<float>(K_LENGTH / 2, x.data(), 2, expected.data(), 1);
-            EXPECT_EQ(device_y.values(), expected);
 
-            Kernels::SYCL::swap<float>(queue(), K_LENGTH / 2, device_x.get(), 2, device_y.get(),
-                                       1, {}).wait();
             EXPECT_EQ(device_y.values(), expected);
         }
 
-        TEST_F(Medium_SYCLLevel1, TheReductionsMatchTheReferenceExactly)
+        /// @brief Tests that the SYCL swap exchanges every other element of x with y, on both vectors.
+        TEST_F(Medium_SYCLLevel1, SwapExchangesEveryOtherElement)
+        {
+            const std::vector<float> x = operand(3);
+            const std::vector<float> y = operand(4);
+            const std::size_t half = static_cast<std::size_t>(K_LENGTH / 2);
+            SharedArray<float> device_x(queue(), x);
+            SharedArray<float> device_y(queue(), std::vector<float>(y.begin(), y.begin() + half));
+            std::vector<float> expected_x = x;
+            std::vector<float> expected_y(y.begin(), y.begin() + half);
+
+            Kernels::SYCL::swap<float>(queue(), K_LENGTH / 2, device_x.get(), 2, device_y.get(),
+                                       1, {}).wait();
+            Ref::swap<float>(K_LENGTH / 2, expected_x.data(), 2, expected_y.data(), 1);
+
+            EXPECT_EQ(device_x.values(), expected_x);
+            EXPECT_EQ(device_y.values(), expected_y);
+        }
+
+        /// @brief Tests that the SYCL asum matches the reference exactly.
+        TEST_F(Medium_SYCLLevel1, AsumMatchesTheReferenceExactly)
+        {
+            const std::vector<double> x = small_integers<double>(K_LENGTH, 4);
+            const SharedArray<double> device_x(queue(), x);
+            SharedArray<double> result(queue(), 1);
+            SharedArray<std::byte> scratch(queue(), K_SCRATCH_BYTES);
+            double expected = 0.0;
+
+            Kernels::SYCL::asum<double>(queue(), K_LENGTH, device_x.get(), 1, result.get(),
+                                        scratch.get(), K_SCRATCH_BYTES, {}).wait();
+            Ref::asum<double>(K_LENGTH, x.data(), 1, &expected);
+
+            EXPECT_EQ(result.get()[0], expected);
+        }
+
+        /// @brief Tests that the SYCL dot matches the reference exactly.
+        TEST_F(Medium_SYCLLevel1, DotMatchesTheReferenceExactly)
         {
             const std::vector<double> x = small_integers<double>(K_LENGTH, 4);
             const std::vector<double> y = small_integers<double>(K_LENGTH, 5);
             const SharedArray<double> device_x(queue(), x);
             const SharedArray<double> device_y(queue(), y);
-            SharedArray<double> results(queue(), 2);
+            SharedArray<double> result(queue(), 1);
+            SharedArray<std::byte> scratch(queue(), K_SCRATCH_BYTES);
+            double expected = 0.0;
+
+            Kernels::SYCL::dot<double>(queue(), K_LENGTH, device_x.get(), 1, device_y.get(), 1,
+                                       result.get(), scratch.get(), K_SCRATCH_BYTES, {}).wait();
+            Ref::dot<double>(K_LENGTH, x.data(), 1, y.data(), 1, &expected);
+
+            EXPECT_EQ(result.get()[0], expected);
+        }
+
+        /// @brief Tests that the SYCL iamax returns the same index as the reference.
+        TEST_F(Medium_SYCLLevel1, IamaxMatchesTheReference)
+        {
+            const std::vector<double> x = small_integers<double>(K_LENGTH, 4);
+            const SharedArray<double> device_x(queue(), x);
             SharedArray<int64_t> index(queue(), 1);
             SharedArray<std::byte> scratch(queue(), K_SCRATCH_BYTES);
+            int64_t first_largest = -1;
 
-            Kernels::SYCL::asum<double>(queue(), K_LENGTH, device_x.get(), 1, results.get(),
-                                        scratch.get(), K_SCRATCH_BYTES, {}).wait();
-            Kernels::SYCL::dot<double>(queue(), K_LENGTH, device_x.get(), 1, device_y.get(), 1,
-                                       results.get() + 1, scratch.get(), K_SCRATCH_BYTES,
-                                       {}).wait();
             Kernels::SYCL::iamax<double>(queue(), K_LENGTH, device_x.get(), 1, index.get(),
                                          scratch.get(), K_SCRATCH_BYTES, {}).wait();
-            double asum = 0.0;
-            double dot = 0.0;
-            int64_t first_largest = -1;
-            Ref::asum<double>(K_LENGTH, x.data(), 1, &asum);
-            Ref::dot<double>(K_LENGTH, x.data(), 1, y.data(), 1, &dot);
             Ref::iamax<double>(K_LENGTH, x.data(), 1, &first_largest);
 
-            EXPECT_EQ(results.get()[0], asum);
-            EXPECT_EQ(results.get()[1], dot);
             EXPECT_EQ(index.get()[0], first_largest);
         }
 
