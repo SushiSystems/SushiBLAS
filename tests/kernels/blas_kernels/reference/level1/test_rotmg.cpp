@@ -41,25 +41,28 @@ namespace SushiBLAS
         /// @brief Absolute tolerance: 1024 double roundings of a value of order one.
         constexpr double K_TOLERANCE = absolute_tolerance<double>(1024);
 
-        TEST(Small_ReferenceRotmg, TheTransformationZeroesTheSecondComponent)
+        /// @brief Runs rotmg for one second component y1 and applies the transformation it builds.
+        class Small_ReferenceRotmgSecondComponent : public ::testing::TestWithParam<double> {};
+
+        /// @brief Tests that the transformation rotmg builds zeroes the second component and keeps x1 as the first.
+        TEST_P(Small_ReferenceRotmgSecondComponent, TheTransformationZeroesTheSecondComponent)
         {
-            for (const double y1 : {0.5, 3.0, -2.0})
-            {
-                SCOPED_TRACE(y1);
-                double d1 = 2.0;
-                double d2 = 1.0;
-                double x1 = 1.5;
-                std::vector<double> param(5, 0.0);
+            const double y1 = GetParam();
+            double d1 = 2.0;
+            double d2 = 1.0;
+            double x1 = 1.5;
+            std::vector<double> param(5, 0.0);
 
-                Kernels::Reference::rotmg(&d1, &d2, &x1, &y1, param.data());
+            Kernels::Reference::rotmg(&d1, &d2, &x1, &y1, param.data());
 
-                std::vector<double> x{1.5};
-                std::vector<double> y{y1};
-                Kernels::Reference::rotm<double>(1, x.data(), 1, y.data(), 1, param.data());
-                EXPECT_NEAR(y[0], 0.0, K_TOLERANCE);
-                EXPECT_NEAR(x[0], x1, K_TOLERANCE * std::abs(x1));
-            }
+            std::vector<double> x{1.5};
+            std::vector<double> y{y1};
+            Kernels::Reference::rotm<double>(1, x.data(), 1, y.data(), 1, param.data());
+            EXPECT_NEAR(y[0], 0.0, K_TOLERANCE);
+            EXPECT_NEAR(x[0], x1, K_TOLERANCE * std::abs(x1));
         }
+
+        INSTANTIATE_TEST_SUITE_P(SecondComponents, Small_ReferenceRotmgSecondComponent, ::testing::Values(0.5, 3.0, -2.0));
 
         TEST(Small_ReferenceRotmg, AZeroSecondComponentNeedsNoTransformation)
         {
