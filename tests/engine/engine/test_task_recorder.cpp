@@ -27,7 +27,8 @@
  * @author Mustafa Garip
  */
 
-#include <array>
+#include <iterator>
+#include <algorithm>
 #include <set>
 #include <atomic>
 #include <string>
@@ -81,13 +82,6 @@ namespace SushiBLAS
                     Tensor squared; /**< Receives input * input. */
                     Tensor shifted; /**< Receives squared + input. */
                     Tensor total;   /**< Receives the sum of shifted. */
-                };
-
-                /** @brief Names one record call of an operation family. */
-                struct FamilyCall
-                {
-                    const char* family;         /**< The family, for the failure message. */
-                    std::function<void()> call; /**< Records one operation of the family. */
                 };
 
                 /** @brief Returns a FLOAT32 vector of four elements from the fixture's engine. */
@@ -153,27 +147,51 @@ namespace SushiBLAS
             EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Bitwise);
         }
 
-        /** @brief Tests that a late count the runtime cannot read is refused before any task is recorded. */
-        TEST_F(Medium_TaskRecorderTest, ALateCountOutsideHostInt32IsRefusedAndRecordsNothing)
+        namespace
         {
-            for (const ExecutionMode mode :
-                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
+            /** @brief Names one execution mode. */
+            struct ModeRow
             {
-                RecordingFixture fixture(TestEnvironment::runtime(), *engine);
-                fixture.recorder().set_mode(mode);
-                Tensor out = vector_of_four();
-                OperandSet operands;
-                operands.writes(out);
-                const TaskDescription description;
-                const Tensor shared_count = engine->create_tensor({1}, Core::DataType::Int32);
+                const char* name;   /**< The row name a failure shows. */
+                ExecutionMode mode; /**< The mode the recorder runs in. */
+            };
 
-                EXPECT_THROW(fixture.recorder().record_late_pair(
-                                 description, operands, "test", shared_count, 4,
-                                 [] {}, [](std::size_t) {}),
-                             std::invalid_argument);
-                EXPECT_EQ(fixture.recorded_count(), std::size_t{0});
+            /** @brief Returns one row per mode that records a late-count pair. */
+            std::vector<ModeRow> mode_rows()
+            {
+                return {{"ForceReference", ExecutionMode::ForceReference},
+                        {"ForceSYCL", ExecutionMode::ForceSYCL}};
             }
+        } // namespace
+
+        /** @brief Runs one row of mode_rows(). */
+        class Medium_TaskRecorderLateCountMode : public Medium_TaskRecorderTest,
+                                                 public ::testing::WithParamInterface<ModeRow>
+        {
+        };
+
+        /** @brief Tests that a late count the runtime cannot read is refused before any task is recorded. */
+        TEST_P(Medium_TaskRecorderLateCountMode, ALateCountOutsideHostInt32IsRefusedAndRecordsNothing)
+        {
+            RecordingFixture fixture(TestEnvironment::runtime(), *engine);
+            fixture.recorder().set_mode(GetParam().mode);
+            Tensor out = vector_of_four();
+            OperandSet operands;
+            operands.writes(out);
+            const TaskDescription description;
+            const Tensor shared_count = engine->create_tensor({1}, Core::DataType::Int32);
+
+            EXPECT_THROW(fixture.recorder().record_late_pair(
+                             description, operands, "test", shared_count, 4,
+                             [] {}, [](std::size_t) {}),
+                         std::invalid_argument);
+            EXPECT_EQ(fixture.recorded_count(), std::size_t{0});
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskRecorderLateCountMode, ::testing::ValuesIn(mode_rows()),
+            [](const ::testing::TestParamInfo<ModeRow>& info)
+            { return std::string(info.param.name); });
 
         /** @brief Tests that a late-count task of a live recorder runs the indices below its count. */
         TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunsWhileItsRecorderLives)
@@ -183,12 +201,10 @@ namespace SushiBLAS
             ScratchPool scratch_pool(scratch_pool_source);
             LateCountHold late_counts(TestEnvironment::runtime());
             TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
-            Tensor out = vector_of_four();
+            Tensor out = create_initialized_tensor<float>({4}, {0.0f, 0.0f, 0.0f, 0.0f});
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);
             count.data_as<std::int32_t>()[0] = 2;
-            for (std::int64_t i = 0; i < 4; ++i)
-                out.data_as<float>()[i] = 0.0f;
             OperandSet operands;
             operands.writes(out);
             float* marks = out.data_as<float>();
@@ -200,10 +216,7 @@ namespace SushiBLAS
             const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
 
             ASSERT_TRUE(ran);
-            EXPECT_EQ(out.data_as<float>()[0], 1.0f);
-            EXPECT_EQ(out.data_as<float>()[1], 1.0f);
-            EXPECT_EQ(out.data_as<float>()[2], 0.0f);
-            EXPECT_EQ(out.data_as<float>()[3], 0.0f);
+            expect_tensor_equal(out, (std::vector<float>{1.0f, 1.0f, 0.0f, 0.0f}));
         }
 
         /**
@@ -215,12 +228,10 @@ namespace SushiBLAS
             SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
             RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
             ScratchPool scratch_pool(scratch_pool_source);
-            Tensor out = vector_of_four();
+            Tensor out = create_initialized_tensor<float>({4}, {0.0f, 0.0f, 0.0f, 0.0f});
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);
             count.data_as<std::int32_t>()[0] = 2;
-            for (std::int64_t i = 0; i < 4; ++i)
-                out.data_as<float>()[i] = 0.0f;
             OperandSet operands;
             operands.writes(out);
             float* marks = out.data_as<float>();
@@ -237,8 +248,7 @@ namespace SushiBLAS
 
             ASSERT_FALSE(ran);
             EXPECT_EQ(ran.error().code, SushiRuntime::ErrorCode::DanglingResource);
-            for (std::int64_t i = 0; i < 4; ++i)
-                EXPECT_EQ(out.data_as<float>()[i], 0.0f);
+            expect_tensor_equal(out, (std::vector<float>{0.0f, 0.0f, 0.0f, 0.0f}));
         }
 
         /**
@@ -310,64 +320,160 @@ namespace SushiBLAS
             EXPECT_EQ(2 * K_TASKS_PER_THREAD, probe.take_recorded_count());
         }
 
-        /** @brief Tests that every family records and runs one task under ForceReference. */
-        TEST_F(Medium_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
+        /** @brief Holds one family call and the check of the tensors it wrote. */
+        struct FamilyCase
+        {
+            std::function<void()> call;  /**< Records one operation of the family. */
+            std::function<void()> check; /**< Compares the tensors the run wrote. */
+        };
+
+        class Medium_TaskRecorderFamily;
+
+        /** @brief Names one operation family and builds its case. */
+        struct FamilyRow
+        {
+            const char* name; /**< The row name a failure shows. */
+            FamilyCase (*make)(Medium_TaskRecorderFamily&, TaskRecorder&); /**< Builds the case. */
+        };
+
+        /** @brief Runs one row of family_rows() and gives the rows the tensors of the fixture's engine. */
+        class Medium_TaskRecorderFamily : public Medium_TaskRecorderTest,
+                                          public ::testing::WithParamInterface<FamilyRow>
+        {
+            public:
+                /** @brief Returns a FLOAT32 tensor of the given extents holding values. */
+                [[nodiscard]] std::shared_ptr<Tensor>
+                initialized(std::initializer_list<std::int64_t> extents,
+                            const std::vector<float>& values)
+                {
+                    return std::make_shared<Tensor>(create_initialized_tensor<float>(extents, values));
+                }
+
+                /** @brief Returns an unwritten FLOAT32 tensor of the given extents. */
+                [[nodiscard]] std::shared_ptr<Tensor> blank(std::initializer_list<std::int64_t> extents)
+                {
+                    return std::make_shared<Tensor>(
+                        engine->create_tensor(extents, Core::DataType::Float32));
+                }
+
+                /** @brief Returns the random family's view over the engine's stream. */
+                [[nodiscard]] SushiBLAS::RandomOps random_ops(TaskRecorder& recorder)
+                {
+                    return SushiBLAS::RandomOps(recorder, engine->rng());
+                }
+        };
+
+        namespace
+        {
+            /** @brief Returns the values of the signed input every family row reads. */
+            std::vector<float> signed_values()
+            {
+                return {1.0f, -2.0f, 3.0f, -4.0f};
+            }
+
+            /** @brief Returns the values of the counting input every family row reads. */
+            std::vector<float> counting_values()
+            {
+                return {1.0f, 2.0f, 3.0f, 4.0f};
+            }
+
+            /** @brief Returns one row per operation family. */
+            std::vector<FamilyRow> family_rows()
+            {
+                return {
+                    {"Elementwise",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto a = f.initialized({4}, signed_values());
+                         auto b = f.initialized({4}, counting_values());
+                         auto added = f.blank({4});
+                         return FamilyCase{
+                             [=, &recorder] { SushiBLAS::ElementwiseOps(recorder).add(*a, *b, *added); },
+                             [=] { expect_tensor_equal(*added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f})); }};
+                     }},
+                    {"Nonlinear",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto rectified = f.initialized({4}, signed_values());
+                         return FamilyCase{
+                             [=, &recorder] { SushiBLAS::NonLinearOps(recorder).relu(*rectified); },
+                             [=] { expect_tensor_equal(*rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f})); }};
+                     }},
+                    {"Logic",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto a = f.initialized({4}, signed_values());
+                         auto b = f.initialized({4}, counting_values());
+                         auto compared = f.blank({4});
+                         return FamilyCase{
+                             [=, &recorder] { SushiBLAS::LogicOps(recorder).equal(*a, *b, *compared); },
+                             [=] { expect_tensor_equal(*compared, (std::vector<float>{1.0f, 0.0f, 1.0f, 0.0f})); }};
+                     }},
+                    {"Reduction",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto a = f.initialized({4}, signed_values());
+                         auto total = f.blank({1});
+                         return FamilyCase{
+                             [=, &recorder] { SushiBLAS::ReductionOps(recorder).sum(*a, *total); },
+                             [=] { expect_tensor_equal(*total, (std::vector<float>{-2.0f})); }};
+                     }},
+                    {"Random",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto drawn = f.blank({4});
+                         return FamilyCase{
+                             [=, &f, &recorder] { f.random_ops(recorder).uniform(*drawn); },
+                             [=]
+                             {
+                                 const std::vector<float> values = read_tensor<float>(*drawn);
+                                 EXPECT_TRUE(std::all_of(values.begin(), values.end(),
+                                                         [](float value)
+                                                         { return value >= 0.0f && value < 1.0f; }));
+                             }};
+                     }},
+                    {"Blas",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto a = f.initialized({4}, signed_values());
+                         auto y = f.initialized({4}, counting_values());
+                         return FamilyCase{
+                             [=, &recorder] { SushiBLAS::BLASOps(recorder).axpy(2.0, *a, *y); },
+                             [=] { expect_tensor_equal(*y, (std::vector<float>{3.0f, -2.0f, 9.0f, -4.0f})); }};
+                     }},
+                    {"Spatial",
+                     [](Medium_TaskRecorderFamily& f, TaskRecorder& recorder)
+                     {
+                         auto image = f.initialized({1, 2, 2, 1}, signed_values());
+                         auto columns = f.blank({4, 1});
+                         return FamilyCase{
+                             [=, &recorder]
+                             {
+                                 const Spatial::ConvGeometry unit_window;
+                                 SushiBLAS::SpatialOps(recorder).im2col(*image, *columns, unit_window);
+                             },
+                             [=] { expect_tensor_equal(*columns, signed_values()); }};
+                     }}};
+            }
+        } // namespace
+
+        /** @brief Tests that a family records one task under ForceReference and runs it to the host result. */
+        TEST_P(Medium_TaskRecorderFamily, TheFamilyRecordsOneTaskAndRunsItUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
-            TaskRecorder& recorder = probe.recorder();
+            const FamilyCase family = GetParam().make(*this, probe.recorder());
 
-            const std::vector<float> signed_values = {1.0f, -2.0f, 3.0f, -4.0f};
-            const std::vector<float> counting_values = {1.0f, 2.0f, 3.0f, 4.0f};
-
-            auto a = create_initialized_tensor<float>({4}, signed_values);
-            auto b = create_initialized_tensor<float>({4}, counting_values);
-            auto added = vector_of_four();
-            auto rectified = create_initialized_tensor<float>({4}, signed_values);
-            auto compared = vector_of_four();
-            auto total = engine->create_tensor({1}, Core::DataType::Float32);
-            auto drawn = vector_of_four();
-            auto y = create_initialized_tensor<float>({4}, counting_values);
-            auto image = create_initialized_tensor<float>({1, 2, 2, 1}, signed_values);
-            auto columns = engine->create_tensor({4, 1}, Core::DataType::Float32);
-            const Spatial::ConvGeometry unit_window;
-
-            const std::array<FamilyCall, 7> calls = {{
-                {"elementwise", [&] { SushiBLAS::ElementwiseOps(recorder).add(a, b, added); }},
-                {"nonlinear", [&] { SushiBLAS::NonLinearOps(recorder).relu(rectified); }},
-                {"logic", [&] { SushiBLAS::LogicOps(recorder).equal(a, b, compared); }},
-                {"reduction", [&] { SushiBLAS::ReductionOps(recorder).sum(a, total); }},
-                {"random",
-                 [&] { SushiBLAS::RandomOps(recorder, engine->rng()).uniform(drawn); }},
-                {"blas", [&] { SushiBLAS::BLASOps(recorder).axpy(2.0, a, y); }},
-                {"spatial",
-                 [&] { SushiBLAS::SpatialOps(recorder).im2col(image, columns, unit_window); }},
-            }};
-
-            for (const FamilyCall& entry : calls)
-            {
-                SCOPED_TRACE(entry.family);
-                EXPECT_NO_THROW(entry.call());
-                EXPECT_EQ(1u, probe.take_recorded_count());
-            }
-
-            // take_recorded_count() emptied the graph, so every call is recorded again.
-            for (const FamilyCall& entry : calls)
-                entry.call();
+            EXPECT_NO_THROW(family.call());
+            EXPECT_EQ(1u, probe.recorded_count());
             probe.execute().value();
 
-            expect_tensor_equal(added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f}));
-            expect_tensor_equal(rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f}));
-            expect_tensor_equal(compared, (std::vector<float>{1.0f, 0.0f, 1.0f, 0.0f}));
-            expect_tensor_equal(total, (std::vector<float>{-2.0f}));
-            expect_tensor_equal(y, (std::vector<float>{3.0f, -2.0f, 9.0f, -4.0f}));
-            expect_tensor_equal(columns, signed_values);
-
-            for (const float value : read_tensor<float>(drawn))
-            {
-                EXPECT_GE(value, 0.0f);
-                EXPECT_LT(value, 1.0f);
-            }
+            family.check();
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskRecorderFamily, ::testing::ValuesIn(family_rows()),
+            [](const ::testing::TestParamInfo<FamilyRow>& info)
+            { return std::string(info.param.name); });
 
         /** @brief Tests that one chain of view calls gives two graphs equal edges and results. */
         TEST_F(Medium_TaskRecorderTest, TheSameCallsReplayIntoASecondGraph)
@@ -575,8 +681,11 @@ namespace SushiBLAS
         {
         };
 
-        /** @brief Tests that each record call adds exactly one rule, at the node count the graph had before it. */
-        TEST_F(Medium_TaskRecorderJoin, EachRecordCallAddsOneRuleAtTheNodeCountItSaw)
+        /**
+         * @brief Tests that each record call adds exactly one rule, at the node count the graph
+         *        had before it, and that the runtime maps every rule to its own registration index.
+         */
+        TEST_F(Medium_TaskRecorderJoin, EachRecordCallAddsOneRuleWithItsOwnRegistrationIndex)
         {
             SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
             RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
@@ -595,6 +704,17 @@ namespace SushiBLAS
             EXPECT_EQ(graph.recorder().node_count(), ++expected);
             SushiBLAS::NonLinearOps(recorder).relu(d);
             EXPECT_EQ(graph.recorder().node_count(), ++expected);
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{3});
+            std::vector<std::uint32_t> indices;
+            std::transform(plan->nodes.begin(), plan->nodes.end(), std::back_inserter(indices),
+                           [&graph](const SushiRuntime::PlanNode& node)
+                           { return graph.rule_registration(node.rule); });
+            const std::set<std::uint32_t> registrations(indices.begin(), indices.end());
+            EXPECT_EQ(registrations.size(), std::size_t{3});
+            EXPECT_EQ(registrations.count(SushiRuntime::Graph::K_NO_REGISTRATION), std::size_t{0});
         }
 
         /** @brief Tests that a late-count pair is one rule. */
@@ -616,35 +736,6 @@ namespace SushiBLAS
                                       [](std::size_t) {});
 
             EXPECT_EQ(graph.recorder().node_count(), before + 1);
-        }
-
-        /** @brief Tests that the runtime maps every rule of a chain to its own registration index. */
-        TEST_F(Medium_TaskRecorderJoin, RuleRegistrationMapsEveryRuleToADistinctIndex)
-        {
-            SushiRuntime::Graph graph = TestEnvironment::runtime().graph();
-            RuntimeScratchSource scratch_pool_source(TestEnvironment::runtime());
-            ScratchPool scratch_pool(scratch_pool_source);
-            LateCountHold late_counts(TestEnvironment::runtime());
-            TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
-            const Tensor a = engine->create_tensor({2, 3}, Core::DataType::Float32);
-            const Tensor b = engine->create_tensor({3, 4}, Core::DataType::Float32);
-            Tensor c = engine->create_tensor({2, 4}, Core::DataType::Float32);
-            Tensor d = engine->create_tensor({2, 4}, Core::DataType::Float32);
-            SushiBLAS::BLASOps(recorder).gemm(a, b, c);
-            SushiBLAS::ElementwiseOps(recorder).add(c, c, d);
-            SushiBLAS::NonLinearOps(recorder).relu(d);
-
-            SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();
-
-            ASSERT_TRUE(plan);
-            ASSERT_EQ(plan->nodes.size(), std::size_t{3});
-            std::set<std::uint32_t> registrations;
-            for (const SushiRuntime::PlanNode& node : plan->nodes)
-            {
-                const std::uint32_t index = graph.rule_registration(node.rule);
-                EXPECT_NE(index, SushiRuntime::Graph::K_NO_REGISTRATION);
-                EXPECT_TRUE(registrations.insert(index).second);
-            }
         }
 
         /** @brief Records on a host engine and reads the origin label each task carried from the host sink. */
@@ -755,94 +846,184 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that a record call writes a zone while a collector is open. */
-        TEST_F(Medium_TaskRecorderZones, ARecordCallWritesAZoneIntoAnOpenCollector)
+        /** @brief Tests that a record call writes a zone while a collector is open and none once it is closed. */
+        TEST_F(Medium_TaskRecorderZones, ARecordCallWritesAZoneOnlyWhileTheCollectorIsOpen)
         {
             GraphProbe probe;
             const Tensor a = vector_of_four();
             Tensor out = vector_of_four();
 
             SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
-
-            EXPECT_GE(events_of(SushiProfiler::EventKind::Zone), std::size_t{1});
-        }
-
-        /** @brief Tests that nothing is written while no collector is open. */
-        TEST_F(Medium_TaskRecorderZones, ARecordCallWritesNothingWhileTheCollectorIsClosed)
-        {
+            const std::size_t while_open = events_of(SushiProfiler::EventKind::Zone);
             SushiProfiler::Collector::instance().close();
-            GraphProbe probe;
-            const Tensor a = vector_of_four();
-            Tensor out = vector_of_four();
-
             SushiBLAS::ElementwiseOps(probe.recorder()).add(a, a, out);
+            const std::size_t while_closed = events_of(SushiProfiler::EventKind::Zone);
 
-            EXPECT_EQ(events_of(SushiProfiler::EventKind::Zone), std::size_t{0});
+            EXPECT_GE(while_open, std::size_t{1});
+            EXPECT_EQ(while_closed, std::size_t{0});
         }
 #endif
 
-        /** @brief Holds the check that every node of an inference-like graph states a cost or a reason. */
-        class Medium_TaskRecorderCoverage : public Medium_TaskRecorderTest
+        namespace
+        {
+            /** @brief Names one operation and the call that records it alone. */
+            struct CostCoverageRow
+            {
+                const char* name;                       /**< The row name a failure shows. */
+                void (*record)(Engine&, TaskRecorder&); /**< Records the one operation of the row. */
+            };
+
+            /** @brief Returns a FLOAT32 tensor of the given extents. */
+            Tensor floats_of(Engine& engine, std::initializer_list<std::int64_t> extents)
+            {
+                return engine.create_tensor(extents, Core::DataType::Float32);
+            }
+
+            /** @brief Returns one row per operation of an inference-like graph. */
+            std::vector<CostCoverageRow> cost_coverage_rows()
+            {
+                return {
+                    {"WindowDot",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         Spatial::ConvGeometry window;
+                         window.kernel_h = 3;
+                         window.kernel_w = 3;
+                         const Tensor image = floats_of(engine, {1, 4, 4, 2});
+                         const Tensor taps = floats_of(engine, {3, 3, 2});
+                         Tensor features = floats_of(engine, {1, 2, 2, 2});
+                         SushiBLAS::SpatialOps(recorder).window_dot(image, taps, features, window);
+                     }},
+                    {"Gemm",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         const Tensor left = floats_of(engine, {8, 8});
+                         const Tensor right = floats_of(engine, {8, 8});
+                         Tensor product = floats_of(engine, {8, 8});
+                         SushiBLAS::BLASOps(recorder).gemm(left, right, product);
+                     }},
+                    {"Relu",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         Tensor product = floats_of(engine, {8, 8});
+                         SushiBLAS::NonLinearOps(recorder).relu(product);
+                     }},
+                    {"ConcatChannels",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         const Tensor features = floats_of(engine, {1, 2, 2, 2});
+                         Tensor joined = floats_of(engine, {1, 2, 2, 4});
+                         SushiBLAS::SpatialOps(recorder).concat_channels(features, joined, 0);
+                     }},
+                    {"UpsampleNearest",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         const Tensor features = floats_of(engine, {1, 2, 2, 2});
+                         Tensor enlarged = floats_of(engine, {1, 4, 4, 2});
+                         SushiBLAS::SpatialOps(recorder).upsample_nearest(features, enlarged, 2, 2);
+                     }},
+                    {"Sum",
+                     [](Engine& engine, TaskRecorder& recorder)
+                     {
+                         const Tensor product = floats_of(engine, {8, 8});
+                         Tensor total = floats_of(engine, {1});
+                         SushiBLAS::ReductionOps(recorder).sum(product, total);
+                     }}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of cost_coverage_rows(). */
+        class Medium_TaskRecorderCostCoverage : public Medium_TaskRecorderTest,
+                                                public ::testing::WithParamInterface<CostCoverageRow>
         {
         };
 
-        /** @brief Tests that each node of a graph of convolution, GEMM, activation, concat, upsample and reduction is costed or has a row. */
-        TEST_F(Medium_TaskRecorderCoverage, EveryNodeOfAnInferenceLikeGraphStatesACostOrAReason)
+        /** @brief Tests that the node of an operation of an inference-like graph is costed or has a row. */
+        TEST_P(Medium_TaskRecorderCostCoverage, TheNodeStatesACostOrHasARowInTheCostTable)
         {
             GraphProbe probe;
-            Spatial::ConvGeometry window;
-            window.kernel_h = 3;
-            window.kernel_w = 3;
-            const Tensor image = engine->create_tensor({1, 4, 4, 2}, Core::DataType::Float32);
-            const Tensor taps = engine->create_tensor({3, 3, 2}, Core::DataType::Float32);
-            Tensor features = engine->create_tensor({1, 2, 2, 2}, Core::DataType::Float32);
-            Tensor joined = engine->create_tensor({1, 2, 2, 4}, Core::DataType::Float32);
-            Tensor enlarged = engine->create_tensor({1, 4, 4, 2}, Core::DataType::Float32);
-            const Tensor left = engine->create_tensor({8, 8}, Core::DataType::Float32);
-            const Tensor right = engine->create_tensor({8, 8}, Core::DataType::Float32);
-            Tensor product = engine->create_tensor({8, 8}, Core::DataType::Float32);
-            Tensor total = engine->create_tensor({1}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(probe.recorder()).window_dot(image, taps, features, window);
-            SushiBLAS::BLASOps(probe.recorder()).gemm(left, right, product);
-            SushiBLAS::NonLinearOps(probe.recorder()).relu(product);
-            SushiBLAS::SpatialOps(probe.recorder()).concat_channels(features, joined, 0);
-            SushiBLAS::SpatialOps(probe.recorder()).upsample_nearest(features, enlarged, 2, 2);
-            SushiBLAS::ReductionOps(probe.recorder()).sum(product, total);
+            GetParam().record(*engine, probe.recorder());
 
             auto tasks = probe.recorded_tasks();
             ASSERT_TRUE(tasks.has_value());
-            ASSERT_EQ(tasks->size(), std::size_t{6});
-            for (const RecordedTask& task : *tasks)
-            {
-                EXPECT_TRUE(task.operation.is_named()) << task.name;
-                EXPECT_TRUE(task.cost.has_value() || find_cost_row(task.operation) != nullptr)
-                    << task.name << " states no cost and has no row in the cost table";
-            }
+            ASSERT_EQ(tasks->size(), std::size_t{1});
+            const RecordedTask& task = tasks->front();
+            EXPECT_TRUE(task.operation.is_named()) << task.name;
+            EXPECT_TRUE(task.cost.has_value() || find_cost_row(task.operation) != nullptr)
+                << task.name << " states no cost and has no row in the cost table";
         }
 
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskRecorderCostCoverage, ::testing::ValuesIn(cost_coverage_rows()),
+            [](const ::testing::TestParamInfo<CostCoverageRow>& info)
+            { return std::string(info.param.name); });
+
+        namespace
+        {
+            /** @brief Names one graph primitive and the call that records it. */
+            struct PrimitiveRow
+            {
+                const char* name; /**< The row name a failure shows. */
+                void (*record)(SushiRuntime::Runtime&,
+                               GraphPrimitives::RuntimePrimitiveRecorder&); /**< Records the primitive. */
+            };
+
+            /** @brief Returns one row per graph primitive. */
+            std::vector<PrimitiveRow> primitive_rows()
+            {
+                return {
+                    {"PrefixScan",
+                     [](SushiRuntime::Runtime& runtime,
+                        GraphPrimitives::RuntimePrimitiveRecorder& port)
+                     {
+                         auto counts = runtime.buffer<std::uint32_t>(64).value();
+                         auto offsets = runtime.buffer<std::uint32_t>(65).value();
+                         auto total = runtime.buffer<std::uint32_t>(1).value();
+                         GraphPrimitives::prefix_scan(port, counts, offsets, total,
+                                                      SushiRuntime::LateCount::fixed(64))
+                             .value();
+                     }},
+                    {"Reduce",
+                     [](SushiRuntime::Runtime& runtime,
+                        GraphPrimitives::RuntimePrimitiveRecorder& port)
+                     {
+                         auto values = runtime.buffer<float>(64).value();
+                         auto sum = runtime.buffer<float>(1).value();
+                         GraphPrimitives::reduce(port, values, sum, std::size_t{64},
+                                                 GraphPrimitives::Sum<float>{})
+                             .value();
+                     }}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of primitive_rows(). */
+        class Medium_TaskRecorderPrimitiveCoverage
+            : public Medium_TaskRecorderTest,
+              public ::testing::WithParamInterface<PrimitiveRow>
+        {
+        };
+
         /** @brief Tests that every node a graph primitive records carries an operation id. */
-        TEST_F(Medium_TaskRecorderCoverage, EveryNodeOfAGraphPrimitiveCarriesAnOperationId)
+        TEST_P(Medium_TaskRecorderPrimitiveCoverage, EveryNodeCarriesAnOperationId)
         {
             SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
-            auto counts = runtime.buffer<std::uint32_t>(64).value();
-            auto offsets = runtime.buffer<std::uint32_t>(65).value();
-            auto total = runtime.buffer<std::uint32_t>(1).value();
-            auto values = runtime.buffer<float>(64).value();
-            auto sum = runtime.buffer<float>(1).value();
             auto graph = runtime.graph();
-
             GraphPrimitives::RuntimePrimitiveRecorder port(graph.recorder());
-            GraphPrimitives::prefix_scan(port, counts, offsets, total,
-                                         SushiRuntime::LateCount::fixed(64)).value();
-            GraphPrimitives::reduce(port, values, sum, std::size_t{64},
-                                    GraphPrimitives::Sum<float>{}).value();
+
+            GetParam().record(runtime, port);
 
             const SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();
             ASSERT_TRUE(plan);
             ASSERT_FALSE(plan->nodes.empty());
-            for (const SushiRuntime::PlanNode& node : plan->nodes)
-                EXPECT_TRUE(node.operation.is_named()) << "node " << node.rule;
+            EXPECT_TRUE(std::all_of(plan->nodes.begin(), plan->nodes.end(),
+                                    [](const SushiRuntime::PlanNode& node)
+                                    { return node.operation.is_named(); }));
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskRecorderPrimitiveCoverage, ::testing::ValuesIn(primitive_rows()),
+            [](const ::testing::TestParamInfo<PrimitiveRow>& info)
+            { return std::string(info.param.name); });
     } // namespace Test
 } // namespace SushiBLAS
