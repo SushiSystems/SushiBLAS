@@ -36,6 +36,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/tolerance.hpp"
 
@@ -324,10 +326,19 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that a HALF mean accumulates in FLOAT32, so a sum past 65504 does not overflow on the way.
+         * @class Small_Level1HalfReductions
+         * @brief Records the HALF reductions on a host engine, whose fold runs wider than HALF.
+         */
+        class Small_Level1HalfReductions : public HostEngineTest
+        {
+
+        };
+
+        /**
+         * @brief Tests that a HALF mean folds past 65504 before it divides, so the sum does not overflow.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Medium_Level1ParallelReductions, HalfMeanAccumulatesInFloat)
+        TEST_F(Small_Level1HalfReductions, AMeanFoldsPastTheHalfRangeBeforeItDivides)
         {
             // 60000 is a multiple of 32, the HALF spacing between 32768 and 65504, so it is exact.
             const float K_HALF_ELEMENT = 60000.0f;
@@ -338,16 +349,16 @@ namespace SushiBLAS
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(recorder()).mean(t, r);
-            recording->run().value();
+            ASSERT_TRUE(recording->run_succeeds());
 
-            EXPECT_EQ(static_cast<float>(read_scalar<sycl::half>(r)), K_EXPECTED_MEAN);
+            EXPECT_EQ(static_cast<float>(read_tensor<sycl::half>(r)[0]), K_EXPECTED_MEAN);
         }
 
         /**
          * @brief Tests that a HALF sum of 60000 and 60000 rounds once, to infinity, since 120000 exceeds HALF.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Medium_Level1ParallelReductions, HalfSumRoundsOnceIntoTheHalfResult)
+        TEST_F(Small_Level1HalfReductions, ASumRoundsOnceIntoTheHalfResult)
         {
             const float K_HALF_ELEMENT = 60000.0f;
 
@@ -356,9 +367,9 @@ namespace SushiBLAS
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(recorder()).sum(t, r);
-            recording->run().value();
+            ASSERT_TRUE(recording->run_succeeds());
 
-            const float value = static_cast<float>(read_scalar<sycl::half>(r));
+            const float value = static_cast<float>(read_tensor<sycl::half>(r)[0]);
             EXPECT_TRUE(std::isinf(value) && value > 0.0f);
         }
 
