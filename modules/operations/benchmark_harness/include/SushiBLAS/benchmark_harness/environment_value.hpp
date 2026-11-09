@@ -31,6 +31,8 @@
 #pragma once
 
 #include <cstdlib>
+#include <functional>
+#include <optional>
 #include <string>
 
 namespace SushiBLAS
@@ -38,23 +40,39 @@ namespace SushiBLAS
     namespace Bench
     {
         /**
-         * @brief Returns the value of the environment variable @p name.
-         * @return The value; empty when the variable is unset or empty.
+         * @brief Looks a variable up by name.
+         * @return The value, or an empty optional when the variable is unset.
          */
-        [[nodiscard]] inline std::string environment_value(const char* name)
+        using EnvironmentLookup = std::function<std::optional<std::string>(const char*)>;
+
+        /** @brief Looks @p name up in the process environment; an empty optional when it is unset. */
+        [[nodiscard]] inline std::optional<std::string> process_environment(const char* name)
         {
 #if defined(_WIN32)
             char* buffer = nullptr;
             std::size_t length = 0;
             if (_dupenv_s(&buffer, &length, name) != 0 || buffer == nullptr)
-                return {};
+                return std::nullopt;
             std::string value(buffer);
             std::free(buffer);
             return value;
 #else
             const char* value = std::getenv(name);
-            return value == nullptr ? std::string() : std::string(value);
+            if (value == nullptr)
+                return std::nullopt;
+            return std::string(value);
 #endif
+        }
+
+        /**
+         * @brief Returns the value of the environment variable @p name.
+         * @param lookup Where the variable is read from; the process environment by default.
+         * @return The value; empty when the variable is unset or empty.
+         */
+        [[nodiscard]] inline std::string environment_value(const char* name,
+                                                           const EnvironmentLookup& lookup = process_environment)
+        {
+            return lookup(name).value_or(std::string());
         }
     } // namespace Bench
 } // namespace SushiBLAS

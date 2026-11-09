@@ -65,16 +65,19 @@ namespace SushiBLAS
                 /**
                  * @brief Starts a session over @p runtime when the folder variable is set.
                  * @param scenario The program's name; the record is `<scenario>.sprec.json`.
+                 * @param lookup Where the folder variable is read from; the process environment by default.
                  * @return The session, or null when the variable is unset, empty or the session did not start.
                  */
                 [[nodiscard]] static ProfileSession* start_from_environment(SushiRuntime::Runtime& runtime,
-                                                                            std::string_view scenario)
+                                                                            std::string_view scenario,
+                                                                            const EnvironmentLookup& lookup =
+                                                                                process_environment)
                 {
                     static std::unique_ptr<ProfileSession> instance;
                     if (instance != nullptr)
                         return instance.get();
 
-                    const std::string folder = environment_value(K_PROFILE_FOLDER_VARIABLE);
+                    const std::string folder = environment_value(K_PROFILE_FOLDER_VARIABLE, lookup);
                     if (folder.empty())
                         return nullptr;
 
@@ -123,11 +126,22 @@ namespace SushiBLAS
                         timeline_->mark();
                 }
 
+                /**
+                 * @brief Opens the next period of @p session; does nothing when it is null.
+                 * @return Whether a session was given.
+                 */
+                static bool mark(ProfileSession* session)
+                {
+                    if (session == nullptr)
+                        return false;
+                    session->mark_iteration();
+                    return true;
+                }
+
                 /** @brief Opens the next period of the running session, if there is one. */
                 static void mark_current_iteration()
                 {
-                    if (current_ != nullptr)
-                        current_->mark_iteration();
+                    mark(current_);
                 }
 
             private:

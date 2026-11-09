@@ -28,7 +28,8 @@
  * @see tests/operations/benchmark_harness/README.md
  */
 
-#include <cstdlib>
+#include <optional>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/profile/profile_gate.hpp>
 
@@ -40,32 +41,42 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Skips a test of the unprofiled case when the environment asks for a profile. */
-        class Medium_ProfileSession : public ::testing::Test
+        namespace
         {
-        protected:
-            /** @brief Skips the test when SB_BENCH_PROFILE names a folder. */
-            void SetUp() override
+            /** @brief A lookup that finds no variable. */
+            std::optional<std::string> nothing_is_set(const char*)
             {
-                if (!Bench::environment_value(Bench::K_PROFILE_FOLDER_VARIABLE).empty())
-                    GTEST_SKIP() << "SB_BENCH_PROFILE is set in this environment";
+                return std::nullopt;
             }
-        };
 
-        TEST_F(Medium_ProfileSession, WithoutTheFolderVariableNoSessionStarts)
+            /** @brief A lookup that finds every variable empty. */
+            std::optional<std::string> everything_is_empty(const char*)
+            {
+                return std::string();
+            }
+        } // namespace
+
+        TEST(Medium_ProfileSession, WithoutTheFolderVariableNoSessionStarts)
         {
-            Bench::ProfileSession* session =
-                Bench::ProfileSession::start_from_environment(TestEnvironment::runtime(), "test");
+            Bench::ProfileSession* session = Bench::ProfileSession::start_from_environment(
+                TestEnvironment::runtime(), "test", nothing_is_set);
 
             EXPECT_EQ(session, nullptr);
             EXPECT_EQ(Bench::ProfileSession::current(), nullptr);
         }
 
-        TEST(Medium_ProfileSession, MarkingAnIterationWithNoSessionDoesNothing)
+        TEST(Medium_ProfileSession, AnEmptyFolderVariableStartsNoSession)
         {
-            Bench::ProfileSession::mark_current_iteration();
+            Bench::ProfileSession* session = Bench::ProfileSession::start_from_environment(
+                TestEnvironment::runtime(), "test", everything_is_empty);
 
+            EXPECT_EQ(session, nullptr);
             EXPECT_EQ(Bench::ProfileSession::current(), nullptr);
+        }
+
+        TEST(Small_ProfileSession, MarkingAnIterationWithNoSessionDoesNothing)
+        {
+            EXPECT_FALSE(Bench::ProfileSession::mark(nullptr));
         }
     } // namespace Test
 } // namespace SushiBLAS

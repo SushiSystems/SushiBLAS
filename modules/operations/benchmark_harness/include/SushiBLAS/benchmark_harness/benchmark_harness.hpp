@@ -34,6 +34,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <iostream>
+#include <ostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -255,15 +257,26 @@ namespace SushiBLAS::Bench
         double min_seconds;    /**< Shortest wall time of one iteration. */
     };
 
+    /// @brief The clock the benchmarks time with: seconds on the steady clock.
+    struct SteadyClock
+    {
+        /// @brief Returns the current time in seconds.
+        [[nodiscard]] double operator()() const
+        {
+            return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+    };
+
     /**
      * @brief Runs warm-up iterations of a body, then times each of the timed iterations.
      * @tparam Body Callable that runs one whole iteration and returns when its work is done.
+     * @tparam Now Callable returning the current time in seconds; read once before and once after each
+     *         timed iteration.
+     * @param now The clock; the steady clock by default.
      */
-    template<typename Body>
-    [[nodiscard]] Timing time_iterations(Body body)
+    template<typename Body, typename Now = SteadyClock>
+    [[nodiscard]] Timing time_iterations(Body body, Now now = Now{})
     {
-        using Clock = std::chrono::steady_clock;
-
         for (int i = 0; i < K_WARMUP_ITERATIONS; ++i)
         {
             Detail::mark_iteration();
@@ -277,10 +290,10 @@ namespace SushiBLAS::Bench
         {
             Detail::mark_iteration();
             SB_ZONE("bench.iteration");
-            const Clock::time_point start = Clock::now();
+            const double start = now();
             body();
-            const Clock::time_point stop = Clock::now();
-            seconds.push_back(std::chrono::duration<double>(stop - start).count());
+            const double stop = now();
+            seconds.push_back(stop - start);
         }
 
         std::sort(seconds.begin(), seconds.end());
@@ -325,11 +338,17 @@ namespace SushiBLAS::Bench
     class ResultTable final
     {
         public:
-            /// @brief Prints the header row naming the rate unit, such as "GB/s".
-            explicit ResultTable(const char* rate_unit)
+            /**
+             * @brief Prints the header row naming the rate unit, such as "GB/s".
+             * @param out The stream the rows are written to; standard output by default.
+             */
+            explicit ResultTable(const char* rate_unit, std::ostream& out = std::cout)
+                : out_(out)
             {
-                std::printf("%-10s %-8s %12s %12s %12s %10s\n", "op", "dtype", "size",
-                            "median ms", "min ms", rate_unit);
+                char line[K_LINE_CAPACITY];
+                std::snprintf(line, sizeof(line), "%-10s %-8s %12s %12s %12s %10s\n", "op", "dtype", "size",
+                              "median ms", "min ms", rate_unit);
+                out_ << line;
             }
 
             /// @brief Prints one row; the rate is computed from the median time.
@@ -339,19 +358,40 @@ namespace SushiBLAS::Bench
             {
                 constexpr double K_MILLISECONDS_PER_SECOND = 1.0e3;
                 const double rate = work_per_iteration / work_per_unit / timing.median_seconds;
-                std::printf("%-10s %-8s %12lld %12.3f %12.3f %10.2f\n", op, dtype_name(dtype),
-                            static_cast<long long>(size),
-                            timing.median_seconds * K_MILLISECONDS_PER_SECOND,
-                            timing.min_seconds * K_MILLISECONDS_PER_SECOND, rate);
+                char line[K_LINE_CAPACITY];
+                std::snprintf(line, sizeof(line), "%-10s %-8s %12lld %12.3f %12.3f %10.2f\n", op,
+                              dtype_name(dtype), static_cast<long long>(size),
+                              timing.median_seconds * K_MILLISECONDS_PER_SECOND,
+                              timing.min_seconds * K_MILLISECONDS_PER_SECOND, rate);
+                out_ << line;
             }
+
+        private:
+            /// @brief Bytes one printed line may take, its newline included.
+            static constexpr std::size_t K_LINE_CAPACITY = 256;
+
+            /// @brief The stream the rows go to.
+            std::ostream& out_;
+    };
+
+    /// @brief The error sink the guard reports to by default: one line on standard error.
+    struct StderrSink
+    {
+        /// @brief Writes "benchmark failed: <message>" to standard error.
+        void operator()(const char* message) const
+        {
+            std::fprintf(stderr, "benchmark failed: %s\n", message);
+        }
     };
 
     /**
      * @brief Runs a benchmark body and turns any exception into a message and exit code 1.
      * @tparam Body Callable taking (int argc, char** argv) and returning nothing.
+     * @tparam Sink Callable taking the exception's message as a `const char*`.
+     * @param report Receives the message of a thrown exception; standard error by default.
      */
-    template<typename Body>
-    [[nodiscard]] int run_guarded(Body body, int argc, char** argv)
+    template<typename Body, typename Sink = StderrSink>
+    [[nodiscard]] int run_guarded(Body body, int argc, char** argv, Sink report = Sink{})
     {
         try
         {
@@ -360,7 +400,7 @@ namespace SushiBLAS::Bench
         }
         catch (const std::exception& error)
         {
-            std::fprintf(stderr, "benchmark failed: %s\n", error.what());
+            report(error.what());
             return EXIT_FAILURE;
         }
     }

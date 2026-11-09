@@ -8,6 +8,6 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_benchmark_harness.cpp` | Tests the size parsing, the refusal of an unbenchmarked dtype, the device support, the timing, measure over a RecordingGraph and the guard the benchmarks share |
-| `test_environment_value.cpp` | Tests that environment_value returns a set value and returns empty for an unset or empty variable |
-| `test_profile_session.cpp` | Tests that a benchmark program records nothing unless `SB_BENCH_PROFILE` names a folder |
+| `test_benchmark_harness.cpp` | Tests the size parsing, the refusal of an unbenchmarked dtype, the device support, the timing on a scripted clock, measure over a RecordingGraph, the guard and the result table the benchmarks share |
+| `test_environment_value.cpp` | Tests, over an injected lookup, that environment_value returns a set value and returns empty for an unset or empty variable |
+| `test_profile_session.cpp` | Tests that a benchmark program records nothing unless `SB_BENCH_PROFILE` names a folder, and that marking no session does nothing |

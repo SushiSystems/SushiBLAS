@@ -30,6 +30,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -57,6 +58,30 @@ namespace SushiBLAS
                 ++*calls;
             }
         };
+
+        /** @brief Scripts the clock of time_iterations: reads alternate start and stop, and stop - start is the next duration. */
+        struct ScriptedClock
+        {
+            const std::vector<double>* durations; /**< The duration of each timed iteration, in order. */
+            std::size_t* reads;                   /**< Counts the reads made so far. */
+
+            /** @brief Returns 0 for a start read and the iteration's duration for a stop read. */
+            double operator()() const
+            {
+                const std::size_t read = (*reads)++;
+                return read % 2 == 0 ? 0.0 : (*durations)[read / 2];
+            }
+        };
+
+        /** @brief Ten durations in seconds whose sorted middle pair is 5 and 6, and whose shortest is 1. */
+        const std::vector<double> K_SCRAMBLED_DURATIONS{10.0, 1.0, 9.0, 2.0, 8.0, 3.0, 7.0, 4.0, 6.0, 5.0};
+
+        /** @brief Times a counting body on the scripted clock and returns the timing. */
+        Bench::Timing time_on_the_scripted_clock(int* calls)
+        {
+            std::size_t reads = 0;
+            return Bench::time_iterations(CallCounter{calls}, ScriptedClock{&K_SCRAMBLED_DURATIONS, &reads});
+        }
 
         /** @brief A benchmark body that returns at once. */
         struct NoOpBody
@@ -196,30 +221,62 @@ namespace SushiBLAS
                       device.has(sycl::aspect::fp64));
         }
 
-        TEST(Medium_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
+        TEST(Small_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
         {
             int calls = 0;
 
-            (void)Bench::time_iterations(CallCounter{&calls});
+            (void)time_on_the_scripted_clock(&calls);
 
             EXPECT_EQ(calls, Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
         }
 
-        TEST(Medium_BenchmarkHarness, TimingReportsAMinimumNotAboveTheMedian)
+        TEST(Small_BenchmarkHarness, TimingReportsTheMeanOfTheMiddlePairForAnEvenCount)
         {
             int calls = 0;
 
-            const Bench::Timing timing = Bench::time_iterations(CallCounter{&calls});
-
-            EXPECT_LE(timing.min_seconds, timing.median_seconds);
+            EXPECT_EQ(time_on_the_scripted_clock(&calls).median_seconds, 5.5);
         }
 
-        TEST(Medium_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
+        TEST(Small_BenchmarkHarness, TimingReportsTheShortestIterationAsTheMinimum)
+        {
+            int calls = 0;
+
+            EXPECT_EQ(time_on_the_scripted_clock(&calls).min_seconds, 1.0);
+        }
+
+        TEST(Small_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
         {
             char program[] = "bench";
             char* arguments[] = {program};
+            std::string message;
 
-            EXPECT_EQ(Bench::run_guarded(ThrowingBody{}, 1, arguments), EXIT_FAILURE);
+            const int code = Bench::run_guarded(ThrowingBody{}, 1, arguments,
+                                                [&message](const char* what) { message = what; });
+
+            EXPECT_EQ(code, EXIT_FAILURE);
+            EXPECT_EQ(message, "refused");
+        }
+
+        TEST(Small_BenchmarkHarness, TheTableHeaderNamesTheColumnsAndTheRateUnit)
+        {
+            std::ostringstream out;
+
+            const Bench::ResultTable table("GB/s", out);
+
+            EXPECT_EQ(out.str(),
+                      "op         dtype            size    median ms       min ms       GB/s\n");
+        }
+
+        TEST(Small_BenchmarkHarness, APrintedRowFollowsTheMedianAndTheMinimumInMilliseconds)
+        {
+            std::ostringstream out;
+            const Bench::ResultTable table("GB/s", out);
+            out.str("");
+
+            table.print_row("copy", Core::DataType::Float32, 64, Bench::Timing{0.002, 0.001}, 8.0, 2.0);
+
+            EXPECT_EQ(out.str(),
+                      "copy       FLOAT32            64        2.000        1.000    2000.00\n");
         }
 
         TEST(Medium_BenchmarkHarness, MeasureRunsOneTaskPerIteration)

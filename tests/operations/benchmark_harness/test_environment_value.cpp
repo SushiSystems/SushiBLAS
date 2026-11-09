@@ -27,7 +27,8 @@
  * @see tests/operations/benchmark_harness/README.md
  */
 
-#include <cstdlib>
+#include <map>
+#include <optional>
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/benchmark_harness/environment_value.hpp>
@@ -40,95 +41,57 @@ namespace SushiBLAS
         {
             constexpr const char* K_VARIABLE = "SB_TEST_ENVIRONMENT_VALUE";
 
-            /** @brief Sets or clears K_VARIABLE for one test and restores the earlier state. */
-            class VariableScope
+            /** @brief A lookup over a map the test owns; a name the map lacks is unset. */
+            Bench::EnvironmentLookup lookup_over(const std::map<std::string, std::string>& variables)
             {
-            public:
-                VariableScope()
+                return [&variables](const char* name) -> std::optional<std::string>
                 {
-                    const std::string previous = Bench::environment_value(K_VARIABLE);
-                    m_had_value = !previous.empty();
-                    m_previous = previous;
-                }
-
-                ~VariableScope()
-                {
-                    if (m_had_value)
-                        set(m_previous.c_str());
-                    else
-                        unset();
-                }
-
-                VariableScope(const VariableScope&) = delete;
-                VariableScope& operator=(const VariableScope&) = delete;
-
-                /** @brief Gives K_VARIABLE the value @p value. */
-                static void set(const char* value)
-                {
-#if defined(_WIN32)
-                    _putenv_s(K_VARIABLE, value);
-#else
-                    setenv(K_VARIABLE, value, 1);
-#endif
-                }
-
-                /** @brief Removes K_VARIABLE from the environment. */
-                static void unset()
-                {
-#if defined(_WIN32)
-                    _putenv_s(K_VARIABLE, "");
-#else
-                    unsetenv(K_VARIABLE);
-#endif
-                }
-
-            private:
-                bool m_had_value = false;
-                std::string m_previous;
-            };
+                    const auto found = variables.find(name);
+                    if (found == variables.end())
+                        return std::nullopt;
+                    return found->second;
+                };
+            }
         } // namespace
 
         TEST(Small_EnvironmentValue, ReturnsTheValueOfASetVariable)
         {
-            VariableScope scope;
-            VariableScope::set("fixed-value");
+            const std::map<std::string, std::string> variables{{K_VARIABLE, "fixed-value"}};
 
-            EXPECT_EQ(Bench::environment_value(K_VARIABLE), "fixed-value");
+            EXPECT_EQ(Bench::environment_value(K_VARIABLE, lookup_over(variables)), "fixed-value");
         }
 
         TEST(Small_EnvironmentValue, ReturnsEmptyForAnUnsetVariable)
         {
-            VariableScope scope;
-            VariableScope::unset();
+            const std::map<std::string, std::string> variables;
 
-            EXPECT_TRUE(Bench::environment_value(K_VARIABLE).empty());
+            EXPECT_TRUE(Bench::environment_value(K_VARIABLE, lookup_over(variables)).empty());
         }
 
         TEST(Small_EnvironmentValue, ReturnsEmptyForAnEmptyVariable)
         {
-            VariableScope scope;
-            VariableScope::set("");
+            const std::map<std::string, std::string> variables{{K_VARIABLE, ""}};
 
-            EXPECT_TRUE(Bench::environment_value(K_VARIABLE).empty());
+            EXPECT_TRUE(Bench::environment_value(K_VARIABLE, lookup_over(variables)).empty());
         }
 
         TEST(Small_EnvironmentValue, KeepsASpaceInsideTheValue)
         {
-            VariableScope scope;
-            VariableScope::set("two words");
+            const std::map<std::string, std::string> variables{{K_VARIABLE, "two words"}};
 
-            EXPECT_EQ(Bench::environment_value(K_VARIABLE), "two words");
+            EXPECT_EQ(Bench::environment_value(K_VARIABLE, lookup_over(variables)), "two words");
         }
 
         TEST(Small_EnvironmentValue, ReflectsTheLatestValueOnEveryCall)
         {
-            VariableScope scope;
-            VariableScope::set("first");
-            const std::string first = Bench::environment_value(K_VARIABLE);
-            VariableScope::set("second");
+            std::map<std::string, std::string> variables{{K_VARIABLE, "first"}};
+            const Bench::EnvironmentLookup lookup = lookup_over(variables);
+
+            const std::string first = Bench::environment_value(K_VARIABLE, lookup);
+            variables[K_VARIABLE] = "second";
 
             EXPECT_EQ(first, "first");
-            EXPECT_EQ(Bench::environment_value(K_VARIABLE), "second");
+            EXPECT_EQ(Bench::environment_value(K_VARIABLE, lookup), "second");
         }
     } // namespace Test
 } // namespace SushiBLAS

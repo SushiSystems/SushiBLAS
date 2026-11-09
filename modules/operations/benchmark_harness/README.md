@@ -23,7 +23,11 @@ module has no graph class of its own, because `RecordingGraph` includes no test 
 `print_environment` prints the device name, the build configuration (`release` when `NDEBUG` is
 defined, `debug` otherwise), the compute units, cache bytes and cache blocking of the device
 profile, the default recording mode and the engine's layout. `time_iterations` runs 2 warm-up
-iterations, then times 10 with `std::chrono::steady_clock` and returns the median and the minimum.
+iterations, then times 10 with `SteadyClock` (a callable returning seconds, which a caller may replace) and returns the median and the minimum.
+`ResultTable` writes to a `std::ostream` (standard output by default) and `run_guarded` reports a thrown
+exception to a sink callable (a line on standard error by default). `environment_value` and
+`ProfileSession::start_from_environment` take an `EnvironmentLookup` (the process environment by default),
+and `ProfileSession::mark` takes the session to mark and returns whether it was given one.
 `measure(graph, record)` is `time_iterations` over one record call and one `graph.run()`. Each
 iteration records on an empty graph, runs it and clears it, so recording, plan compilation and the
 run are all inside the time. It does not replay one compiled plan: a graph keeps its nodes and its
