@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_AsinTest : public SushiBLASTest {};
+class Small_AsinTest : public HostEngineTest {};
 
-TEST_F(Medium_AsinTest, FloatForward) 
+/**
+ * @brief Tests that the recorded asin replaces each element with its arcsine when the task runs.
+ */
+TEST_F(Small_AsinTest, AsinReplacesEachElementWithItsArcsine) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 1.0f});
     
     SushiBLAS::ElementwiseOps(recorder()).asin(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {0.00000f, 0.523598f, -0.523598f, 1.570796f});
 }
