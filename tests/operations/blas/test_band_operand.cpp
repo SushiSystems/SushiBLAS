@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas/band_operand.hpp>
-#include "structured_operand_test.hpp"
+#include "host_operands.hpp"
 
 namespace SushiBLAS
 {
