@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,38 +44,45 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceTbmv, MatchesADenseProductForEveryFlag)
+        /// @brief Names a row after its layout, triangle, transpose and diagonal.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
         {
+            return triangular_label(std::get<0>(info.param), std::get<1>(info.param),
+                                    std::get<2>(info.param), std::get<3>(info.param));
+        }
+
+        /// @brief Runs tbmv for one layout, triangle, transpose and diagonal, as a row of (row major, upper, transposed, unit).
+        class Small_ReferenceTbmv : public ::testing::TestWithParam<std::tuple<bool, bool, bool, bool>> {};
+
+        /// @brief Tests that tbmv matches a dense product of the band triangle for every flag.
+        TEST_P(Small_ReferenceTbmv, MatchesADenseProductForEveryFlag)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const bool unit = std::get<3>(GetParam());
             const int64_t n = 6;
             const int64_t k = 2;
             const int64_t ld = k + 1;
             const std::vector<double> a = band_of(small_integers<double>(n * n, 1), n, n, k, k);
             const std::vector<double> start = small_integers<double>(n, 2);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        for (const bool unit : {false, true})
-                        {
-                            SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                            std::vector<double> x = start;
-                            const std::vector<double> expected =
-                                dense_matvec(triangle_of(a, n, upper, unit), n, n, transposed,
-                                             1.0, start, 0.0, start);
-                            const std::vector<double> band = to_triangle_band(
-                                a, n, uplo_of(upper), k, ld, layout, 99.0);
+            std::vector<double> x = start;
+            const std::vector<double> expected =
+                dense_matvec(triangle_of(a, n, upper, unit), n, n, transposed,
+                             1.0, start, 0.0, start);
+            const std::vector<double> band = to_triangle_band(
+                a, n, uplo_of(upper), k, ld, layout, 99.0);
 
-                            Kernels::Reference::tbmv(layout, uplo_of(upper),
-                                                     transpose_of(transposed), diag_of(unit), n,
-                                                     k, band.data(), ld, x.data(), 1);
+            Kernels::Reference::tbmv(layout, uplo_of(upper),
+                                     transpose_of(transposed), diag_of(unit), n,
+                                     k, band.data(), ld, x.data(), 1);
 
-                            EXPECT_EQ(x, expected);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(x, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesTransposesAndDiagonals, Small_ReferenceTbmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS
