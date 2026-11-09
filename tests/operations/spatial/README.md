@@ -92,22 +92,30 @@ all-ones case cannot tell a wrong set of the right size from the right one.
 
 ## test_spatial/test_spatial_im2col.cpp
 
+Every test but the agreement one runs `Small_` on the host engine.
+
 `AUnitWindowIsTheIdentityGather`: with a 1x1 window, stride 1 and no padding, the column matrix
 is the input reshaped, element for element and in the same order. If this fails, the row and
 element index arithmetic disagree with each other and nothing further is worth reading.
 
 `EachRowIsOneWindowWithChannelInnermost`: a 2x2 stride-1 window over a 1x3x3x2 input gives 4
-windows of 8 entries each. The rows are written out by hand and not derived, so the test is a
+windows of 8 entries each. All four rows are written out by hand and not derived, so the test is a
 specification and not a second implementation.
 
 `OutOfBoundsTapsReadZeroRatherThanNeighbouringMemory`: padding is a parameter, not a separate
 zero-padded copy, which saves a full-tensor copy forward and a crop backward. This test is the
 property that makes that safe.
 
-`AsymmetricPaddingNeedsTheExplicitExtentOverload`: a 2x2 stride-1 window over a 3x3 image
+`TheTwoOperandOverloadRefusesAnAsymmetricGeometry` and
+`TheExplicitExtentOverloadGathersAnAsymmetricGeometry`: a 2x2 stride-1 window over a 3x3 image
 padded on the bottom and right only gives 3x3 windows. The two-operand overload cannot express
-this, because it has no `pad_right` to read, and the test checks that it refuses and does not
-silently produce a differently shaped answer.
+this, because it has no `pad_right` to read, so the first test checks that it refuses with the
+exact message and does not silently produce a differently shaped answer; the second writes out the
+nine windows of the explicit-extent overload by hand.
+
+`AColumnMatrixOfTheWrongShapeIsRefusedByName` and `ARankThatIsNotFourIsRefusedAtRecordTime` assert
+the whole message, so a message that merely holds the digits 7 and 8 fails. The rank
+refusal reads the shape only and runs on a tensor without storage.
 
 `TheSYCLKernelAgreesWithTheReferenceKernel` compares bit-exact, not near. im2col only ever
 copies an element or writes a zero, so the two kernels must produce the same bits or one of
