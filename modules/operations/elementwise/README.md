@@ -9,7 +9,7 @@ It depends on `core`, `support`, `tensor`, `engine` and `functor_map`. Its heade
 | --- | --- |
 | `dispatch.hpp` | The elementwise executors of the dispatch seam |
 | `elementwise.hpp` | ElementwiseOps, the per-element math operations on tensors |
-| `ordered_sum_element.hpp` | The element functor of `ordered_sum` and the type its weights take |
+| `ordered_sum_element.hpp` | The element functor of `ordered_sum`, the type its weights take and `ordered_sum_at`, its host form |
 | `scalar_math.hpp` | The scalar functions the elementwise operations apply to one element, callable on the host and in a kernel |
 | `wrapping_math.hpp` | The arithmetic functors that wrap modulo 2^N on integer element types |
 

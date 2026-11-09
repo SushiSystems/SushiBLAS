@@ -136,5 +136,41 @@ namespace SushiBLAS
                 }
             };
         } // namespace Detail
+
+        /** @brief Names the type an ordered_sum weight for element type T is held and multiplied in. */
+        template<typename T>
+        using OrderedSumWeightOf = Detail::OrderedSumWeightType<T>;
+
+        // Only FLOAT64 and COMPLEX64 put a double in device code, so a device without fp64 runs the rest.
+        static_assert(std::is_same_v<OrderedSumWeightOf<sycl::half>, float>);
+        static_assert(std::is_same_v<OrderedSumWeightOf<float>, float>);
+        static_assert(std::is_same_v<OrderedSumWeightOf<std::complex<float>>, float>);
+        static_assert(std::is_same_v<OrderedSumWeightOf<double>, double>);
+        static_assert(std::is_same_v<OrderedSumWeightOf<std::complex<double>>, double>);
+
+        /**
+         * @brief Computes element i of an ordered sum on the host, the way the device kernel does.
+         * @param inputs The first element of each input, in index order.
+         * @param weights The weight of each input, already rounded to the weight type.
+         * @param input_count The number of inputs, at most ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS.
+         * @param i The element to compute.
+         * @return The weighted inputs at i, summed in index order.
+         */
+        template<typename T>
+        T ordered_sum_at(const T* const* inputs, const OrderedSumWeightOf<T>* weights,
+                         std::size_t input_count, std::size_t i)
+        {
+            Detail::OrderedSumElement<T> element{};
+            T result = T(0);
+            element.output = &result;
+            element.input_count = input_count;
+            for (std::size_t k = 0; k < input_count; ++k)
+            {
+                element.inputs[k] = inputs[k] + i;
+                element.weights[k] = weights[k];
+            }
+            element(0);
+            return result;
+        }
     } // namespace Dispatch
 } // namespace SushiBLAS

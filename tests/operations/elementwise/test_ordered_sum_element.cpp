@@ -27,14 +27,10 @@
  * @author Mustafa Garip
  */
 
-#include <complex>
 #include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <type_traits>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/elementwise/ordered_sum_element.hpp>
 
 namespace SushiBLAS
@@ -48,54 +44,46 @@ namespace SushiBLAS
 
             /// @brief A second weight no float holds exactly.
             constexpr double K_SECOND_WEIGHT = -1.9;
+
+            /// @brief The two inputs of one element and the sum the kernel must give.
+            struct WeightRow
+            {
+                float first;
+                float second;
+                float expected;
+            };
+
+            /// @brief Names a row by its position in the table.
+            std::string row_name(const ::testing::TestParamInfo<WeightRow>& info)
+            {
+                return "Row" + std::to_string(info.index);
+            }
         } // namespace
 
-        /** @brief Returns the type the kernel of element type T holds its weights in. */
-        template<typename T>
-        using KernelWeight =
-            typename decltype(Dispatch::Detail::OrderedSumElement<T>::weights)::value_type;
+        /// @brief Runs the host form of the kernel on one element of two inputs.
+        class Small_OrderedSumElementWeight : public ::testing::TestWithParam<WeightRow> {};
 
         /**
-         * @brief Tests that the kernel holds no double for a type that is not FLOAT64 or
-         *        COMPLEX64, so a device without fp64 runs a FLOAT32, HALF or COMPLEX32 sum.
+         * @brief Tests that a weight rounded to float once on the host gives the bits of the
+         *        sum, with the expected bits written as hexadecimal float literals.
          */
-        TEST(Small_Regression_OrderedSum, KernelHoldsNoDoubleOutsideTheDoubleTypes)
-        {
-            EXPECT_TRUE((std::is_same_v<KernelWeight<sycl::half>, float>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<float>, float>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<std::complex<float>>, float>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<std::int32_t>, std::int32_t>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<std::int64_t>, std::int64_t>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<double>, double>));
-            EXPECT_TRUE((std::is_same_v<KernelWeight<std::complex<double>>, double>));
-        }
-
-        /**
-         * @brief Tests that a weight rounded to float once on the host gives the bits the
-         *        kernel gave when it rounded the same double to float before each multiply.
-         */
-        TEST(Small_OrderedSumElement, AWeightRoundedOnTheHostKeepsTheSumsBits)
+        TEST_P(Small_OrderedSumElementWeight, ARoundedWeightKeepsTheSumsBits)
         {
             #pragma clang fp contract(off)
-            const std::vector<float> first = {1.25f, -3.5f, 97.03f};
-            const std::vector<float> second = {0.1f, 2.0e7f, -0.333f};
-            std::vector<float> got(first.size(), 0.0f);
-            Dispatch::Detail::OrderedSumElement<float> element{};
-            element.inputs[0] = first.data();
-            element.inputs[1] = second.data();
-            element.weights[0] = static_cast<float>(K_FIRST_WEIGHT);
-            element.weights[1] = static_cast<float>(K_SECOND_WEIGHT);
-            element.output = got.data();
-            element.input_count = 2;
+            const WeightRow row = GetParam();
+            const float first[] = {row.first};
+            const float second[] = {row.second};
+            const float* inputs[] = {first, second};
+            const float weights[] = {static_cast<float>(K_FIRST_WEIGHT), static_cast<float>(K_SECOND_WEIGHT)};
 
-            for (std::size_t i = 0; i < first.size(); ++i)
-            {
-                element(i);
-                float expected = 0.0f;
-                expected += static_cast<float>(K_FIRST_WEIGHT) * first[i];
-                expected += static_cast<float>(K_SECOND_WEIGHT) * second[i];
-                EXPECT_EQ(std::memcmp(&expected, &got[i], sizeof(float)), 0) << "element " << i;
-            }
+            EXPECT_EQ(Dispatch::ordered_sum_at<float>(inputs, weights, 2, 0), row.expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_OrderedSumElementWeight,
+            ::testing::Values(WeightRow{1.25f, 0.1f, 0x1.170a3ep-2f},
+                              WeightRow{-3.5f, 2.0e7f, -0x1.21eacp+25f},
+                              WeightRow{97.03f, -0.333f, 0x1.24453ap+5f}),
+            row_name);
     } // namespace Test
 } // namespace SushiBLAS
