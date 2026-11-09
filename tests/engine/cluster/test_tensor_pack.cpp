@@ -27,11 +27,11 @@
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -40,6 +40,7 @@
 #include <SushiBLAS/cluster/tensor_pack.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -54,16 +55,21 @@ namespace SushiBLAS
     {
         namespace
         {
+            /** @brief Returns the program-wide runtime every test of this file packs on. */
+            SushiRuntime::Runtime& runtime()
+            {
+                return TestEnvironment::runtime();
+            }
+
             /** @brief Returns a shared tensor of a type with count elements on one device. */
-            Tensor shared_tensor(SushiRuntime::Runtime& runtime, Core::DataType dtype,
-                                 std::int64_t count, std::size_t device_index = 0)
+            Tensor shared_tensor(Core::DataType dtype, std::int64_t count,
+                                 std::size_t device_index = 0)
             {
                 const std::int64_t dims[] = {count};
                 const std::size_t bytes =
                     static_cast<std::size_t>(count) * Core::bytes_per_element(dtype);
-                return Tensor(make_runtime_storage(runtime, bytes,
-                                                                SushiRuntime::Residency::Shared,
-                                                                device_index),
+                return Tensor(make_runtime_storage(runtime(), bytes,
+                                                   SushiRuntime::Residency::Shared, device_index),
                               SushiRuntime::span<const std::int64_t>(dims, 1), dtype);
             }
 
@@ -73,78 +79,36 @@ namespace SushiBLAS
                 return static_cast<std::size_t>(tensor.num_elements) *
                        Core::bytes_per_element(tensor.dtype);
             }
-        } // namespace
 
-        /** @brief Tests that a gather then a scatter copies every tensor's bytes unchanged. */
-        TEST(Medium_TensorPack, GatherThenScatterCopiesEveryByte)
-        {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
-
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            std::vector<Tensor> sources = {shared_tensor(runtime, Core::DataType::Float64, 9),
-                                           shared_tensor(runtime, Core::DataType::Half, 5),
-                                           shared_tensor(runtime, Core::DataType::Int32, 3)};
-            std::vector<Tensor> targets = {shared_tensor(runtime, Core::DataType::Float64, 9),
-                                           shared_tensor(runtime, Core::DataType::Half, 5),
-                                           shared_tensor(runtime, Core::DataType::Int32, 3)};
-            for (std::size_t index = 0; index < sources.size(); ++index)
+            /** @brief Writes the bytes offset * 31 + salt into a tensor, wrapping at 256. */
+            void fill_pattern(Tensor& tensor, std::size_t salt)
             {
-                auto* bytes = static_cast<std::uint8_t*>(sources[index].data());
-                for (std::size_t offset = 0; offset < byte_count(sources[index]); ++offset)
-                    bytes[offset] = static_cast<std::uint8_t>(offset * 31 + index * 7 + 1);
-                std::memset(targets[index].data(), 0, byte_count(targets[index]));
+                auto* bytes = static_cast<std::uint8_t*>(tensor.data());
+                for (std::size_t offset = 0; offset < byte_count(tensor); ++offset)
+                    bytes[offset] = static_cast<std::uint8_t>(offset * 31 + salt);
             }
 
-            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               sources.data(), sources.size())), 0);
-            RuntimeScratchSource scratch_source(runtime);
-            ScratchPool scratch(scratch_source);
-            LateCountHold late_counts(runtime);
-            auto graph = runtime.graph();
-            graph.extend([&](SushiRuntime::Recorder& recorder)
+            /** @brief Returns the layout of a list of tensors. */
+            PackLayout layout_of(const std::vector<Tensor>& tensors)
             {
-                TaskRecorder tensors(recorder, scratch, late_counts);
-                (void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
-                                                      sources.data(), sources.size()));
-                (void)pack.record_scatter(tensors, SushiRuntime::span<const Tensor>(
-                                                       targets.data(), targets.size()));
-            });
-            graph.run().value();
-
-            for (std::size_t index = 0; index < sources.size(); ++index)
-                EXPECT_EQ(std::memcmp(sources[index].data(), targets[index].data(),
-                                      byte_count(sources[index])),
-                          0)
-                    << "tensor " << index;
-        }
-
-        /** @brief Tests that the tensor of an entry reads the bytes the gather wrote. */
-        TEST(Medium_TensorPack, EntryTensorReadsTheBytesTheGatherWrote)
-        {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
-
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            std::vector<Tensor> sources = {shared_tensor(runtime, Core::DataType::Float64, 9),
-                                           shared_tensor(runtime, Core::DataType::Half, 5),
-                                           shared_tensor(runtime, Core::DataType::Float64, 2),
-                                           shared_tensor(runtime, Core::DataType::Int32, 3)};
-            for (std::size_t index = 0; index < sources.size(); ++index)
-            {
-                auto* bytes = static_cast<std::uint8_t*>(sources[index].data());
-                for (std::size_t offset = 0; offset < byte_count(sources[index]); ++offset)
-                    bytes[offset] = static_cast<std::uint8_t>(offset * 17 + index * 5 + 3);
+                return PackLayout::of(
+                    SushiRuntime::span<const Tensor>(tensors.data(), tensors.size()));
             }
 
-            std::vector<Tensor> views;
+            /** @brief Returns true when two tensors hold the same bytes. */
+            bool same_bytes(const Tensor& left, const Tensor& right)
             {
-                const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                                   sources.data(), sources.size())), 0);
-                RuntimeScratchSource scratch_source(runtime);
+                return byte_count(left) == byte_count(right) &&
+                       std::memcmp(left.data(), right.data(), byte_count(left)) == 0;
+            }
+
+            /** @brief Records a gather of the sources into the pack and runs it. */
+            void gather(const TensorPack& pack, const std::vector<Tensor>& sources)
+            {
+                RuntimeScratchSource scratch_source(runtime());
                 ScratchPool scratch(scratch_source);
-                LateCountHold late_counts(runtime);
-                auto graph = runtime.graph();
+                LateCountHold late_counts(runtime());
+                auto graph = runtime().graph();
                 graph.extend([&](SushiRuntime::Recorder& recorder)
                 {
                     TaskRecorder tensors(recorder, scratch, late_counts);
@@ -152,138 +116,272 @@ namespace SushiBLAS
                                                           sources.data(), sources.size()));
                 });
                 graph.run().value();
+            }
 
+            /** @brief Records a gather then a scatter into the targets and runs it. */
+            void gather_then_scatter(const TensorPack& pack, const std::vector<Tensor>& sources,
+                                     const std::vector<Tensor>& targets)
+            {
+                RuntimeScratchSource scratch_source(runtime());
+                ScratchPool scratch(scratch_source);
+                LateCountHold late_counts(runtime());
+                auto graph = runtime().graph();
+                graph.extend([&](SushiRuntime::Recorder& recorder)
+                {
+                    TaskRecorder tensors(recorder, scratch, late_counts);
+                    (void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
+                                                          sources.data(), sources.size()));
+                    (void)pack.record_scatter(tensors, SushiRuntime::span<const Tensor>(
+                                                           targets.data(), targets.size()));
+                });
+                graph.run().value();
+            }
+
+            /** @brief Returns true when recording a gather of the tensors throws runtime_error. */
+            bool gather_is_refused(const TensorPack& pack, const std::vector<Tensor>& tensors)
+            {
+                RuntimeScratchSource scratch_source(runtime());
+                ScratchPool scratch(scratch_source);
+                LateCountHold late_counts(runtime());
+                auto graph = runtime().graph();
+                bool refused = false;
+                graph.extend([&](SushiRuntime::Recorder& recorder)
+                {
+                    TaskRecorder recording(recorder, scratch, late_counts);
+                    try
+                    {
+                        (void)pack.record_gather(recording, SushiRuntime::span<const Tensor>(
+                                                                tensors.data(), tensors.size()));
+                    }
+                    catch (const std::runtime_error&)
+                    {
+                        refused = true;
+                    }
+                });
+                return refused;
+            }
+
+            /** @brief Gathers the sources into a pack that dies before this returns, and hands back its tensors. */
+            std::vector<Tensor> entry_views_after_the_pack_dies(const std::vector<Tensor>& sources)
+            {
+                std::vector<Tensor> views;
+                const TensorPack pack(runtime(), layout_of(sources), 0);
+                gather(pack, sources);
                 for (std::size_t index = 0; index < sources.size(); ++index)
                     views.push_back(pack.tensor(index));
-                EXPECT_THROW((void)pack.tensor(sources.size()), std::out_of_range);
+                return views;
             }
 
-            // The pack is gone; the views hold its storage.
-            for (std::size_t index = 0; index < sources.size(); ++index)
+            /** @brief Names the data type one segment tensor row checks. */
+            struct SegmentRow
             {
-                EXPECT_EQ(views[index].dtype, sources[index].dtype) << "entry " << index;
-                EXPECT_EQ(views[index].num_elements, sources[index].num_elements)
-                    << "entry " << index;
-                EXPECT_EQ(views[index].shape[0], sources[index].shape[0]) << "entry " << index;
-                EXPECT_EQ(std::memcmp(views[index].data(), sources[index].data(),
-                                      byte_count(sources[index])),
-                          0)
-                    << "entry " << index;
+                const char* name;     /**< The row name a failure shows. */
+                Core::DataType dtype; /**< The type whose segment tensor is read. */
+            };
+
+            /** @brief Returns one row per data type. */
+            std::vector<SegmentRow> segment_rows()
+            {
+                return {{"Half", Core::DataType::Half},
+                        {"Float32", Core::DataType::Float32},
+                        {"Float64", Core::DataType::Float64},
+                        {"Complex32", Core::DataType::Complex32},
+                        {"Complex64", Core::DataType::Complex64},
+                        {"Int32", Core::DataType::Int32},
+                        {"Int64", Core::DataType::Int64},
+                        {"UInt32", Core::DataType::UInt32}};
             }
+
+            /** @brief Returns two tensors of every data type, the first of type + 1 elements. */
+            std::vector<Tensor> two_tensors_of_every_type()
+            {
+                std::vector<Tensor> sources;
+                for (std::size_t type = 0; type < segment_rows().size(); ++type)
+                {
+                    const Core::DataType dtype = segment_rows()[type].dtype;
+                    sources.push_back(shared_tensor(dtype, static_cast<std::int64_t>(type + 1)));
+                    sources.push_back(shared_tensor(dtype, 2));
+                }
+                return sources;
+            }
+        } // namespace
+
+        /** @brief Groups the tests that pack tensors on the program-wide runtime. */
+        class Medium_TensorPack : public ::testing::Test
+        {
+
+        };
+
+        /** @brief Tests that a gather then a scatter returns the bytes of three tensors of three types. */
+        TEST_F(Medium_TensorPack, GatherThenScatterCopiesEveryByte)
+        {
+            std::vector<Tensor> sources = {shared_tensor(Core::DataType::Float64, 9),
+                                           shared_tensor(Core::DataType::Half, 5),
+                                           shared_tensor(Core::DataType::Int32, 3)};
+            std::vector<Tensor> targets = {shared_tensor(Core::DataType::Float64, 9),
+                                           shared_tensor(Core::DataType::Half, 5),
+                                           shared_tensor(Core::DataType::Int32, 3)};
+            fill_pattern(sources[0], 1);
+            fill_pattern(sources[1], 8);
+            fill_pattern(sources[2], 15);
+            std::memset(targets[0].data(), 0, byte_count(targets[0]));
+            std::memset(targets[1].data(), 0, byte_count(targets[1]));
+            std::memset(targets[2].data(), 0, byte_count(targets[2]));
+            const TensorPack pack(runtime(), layout_of(sources), 0);
+
+            gather_then_scatter(pack, sources, targets);
+
+            EXPECT_TRUE(same_bytes(sources[0], targets[0]));
+            EXPECT_TRUE(same_bytes(sources[1], targets[1]));
+            EXPECT_TRUE(same_bytes(sources[2], targets[2]));
         }
 
-        /** @brief Tests that the segment tensor of each type has the segment's size and offset. */
-        TEST(Medium_TensorPack, SegmentTensorHasTheSegmentsSizeAndOffset)
+        /** @brief Tests that the tensors of a pack keep the gathered bytes after the pack is gone. */
+        TEST_F(Medium_TensorPack, EntryViewKeepsTheGatheredBytesAfterThePackDies)
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            std::vector<Tensor> sources = {shared_tensor(Core::DataType::Float64, 9),
+                                           shared_tensor(Core::DataType::Half, 5),
+                                           shared_tensor(Core::DataType::Float64, 2),
+                                           shared_tensor(Core::DataType::Int32, 3)};
+            fill_pattern(sources[0], 3);
+            fill_pattern(sources[1], 8);
+            fill_pattern(sources[2], 13);
+            fill_pattern(sources[3], 18);
 
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            const std::array<Core::DataType, 8> types = {
-                Core::DataType::UInt32,    Core::DataType::Int64,     Core::DataType::Int32,
-                Core::DataType::Complex64, Core::DataType::Complex32, Core::DataType::Float64,
-                Core::DataType::Float32,   Core::DataType::Half};
-            std::vector<Tensor> sources;
-            for (std::size_t index = 0; index < types.size(); ++index)
-            {
-                sources.push_back(shared_tensor(runtime, types[index],
-                                                static_cast<std::int64_t>(index + 1)));
-                sources.push_back(shared_tensor(runtime, types[index], 2));
-            }
-            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               sources.data(), sources.size())), 0);
+            const std::vector<Tensor> views = entry_views_after_the_pack_dies(sources);
 
-            for (const Core::DataType dtype : types)
-            {
-                const PackSegment& segment = pack.layout().segment(dtype);
-                const Tensor view = pack.segment_tensor(dtype);
-                EXPECT_EQ(view.rank, 1);
-                EXPECT_EQ(view.dtype, dtype);
-                EXPECT_EQ(static_cast<std::size_t>(view.num_elements), segment.element_count);
-                EXPECT_EQ(static_cast<std::size_t>(view.num_elements) *
-                              Core::bytes_per_element(dtype),
-                          segment.size_bytes);
-                EXPECT_EQ(static_cast<const std::byte*>(view.data()),
-                          static_cast<const std::byte*>(pack.data()) + segment.offset_bytes);
-            }
+            ASSERT_EQ(views.size(), 4U);
+            EXPECT_TRUE(same_bytes(views[0], sources[0]));
+            EXPECT_TRUE(same_bytes(views[1], sources[1]));
+            EXPECT_TRUE(same_bytes(views[2], sources[2]));
+            EXPECT_TRUE(same_bytes(views[3], sources[3]));
+        }
+
+        /** @brief Tests that an entry view has the dtype, count and extent of its source. */
+        TEST_F(Medium_TensorPack, EntryViewHasTheShapeOfItsSource)
+        {
+            const std::vector<Tensor> sources = {shared_tensor(Core::DataType::Half, 5),
+                                                 shared_tensor(Core::DataType::Int32, 3)};
+            const TensorPack pack(runtime(), layout_of(sources), 0);
+
+            const Tensor second = pack.tensor(1);
+
+            EXPECT_EQ(second.dtype, Core::DataType::Int32);
+            EXPECT_EQ(second.num_elements, 3);
+            EXPECT_EQ(second.shape[0], 3);
+        }
+
+        /** @brief Tests that tensor(index) past the entry count throws out_of_range. */
+        TEST_F(Medium_TensorPack, TensorPastTheEntryCountThrows)
+        {
+            const std::vector<Tensor> sources = {shared_tensor(Core::DataType::Half, 5),
+                                                 shared_tensor(Core::DataType::Int32, 3)};
+            const TensorPack pack(runtime(), layout_of(sources), 0);
+
+            EXPECT_THROW((void)pack.tensor(2), std::out_of_range);
         }
 
         /** @brief Tests that a gather refuses a tensor whose shape differs from its entry. */
-        TEST(Medium_TensorPack, GatherRefusesATensorOfAnotherShape)
+        TEST_F(Medium_TensorPack, GatherRefusesATensorOfAnotherShape)
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            const std::vector<Tensor> layout_tensors = {shared_tensor(Core::DataType::Float32, 4)};
+            const std::vector<Tensor> other = {shared_tensor(Core::DataType::Float32, 5)};
+            const TensorPack pack(runtime(), layout_of(layout_tensors), 0);
 
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            const std::vector<Tensor> layout_tensors = {
-                shared_tensor(runtime, Core::DataType::Float32, 4)};
-            const std::vector<Tensor> other = {shared_tensor(runtime, Core::DataType::Float32, 5)};
-            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               layout_tensors.data(), layout_tensors.size())), 0);
-            RuntimeScratchSource scratch_source(runtime);
-            ScratchPool scratch(scratch_source);
-            LateCountHold late_counts(runtime);
-            auto graph = runtime.graph();
-            graph.extend([&](SushiRuntime::Recorder& recorder)
-            {
-                TaskRecorder tensors(recorder, scratch, late_counts);
-                EXPECT_THROW((void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
-                                                                   other.data(), other.size())),
-                             std::runtime_error);
-            });
+            EXPECT_TRUE(gather_is_refused(pack, other));
         }
 
-        /** @brief Tests that a pack allocates on the device it is given, not on device 0. */
-        TEST(Medium_Regression_TensorPack, BufferLivesOnTheDeviceItIsGiven)
+        /** @brief Runs one row of segment_rows() against a pack holding two tensors of every type. */
+        class Medium_TensorPackSegment : public ::testing::TestWithParam<SegmentRow>
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
 
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            const std::size_t device_count = runtime.advanced().device_count();
-            for (std::size_t device = 0; device < device_count; ++device)
-            {
-                const std::vector<Tensor> shapes = {
-                    shared_tensor(runtime, Core::DataType::Float32, 4, device)};
-                const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                                   shapes.data(), shapes.size())), device);
-                EXPECT_EQ(pack.device_index(), device);
-                EXPECT_EQ(pack.tensor(0).storage->device_index(), device);
-                EXPECT_EQ(pack.tensor(0).storage->residency(), SushiRuntime::Residency::Host);
-            }
+        };
 
-            const std::vector<Tensor> shapes = {shared_tensor(runtime, Core::DataType::Float32, 4)};
-            EXPECT_THROW(TensorPack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                                 shapes.data(), shapes.size())), device_count),
+        TEST_P(Medium_TensorPackSegment, TensorHasTheSegmentsSizeAndOffset)
+        {
+            const TensorPack pack(runtime(), layout_of(two_tensors_of_every_type()), 0);
+            const Core::DataType dtype = GetParam().dtype;
+            const PackSegment& segment = pack.layout().segment(dtype);
+
+            const Tensor view = pack.segment_tensor(dtype);
+
+            EXPECT_EQ(view.rank, 1);
+            EXPECT_EQ(view.dtype, dtype);
+            EXPECT_EQ(static_cast<std::size_t>(view.num_elements), segment.element_count);
+            EXPECT_EQ(byte_count(view), segment.size_bytes);
+            EXPECT_EQ(static_cast<const std::byte*>(view.data()),
+                      static_cast<const std::byte*>(pack.data()) + segment.offset_bytes);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TensorPackSegment, ::testing::ValuesIn(segment_rows()),
+            [](const ::testing::TestParamInfo<SegmentRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Groups the regression tests that need no second device. */
+        class Medium_Regression_TensorPack : public ::testing::Test
+        {
+
+        };
+
+        /** @brief Tests that a device index beyond the runtime's device count is refused. */
+        TEST_F(Medium_Regression_TensorPack, PackRefusesADeviceIndexBeyondTheDeviceCount)
+        {
+            const std::vector<Tensor> shapes = {shared_tensor(Core::DataType::Float32, 4)};
+
+            EXPECT_THROW(TensorPack(runtime(), layout_of(shapes),
+                                    runtime().advanced().device_count()),
                          std::runtime_error);
         }
 
-        /** @brief Tests that a gather refuses a tensor on another device than the pack. */
-        TEST(Medium_Regression_TensorPack, GatherRefusesATensorOnAnotherDevice)
+        /** @brief Runs the device test for device 0 and device 1, skipping a device the runtime lacks. */
+        class Medium_Regression_TensorPackDevice : public ::testing::TestWithParam<std::size_t>
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            protected:
+                void SetUp() override
+                {
+                    if (GetParam() >= runtime().advanced().device_count())
+                        GTEST_SKIP() << "The runtime drives fewer devices than this row needs.";
+                }
+        };
 
-            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-            if (runtime.advanced().device_count() < 2)
-                GTEST_SKIP() << "The runtime drives one device; two are needed.";
+        TEST_P(Medium_Regression_TensorPackDevice, BufferLivesOnTheDeviceItIsGiven)
+        {
+            const std::size_t device = GetParam();
+            const std::vector<Tensor> shapes = {
+                shared_tensor(Core::DataType::Float32, 4, device)};
 
-            const std::vector<Tensor> on_second = {
-                shared_tensor(runtime, Core::DataType::Float32, 4, 1)};
-            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               on_second.data(), on_second.size())), 0);
-            RuntimeScratchSource scratch_source(runtime);
-            ScratchPool scratch(scratch_source);
-            LateCountHold late_counts(runtime);
-            auto graph = runtime.graph();
-            graph.extend([&](SushiRuntime::Recorder& recorder)
-            {
-                TaskRecorder tensors(recorder, scratch, late_counts);
-                EXPECT_THROW((void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
-                                                                   on_second.data(),
-                                                                   on_second.size())),
-                             std::runtime_error);
-            });
+            const TensorPack pack(runtime(), layout_of(shapes), device);
+
+            EXPECT_EQ(pack.device_index(), device);
+            EXPECT_EQ(pack.tensor(0).storage->device_index(), device);
+            EXPECT_EQ(pack.tensor(0).storage->residency(), SushiRuntime::Residency::Host);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Regression_TensorPackDevice,
+            ::testing::Values(std::size_t{0}, std::size_t{1}),
+            [](const ::testing::TestParamInfo<std::size_t>& info)
+            { return "Device" + std::to_string(info.param); });
+
+        /** @brief Skips every test of its suite when the runtime drives fewer than two devices. */
+        class Medium_Regression_TensorPackSecondDevice : public ::testing::Test
+        {
+            protected:
+                void SetUp() override
+                {
+                    if (runtime().advanced().device_count() < 2)
+                        GTEST_SKIP() << "The runtime drives one device; two are needed.";
+                }
+        };
+
+        /** @brief Tests that a gather refuses a tensor on another device than the pack. */
+        TEST_F(Medium_Regression_TensorPackSecondDevice, GatherRefusesATensorOnAnotherDevice)
+        {
+            const std::vector<Tensor> on_second = {shared_tensor(Core::DataType::Float32, 4, 1)};
+            const TensorPack pack(runtime(), layout_of(on_second), 0);
+
+            EXPECT_TRUE(gather_is_refused(pack, on_second));
         }
     } // namespace Test
 } // namespace SushiBLAS
