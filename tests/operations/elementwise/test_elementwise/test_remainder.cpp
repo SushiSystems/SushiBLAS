@@ -30,14 +30,17 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_RemainderTest : public SushiBLASTest {};
+class Small_RemainderTest : public HostEngineTest {};
 
-TEST_F(Medium_RemainderTest, FloatForward) 
+/**
+ * @brief Tests that the recorded remainder writes the IEEE remainder of the two operands when the task runs.
+ */
+TEST_F(Small_RemainderTest, RemainderWritesTheIEEERemainderOfTheTwoOperands) 
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -46,7 +49,7 @@ TEST_F(Medium_RemainderTest, FloatForward)
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).remainder(a, b, c);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(c, {1.00000f, 0.00000f, 1.00000f, 0.50000f});
 }
