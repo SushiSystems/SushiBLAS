@@ -44,14 +44,14 @@ sushiblas_add_test_program(
         test_host_mode_admission.cpp
         test_runtime_mode_admission.cpp
         test_late_count_sink.cpp
-    DEVICE_TESTS
-        test_engine/test_engine_contract.cpp
-        test_engine/test_reduce_plans.cpp
-        test_engine/test_run_failure.cpp
         test_engine/test_runtime_shapes.cpp
         test_engine/test_tensor_const_access.cpp
         test_engine/test_tensor_factory.cpp
         test_engine/test_tensor_view.cpp
+    DEVICE_TESTS
+        test_engine/test_engine_contract.cpp
+        test_engine/test_reduce_plans.cpp
+        test_engine/test_run_failure.cpp
         test_engine/test_unsupported_execution.cpp
         test_execution_mode.cpp
         test_kernel_pair_dispatcher.cpp
