@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_AsinhTest : public SushiBLASTest {};
+class Small_AsinhTest : public HostEngineTest {};
 
-TEST_F(Medium_AsinhTest, FloatForward) 
+/**
+ * @brief Tests that the recorded asinh replaces each element with its inverse hyperbolic sine when the task runs.
+ */
+TEST_F(Small_AsinhTest, AsinhReplacesEachElementWithItsInverseHyperbolicSine) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).asinh(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {0.88137f, 1.44364f, -1.81845f, 0.48121f});
 }
