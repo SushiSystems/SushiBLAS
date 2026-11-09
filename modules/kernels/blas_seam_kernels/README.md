@@ -33,6 +33,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `sycl/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
 | `sycl/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
 | `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
+| `sycl/level3/memory_store.hpp` | `MemoryStore`, the store that keeps each sum in a row-major array and counts the writes |
 | `sycl/level3/packed_panel.hpp` | `pack_panel`, which copies a block of op(X) into unit-stride micro-panels |
 | `sycl/level3/packed_micro_kernel.hpp` | The micro-kernel, which accumulates one register block |
 
@@ -691,7 +692,9 @@ order. The operands are read through access bricks, so the same kernel serves a 
 symmetric and a Hermitian first factor. A finished sum goes to a `Store`: `wants(row0, rows,
 col0, cols)` says whether a macro-block is written at all, which is how `syrk` skips the
 triangle it does not store, and `operator()` writes one element. `c` may overlap neither operand
-nor the scratch.
+nor the scratch. `MemoryStore` (`sycl/level3/memory_store.hpp`) is the store a test passes: it
+writes the sums of the macro-blocks that start below `wanted_rows` into a row-major array and
+counts each write, so a test sees what was stored and what `wants` skipped.
 
 ## `sycl/level3/packed_panel.hpp`
 
