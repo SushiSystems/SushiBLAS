@@ -30,6 +30,7 @@
 
 #include <array>
 #include <random>
+#include <iterator>
 #include <string>
 #include <vector>
 #include <complex>
@@ -44,6 +45,8 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "blas_rows.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
@@ -83,12 +86,14 @@ namespace SushiBLAS
             const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceReference,
+                                                             ExecutionMode::ForceSYCL};
 
-            /// @brief Both element orders a band or a packed triangle can be stored in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
+            /// @brief The one element type every refusal starts from.
+            const std::vector<DataType> K_FLOAT32 = {DataType::Float32};
+
+            /// @brief Both triangles a band or a packed matrix can hold.
+            const std::vector<Core::Uplo> K_TRIANGLES = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /** @brief Names the storage scheme of the matrix a routine takes. */
             enum class Scheme : std::uint8_t
@@ -206,18 +211,52 @@ namespace SushiBLAS
                  },
                  Scheme::Packed, false, true, true, false, false, true, false}};
 
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
+            /** @brief Names a routine of K_ROUTINES as the one axis a row varies. */
+            struct RoutineAxis
             {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                std::size_t index; /**< The position of the routine in K_ROUTINES. */
+            };
+
+            /** @brief Returns the tail of a row named by a routine. */
+            [[nodiscard]] std::string axis_name(const RoutineAxis& axis)
+            {
+                return std::string("_") + K_ROUTINES[axis.index].name;
+            }
+
+            /** @brief Returns whether any routine is selected. */
+            [[nodiscard]] bool is_any(const Routine&) noexcept
+            {
+                return true;
             }
 
             /** @brief Returns whether a routine is the one checked for the geometry of a pair. */
             [[nodiscard]] bool represents_its_kernels(const Routine& routine) noexcept
             {
                 return routine.represents_its_kernels;
+            }
+
+            /** @brief Returns whether a routine is checked for geometry and takes y. */
+            [[nodiscard]] bool takes_y_of_a_kernel(const Routine& routine) noexcept
+            {
+                return routine.represents_its_kernels && routine.takes_y;
+            }
+
+            /** @brief Returns whether a routine is checked and its vectors have a fixed order. */
+            [[nodiscard]] bool has_a_fixed_order(const Routine& routine) noexcept
+            {
+                return routine.represents_its_kernels && routine.scheme != Scheme::GeneralBand;
+            }
+
+            /** @brief Returns whether a routine has a fixed order and takes y. */
+            [[nodiscard]] bool has_a_fixed_order_and_y(const Routine& routine) noexcept
+            {
+                return has_a_fixed_order(routine) && routine.takes_y;
+            }
+
+            /** @brief Returns whether a routine takes the general band matrix. */
+            [[nodiscard]] bool takes_a_general_band(const Routine& routine) noexcept
+            {
+                return routine.scheme == Scheme::GeneralBand;
             }
 
             /** @brief Returns whether a routine is checked for geometry and takes a band. */
@@ -231,31 +270,60 @@ namespace SushiBLAS
             {
                 return routine.represents_its_kernels && routine.scheme == Scheme::Packed;
             }
+
+            /** @brief Returns whether a routine takes a triangle. */
+            [[nodiscard]] bool takes_a_uplo(const Routine& routine) noexcept
+            {
+                return routine.takes_uplo;
+            }
+
+            /** @brief Returns whether a routine takes a form of op(A). */
+            [[nodiscard]] bool takes_a_trans(const Routine& routine) noexcept
+            {
+                return routine.takes_trans;
+            }
+
+            /** @brief Returns whether a routine takes a diagonal flag. */
+            [[nodiscard]] bool takes_a_diag(const Routine& routine) noexcept
+            {
+                return routine.takes_diag;
+            }
+
+            /** @brief Returns whether a routine takes a scalar alpha. */
+            [[nodiscard]] bool takes_an_alpha(const Routine& routine) noexcept
+            {
+                return routine.takes_alpha;
+            }
+
+            /** @brief Returns whether a routine takes a scalar beta. */
+            [[nodiscard]] bool takes_a_beta(const Routine& routine) noexcept
+            {
+                return routine.takes_beta;
+            }
+
+            /** @brief Returns the axis values of every routine that select accepts. */
+            [[nodiscard]] std::vector<RoutineAxis> routines_where(bool (*select)(const Routine&))
+            {
+                std::vector<RoutineAxis> axes;
+                for (std::size_t index = 0; index < std::size(K_ROUTINES); ++index)
+                    if (select(K_ROUTINES[index]))
+                        axes.push_back({index});
+                return axes;
+            }
         } // namespace
 
         /**
-         * @brief Builds operands every routine accepts, changes one and expects the refusal.
+         * @brief Builds operands every routine accepts, so one case changes one of them and
+         *        expects the refusal.
          */
-        class Medium_BlasStructuredValidation : public SushiBLASTest
+        class BlasStructuredCase : public SushiBLASTest
         {
             protected:
-                /**
-                 * @brief Runs body once in each layout under each kernel.
-                 * @param body Callable `(Core::Layout)`, called after the engine is rebuilt.
-                 */
-                template<typename Body>
-                void for_each_engine(Body&& body)
+                /** @brief Rebuilds the engine in a layout and selects its kernel. */
+                void start(Core::Layout layout, ExecutionMode mode)
                 {
-                    for (const Core::Layout layout : K_LAYOUTS)
-                    {
-                        for (const ExecutionMode mode : K_MODES)
-                        {
-                            SCOPED_TRACE(engine_name(layout, mode));
-                            reinit_engine(layout);
-                            set_mode(mode);
-                            body(layout);
-                        }
-                    }
+                    reinit_engine(layout);
+                    set_mode(mode);
                 }
 
                 /** @brief Returns a tensor of dims and dtype whose elements are not set. */
@@ -350,29 +418,6 @@ namespace SushiBLAS
                     EXPECT_TRUE(recording->run().has_value());
                 }
 
-                /**
-                 * @brief Expects every selected routine to refuse valid operands after one change.
-                 * @param select Callable `(const Routine&) -> bool`.
-                 * @param change Callable `(Operands&)` that makes the operands unacceptable.
-                 */
-                template<typename Select, typename Change>
-                void expect_refusals(const char* what, Select&& select, Change&& change)
-                {
-                    for (const Routine& routine : K_ROUTINES)
-                    {
-                        if (!select(routine))
-                            continue;
-
-                        Operands operands = valid_operands();
-                        change(operands);
-                        expect_refused(std::string(routine.name) + ": " + what,
-                                       [&](SushiBLAS::BLASOps& ops)
-                                       {
-                                           return routine.record(ops, operands);
-                                       });
-                    }
-                }
-
                 /** @brief Returns count FLOAT32 values drawn from [-1, 1]. */
                 [[nodiscard]] static std::vector<float> random_values(std::mt19937& generator,
                                                                       int64_t count)
@@ -409,284 +454,297 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Tests that every routine records and runs on the operands the refusals change.
+         * @brief Runs a case once per row: rebuilds the engine in the layout of the row and
+         *        selects its kernel.
+         * @tparam Axis NoAxis, or the type of the value that completes each row.
          */
-        TEST_F(Medium_BlasStructuredValidation, EveryRoutineAcceptsTheOperandsARefusalStartsFrom)
+        template<typename Axis>
+        class BlasStructuredRowCase : public BlasStructuredCase,
+                                      public ::testing::WithParamInterface<Row<Axis>>
         {
-            for_each_engine([&](Core::Layout)
-            {
-                for (const Routine& routine : K_ROUTINES)
+            protected:
+                /** @brief Starts the engine of the row. */
+                void SetUp() override
                 {
-                    SCOPED_TRACE(routine.name);
-                    Operands operands = valid_operands();
-                    SushiBLAS::BLASOps ops(recorder());
-                    EXPECT_NO_THROW((void)routine.record(ops, operands));
-                    EXPECT_TRUE(recording->run().has_value());
+                    BlasStructuredCase::SetUp();
+                    start(this->GetParam().layout, this->GetParam().mode);
+                }
+        };
+
+        /**
+         * @brief Runs a case on one routine of K_ROUTINES.
+         */
+        class BlasStructuredRoutineCase : public BlasStructuredRowCase<RoutineAxis>
+        {
+            protected:
+                /** @brief Returns the routine of the row. */
+                [[nodiscard]] const Routine& routine() const
+                {
+                    return K_ROUTINES[GetParam().axis.index];
                 }
 
-                Tensor a = ones({1});
-                Tensor b = ones({1});
-                Tensor c = ones({1});
-                Tensor s = ones({1});
-                Tensor x = ones({K_ORDER});
-                Tensor y = ones({K_ORDER});
-                Tensor param = ones({K_PARAMETERS});
+                /**
+                 * @brief Expects the routine of the row to refuse valid operands after one change.
+                 * @param what Names the change for a failure message.
+                 * @param change Callable `(Operands&)` that makes the operands unacceptable.
+                 */
+                template<typename Change>
+                void expect_routine_refused(const char* what, Change&& change)
+                {
+                    Operands operands = valid_operands();
+                    change(operands);
+                    expect_refused(what, [&](SushiBLAS::BLASOps& ops)
+                    {
+                        return routine().record(ops, operands);
+                    });
+                }
+        };
 
-                SushiBLAS::BLASOps ops(recorder());
-                EXPECT_NO_THROW((void)ops.rotg(a, b, c, s));
-                EXPECT_NO_THROW((void)ops.rotmg(a, b, c, s, param));
-                EXPECT_NO_THROW((void)ops.rotm(x, y, param));
-                EXPECT_TRUE(recording->run().has_value());
-            });
+        /** @brief Runs the cases that take every one of the thirteen routines. */
+        class Medium_BlasStructuredAnyRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the nine routines that stand for their kernels. */
+        class Medium_BlasStructuredKernelRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the checked routines that take y. */
+        class Medium_BlasStructuredYRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the checked routines whose vectors have a fixed order. */
+        class Medium_BlasStructuredFixedOrderRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the fixed-order routines that take y. */
+        class Medium_BlasStructuredFixedOrderYRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routine that takes the general band matrix. */
+        class Medium_BlasStructuredGeneralBand : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the checked routines that take a band. */
+        class Medium_BlasStructuredBandRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the checked routines that take a packed matrix. */
+        class Medium_BlasStructuredPackedRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routines that take a triangle. */
+        class Medium_BlasStructuredUploRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routines that take a form of op(A). */
+        class Medium_BlasStructuredTransRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routines that take a diagonal flag. */
+        class Medium_BlasStructuredDiagRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routines that take a scalar alpha. */
+        class Medium_BlasStructuredAlphaRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /** @brief Runs the cases of the routines that take a scalar beta. */
+        class Medium_BlasStructuredBetaRoutine : public BlasStructuredRoutineCase
+        {
+
+        };
+
+        /**
+         * @brief Tests that every routine records and runs on the operands the refusals change.
+         */
+        TEST_P(Medium_BlasStructuredAnyRoutine, AcceptsTheOperandsARefusalStartsFrom)
+        {
+            Operands operands = valid_operands();
+            SushiBLAS::BLASOps ops(recorder());
+            EXPECT_NO_THROW((void)routine().record(ops, operands));
+            EXPECT_TRUE(recording->run().has_value());
         }
 
         /**
          * @brief Tests that a matrix with elements and no storage is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, AMatrixWithoutStorageIsRefused)
+        TEST_P(Medium_BlasStructuredKernelRoutine, RefusesAMatrixWithoutStorage)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("a matrix without storage", [&](Operands& o)
             {
-                expect_refusals("a matrix without storage", represents_its_kernels,
-                                [&](Operands& o)
-                {
-                    o.general = without_storage(band_dims(K_ORDER, K_GENERAL_LD));
-                    o.triangle = without_storage(band_dims(K_ORDER, K_TRIANGLE_LD));
-                    o.packed = without_storage({K_PACKED_COUNT});
-                });
+                o.general = without_storage(band_dims(K_ORDER, K_GENERAL_LD));
+                o.triangle = without_storage(band_dims(K_ORDER, K_TRIANGLE_LD));
+                o.packed = without_storage({K_PACKED_COUNT});
             });
         }
 
         /**
          * @brief Tests that operands of an integer dtype are refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, AnIntegerDtypeIsRefused)
+        TEST_P(Medium_BlasStructuredKernelRoutine, RefusesInt32Operands)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("INT32 operands", [&](Operands& o)
             {
-                expect_refusals("INT32 operands", represents_its_kernels, [&](Operands& o)
-                {
-                    o.general = raw(band_dims(K_ORDER, K_GENERAL_LD), DataType::Int32);
-                    o.triangle = raw(band_dims(K_ORDER, K_TRIANGLE_LD), DataType::Int32);
-                    o.packed = raw({K_PACKED_COUNT}, DataType::Int32);
-                    o.x = raw({K_ORDER}, DataType::Int32);
-                    o.y = raw({K_ORDER}, DataType::Int32);
-                });
-
-                Tensor scalar = raw({1}, DataType::Int32);
-                Tensor other = raw({1}, DataType::Int32);
-                Tensor third = raw({1}, DataType::Int32);
-                Tensor fourth = raw({1}, DataType::Int32);
-                Tensor x = raw({K_ORDER}, DataType::Int32);
-                Tensor y = raw({K_ORDER}, DataType::Int32);
-                Tensor param = raw({K_PARAMETERS}, DataType::Int32);
-
-                expect_refused("rotg: INT32 operands", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(scalar, other, third, fourth);
-                });
-                expect_refused("rotm: INT32 operands", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotm(x, y, param);
-                });
-                expect_refused("rotmg: INT32 operands", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(scalar, other, third, fourth, param);
-                });
+                o.general = raw(band_dims(K_ORDER, K_GENERAL_LD), DataType::Int32);
+                o.triangle = raw(band_dims(K_ORDER, K_TRIANGLE_LD), DataType::Int32);
+                o.packed = raw({K_PACKED_COUNT}, DataType::Int32);
+                o.x = raw({K_ORDER}, DataType::Int32);
+                o.y = raw({K_ORDER}, DataType::Int32);
             });
         }
 
         /**
-         * @brief Tests that a vector of rank 2 that is not contiguous is refused.
+         * @brief Tests that a vector of rank 2 that is not contiguous is refused; a 2 x 2 view
+         *        holds K_ORDER elements, so only its strides are at fault.
          */
-        TEST_F(Medium_BlasStructuredValidation, ANonContiguousVectorOfRankTwoIsRefused)
+        TEST_P(Medium_BlasStructuredKernelRoutine, RefusesANonContiguousVectorOfRankTwo)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                // A 2 x 2 view holds K_ORDER elements, so only its strides are at fault.
-                expect_refusals("a transposed 2 x 2 view as x", represents_its_kernels,
-                                [&](Operands& o) { o.x = transposed_square(2); });
-
-                Tensor x = transposed_square(2);
-                Tensor y = ones({K_ORDER});
-                const Tensor param = ones({K_PARAMETERS});
-                expect_refused("rotm: a transposed 2 x 2 view as x", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotm(x, y, param);
-                });
-            });
+            expect_routine_refused("a transposed 2 x 2 view as x",
+                                   [&](Operands& o) { o.x = transposed_square(2); });
         }
 
         /**
          * @brief Tests that a vector whose increment is zero is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, AVectorIncrementOfZeroIsRefused)
+        TEST_P(Medium_BlasStructuredKernelRoutine, RefusesAVectorIncrementOfZero)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("x of increment 0", represents_its_kernels,
-                                [&](Operands& o) { o.x = strided(K_ORDER, 0); });
+            expect_routine_refused("x of increment 0",
+                                   [&](Operands& o) { o.x = strided(K_ORDER, 0); });
+        }
 
-                Tensor x = strided(K_ORDER, 0);
-                Tensor y = ones({K_ORDER});
-                const Tensor param = ones({K_PARAMETERS});
-                expect_refused("rotm: x of increment 0", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotm(x, y, param);
-                });
+        /**
+         * @brief Tests that an x whose dtype is not the matrix's is refused.
+         */
+        TEST_P(Medium_BlasStructuredKernelRoutine, RefusesAFloat64X)
+        {
+            expect_routine_refused("a FLOAT64 x",
+                                   [&](Operands& o) { o.x = raw({K_ORDER}, DataType::Float64); });
+        }
+
+        /**
+         * @brief Tests that a y whose dtype is not the matrix's is refused.
+         */
+        TEST_P(Medium_BlasStructuredYRoutine, RefusesAFloat64Y)
+        {
+            expect_routine_refused("a FLOAT64 y",
+                                   [&](Operands& o) { o.y = raw({K_ORDER}, DataType::Float64); });
+        }
+
+        /**
+         * @brief Tests that an x one element longer than the matrix order is refused.
+         */
+        TEST_P(Medium_BlasStructuredFixedOrderRoutine, RefusesAnXOneElementTooLong)
+        {
+            expect_routine_refused("x one element too long",
+                                   [&](Operands& o) { o.x = ones({K_ORDER + 1}); });
+        }
+
+        /**
+         * @brief Tests that a y one element longer than the matrix order is refused.
+         */
+        TEST_P(Medium_BlasStructuredFixedOrderYRoutine, RefusesAYOneElementTooLong)
+        {
+            expect_routine_refused("y one element too long",
+                                   [&](Operands& o) { o.y = ones({K_ORDER + 1}); });
+        }
+
+        /**
+         * @brief Tests that gbmv refuses the vector that runs along the stored extent when it is
+         *        one element too long: x under COLUMN_MAJOR, y under ROW_MAJOR.
+         */
+        TEST_P(Medium_BlasStructuredGeneralBand, RefusesAVectorLongerThanTheStoredExtent)
+        {
+            const bool storage_gives_columns = (GetParam().layout == Core::Layout::ColumnMajor);
+            expect_routine_refused(storage_gives_columns ? "x longer than the stored columns"
+                                                         : "y longer than the stored rows",
+                                   [&](Operands& o)
+            {
+                (storage_gives_columns ? o.x : o.y) = ones({K_ORDER + 1});
             });
         }
 
         /**
-         * @brief Tests that each flag is refused when it holds no enumerator of its type.
+         * @brief Tests that gbmv refuses a super-diagonal count below zero.
          */
-        TEST_F(Medium_BlasStructuredValidation, AFlagThatIsNoEnumeratorIsRefused)
+        TEST_P(Medium_BlasStructuredGeneralBand, RefusesANegativeUpperWidth)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("uplo holding 0",
-                                [](const Routine& routine) { return routine.takes_uplo; },
-                                [](Operands& o) { o.uplo = static_cast<Core::Uplo>(0); });
-                expect_refusals("trans holding 0",
-                                [](const Routine& routine) { return routine.takes_trans; },
-                                [](Operands& o) { o.trans = static_cast<Core::Transpose>(0); });
-                expect_refusals("diag holding 0",
-                                [](const Routine& routine) { return routine.takes_diag; },
-                                [](Operands& o) { o.diag = static_cast<Core::Diag>(0); });
-            });
-        }
-
-        /**
-         * @brief Tests that a real tensor refuses a scalar with an imaginary part.
-         */
-        TEST_F(Medium_BlasStructuredValidation, AnImaginaryScalarOnARealTensorIsRefused)
-        {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("a complex alpha on FLOAT32",
-                                [](const Routine& routine) { return routine.takes_alpha; },
-                                [](Operands& o) { o.alpha = K_COMPLEX_SCALAR; });
-                expect_refusals("a complex beta on FLOAT32",
-                                [](const Routine& routine) { return routine.takes_beta; },
-                                [](Operands& o) { o.beta = K_COMPLEX_SCALAR; });
-            });
-        }
-
-        /**
-         * @brief Tests that a vector whose dtype is not the matrix's is refused.
-         */
-        TEST_F(Medium_BlasStructuredValidation, AVectorOfAnotherDtypeIsRefused)
-        {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("a FLOAT64 x", represents_its_kernels,
-                                [&](Operands& o) { o.x = raw({K_ORDER}, DataType::Float64); });
-                expect_refusals("a FLOAT64 y",
-                                [](const Routine& routine)
-                                {
-                                    return routine.represents_its_kernels && routine.takes_y;
-                                },
-                                [&](Operands& o) { o.y = raw({K_ORDER}, DataType::Float64); });
-            });
-        }
-
-        /**
-         * @brief Tests that a vector whose length is not the matrix extent it runs along is
-         *        refused; gbmv takes one extent from a vector, so only its other one can err.
-         */
-        TEST_F(Medium_BlasStructuredValidation, AVectorOfTheWrongLengthIsRefused)
-        {
-            for_each_engine([&](Core::Layout layout)
-            {
-                const auto has_a_fixed_order = [](const Routine& routine)
-                {
-                    return routine.represents_its_kernels &&
-                           routine.scheme != Scheme::GeneralBand;
-                };
-
-                expect_refusals("x one element too long", has_a_fixed_order,
-                                [&](Operands& o) { o.x = ones({K_ORDER + 1}); });
-                expect_refusals("y one element too long",
-                                [&](const Routine& routine)
-                                {
-                                    return has_a_fixed_order(routine) && routine.takes_y;
-                                },
-                                [&](Operands& o) { o.y = ones({K_ORDER + 1}); });
-
-                // The storage gives n under COLUMN_MAJOR and m under ROW_MAJOR.
-                const bool storage_gives_columns = (layout == Core::Layout::ColumnMajor);
-                expect_refusals(storage_gives_columns ? "x longer than the stored columns"
-                                                      : "y longer than the stored rows",
-                                [](const Routine& routine)
-                                {
-                                    return routine.scheme == Scheme::GeneralBand;
-                                },
-                                [&](Operands& o)
-                                {
-                                    (storage_gives_columns ? o.x : o.y) = ones({K_ORDER + 1});
-                                });
-            });
+            expect_routine_refused("ku of -1", [](Operands& o) { o.ku = -1; });
         }
 
         /**
          * @brief Tests that a band width below zero is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, ANegativeBandWidthIsRefused)
+        TEST_P(Medium_BlasStructuredBandRoutine, RefusesANegativeWidth)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("kl or k of -1", [](Operands& o)
             {
-                expect_refusals("kl or k of -1", takes_a_band, [](Operands& o)
-                {
-                    o.kl = -1;
-                    o.k = -1;
-                });
-                expect_refusals("ku of -1",
-                                [](const Routine& routine)
-                                {
-                                    return routine.scheme == Scheme::GeneralBand;
-                                },
-                                [](Operands& o) { o.ku = -1; });
+                o.kl = -1;
+                o.k = -1;
             });
         }
 
         /**
-         * @brief Tests that a band matrix of rank 1 or of rank 3 is refused.
+         * @brief Tests that a band matrix of rank 1 is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, ABandMatrixOfAnotherRankIsRefused)
+        TEST_P(Medium_BlasStructuredBandRoutine, RefusesABandMatrixOfRankOne)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("a band matrix of rank 1", [&](Operands& o)
             {
-                expect_refusals("a band matrix of rank 1", takes_a_band, [&](Operands& o)
-                {
-                    o.general = ones({K_ORDER * K_GENERAL_LD});
-                    o.triangle = ones({K_ORDER * K_TRIANGLE_LD});
-                });
-                expect_refusals("a band matrix of rank 3", takes_a_band, [&](Operands& o)
-                {
-                    std::vector<int64_t> general = band_dims(K_ORDER, K_GENERAL_LD);
-                    std::vector<int64_t> triangle = band_dims(K_ORDER, K_TRIANGLE_LD);
-                    general.insert(general.begin(), 1);
-                    triangle.insert(triangle.begin(), 1);
-                    o.general = ones(general);
-                    o.triangle = ones(triangle);
-                });
+                o.general = ones({K_ORDER * K_GENERAL_LD});
+                o.triangle = ones({K_ORDER * K_TRIANGLE_LD});
             });
         }
 
         /**
-         * @brief Tests that a band matrix whose strides are not those of its shape is refused.
+         * @brief Tests that a band matrix of rank 3 is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, AStridedBandMatrixIsRefused)
+        TEST_P(Medium_BlasStructuredBandRoutine, RefusesABandMatrixOfRankThree)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("a band matrix of rank 3", [&](Operands& o)
             {
-                // A square view keeps the lines and the line length the widths need.
-                expect_refusals("a transposed view as the band matrix", takes_a_band,
-                                [&](Operands& o)
-                {
-                    o.general = transposed_square(K_ORDER);
-                    o.triangle = transposed_square(K_ORDER);
-                });
+                std::vector<int64_t> general = band_dims(K_ORDER, K_GENERAL_LD);
+                std::vector<int64_t> triangle = band_dims(K_ORDER, K_TRIANGLE_LD);
+                general.insert(general.begin(), 1);
+                triangle.insert(triangle.begin(), 1);
+                o.general = ones(general);
+                o.triangle = ones(triangle);
+            });
+        }
+
+        /**
+         * @brief Tests that a band matrix whose strides are not those of its shape is refused;
+         *        a square view keeps the lines and the line length the widths need.
+         */
+        TEST_P(Medium_BlasStructuredBandRoutine, RefusesAStridedBandMatrix)
+        {
+            expect_routine_refused("a transposed view as the band matrix", [&](Operands& o)
+            {
+                o.general = transposed_square(K_ORDER);
+                o.triangle = transposed_square(K_ORDER);
             });
         }
 
@@ -694,318 +752,539 @@ namespace SushiBLAS
          * @brief Tests that a band matrix with fewer elements per line than its widths need is
          *        refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, ABandNarrowerThanItsWidthsIsRefused)
+        TEST_P(Medium_BlasStructuredBandRoutine, RefusesABandNarrowerThanItsWidths)
         {
-            for_each_engine([&](Core::Layout)
+            expect_routine_refused("one off-diagonal more than a line holds", [](Operands& o)
             {
-                expect_refusals("one off-diagonal more than a line holds", takes_a_band,
-                                [](Operands& o)
-                {
-                    o.ku = K_WIDTH + 1;
-                    o.k = K_WIDTH + 1;
-                });
+                o.ku = K_WIDTH + 1;
+                o.k = K_WIDTH + 1;
             });
         }
 
         /**
          * @brief Tests that a packed matrix whose rank is not 1 is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, APackedMatrixOfAnotherRankIsRefused)
+        TEST_P(Medium_BlasStructuredPackedRoutine, RefusesAPackedMatrixOfRankTwo)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("a packed matrix of rank 2", takes_a_packed_matrix,
-                                [&](Operands& o) { o.packed = ones({K_PACKED_COUNT / 2, 2}); });
-            });
+            expect_routine_refused("a packed matrix of rank 2",
+                                   [&](Operands& o) { o.packed = ones({K_PACKED_COUNT / 2, 2}); });
         }
 
         /**
          * @brief Tests that a packed matrix viewed with an increment is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, AStridedPackedMatrixIsRefused)
+        TEST_P(Medium_BlasStructuredPackedRoutine, RefusesAStridedPackedMatrix)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("every second element as the packed matrix",
-                                takes_a_packed_matrix,
-                                [&](Operands& o) { o.packed = strided(K_PACKED_COUNT, 2); });
-            });
+            expect_routine_refused("every second element as the packed matrix",
+                                   [&](Operands& o) { o.packed = strided(K_PACKED_COUNT, 2); });
         }
 
         /**
          * @brief Tests that a packed matrix whose element count is no n * (n + 1) / 2 is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, APackedCountThatIsNoTriangleIsRefused)
+        TEST_P(Medium_BlasStructuredPackedRoutine, RefusesAPackedCountThatIsNoTriangle)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                expect_refusals("a packed matrix one element short", takes_a_packed_matrix,
-                                [&](Operands& o) { o.packed = ones({K_PACKED_COUNT - 1}); });
-            });
+            expect_routine_refused("a packed matrix one element short",
+                                   [&](Operands& o) { o.packed = ones({K_PACKED_COUNT - 1}); });
         }
 
         /**
-         * @brief Tests the element counts and the dtypes rotg refuses.
+         * @brief Tests that a triangle flag holding no enumerator is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, RotgRefusesItsOperands)
+        TEST_P(Medium_BlasStructuredUploRoutine, RefusesAUploThatIsNoEnumerator)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                Tensor a = ones({1});
-                Tensor b = ones({1});
-                Tensor c = ones({1});
-                Tensor s = ones({1});
-                Tensor pair = ones({2});
-                Tensor none = raw({0});
-                Tensor wide = raw({1}, DataType::Float64);
-
-                expect_refused("a of two elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(pair, b, c, s);
-                });
-                expect_refused("b of two elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, pair, c, s);
-                });
-                expect_refused("c of two elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, b, pair, s);
-                });
-                expect_refused("s of two elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, b, c, pair);
-                });
-                expect_refused("a of no elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(none, b, c, s);
-                });
-                expect_refused("a FLOAT64 b", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, wide, c, s);
-                });
-                expect_refused("a FLOAT64 s", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, b, c, wide);
-                });
-                expect_refused("a FLOAT64 c", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotg(a, b, wide, s);
-                });
-                expect_refused("a complex c beside a complex a", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor complex_a = raw({1}, DataType::Complex32);
-                    Tensor complex_b = raw({1}, DataType::Complex32);
-                    Tensor complex_c = raw({1}, DataType::Complex32);
-                    Tensor complex_s = raw({1}, DataType::Complex32);
-                    return ops.rotg(complex_a, complex_b, complex_c, complex_s);
-                });
-            });
+            expect_routine_refused("uplo holding 0",
+                                   [](Operands& o) { o.uplo = static_cast<Core::Uplo>(0); });
         }
 
         /**
-         * @brief Tests the dtypes, the lengths and the parameter tensors rotm refuses.
+         * @brief Tests that a form of op(A) holding no enumerator is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, RotmRefusesItsOperands)
+        TEST_P(Medium_BlasStructuredTransRoutine, RefusesATransposeThatIsNoEnumerator)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                Tensor x = ones({K_ORDER});
-                Tensor y = ones({K_ORDER});
-                const Tensor param = ones({K_PARAMETERS});
-
-                expect_refused("complex operands", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor complex_x = raw({K_ORDER}, DataType::Complex32);
-                    Tensor complex_y = raw({K_ORDER}, DataType::Complex32);
-                    const Tensor complex_param = raw({K_PARAMETERS}, DataType::Complex32);
-                    return ops.rotm(complex_x, complex_y, complex_param);
-                });
-                expect_refused("a FLOAT64 y", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor other = raw({K_ORDER}, DataType::Float64);
-                    return ops.rotm(x, other, param);
-                });
-                expect_refused("a FLOAT64 param", [&](SushiBLAS::BLASOps& ops)
-                {
-                    const Tensor other = raw({K_PARAMETERS}, DataType::Float64);
-                    return ops.rotm(x, y, other);
-                });
-                expect_refused("y one element too long", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor other = ones({K_ORDER + 1});
-                    return ops.rotm(x, other, param);
-                });
-                expect_refused("param of four elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    const Tensor other = ones({K_PARAMETERS - 1});
-                    return ops.rotm(x, y, other);
-                });
-                expect_refused("param of six elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    const Tensor other = ones({K_PARAMETERS + 1});
-                    return ops.rotm(x, y, other);
-                });
-                expect_refused("param of increment 2", [&](SushiBLAS::BLASOps& ops)
-                {
-                    const Tensor other = strided(K_PARAMETERS, 2);
-                    return ops.rotm(x, y, other);
-                });
-            });
+            expect_routine_refused("trans holding 0",
+                                   [](Operands& o) { o.trans = static_cast<Core::Transpose>(0); });
         }
 
         /**
-         * @brief Tests the dtypes, the element counts and the parameter tensors rotmg refuses.
+         * @brief Tests that a diagonal flag holding no enumerator is refused.
          */
-        TEST_F(Medium_BlasStructuredValidation, RotmgRefusesItsOperands)
+        TEST_P(Medium_BlasStructuredDiagRoutine, RefusesADiagThatIsNoEnumerator)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                Tensor d1 = ones({1});
-                Tensor d2 = ones({1});
-                Tensor x1 = ones({1});
-                Tensor y1 = ones({1});
-                Tensor param = ones({K_PARAMETERS});
-                Tensor pair = ones({2});
-                Tensor wide = raw({1}, DataType::Float64);
+            expect_routine_refused("diag holding 0",
+                                   [](Operands& o) { o.diag = static_cast<Core::Diag>(0); });
+        }
 
-                for (const DataType dtype : {DataType::Complex32, DataType::Half})
+        /**
+         * @brief Tests that a real tensor refuses an alpha with an imaginary part.
+         */
+        TEST_P(Medium_BlasStructuredAlphaRoutine, RefusesAComplexAlphaOnFloat32)
+        {
+            expect_routine_refused("a complex alpha on FLOAT32",
+                                   [](Operands& o) { o.alpha = K_COMPLEX_SCALAR; });
+        }
+
+        /**
+         * @brief Tests that a real tensor refuses a beta with an imaginary part.
+         */
+        TEST_P(Medium_BlasStructuredBetaRoutine, RefusesAComplexBetaOnFloat32)
+        {
+            expect_routine_refused("a complex beta on FLOAT32",
+                                   [](Operands& o) { o.beta = K_COMPLEX_SCALAR; });
+        }
+
+        /**
+         * @brief Runs the refusals of rotg, rotm and rotmg, which have no axis of their own.
+         */
+        class Medium_BlasStructuredRotation : public BlasStructuredRowCase<NoAxis>
+        {
+            protected:
+                /** @brief Returns a FLOAT32 tensor of one element. */
+                [[nodiscard]] Tensor one()
                 {
-                    expect_refused(std::string(Core::to_string(dtype)) + " operands",
-                                   [&](SushiBLAS::BLASOps& ops)
+                    return ones({1});
+                }
+
+                /** @brief Returns a FLOAT32 tensor of two elements. */
+                [[nodiscard]] Tensor pair()
+                {
+                    return ones({2});
+                }
+
+                /** @brief Returns a FLOAT32 parameter tensor of a rotm or rotmg. */
+                [[nodiscard]] Tensor parameters()
+                {
+                    return ones({K_PARAMETERS});
+                }
+
+                /** @brief Expects rotg to refuse the four operands. */
+                void expect_rotg_refused(const std::string& what, Tensor a, Tensor b, Tensor c, Tensor s)
+                {
+                    expect_refused(std::string("rotg: ") + what, [&](SushiBLAS::BLASOps& ops)
                     {
-                        Tensor other_d1 = raw({1}, dtype);
-                        Tensor other_d2 = raw({1}, dtype);
-                        Tensor other_x1 = raw({1}, dtype);
-                        const Tensor other_y1 = raw({1}, dtype);
-                        Tensor other_param = raw({K_PARAMETERS}, dtype);
-                        return ops.rotmg(other_d1, other_d2, other_x1, other_y1, other_param);
+                        return ops.rotg(a, b, c, s);
                     });
                 }
 
-                expect_refused("d1 of two elements", [&](SushiBLAS::BLASOps& ops)
+                /** @brief Expects rotm to refuse the three operands. */
+                void expect_rotm_refused(const std::string& what, Tensor x, Tensor y, const Tensor param)
                 {
-                    return ops.rotmg(pair, d2, x1, y1, param);
-                });
-                expect_refused("d2 of two elements", [&](SushiBLAS::BLASOps& ops)
+                    expect_refused(std::string("rotm: ") + what, [&](SushiBLAS::BLASOps& ops)
+                    {
+                        return ops.rotm(x, y, param);
+                    });
+                }
+
+                /** @brief Expects rotmg to refuse the five operands. */
+                void expect_rotmg_refused(const std::string& what, Tensor d1, Tensor d2, Tensor x1,
+                                          const Tensor y1, Tensor param)
                 {
-                    return ops.rotmg(d1, pair, x1, y1, param);
-                });
-                expect_refused("x1 of two elements", [&](SushiBLAS::BLASOps& ops)
+                    expect_refused(std::string("rotmg: ") + what, [&](SushiBLAS::BLASOps& ops)
+                    {
+                        return ops.rotmg(d1, d2, x1, y1, param);
+                    });
+                }
+
+                /** @brief Expects rotmg to refuse operands of one dtype. */
+                void expect_rotmg_refuses_dtype(DataType dtype)
                 {
-                    return ops.rotmg(d1, d2, pair, y1, param);
-                });
-                expect_refused("y1 of two elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(d1, d2, x1, pair, param);
-                });
-                expect_refused("a FLOAT64 d1", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(wide, d2, x1, y1, param);
-                });
-                expect_refused("a FLOAT64 d2", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(d1, wide, x1, y1, param);
-                });
-                expect_refused("a FLOAT64 x1", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(d1, d2, wide, y1, param);
-                });
-                expect_refused("a FLOAT64 y1", [&](SushiBLAS::BLASOps& ops)
-                {
-                    return ops.rotmg(d1, d2, x1, wide, param);
-                });
-                expect_refused("a FLOAT64 param", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor other = raw({K_PARAMETERS}, DataType::Float64);
-                    return ops.rotmg(d1, d2, x1, y1, other);
-                });
-                expect_refused("param of four elements", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor other = ones({K_PARAMETERS - 1});
-                    return ops.rotmg(d1, d2, x1, y1, other);
-                });
-                expect_refused("param of increment 2", [&](SushiBLAS::BLASOps& ops)
-                {
-                    Tensor other = strided(K_PARAMETERS, 2);
-                    return ops.rotmg(d1, d2, x1, y1, other);
-                });
-            });
+                    expect_rotmg_refused(std::string(Core::to_string(dtype)) + " operands", raw({1}, dtype), raw({1}, dtype),
+                                         raw({1}, dtype), raw({1}, dtype),
+                                         raw({K_PARAMETERS}, dtype));
+                }
+        };
+
+        /** @brief Runs the forwards of the Hermitian routines, one row per triangle. */
+        class Medium_BlasStructuredHermitian : public BlasStructuredRowCase<Core::Uplo>
+        {
+
+        };
+
+        /**
+         * @brief Tests that rotg, rotmg and rotm record and run on the operands the refusals
+         *        start from.
+         */
+        TEST_P(Medium_BlasStructuredRotation, AcceptsTheOperandsARefusalStartsFrom)
+        {
+            Tensor a = one();
+            Tensor b = one();
+            Tensor c = one();
+            Tensor s = one();
+            Tensor x = ones({K_ORDER});
+            Tensor y = ones({K_ORDER});
+            Tensor param = parameters();
+
+            SushiBLAS::BLASOps ops(recorder());
+            EXPECT_NO_THROW((void)ops.rotg(a, b, c, s));
+            EXPECT_NO_THROW((void)ops.rotmg(a, b, c, s, param));
+            EXPECT_NO_THROW((void)ops.rotm(x, y, param));
+            EXPECT_TRUE(recording->run().has_value());
+        }
+
+        /** @brief Tests that rotg refuses INT32 operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesInt32Operands)
+        {
+            expect_rotg_refused("INT32 operands", raw({1}, DataType::Int32),
+                                raw({1}, DataType::Int32), raw({1}, DataType::Int32),
+                                raw({1}, DataType::Int32));
+        }
+
+        /** @brief Tests that rotg refuses an a of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesAOfTwoElements)
+        {
+            expect_rotg_refused("a of two elements", pair(), one(), one(), one());
+        }
+
+        /** @brief Tests that rotg refuses a b of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesBOfTwoElements)
+        {
+            expect_rotg_refused("b of two elements", one(), pair(), one(), one());
+        }
+
+        /** @brief Tests that rotg refuses a c of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesCOfTwoElements)
+        {
+            expect_rotg_refused("c of two elements", one(), one(), pair(), one());
+        }
+
+        /** @brief Tests that rotg refuses an s of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesSOfTwoElements)
+        {
+            expect_rotg_refused("s of two elements", one(), one(), one(), pair());
+        }
+
+        /** @brief Tests that rotg refuses an a of no elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesAOfNoElements)
+        {
+            expect_rotg_refused("a of no elements", raw({0}), one(), one(), one());
+        }
+
+        /** @brief Tests that rotg refuses a FLOAT64 b. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesAFloat64B)
+        {
+            expect_rotg_refused("a FLOAT64 b", one(), raw({1}, DataType::Float64), one(), one());
+        }
+
+        /** @brief Tests that rotg refuses a FLOAT64 c. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesAFloat64C)
+        {
+            expect_rotg_refused("a FLOAT64 c", one(), one(), raw({1}, DataType::Float64), one());
+        }
+
+        /** @brief Tests that rotg refuses a FLOAT64 s. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesAFloat64S)
+        {
+            expect_rotg_refused("a FLOAT64 s", one(), one(), one(), raw({1}, DataType::Float64));
+        }
+
+        /** @brief Tests that rotg refuses a complex c beside a complex a. */
+        TEST_P(Medium_BlasStructuredRotation, RotgRefusesComplexOperands)
+        {
+            expect_rotg_refused("complex operands", raw({1}, DataType::Complex32),
+                                raw({1}, DataType::Complex32), raw({1}, DataType::Complex32),
+                                raw({1}, DataType::Complex32));
+        }
+
+        /** @brief Tests that rotm refuses INT32 operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesInt32Operands)
+        {
+            expect_rotm_refused("INT32 operands", raw({K_ORDER}, DataType::Int32),
+                                raw({K_ORDER}, DataType::Int32),
+                                raw({K_PARAMETERS}, DataType::Int32));
+        }
+
+        /** @brief Tests that rotm refuses a vector of rank 2 that is not contiguous. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesANonContiguousX)
+        {
+            expect_rotm_refused("a transposed 2 x 2 view as x", transposed_square(2),
+                                ones({K_ORDER}), parameters());
+        }
+
+        /** @brief Tests that rotm refuses an x whose increment is zero. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAnXOfIncrementZero)
+        {
+            expect_rotm_refused("x of increment 0", strided(K_ORDER, 0), ones({K_ORDER}),
+                                parameters());
+        }
+
+        /** @brief Tests that rotm refuses complex operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesComplexOperands)
+        {
+            expect_rotm_refused("complex operands", raw({K_ORDER}, DataType::Complex32),
+                                raw({K_ORDER}, DataType::Complex32),
+                                raw({K_PARAMETERS}, DataType::Complex32));
+        }
+
+        /** @brief Tests that rotm refuses a FLOAT64 y. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAFloat64Y)
+        {
+            expect_rotm_refused("a FLOAT64 y", ones({K_ORDER}), raw({K_ORDER}, DataType::Float64),
+                                parameters());
+        }
+
+        /** @brief Tests that rotm refuses a FLOAT64 param. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAFloat64Param)
+        {
+            expect_rotm_refused("a FLOAT64 param", ones({K_ORDER}), ones({K_ORDER}),
+                                raw({K_PARAMETERS}, DataType::Float64));
+        }
+
+        /** @brief Tests that rotm refuses a y one element longer than x. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAYOneElementTooLong)
+        {
+            expect_rotm_refused("y one element too long", ones({K_ORDER}), ones({K_ORDER + 1}),
+                                parameters());
+        }
+
+        /** @brief Tests that rotm refuses a param of four elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAParamOfFourElements)
+        {
+            expect_rotm_refused("param of four elements", ones({K_ORDER}), ones({K_ORDER}),
+                                ones({K_PARAMETERS - 1}));
+        }
+
+        /** @brief Tests that rotm refuses a param of six elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAParamOfSixElements)
+        {
+            expect_rotm_refused("param of six elements", ones({K_ORDER}), ones({K_ORDER}),
+                                ones({K_PARAMETERS + 1}));
+        }
+
+        /** @brief Tests that rotm refuses a param of increment 2. */
+        TEST_P(Medium_BlasStructuredRotation, RotmRefusesAParamOfIncrementTwo)
+        {
+            expect_rotm_refused("param of increment 2", ones({K_ORDER}), ones({K_ORDER}),
+                                strided(K_PARAMETERS, 2));
+        }
+
+        /** @brief Tests that rotmg refuses INT32 operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesInt32Operands)
+        {
+            expect_rotmg_refuses_dtype(DataType::Int32);
+        }
+
+        /** @brief Tests that rotmg refuses COMPLEX32 operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesComplexOperands)
+        {
+            expect_rotmg_refuses_dtype(DataType::Complex32);
+        }
+
+        /** @brief Tests that rotmg refuses HALF operands. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesHalfOperands)
+        {
+            expect_rotmg_refuses_dtype(DataType::Half);
+        }
+
+        /** @brief Tests that rotmg refuses a d1 of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAD1OfTwoElements)
+        {
+            expect_rotmg_refused("d1 of two elements", pair(), one(), one(), one(), parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a d2 of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAD2OfTwoElements)
+        {
+            expect_rotmg_refused("d2 of two elements", one(), pair(), one(), one(), parameters());
+        }
+
+        /** @brief Tests that rotmg refuses an x1 of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAnX1OfTwoElements)
+        {
+            expect_rotmg_refused("x1 of two elements", one(), one(), pair(), one(), parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a y1 of two elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAY1OfTwoElements)
+        {
+            expect_rotmg_refused("y1 of two elements", one(), one(), one(), pair(), parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a FLOAT64 d1. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAFloat64D1)
+        {
+            expect_rotmg_refused("a FLOAT64 d1", raw({1}, DataType::Float64), one(), one(), one(),
+                                 parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a FLOAT64 d2. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAFloat64D2)
+        {
+            expect_rotmg_refused("a FLOAT64 d2", one(), raw({1}, DataType::Float64), one(), one(),
+                                 parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a FLOAT64 x1. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAFloat64X1)
+        {
+            expect_rotmg_refused("a FLOAT64 x1", one(), one(), raw({1}, DataType::Float64), one(),
+                                 parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a FLOAT64 y1. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAFloat64Y1)
+        {
+            expect_rotmg_refused("a FLOAT64 y1", one(), one(), one(),
+                                 raw({1}, DataType::Float64), parameters());
+        }
+
+        /** @brief Tests that rotmg refuses a FLOAT64 param. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAFloat64Param)
+        {
+            expect_rotmg_refused("a FLOAT64 param", one(), one(), one(), one(),
+                                 raw({K_PARAMETERS}, DataType::Float64));
+        }
+
+        /** @brief Tests that rotmg refuses a param of four elements. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAParamOfFourElements)
+        {
+            expect_rotmg_refused("param of four elements", one(), one(), one(), one(),
+                                 ones({K_PARAMETERS - 1}));
+        }
+
+        /** @brief Tests that rotmg refuses a param of increment 2. */
+        TEST_P(Medium_BlasStructuredRotation, RotmgRefusesAParamOfIncrementTwo)
+        {
+            expect_rotmg_refused("param of increment 2", one(), one(), one(), one(),
+                                 strided(K_PARAMETERS, 2));
         }
 
         /**
          * @brief Tests that hbmv on a FLOAT32 tensor gives the bits of sbmv.
          */
-        TEST_F(Medium_BlasStructuredValidation, HbmvOnARealTensorGivesTheBitsOfSbmv)
+        TEST_P(Medium_BlasStructuredHermitian, HbmvGivesTheBitsOfSbmv)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(recorder());
-                const Tensor A = holding(band_dims(K_ORDER, K_TRIANGLE_LD),
-                                         random_values(generator, K_ORDER * K_TRIANGLE_LD));
-                const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
-                const std::vector<float> y = random_values(generator, K_ORDER);
+            const Core::Uplo uplo = GetParam().axis;
+            std::mt19937 generator(K_SEED);
+            SushiBLAS::BLASOps ops(recorder());
+            const Tensor A = holding(band_dims(K_ORDER, K_TRIANGLE_LD),
+                                     random_values(generator, K_ORDER * K_TRIANGLE_LD));
+            const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
+            const std::vector<float> y = random_values(generator, K_ORDER);
 
-                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    expect_same_bits(
-                        y,
-                        [&](Tensor& out) { ops.hbmv(A, x, out, uplo, K_WIDTH, K_ALPHA, K_BETA); },
-                        [&](Tensor& out) { ops.sbmv(A, x, out, uplo, K_WIDTH, K_ALPHA, K_BETA); });
-                }
-            });
+            expect_same_bits(
+                y, [&](Tensor& out) { ops.hbmv(A, x, out, uplo, K_WIDTH, K_ALPHA, K_BETA); },
+                [&](Tensor& out) { ops.sbmv(A, x, out, uplo, K_WIDTH, K_ALPHA, K_BETA); });
         }
 
         /**
          * @brief Tests that hpmv on a FLOAT32 tensor gives the bits of spmv.
          */
-        TEST_F(Medium_BlasStructuredValidation, HpmvOnARealTensorGivesTheBitsOfSpmv)
+        TEST_P(Medium_BlasStructuredHermitian, HpmvGivesTheBitsOfSpmv)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(recorder());
-                const Tensor AP =
-                    holding({K_PACKED_COUNT}, random_values(generator, K_PACKED_COUNT));
-                const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
-                const std::vector<float> y = random_values(generator, K_ORDER);
+            const Core::Uplo uplo = GetParam().axis;
+            std::mt19937 generator(K_SEED);
+            SushiBLAS::BLASOps ops(recorder());
+            const Tensor AP = holding({K_PACKED_COUNT}, random_values(generator, K_PACKED_COUNT));
+            const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
+            const std::vector<float> y = random_values(generator, K_ORDER);
 
-                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    expect_same_bits(
-                        y,
-                        [&](Tensor& out) { ops.hpmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
-                        [&](Tensor& out) { ops.spmv(AP, x, out, uplo, K_ALPHA, K_BETA); });
-                }
-            });
+            expect_same_bits(
+                y, [&](Tensor& out) { ops.hpmv(AP, x, out, uplo, K_ALPHA, K_BETA); },
+                [&](Tensor& out) { ops.spmv(AP, x, out, uplo, K_ALPHA, K_BETA); });
         }
 
         /**
-         * @brief Tests that hpr and hpr2 on a FLOAT32 tensor give the bits of spr and spr2.
+         * @brief Tests that hpr on a FLOAT32 tensor gives the bits of spr.
          */
-        TEST_F(Medium_BlasStructuredValidation, HprAndHpr2OnARealTensorGiveTheBitsOfSprAndSpr2)
+        TEST_P(Medium_BlasStructuredHermitian, HprGivesTheBitsOfSpr)
         {
-            for_each_engine([&](Core::Layout)
-            {
-                std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(recorder());
-                const std::vector<float> ap = random_values(generator, K_PACKED_COUNT);
-                const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
-                const Tensor y = holding({K_ORDER}, random_values(generator, K_ORDER));
+            const Core::Uplo uplo = GetParam().axis;
+            std::mt19937 generator(K_SEED);
+            SushiBLAS::BLASOps ops(recorder());
+            const std::vector<float> ap = random_values(generator, K_PACKED_COUNT);
+            const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
 
-                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    expect_same_bits(ap,
-                                     [&](Tensor& out) { ops.hpr(x, out, uplo, K_ALPHA); },
-                                     [&](Tensor& out) { ops.spr(x, out, uplo, K_ALPHA); });
-                    expect_same_bits(ap,
-                                     [&](Tensor& out) { ops.hpr2(x, y, out, uplo, K_ALPHA); },
-                                     [&](Tensor& out) { ops.spr2(x, y, out, uplo, K_ALPHA); });
-                }
-            });
+            expect_same_bits(ap, [&](Tensor& out) { ops.hpr(x, out, uplo, K_ALPHA); },
+                             [&](Tensor& out) { ops.spr(x, out, uplo, K_ALPHA); });
         }
+
+        /**
+         * @brief Tests that hpr2 on a FLOAT32 tensor gives the bits of spr2.
+         */
+        TEST_P(Medium_BlasStructuredHermitian, Hpr2GivesTheBitsOfSpr2)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+            std::mt19937 generator(K_SEED);
+            SushiBLAS::BLASOps ops(recorder());
+            const std::vector<float> ap = random_values(generator, K_PACKED_COUNT);
+            const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
+            const Tensor y = holding({K_ORDER}, random_values(generator, K_ORDER));
+
+            expect_same_bits(ap, [&](Tensor& out) { ops.hpr2(x, y, out, uplo, K_ALPHA); },
+                             [&](Tensor& out) { ops.spr2(x, y, out, uplo, K_ALPHA); });
+        }
+
+        /// @brief The rows of every routine, every checked routine and the other subsets.
+        const std::vector<RoutineAxis> K_ANY = routines_where(is_any);
+        const std::vector<RoutineAxis> K_KERNELS = routines_where(represents_its_kernels);
+        const std::vector<RoutineAxis> K_KERNELS_WITH_Y = routines_where(takes_y_of_a_kernel);
+        const std::vector<RoutineAxis> K_FIXED_ORDER = routines_where(has_a_fixed_order);
+        const std::vector<RoutineAxis> K_FIXED_ORDER_WITH_Y = routines_where(has_a_fixed_order_and_y);
+        const std::vector<RoutineAxis> K_GENERAL_BAND = routines_where(takes_a_general_band);
+        const std::vector<RoutineAxis> K_BANDS = routines_where(takes_a_band);
+        const std::vector<RoutineAxis> K_PACKED = routines_where(takes_a_packed_matrix);
+        const std::vector<RoutineAxis> K_WITH_UPLO = routines_where(takes_a_uplo);
+        const std::vector<RoutineAxis> K_WITH_TRANS = routines_where(takes_a_trans);
+        const std::vector<RoutineAxis> K_WITH_DIAG = routines_where(takes_a_diag);
+        const std::vector<RoutineAxis> K_WITH_ALPHA = routines_where(takes_an_alpha);
+        const std::vector<RoutineAxis> K_WITH_BETA = routines_where(takes_a_beta);
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredAnyRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_ANY)), row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredKernelRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_KERNELS)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredYRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_KERNELS_WITH_Y)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredFixedOrderRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_FIXED_ORDER)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredFixedOrderYRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_FIXED_ORDER_WITH_Y)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredGeneralBand,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_GENERAL_BAND)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredBandRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_BANDS)), row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredPackedRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_PACKED)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredUploRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_WITH_UPLO)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredTransRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_WITH_TRANS)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredDiagRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_WITH_DIAG)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredAlphaRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_WITH_ALPHA)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredBetaRoutine,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_WITH_BETA)),
+            row_name<RoutineAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredRotation, ::testing::ValuesIn(plain_rows(K_FLOAT32, K_BOTH_MODES)),
+            row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasStructuredHermitian,
+            ::testing::ValuesIn(rows_of(K_FLOAT32, K_BOTH_MODES, K_TRIANGLES)),
+            row_name<Core::Uplo>);
     } // namespace Test
 } // namespace SushiBLAS
