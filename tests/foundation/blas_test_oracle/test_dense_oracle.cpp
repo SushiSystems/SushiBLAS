@@ -57,6 +57,14 @@ namespace SushiBLAS
                       (std::vector<double>{1.0, 4.0, 7.0, 4.0, 5.0, 8.0, 7.0, 8.0, 9.0}));
         }
 
+        TEST(Small_DenseOracle, PoisonOtherTriangleReplacesOnlyTheEntriesOutsideTheKeptTriangle)
+        {
+            EXPECT_EQ(poison_other_triangle(K_SQUARE, 3, true, 99.0),
+                      (std::vector<double>{1.0, 2.0, 3.0, 99.0, 5.0, 6.0, 99.0, 99.0, 9.0}));
+            EXPECT_EQ(poison_other_triangle(K_SQUARE, 3, false, 99.0),
+                      (std::vector<double>{1.0, 99.0, 99.0, 4.0, 5.0, 99.0, 7.0, 8.0, 9.0}));
+        }
+
         TEST(Small_DenseOracle, TriangleOfZeroesTheOtherSide)
         {
             EXPECT_EQ(triangle_of(K_SQUARE, 3, true, false),

@@ -93,6 +93,26 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns an n x n dense matrix with every entry outside one triangle replaced.
+         * @param upper Keeps the upper triangle and the diagonal when true, the lower when false.
+         * @param poison Written to every entry strictly outside the kept triangle.
+         */
+        template<typename T>
+        [[nodiscard]] std::vector<T> poison_other_triangle(std::vector<T> dense, int64_t n,
+                                                           bool upper, T poison)
+        {
+            for (int64_t i = 0; i < n; ++i)
+            {
+                for (int64_t j = 0; j < n; ++j)
+                {
+                    if (upper ? (i > j) : (i < j))
+                        dense[static_cast<std::size_t>(i * n + j)] = poison;
+                }
+            }
+            return dense;
+        }
+
+        /**
          * @brief Returns the triangle of an n x n dense matrix, with zeros elsewhere.
          * @param unit Replaces the diagonal with ones.
          */

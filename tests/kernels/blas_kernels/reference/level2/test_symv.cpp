@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,33 +44,36 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSymv, ReadsOneTriangleAndMirrorsIt)
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
-            const int64_t n = 5;
-            // The triangle not named by uplo holds 99, which the kernel must never read.
-            const std::vector<double> a = small_integers<double>(n * n, 1);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> poisoned = a;
-                    for (int64_t i = 0; i < n; ++i)
-                        for (int64_t j = 0; j < n; ++j)
-                            if (upper ? (i > j) : (i < j))
-                                poisoned[static_cast<std::size_t>(i * n + j)] = 99.0;
-                    const std::vector<double> x = small_integers<double>(n, 2);
-                    std::vector<double> y = small_integers<double>(n, 3);
-                    const std::vector<double> expected =
-                        dense_matvec(symmetric_from(a, n, upper), n, n, false, 2.0, x, 3.0, y);
-
-                    Kernels::Reference::symv(layout, uplo_of(upper), n, 2.0,
-                                             in_layout(poisoned, n, n, layout).data(), n,
-                                             x.data(), 1, 3.0, y.data(), 1);
-
-                    EXPECT_EQ(y, expected);
-                }
-            }
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
         }
+
+        /// @brief Runs symv for one layout and one triangle, as a row of (row major, upper).
+        class Small_ReferenceSymv : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that symv reads only the named triangle and mirrors it.
+        TEST_P(Small_ReferenceSymv, ReadsOneTriangleAndMirrorsIt)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const int64_t n = 5;
+            const std::vector<double> a = small_integers<double>(n * n, 1);
+            const std::vector<double> poisoned = poison_other_triangle(a, n, upper, 99.0);
+            const std::vector<double> x = small_integers<double>(n, 2);
+            std::vector<double> y = small_integers<double>(n, 3);
+            const std::vector<double> expected =
+                dense_matvec(symmetric_from(a, n, upper), n, n, false, 2.0, x, 3.0, y);
+
+            Kernels::Reference::symv(layout, uplo_of(upper), n, 2.0,
+                                     in_layout(poisoned, n, n, layout).data(), n,
+                                     x.data(), 1, 3.0, y.data(), 1);
+
+            EXPECT_EQ(y, expected);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Small_ReferenceSymv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
