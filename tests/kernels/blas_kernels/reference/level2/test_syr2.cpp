@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,27 +44,35 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSyr2, UpdatesTheNamedTriangleOnly)
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs syr2 for one layout and one triangle, as a row of (row major, upper).
+        class Small_ReferenceSyr2 : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that syr2 adds alpha (x y^T + y x^T) to the named triangle only.
+        TEST_P(Small_ReferenceSyr2, UpdatesTheNamedTriangleOnly)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);
             const std::vector<double> x = small_integers<double>(n, 2);
             const std::vector<double> y = small_integers<double>(n, 3);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    std::vector<double> stored = in_layout(a, n, n, layout);
-                    const std::vector<double> expected =
-                        triangle_update(a, n, upper, -2.0, x, y, true);
+            std::vector<double> stored = in_layout(a, n, n, layout);
+            const std::vector<double> expected =
+                triangle_update(a, n, upper, -2.0, x, y, true);
 
-                    Kernels::Reference::syr2(layout, uplo_of(upper), n, -2.0, x.data(), 1,
-                                             y.data(), 1, stored.data(), n);
+            Kernels::Reference::syr2(layout, uplo_of(upper), n, -2.0, x.data(), 1,
+                                     y.data(), 1, stored.data(), n);
 
-                    EXPECT_EQ(stored, in_layout(expected, n, n, layout));
-                }
-            }
+            EXPECT_EQ(stored, in_layout(expected, n, n, layout));
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Small_ReferenceSyr2,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
