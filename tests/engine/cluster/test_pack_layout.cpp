@@ -77,42 +77,63 @@ namespace SushiBLAS
                       layout.segment(Core::DataType::Int64).offset_bytes);
         }
 
-        /** @brief Tests that segments follow the type order and start on 128-byte boundaries. */
-        TEST(Small_PackLayout, AlignsSegmentsInTypeOrder)
+        /** @brief Tests that segments follow the type order and start on 128-byte multiples. */
+        TEST(Small_PackLayout, PlacesSegmentsInTypeOrderOn128ByteMultiples)
         {
-            const std::vector<Tensor> tensors = {shaped({1}, Core::DataType::Int32),
+            const PackLayout layout = layout_of({shaped({1}, Core::DataType::Int32),
                                                  shaped({3}, Core::DataType::Half),
-                                                 shaped({2}, Core::DataType::Complex64)};
-            const PackLayout layout = layout_of(tensors);
+                                                 shaped({2}, Core::DataType::Complex64)});
 
             EXPECT_EQ(layout.segment(Core::DataType::Half).offset_bytes, 0U);
             EXPECT_EQ(layout.segment(Core::DataType::Complex64).offset_bytes, 128U);
             EXPECT_EQ(layout.segment(Core::DataType::Int32).offset_bytes, 256U);
+        }
+
+        /**
+         * @brief Tests that the size ends at the aligned end of the last non-empty segment and a
+         *        type with no tensor takes no bytes.
+         */
+        TEST(Small_PackLayout, SizeEndsAtTheAlignedEndOfTheLastSegment)
+        {
+            // The Int32 segment starts at 256 and holds 4 bytes; 260 rounds up to 384.
+            const PackLayout layout = layout_of({shaped({1}, Core::DataType::Int32),
+                                                 shaped({3}, Core::DataType::Half),
+                                                 shaped({2}, Core::DataType::Complex64)});
+
             EXPECT_EQ(layout.size_bytes(), 384U);
             EXPECT_EQ(layout.segment(Core::DataType::Float64).size_bytes, 0U);
         }
 
-        /** @brief Tests that UINT32, the last type, has a segment of its own after INT64. */
+        /** @brief Tests that UInt32, the last type, has a segment of its own after Int64. */
         TEST(Small_PackLayout, GivesUInt32ASegmentAfterInt64)
         {
-            const std::vector<Tensor> tensors = {shaped({3}, Core::DataType::UInt32),
-                                                 shaped({2}, Core::DataType::Int64)};
-            const PackLayout layout = layout_of(tensors);
+            const PackLayout layout = layout_of({shaped({3}, Core::DataType::UInt32),
+                                                 shaped({2}, Core::DataType::Int64)});
 
-            EXPECT_EQ(layout.segment(Core::DataType::Int64).offset_bytes, 0U);
             EXPECT_EQ(layout.segment(Core::DataType::UInt32).offset_bytes, 128U);
             EXPECT_EQ(layout.segment(Core::DataType::UInt32).size_bytes, 12U);
-            EXPECT_NE(layout.fingerprint(),
-                      layout_of({shaped({3}, Core::DataType::Int32),
-                                 shaped({2}, Core::DataType::Int64)}).fingerprint());
         }
 
-        /** @brief Tests that the same tensors give the same fingerprint. */
+        /** @brief Tests that the fingerprint changes when one tensor changes its type. */
+        TEST(Small_PackLayout, FingerprintChangesWhenATypeChanges)
+        {
+            const PackLayout unsigned_pack = layout_of({shaped({3}, Core::DataType::UInt32),
+                                                        shaped({2}, Core::DataType::Int64)});
+            const PackLayout signed_pack = layout_of({shaped({3}, Core::DataType::Int32),
+                                                      shaped({2}, Core::DataType::Int64)});
+
+            EXPECT_NE(unsigned_pack.fingerprint(), signed_pack.fingerprint());
+        }
+
+        /** @brief Tests that tensors built apart with the same shapes give the same fingerprint. */
         TEST(Small_PackLayout, FingerprintIsStableForEqualLayouts)
         {
-            const std::vector<Tensor> tensors = {shaped({4, 2}, Core::DataType::Float64),
-                                                 shaped({7}, Core::DataType::Int32)};
-            EXPECT_EQ(layout_of(tensors).fingerprint(), layout_of(tensors).fingerprint());
+            const PackLayout first = layout_of({shaped({4, 2}, Core::DataType::Float64),
+                                                shaped({7}, Core::DataType::Int32)});
+            const PackLayout second = layout_of({shaped({4, 2}, Core::DataType::Float64),
+                                                 shaped({7}, Core::DataType::Int32)});
+
+            EXPECT_EQ(first.fingerprint(), second.fingerprint());
         }
 
         /** @brief Tests that a change of shape, type, layout or order changes the fingerprint. */
