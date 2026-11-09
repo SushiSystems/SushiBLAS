@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/dispatch.hpp>
@@ -48,24 +50,67 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Medium_ScalarBinding, AppendsTheScalarsInTheElementType)
+        namespace
         {
-            const auto bound = Dispatch::bind_scalars(ScaleShift{}, Dispatch::ElementScalar(2.5),
-                                                      Dispatch::ElementScalar(1.0));
+            /** @brief The functor of the narrowing rows with a scale of 2.5 and a shift of 1.0 bound. */
+            using BoundScaleShift = Dispatch::ScalarBound<ScaleShift, 2>;
 
-            EXPECT_EQ(bound.narrow<double>()(4.0), 11.0);
-            EXPECT_EQ(bound.narrow<float>()(2.0f), 6.0f);
-            EXPECT_EQ(bound.narrow<int32_t>()(3), 7);
+            /** @brief Names one narrowing of the bound scale and shift to an element type. */
+            struct NarrowingRow
+            {
+                const char* name;                         /**< The row name a failure shows. */
+                double (*apply)(const BoundScaleShift&);  /**< Narrows to the type and applies the functor. */
+                double expected;                          /**< The element the functor returns. */
+            };
+
+            /** @brief Returns one row per element type. */
+            std::vector<NarrowingRow> narrowing_rows()
+            {
+                return {{"Double",
+                         [](const BoundScaleShift& bound) { return bound.narrow<double>()(4.0); },
+                         11.0},
+                        {"Float",
+                         [](const BoundScaleShift& bound)
+                         { return static_cast<double>(bound.narrow<float>()(2.0f)); },
+                         6.0},
+                        {"Int32",
+                         [](const BoundScaleShift& bound)
+                         { return static_cast<double>(bound.narrow<std::int32_t>()(3)); },
+                         7.0}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of narrowing_rows(). */
+        class Small_ScalarBinding : public ::testing::TestWithParam<NarrowingRow>
+        {
+        };
+
+        TEST_P(Small_ScalarBinding, AppendsTheScalarsInTheElementType)
+        {
+            const BoundScaleShift bound = Dispatch::bind_scalars(
+                ScaleShift{}, Dispatch::ElementScalar(2.5), Dispatch::ElementScalar(1.0));
+
+            EXPECT_EQ(GetParam().apply(bound), GetParam().expected);
         }
 
-        TEST(Medium_ScalarBinding, NarrowForPicksTheBoundFormOrPassesAPlainFunctor)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ScalarBinding, ::testing::ValuesIn(narrowing_rows()),
+            [](const ::testing::TestParamInfo<NarrowingRow>& info)
+            { return std::string(info.param.name); });
+
+        TEST(Small_ScalarBindingNarrowFor, ABoundFunctorIsNarrowed)
         {
             const auto bound = Dispatch::bind_scalars(ScaleShift{}, Dispatch::ElementScalar(3.0),
                                                       Dispatch::ElementScalar(-1.0));
-            const auto plain = [](double x) { return x + 1.0; };
 
             EXPECT_EQ(Dispatch::Detail::narrow_for(Dispatch::ElementTag<double>{}, bound)(2.0),
                       5.0);
+        }
+
+        TEST(Small_ScalarBindingNarrowFor, APlainFunctorPassesThrough)
+        {
+            const auto plain = [](double x) { return x + 1.0; };
+
             EXPECT_EQ(Dispatch::Detail::narrow_for(Dispatch::ElementTag<double>{}, plain)(2.0),
                       3.0);
         }
