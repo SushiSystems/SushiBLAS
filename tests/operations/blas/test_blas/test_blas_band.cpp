@@ -24,7 +24,7 @@
 /**
  * @file test_blas_band.cpp
  * @brief Tests the band routines against hand-computed results, their dense siblings and
- *        each other's kernels.
+ *        each other's kernels, one row per layout, kernel and element type.
  * @author Mustafa Garip
  */
 
@@ -47,12 +47,11 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_structured.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -114,27 +113,24 @@ namespace SushiBLAS
             /// @brief Order of the matrices the two kernels are compared on.
             constexpr int64_t K_MODE_ORDER = 64;
 
-            /// @brief Band widths the two kernels are compared at.
-            constexpr int64_t K_MODE_WIDTHS[] = {0, 1, 5, 63};
+            /**
+             * @brief Magnitude of one product of two entries drawn from [-1, 1] in both parts:
+             *        the bound of |a| * |b| for complex entries of modulus at most 2^(1/2).
+             */
+            constexpr double K_ENTRY_PRODUCT_MAGNITUDE = 2.0;
 
-            /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
+            /**
+             * @brief Ratio of error to rounding bound above which two kernels disagree: the
+             *        reference-tester threshold 16 times 4 for the growth of a tbsv solve whose
+             *        diagonal k + 2 dominates k off-diagonals of at most 1.
+             */
+            constexpr double K_AGREEMENT_THRESHOLD = 64.0;
 
-            /// @brief Both element orders a band can be stored in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
+            /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
+            constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
 
-            /// @brief Both triangles a band can hold.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
-
-            /// @brief Every form op(A) takes.
-            constexpr Core::Transpose K_TRANSPOSES[] = {Core::Transpose::NoTrans,
-                                                        Core::Transpose::Trans,
-                                                        Core::Transpose::ConjTrans};
-
-            /// @brief Both ways a triangular diagonal is read.
-            constexpr Core::Diag K_DIAGONALS[] = {Core::Diag::NonUnit, Core::Diag::Unit};
+            /// @brief Rounded operations on the path to a HALF result: the sum is carried in FLOAT32.
+            constexpr std::size_t K_HALF_ROUNDINGS = 2;
 
             /// @brief The worked matrix, row by row.
             const std::vector<double> K_WORKED_DENSE = {11, 12, 13, 0,  0,
@@ -175,6 +171,46 @@ namespace SushiBLAS
             /// @brief L = [1 0 0; 2 3 0; 0 4 5], the transpose of K_HAND_UPPER.
             const std::vector<double> K_HAND_LOWER = {1, 0, 0, 2, 3, 0, 0, 4, 5};
 
+            /// @brief Band widths the two kernels are compared at.
+            const std::vector<int64_t> K_MODE_WIDTHS = {0, 1, 5, 63};
+
+            /// @brief Both element orders a band can be stored in.
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
+
+            /// @brief Both triangles a band can hold.
+            const std::vector<Core::Uplo> K_TRIANGLES = {Core::Uplo::Upper, Core::Uplo::Lower};
+
+            /// @brief Every form op(A) takes.
+            const std::vector<Core::Transpose> K_TRANSPOSES = {Core::Transpose::NoTrans,
+                                                               Core::Transpose::Trans,
+                                                               Core::Transpose::ConjTrans};
+
+            /// @brief Both ways a triangular diagonal is read.
+            constexpr Core::Diag K_DIAGONALS[] = {Core::Diag::NonUnit, Core::Diag::Unit};
+
+            /// @brief Both kernels an operation has.
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceReference,
+                                                             ExecutionMode::ForceSYCL};
+
+            /// @brief The kernel the cases that compare the device with itself run.
+            const std::vector<ExecutionMode> K_DEVICE_MODE = {ExecutionMode::ForceSYCL};
+
+            /// @brief The five element types the band routines accept.
+            const std::vector<Core::DataType> K_ALL_TYPES = {
+                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
+                Core::DataType::Complex32, Core::DataType::Complex64};
+
+            /// @brief The complex element types, the only ones a conjugation changes.
+            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
+                                                                 Core::DataType::Complex64};
+
+            /// @brief The element type of the HALF accumulation cases.
+            const std::vector<Core::DataType> K_HALF_TYPE = {Core::DataType::Half};
+
+            /// @brief The element type of the cases of order K_LARGE_ORDER.
+            const std::vector<Core::DataType> K_FLOAT_TYPE = {Core::DataType::Float32};
+
             /** @brief Holds the flags of one triangular product of [1, 2, 3] and its result. */
             struct TriangularRow
             {
@@ -185,13 +221,21 @@ namespace SushiBLAS
             };
 
             /// @brief The triangular products of the design, section 10.3.
-            constexpr TriangularRow K_TRIANGULAR_ROWS[] = {
+            const std::vector<TriangularRow> K_TRIANGULAR_ROWS = {
                 {Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit, {5, 18, 15}},
                 {Core::Uplo::Upper, Core::Transpose::Trans, Core::Diag::NonUnit, {1, 8, 23}},
                 {Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::Unit, {5, 14, 3}},
                 {Core::Uplo::Upper, Core::Transpose::Trans, Core::Diag::Unit, {1, 4, 11}},
                 {Core::Uplo::Lower, Core::Transpose::NoTrans, Core::Diag::NonUnit, {1, 8, 23}},
                 {Core::Uplo::Lower, Core::Transpose::Trans, Core::Diag::NonUnit, {5, 18, 15}}};
+
+            /** @brief Holds the flags of one call on a triangle band. */
+            struct TriangleFlags
+            {
+                Core::Uplo uplo;       /**< The triangle. */
+                Core::Transpose trans; /**< The form of op(A). */
+                Core::Diag diag;       /**< How the diagonal is read. */
+            };
 
             /** @brief Holds the extents and the band widths of one general band matrix. */
             struct BandShape
@@ -206,72 +250,228 @@ namespace SushiBLAS
              * @brief Shapes at the edge of what gbmv accepts: one element, a band that leaves
              *        the matrix on one side, and widths larger than the matrix.
              */
-            constexpr BandShape K_EDGE_SHAPES[] = {{1, 1, 0, 0},
-                                                   {5, 2, 3, 0},
-                                                   {2, 5, 0, 3},
-                                                   {3, 4, 7, 7}};
+            const std::vector<BandShape> K_EDGE_SHAPES = {{1, 1, 0, 0},
+                                                          {5, 2, 3, 0},
+                                                          {2, 5, 0, 3},
+                                                          {3, 4, 7, 7}};
+
+            /** @brief Returns every combination of uplo, trans and diag. */
+            [[nodiscard]] std::vector<TriangleFlags> all_triangle_flags()
+            {
+                std::vector<TriangleFlags> flags;
+                for (const Core::Uplo uplo : K_TRIANGLES)
+                    for (const Core::Transpose trans : K_TRANSPOSES)
+                        for (const Core::Diag diag : K_DIAGONALS)
+                            flags.push_back({uplo, trans, diag});
+                return flags;
+            }
+
+            /** @brief Returns the word that names a triangle in a row name. */
+            [[nodiscard]] std::string word(Core::Uplo uplo)
+            {
+                return uplo == Core::Uplo::Upper ? "Upper" : "Lower";
+            }
+
+            /** @brief Returns the word that names a form of op(A) in a row name. */
+            [[nodiscard]] std::string word(Core::Transpose trans)
+            {
+                if (trans == Core::Transpose::NoTrans)
+                    return "NoTrans";
+                return trans == Core::Transpose::Trans ? "Trans" : "ConjTrans";
+            }
+
+            /** @brief Returns the word that names a diagonal in a row name. */
+            [[nodiscard]] std::string word(Core::Diag diag)
+            {
+                return diag == Core::Diag::Unit ? "Unit" : "NonUnit";
+            }
+
+            /** @brief Returns the word that names a layout in a row name. */
+            [[nodiscard]] std::string word(Core::Layout layout)
+            {
+                return layout == Core::Layout::RowMajor ? "RowMajor" : "ColumnMajor";
+            }
+
+            /** @brief Returns the word that names a kernel in a row name. */
+            [[nodiscard]] std::string word(ExecutionMode mode)
+            {
+                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
+            }
+
+            /** @brief Marks a row that varies over layout, kernel and element type alone. */
+            struct NoAxis
+            {
+            };
+
+            /** @brief Returns the empty tail of a row that has no further axis. */
+            [[nodiscard]] std::string axis_name(const NoAxis&)
+            {
+                return "";
+            }
+
+            /** @brief Returns the tail of a row named by a triangle. */
+            [[nodiscard]] std::string axis_name(Core::Uplo uplo)
+            {
+                return "_" + word(uplo);
+            }
+
+            /** @brief Returns the tail of a row named by a form of op(A). */
+            [[nodiscard]] std::string axis_name(Core::Transpose trans)
+            {
+                return "_" + word(trans);
+            }
+
+            /** @brief Returns the tail of a row named by a band width. */
+            [[nodiscard]] std::string axis_name(int64_t width)
+            {
+                return "_k" + std::to_string(width);
+            }
+
+            /** @brief Returns the tail of a row named by the flags of a call. */
+            [[nodiscard]] std::string axis_name(const TriangleFlags& flags)
+            {
+                return "_" + word(flags.uplo) + "_" + word(flags.trans) + "_" + word(flags.diag);
+            }
+
+            /** @brief Returns the tail of a row named by the flags of a triangular product. */
+            [[nodiscard]] std::string axis_name(const TriangularRow& row)
+            {
+                return axis_name(TriangleFlags{row.uplo, row.trans, row.diag});
+            }
+
+            /** @brief Returns the tail of a row named by the shape of a band matrix. */
+            [[nodiscard]] std::string axis_name(const BandShape& shape)
+            {
+                return "_" + std::to_string(shape.m) + "x" + std::to_string(shape.n) + "_kl" +
+                       std::to_string(shape.kl) + "_ku" + std::to_string(shape.ku);
+            }
 
             /**
-             * @brief Holds how far the results of two kernels may differ, as a fraction of the
-             *        larger of 1 and the expected magnitude.
-             * @tparam R sycl::half, float or double.
+             * @brief Holds one row of a band suite: the engine layout, the kernel, the element
+             *        type and the one axis the cases of the suite vary besides those.
+             * @tparam Axis NoAxis, or the type of the value that completes the row.
+             */
+            template<typename Axis>
+            struct Row
+            {
+                Core::Layout layout;   /**< The element order the engine is rebuilt in. */
+                ExecutionMode mode;    /**< The kernel the engine selects. */
+                Core::DataType type;   /**< The element type of every operand. */
+                Axis axis;             /**< The value that completes the row. */
+            };
+
+            /**
+             * @brief Returns every row over the layouts, the given kernels and types and axes.
+             * @param types The element types of the suite.
+             * @param modes The kernels of the suite.
+             * @param axes The values of the suite's own axis.
+             */
+            template<typename Axis>
+            [[nodiscard]] std::vector<Row<Axis>> rows_of(const std::vector<Core::DataType>& types,
+                                                         const std::vector<ExecutionMode>& modes,
+                                                         const std::vector<Axis>& axes)
+            {
+                std::vector<Row<Axis>> rows;
+                for (const Core::DataType type : types)
+                    for (const Core::Layout layout : K_LAYOUTS)
+                        for (const ExecutionMode mode : modes)
+                            for (const Axis& axis : axes)
+                                rows.push_back({layout, mode, type, axis});
+                return rows;
+            }
+
+            /** @brief Returns the rows of a suite that has no axis of its own. */
+            [[nodiscard]] std::vector<Row<NoAxis>> plain_rows(
+                const std::vector<Core::DataType>& types, const std::vector<ExecutionMode>& modes)
+            {
+                return rows_of(types, modes, std::vector<NoAxis>{NoAxis{}});
+            }
+
+            /** @brief Returns the name of a row for GoogleTest: layout, kernel, type, axis. */
+            template<typename Axis>
+            [[nodiscard]] std::string row_name(const ::testing::TestParamInfo<Row<Axis>>& info)
+            {
+                return word(info.param.layout) + "_" + word(info.param.mode) + "_" +
+                       Core::to_string(info.param.type) + axis_name(info.param.axis);
+            }
+
+            /** @brief Carries an element type to a generic lambda. */
+            template<typename T>
+            struct Element
+            {
+                using type = T; /**< The element type. */
+            };
+
+            /**
+             * @brief Calls body with the Element of a data type, so one row body serves every type.
+             * @param type One of the five types the band routines accept.
+             * @param body Callable taking an Element.
+             */
+            template<typename Body>
+            void with_element(Core::DataType type, Body&& body)
+            {
+                switch (type)
+                {
+                    case Core::DataType::Half:
+                        body(Element<sycl::half>{});
+                        break;
+                    case Core::DataType::Float32:
+                        body(Element<float>{});
+                        break;
+                    case Core::DataType::Float64:
+                        body(Element<double>{});
+                        break;
+                    case Core::DataType::Complex32:
+                        body(Element<std::complex<float>>{});
+                        break;
+                    case Core::DataType::Complex64:
+                        body(Element<std::complex<double>>{});
+                        break;
+                    default:
+                        FAIL() << "a band routine takes no such element type";
+                }
+            }
+
+            /** @brief Returns whether the test device computes in the component type of a data type. */
+            [[nodiscard]] bool device_runs(Core::DataType type)
+            {
+                const sycl::device device = TestEnvironment::queue().get_device();
+                if (type == Core::DataType::Half)
+                    return device.has(sycl::aspect::fp16);
+                if (type == Core::DataType::Float64 || type == Core::DataType::Complex64)
+                    return device.has(sycl::aspect::fp64);
+                return true;
+            }
+
+            /** @brief Returns the unit roundoff of the component type R of an element type. */
+            template<typename R>
+            [[nodiscard]] constexpr double unit_roundoff_of()
+            {
+                if constexpr (std::is_same_v<R, sycl::half>)
+                    return K_HALF_UNIT_ROUNDOFF;
+                else
+                    return TestSupport::unit_roundoff<R>();
+            }
+
+            /**
+             * @brief Returns the rounded operations on the path to one result of two kernels
+             *        that sum 2 * K_MODE_ORDER terms: the sum, and the carried solve.
              */
             template<typename R>
-            struct ModeTolerance;
-
-            /** @brief Allows two units in the last place of HALF. */
-            template<>
-            struct ModeTolerance<sycl::half>
+            [[nodiscard]] constexpr std::size_t agreement_roundings()
             {
-                /** @brief Absolute tolerance: one HALF rounding of a value of order one. */
-                static constexpr double K_VALUE = half_absolute_tolerance(1);
-            };
-
-            /** @brief Allows the rounding of a sum of 127 FLOAT32 products of unit size. */
-            template<>
-            struct ModeTolerance<float>
-            {
-                /** @brief Absolute tolerance: 128 FLOAT32 roundings of a value of order one. */
-                static constexpr double K_VALUE = absolute_tolerance<float>(128);
-            };
-
-            /** @brief Allows the rounding of a sum of 127 FLOAT64 products of unit size. */
-            template<>
-            struct ModeTolerance<double>
-            {
-                /** @brief Absolute tolerance: 8192 FLOAT64 roundings of a value of order one. */
-                static constexpr double K_VALUE = absolute_tolerance<double>(8192);
-            };
-
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
-            {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
-            }
-
-            /** @brief Returns the names of the flags of a triangular call. */
-            [[nodiscard]] std::string flags_name(Core::Uplo uplo, Core::Transpose trans,
-                                                 Core::Diag diag)
-            {
-                return std::string(Core::to_string(uplo)) + ", " + Core::to_string(trans) + ", " +
-                       Core::to_string(diag);
-            }
-
-            /** @brief Returns whether the test device computes in the component type of T. */
-            template<typename T>
-            [[nodiscard]] bool device_runs()
-            {
-                using R = Kernels::RealType<T>;
-                const sycl::device device =
-                    TestEnvironment::queue().get_device();
                 if constexpr (std::is_same_v<R, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<R, double>)
-                    return device.has(sycl::aspect::fp64);
+                    return K_HALF_ROUNDINGS;
                 else
-                    return true;
+                    return static_cast<std::size_t>(2 * K_MODE_ORDER);
+            }
+
+            /** @brief Returns the form of op(A) as the index into the three expectations of gbmv. */
+            [[nodiscard]] std::size_t form_index(Core::Transpose trans)
+            {
+                if (trans == Core::Transpose::NoTrans)
+                    return 0;
+                return trans == Core::Transpose::Trans ? 1 : 2;
             }
 
             /** @brief Returns value in T; a real T drops the imaginary part. */
@@ -443,42 +643,46 @@ namespace SushiBLAS
                 }
             }
 
-            /** @brief Expects both parts of every element within ModeTolerance of expected. */
+            /**
+             * @brief Expects both parts of every element within the rounding bound two kernels
+             *        of the component type of T may differ by.
+             *
+             * The bound is rounded operations * unit roundoff * magnitude, measured through
+             * TestSupport::measure_error; the magnitude is the largest of 1 and the expected
+             * modulus, times K_ENTRY_PRODUCT_MAGNITUDE.
+             */
             template<typename T>
             void expect_near(const std::vector<T>& actual, const std::vector<T>& expected)
             {
-                const double tolerance = ModeTolerance<Kernels::RealType<T>>::K_VALUE;
+                using R = Kernels::RealType<T>;
 
                 ASSERT_EQ(actual.size(), expected.size());
                 for (std::size_t i = 0; i < actual.size(); ++i)
                 {
                     const Wide a = widened(actual[i]);
                     const Wide e = widened(expected[i]);
-                    const double bound = tolerance * std::max(1.0, std::abs(e));
-                    EXPECT_LE(std::abs(a.real() - e.real()), bound)
+                    const double magnitude =
+                        K_ENTRY_PRODUCT_MAGNITUDE * std::max(1.0, std::abs(e));
+                    const double bound = static_cast<double>(agreement_roundings<R>()) *
+                                         unit_roundoff_of<R>() * magnitude;
+
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        a.real(), e.real(), bound, K_AGREEMENT_THRESHOLD)))
                         << "real part of element " << i;
-                    EXPECT_LE(std::abs(a.imag() - e.imag()), bound)
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        a.imag(), e.imag(), bound, K_AGREEMENT_THRESHOLD)))
                         << "imaginary part of element " << i;
                 }
             }
         } // namespace
 
         /**
-         * @brief Builds band, dense and vector operands of element type T and records the band
-         *        routines on them.
+         * @brief Builds band, dense and vector operands of any element type and records the
+         *        band routines on them.
          */
-        template<typename T>
-        class BLASBandCases : public SushiBLASTest
+        class BlasBandCase : public SushiBLASTest
         {
             protected:
-                /** @brief Skips the case on a device that lacks the component type of T. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>())
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                }
-
                 /** @brief Rebuilds the engine in a layout and selects a kernel. */
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
@@ -486,25 +690,8 @@ namespace SushiBLAS
                     this->set_mode(mode);
                 }
 
-                /**
-                 * @brief Runs body once in each layout under each kernel.
-                 * @param body Callable `(Core::Layout)`, called after the engine is rebuilt.
-                 */
-                template<typename Body>
-                void for_each_engine(Body&& body)
-                {
-                    for (const Core::Layout layout : K_LAYOUTS)
-                    {
-                        for (const ExecutionMode mode : K_MODES)
-                        {
-                            SCOPED_TRACE(engine_name(layout, mode));
-                            start(layout, mode);
-                            body(layout);
-                        }
-                    }
-                }
-
                 /** @brief Returns a tensor of dims that holds stored in storage order. */
+                template<typename T>
                 [[nodiscard]] Tensor tensor_of(const std::vector<int64_t>& dims,
                                                const std::vector<T>& stored)
                 {
@@ -520,38 +707,42 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns a rank-1 tensor that holds values. */
+                template<typename T>
                 [[nodiscard]] Tensor vector_of(const std::vector<T>& values)
                 {
-                    return tensor_of({static_cast<int64_t>(values.size())}, values);
+                    return tensor_of<T>({static_cast<int64_t>(values.size())}, values);
                 }
 
                 /** @brief Returns a rows x cols tensor that holds the row-ordered values. */
+                template<typename T>
                 [[nodiscard]] Tensor dense_of(int64_t rows, int64_t cols,
                                               const std::vector<T>& row_ordered)
                 {
-                    return tensor_of({rows, cols}, in_layout(row_ordered, rows, cols,
-                                                             this->engine->layout()));
+                    return tensor_of<T>({rows, cols}, in_layout(row_ordered, rows, cols,
+                                                                this->engine->layout()));
                 }
 
                 /**
                  * @brief Returns the tensor of the band storage of an m x n matrix.
                  * @param band n lines of ld elements under COLUMN_MAJOR, m lines under ROW_MAJOR.
                  */
+                template<typename T>
                 [[nodiscard]] Tensor band_of(const std::vector<T>& band, int64_t m, int64_t n,
                                              int64_t ld)
                 {
                     if (this->engine->layout() == Core::Layout::ColumnMajor)
-                        return tensor_of({ld, n}, band);
-                    return tensor_of({m, ld}, band);
+                        return tensor_of<T>({ld, n}, band);
+                    return tensor_of<T>({m, ld}, band);
                 }
 
                 /** @brief Returns the band tensor of one triangle of a dense n x n matrix. */
+                template<typename T>
                 [[nodiscard]] Tensor triangle_band_of(const std::vector<T>& dense, int64_t n,
                                                       Core::Uplo uplo, int64_t k)
                 {
-                    return band_of(to_triangle_band(dense, n, uplo, k, k + 1,
-                                                    this->engine->layout(), poison<T>()),
-                                   n, n, k + 1);
+                    return band_of<T>(to_triangle_band(dense, n, uplo, k, k + 1,
+                                                       this->engine->layout(), poison<T>()),
+                                      n, n, k + 1);
                 }
 
                 /** @brief Returns a view of every second element of a rank-1 parent. */
@@ -568,15 +759,16 @@ namespace SushiBLAS
                  * @brief Returns y after gbmv on the worked matrix.
                  * @param band Its band storage in the layout of the engine, ld elements a line.
                  */
+                template<typename T>
                 [[nodiscard]] std::vector<T> worked_gbmv(const std::vector<T>& band, int64_t ld,
                                                          Core::Transpose trans,
                                                          const std::vector<double>& x,
                                                          const std::vector<T>& y,
                                                          BLASScalar alpha, BLASScalar beta)
                 {
-                    const Tensor A = band_of(band, K_WORKED_ROWS, K_WORKED_COLS, ld);
-                    const Tensor x_tensor = vector_of(elements<T>(x));
-                    Tensor y_tensor = vector_of(y);
+                    const Tensor A = band_of<T>(band, K_WORKED_ROWS, K_WORKED_COLS, ld);
+                    const Tensor x_tensor = vector_of<T>(elements<T>(x));
+                    Tensor y_tensor = vector_of<T>(y);
 
                     SushiBLAS::BLASOps(this->recorder()).gbmv(A, x_tensor, y_tensor, K_WORKED_KL,
                                                            K_WORKED_KU, trans, alpha, beta);
@@ -585,6 +777,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the literal band storage of the worked matrix for a layout. */
+                template<typename T>
                 [[nodiscard]] static std::vector<T> worked_band(Core::Layout layout)
                 {
                     return elements<T>(layout == Core::Layout::ColumnMajor
@@ -593,9 +786,10 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the band tensor of K_HAND_UPPER or K_HAND_LOWER. */
+                template<typename T>
                 [[nodiscard]] Tensor hand_triangle(Core::Uplo uplo)
                 {
-                    return triangle_band_of(
+                    return triangle_band_of<T>(
                         elements<T>(uplo == Core::Uplo::Upper ? K_HAND_UPPER : K_HAND_LOWER),
                         K_HAND_ORDER, uplo, 1);
                 }
@@ -607,12 +801,12 @@ namespace SushiBLAS
                  * @param second Callable `(Tensor&)` that records on the second copy.
                  * @return What the first call left.
                  */
-                template<typename First, typename Second>
+                template<typename T, typename First, typename Second>
                 std::vector<T> expect_same_result(const std::vector<T>& initial, First&& first,
                                                   Second&& second)
                 {
-                    Tensor from_first = vector_of(initial);
-                    Tensor from_second = vector_of(initial);
+                    Tensor from_first = vector_of<T>(initial);
+                    Tensor from_second = vector_of<T>(initial);
                     first(from_first);
                     second(from_second);
                     this->recording->run().value();
@@ -626,6 +820,7 @@ namespace SushiBLAS
                  * @brief Returns y of gbmv on a full band of order K_LARGE_ORDER, then y of gemv
                  *        on the same matrix.
                  */
+                template<typename T>
                 [[nodiscard]] std::array<std::vector<T>, 2> large_general_products()
                 {
                     const int64_t n = K_LARGE_ORDER;
@@ -633,15 +828,15 @@ namespace SushiBLAS
                     std::mt19937 generator(K_SEED);
                     const std::vector<T> dense = random_elements<T>(generator, n * n);
 
-                    const Tensor band = band_of(
+                    const Tensor band = band_of<T>(
                         to_band(dense, n, n, n - 1, n - 1, ld, this->engine->layout(),
                                 poison<T>()),
                         n, n, ld);
-                    const Tensor full = dense_of(n, n, dense);
-                    const Tensor x = vector_of(random_elements<T>(generator, n));
+                    const Tensor full = dense_of<T>(n, n, dense);
+                    const Tensor x = vector_of<T>(random_elements<T>(generator, n));
                     const std::vector<T> y = random_elements<T>(generator, n);
-                    Tensor from_band = vector_of(y);
-                    Tensor from_dense = vector_of(y);
+                    Tensor from_band = vector_of<T>(y);
+                    Tensor from_dense = vector_of<T>(y);
 
                     SushiBLAS::BLASOps ops(this->recorder());
                     ops.gbmv(band, x, from_band, n - 1, n - 1, Core::Transpose::NoTrans, K_ALPHA,
@@ -655,18 +850,19 @@ namespace SushiBLAS
                  * @brief Returns y of sbmv on a full upper band of order K_LARGE_ORDER, then y of
                  *        symv on the same matrix.
                  */
+                template<typename T>
                 [[nodiscard]] std::array<std::vector<T>, 2> large_symmetric_products()
                 {
                     const int64_t n = K_LARGE_ORDER;
                     std::mt19937 generator(K_SEED);
                     const std::vector<T> dense = random_elements<T>(generator, n * n);
 
-                    const Tensor band = triangle_band_of(dense, n, Core::Uplo::Upper, n - 1);
-                    const Tensor full = dense_of(n, n, dense);
-                    const Tensor x = vector_of(random_elements<T>(generator, n));
+                    const Tensor band = triangle_band_of<T>(dense, n, Core::Uplo::Upper, n - 1);
+                    const Tensor full = dense_of<T>(n, n, dense);
+                    const Tensor x = vector_of<T>(random_elements<T>(generator, n));
                     const std::vector<T> y = random_elements<T>(generator, n);
-                    Tensor from_band = vector_of(y);
-                    Tensor from_dense = vector_of(y);
+                    Tensor from_band = vector_of<T>(y);
+                    Tensor from_dense = vector_of<T>(y);
 
                     SushiBLAS::BLASOps ops(this->recorder());
                     ops.sbmv(band, x, from_band, Core::Uplo::Upper, n - 1, K_ALPHA, K_BETA);
@@ -679,6 +875,7 @@ namespace SushiBLAS
                  * @brief Returns the results of gbmv, sbmv, hbmv, tbmv and tbsv, one after
                  *        another, on random matrices of order K_MODE_ORDER with k off-diagonals.
                  */
+                template<typename T>
                 [[nodiscard]] std::vector<T> banded_results(int64_t k)
                 {
                     const int64_t n = K_MODE_ORDER;
@@ -693,22 +890,22 @@ namespace SushiBLAS
                     const std::vector<T> x = random_elements<T>(generator, n);
                     const std::vector<T> y = random_elements<T>(generator, n);
 
-                    const Tensor band = band_of(
+                    const Tensor band = band_of<T>(
                         to_band(general, n, n, k, k, 2 * k + 1, layout, poison<T>()), n, n,
                         2 * k + 1);
-                    const Tensor upper = triangle_band_of(general, n, Core::Uplo::Upper, k);
-                    const Tensor lower = triangle_band_of(general, n, Core::Uplo::Lower, k);
+                    const Tensor upper = triangle_band_of<T>(general, n, Core::Uplo::Upper, k);
+                    const Tensor lower = triangle_band_of<T>(general, n, Core::Uplo::Lower, k);
                     const Tensor upper_dominant =
-                        triangle_band_of(dominant, n, Core::Uplo::Upper, k);
+                        triangle_band_of<T>(dominant, n, Core::Uplo::Upper, k);
                     const Tensor lower_dominant =
-                        triangle_band_of(dominant, n, Core::Uplo::Lower, k);
-                    const Tensor x_tensor = vector_of(x);
+                        triangle_band_of<T>(dominant, n, Core::Uplo::Lower, k);
+                    const Tensor x_tensor = vector_of<T>(x);
 
                     std::vector<Tensor> results;
                     for (int routine = 0; routine < 3; ++routine)
-                        results.push_back(vector_of(y));
+                        results.push_back(vector_of<T>(y));
                     for (int routine = 0; routine < 2; ++routine)
-                        results.push_back(vector_of(x));
+                        results.push_back(vector_of<T>(x));
 
                     SushiBLAS::BLASOps ops(this->recorder());
                     ops.gbmv(band, x_tensor, results[0], k, k, Core::Transpose::ConjTrans,
@@ -731,99 +928,155 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Runs the band routines over the five element types. */
-        template<typename T>
-        class Medium_BlasBand : public BLASBandCases<T>
+        /**
+         * @brief Runs a case once per row: rebuilds the engine in the layout of the row, selects
+         *        its kernel and skips a device that lacks the element type.
+         * @tparam Axis NoAxis, or the type of the value that completes each row.
+         */
+        template<typename Axis>
+        class BandRowCase : public BlasBandCase, public ::testing::WithParamInterface<Row<Axis>>
+        {
+            protected:
+                /** @brief Starts the engine of the row, or skips the case. */
+                void SetUp() override
+                {
+                    BlasBandCase::SetUp();
+                    if (!device_runs(this->GetParam().type))
+                        GTEST_SKIP() << "the device does not compute in this element type";
+                    start(this->GetParam().layout, this->GetParam().mode);
+                }
+        };
+
+        /** @brief Runs the worked-matrix, sibling and hand cases over the five element types. */
+        class Medium_BlasBand : public BandRowCase<NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the gbmv edge shapes. */
+        class Medium_BlasBandShape : public BandRowCase<BandShape>
+        {
+
+        };
+
+        /** @brief Runs the cases that take one triangle. */
+        class Medium_BlasBandTriangle : public BandRowCase<Core::Uplo>
+        {
+
+        };
+
+        /** @brief Runs the cases that take one form of op(A). */
+        class Medium_BlasBandForm : public BandRowCase<Core::Transpose>
+        {
+
+        };
+
+        /** @brief Runs the hand products of the triangular routines. */
+        class Medium_BlasBandProduct : public BandRowCase<TriangularRow>
+        {
+
+        };
+
+        /** @brief Runs the full-triangle comparisons over every flag combination. */
+        class Medium_BlasBandFlags : public BandRowCase<TriangleFlags>
+        {
+
+        };
+
+        /** @brief Runs the comparison of the two kernels at each band width. */
+        class Medium_BlasBandWidth : public BandRowCase<int64_t>
         {
 
         };
 
         /** @brief Runs the conjugating band cases over the complex element types. */
-        template<typename T>
-        class Medium_BlasBandComplex : public BLASBandCases<T>
+        class Medium_BlasBandComplex : public BandRowCase<NoAxis>
         {
 
         };
 
-        /// @brief Names the suite of the HALF accumulation cases.
-        using Medium_BlasBandHalf = BLASBandCases<sycl::half>;
-
-        /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Medium_BlasBandLarge = BLASBandCases<float>;
-
-        /// @brief Names the five element types the band routines accept.
-        using BLASBandTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
-                                               std::complex<double>>;
-        /// @brief Names the complex element types, the only ones a conjugation changes.
-        using BLASBandComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_BlasBand, BLASBandTypes);
-        SB_TYPED_TEST_SUITE(Medium_BlasBandComplex, BLASBandComplexTypes);
-
-        /**
-         * @brief Tests gbmv on the literal band arrays of the worked matrix.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvMatchesTheWorkedMatrix)
+        /** @brief Runs the conjugating cases that take one triangle over the complex types. */
+        class Medium_BlasBandComplexTriangle : public BandRowCase<Core::Uplo>
         {
-            using T = TypeParam;
 
-            this->for_each_engine([&](Core::Layout layout)
+        };
+
+        /** @brief Runs the conjugating cases that take one form of op(A) over the complex types. */
+        class Medium_BlasBandComplexForm : public BandRowCase<Core::Transpose>
+        {
+
+        };
+
+        /** @brief Runs the HALF accumulation cases. */
+        class Medium_BlasBandHalf : public BandRowCase<NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the FLOAT32 cases of order K_LARGE_ORDER. */
+        class Medium_BlasBandLarge : public BandRowCase<NoAxis>
+        {
+
+        };
+
+        /** @brief Tests gbmv on the literal band arrays of the worked matrix. */
+        TEST_P(Medium_BlasBand, GbmvMatchesTheWorkedMatrix)
+        {
+            with_element(GetParam().type, [&](auto element)
             {
-                const std::vector<T> y = this->worked_gbmv(
-                    TestFixture::worked_band(layout), K_WORKED_LD, Core::Transpose::NoTrans,
+                using T = typename decltype(element)::type;
+
+                const std::vector<T> y = worked_gbmv<T>(
+                    worked_band<T>(GetParam().layout), K_WORKED_LD, Core::Transpose::NoTrans,
                     {1, 2, 3, 4, 5}, std::vector<T>(4, poison<T>()), 1.0, 0.0);
 
                 expect_equal(y, elements<T>({74, 230, 474, 530}));
             });
         }
 
-        /**
-         * @brief Tests that gbmv scales the product by alpha and the prior y by beta.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvScalesAndAccumulates)
+        /** @brief Tests that gbmv scales the product by alpha and the prior y by beta. */
+        TEST_P(Medium_BlasBand, GbmvScalesAndAccumulates)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const std::vector<T> y = this->worked_gbmv(
-                    TestFixture::worked_band(layout), K_WORKED_LD, Core::Transpose::NoTrans,
+                using T = typename decltype(element)::type;
+
+                const std::vector<T> y = worked_gbmv<T>(
+                    worked_band<T>(GetParam().layout), K_WORKED_LD, Core::Transpose::NoTrans,
                     {1, 2, 3, 4, 5}, elements<T>({1, 1, 1, 1}), 2.0, -1.0);
 
                 expect_equal(y, elements<T>({147, 459, 947, 1059}));
             });
         }
 
-        /**
-         * @brief Tests gbmv on the transpose of the worked matrix.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvTransposed)
+        /** @brief Tests gbmv on the transpose of the worked matrix. */
+        TEST_P(Medium_BlasBand, GbmvTransposed)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const std::vector<T> y = this->worked_gbmv(
-                    TestFixture::worked_band(layout), K_WORKED_LD, Core::Transpose::Trans,
+                using T = typename decltype(element)::type;
+
+                const std::vector<T> y = worked_gbmv<T>(
+                    worked_band<T>(GetParam().layout), K_WORKED_LD, Core::Transpose::Trans,
                     {1, 2, 3, 4}, std::vector<T>(5, poison<T>()), 1.0, 0.0);
 
                 expect_equal(y, elements<T>({53, 152, 330, 326, 285}));
             });
         }
 
-        /**
-         * @brief Tests that gbmv reads no slot past the band of a line.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvIgnoresSpareSlots)
+        /** @brief Tests that gbmv reads no slot past the band of a line. */
+        TEST_P(Medium_BlasBand, GbmvIgnoresSpareSlots)
         {
-            using T = TypeParam;
             constexpr int64_t wide_ld = K_WORKED_LD + 2;
 
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
+                using T = typename decltype(element)::type;
+
                 const std::vector<T> band =
                     to_band(elements<T>(K_WORKED_DENSE), K_WORKED_ROWS, K_WORKED_COLS,
-                            K_WORKED_KL, K_WORKED_KU, wide_ld, layout, poison<T>());
-                const std::vector<T> y = this->worked_gbmv(
+                            K_WORKED_KL, K_WORKED_KU, wide_ld, GetParam().layout, poison<T>());
+                const std::vector<T> y = worked_gbmv<T>(
                     band, wide_ld, Core::Transpose::NoTrans, {1, 2, 3, 4, 5},
                     std::vector<T>(4, poison<T>()), 1.0, 0.0);
 
@@ -831,73 +1084,65 @@ namespace SushiBLAS
             });
         }
 
-        /**
-         * @brief Tests gbmv on shapes at the edge of what it accepts against a host loop.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvEdgeShapes)
+        /** @brief Tests gbmv on a shape at the edge of what it accepts against a host loop. */
+        TEST_P(Medium_BlasBandShape, GbmvMatchesAHostLoop)
         {
-            using T = TypeParam;
+            const BandShape shape = GetParam().axis;
+            const int64_t ld = shape.kl + shape.ku + 1;
 
-            this->for_each_engine([&](Core::Layout layout)
+            std::vector<double> dense(static_cast<std::size_t>(shape.m * shape.n));
+            std::vector<double> x(static_cast<std::size_t>(shape.n));
+            std::vector<double> expected(static_cast<std::size_t>(shape.m), 0.0);
+            for (int64_t j = 0; j < shape.n; ++j)
+                x[static_cast<std::size_t>(j)] = static_cast<double>(j + 1);
+            for (int64_t i = 0; i < shape.m; ++i)
             {
-                for (const BandShape& shape : K_EDGE_SHAPES)
+                for (int64_t j = 0; j < shape.n; ++j)
                 {
-                    SCOPED_TRACE(::testing::Message() << shape.m << " x " << shape.n << ", kl "
-                                                      << shape.kl << ", ku " << shape.ku);
-                    const int64_t ld = shape.kl + shape.ku + 1;
-
-                    std::vector<double> dense(static_cast<std::size_t>(shape.m * shape.n));
-                    std::vector<double> x(static_cast<std::size_t>(shape.n));
-                    std::vector<double> expected(static_cast<std::size_t>(shape.m), 0.0);
-                    for (int64_t j = 0; j < shape.n; ++j)
-                        x[static_cast<std::size_t>(j)] = static_cast<double>(j + 1);
-                    for (int64_t i = 0; i < shape.m; ++i)
-                    {
-                        for (int64_t j = 0; j < shape.n; ++j)
-                        {
-                            const std::size_t at = static_cast<std::size_t>(i * shape.n + j);
-                            dense[at] = static_cast<double>((i * shape.n + j) % 5 + 1);
-                            if (j - i <= shape.ku && i - j <= shape.kl)
-                                expected[static_cast<std::size_t>(i)] +=
-                                    dense[at] * x[static_cast<std::size_t>(j)];
-                        }
-                    }
-
-                    const Tensor A = this->band_of(
-                        to_band(elements<T>(dense), shape.m, shape.n, shape.kl, shape.ku, ld,
-                                layout, poison<T>()),
-                        shape.m, shape.n, ld);
-                    const Tensor x_tensor = this->vector_of(elements<T>(x));
-                    Tensor y = this->vector_of(
-                        std::vector<T>(static_cast<std::size_t>(shape.m), poison<T>()));
-
-                    SushiBLAS::BLASOps(this->recorder()).gbmv(A, x_tensor, y, shape.kl, shape.ku);
-                    this->recording->run().value();
-
-                    expect_equal(read_tensor<T>(y), elements<T>(expected));
+                    const std::size_t at = static_cast<std::size_t>(i * shape.n + j);
+                    dense[at] = static_cast<double>((i * shape.n + j) % 5 + 1);
+                    if (j - i <= shape.ku && i - j <= shape.kl)
+                        expected[static_cast<std::size_t>(i)] +=
+                            dense[at] * x[static_cast<std::size_t>(j)];
                 }
+            }
+
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+
+                const Tensor A = band_of<T>(
+                    to_band(elements<T>(dense), shape.m, shape.n, shape.kl, shape.ku, ld,
+                            GetParam().layout, poison<T>()),
+                    shape.m, shape.n, ld);
+                const Tensor x_tensor = vector_of<T>(elements<T>(x));
+                Tensor y = vector_of<T>(
+                    std::vector<T>(static_cast<std::size_t>(shape.m), poison<T>()));
+
+                SushiBLAS::BLASOps(recorder()).gbmv(A, x_tensor, y, shape.kl, shape.ku);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(y), elements<T>(expected));
             });
         }
 
-        /**
-         * @brief Tests that gbmv on a matrix of no columns only scales y by beta.
-         */
-        TYPED_TEST(Medium_BlasBand, GbmvOfNoColumnsScalesY)
+        /** @brief Tests that gbmv on a matrix of no columns only scales y by beta. */
+        TEST_P(Medium_BlasBand, GbmvOfNoColumnsScalesY)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const bool by_columns = (layout == Core::Layout::ColumnMajor);
-                const Tensor A = this->band_of(
+                using T = typename decltype(element)::type;
+                const bool by_columns = (GetParam().layout == Core::Layout::ColumnMajor);
+
+                const Tensor A = band_of<T>(
                     std::vector<T>(by_columns ? std::size_t{0} : std::size_t{2}, poison<T>()),
                     2, 0, 1);
-                const Tensor x = this->vector_of({});
-                Tensor y = this->vector_of(elements<T>({1, 2}));
+                const Tensor x = vector_of<T>(std::vector<T>{});
+                Tensor y = vector_of<T>(elements<T>({1, 2}));
 
-                SushiBLAS::BLASOps(this->recorder()).gbmv(A, x, y, 0, 0, Core::Transpose::NoTrans,
-                                                       1.0, 3.0);
-                this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).gbmv(A, x, y, 0, 0, Core::Transpose::NoTrans,
+                                                   1.0, 3.0);
+                recording->run().value();
 
                 expect_equal(read_tensor<T>(y), elements<T>({3, 6}));
             });
@@ -907,80 +1152,68 @@ namespace SushiBLAS
          * @brief Tests sbmv on the literal band arrays of a tridiagonal matrix, where a
          *        mistaken layout or triangle reads another matrix.
          */
-        TYPED_TEST(Medium_BlasBand, SbmvMatchesTheTridiagonal)
+        TEST_P(Medium_BlasBandTriangle, SbmvMatchesTheTridiagonal)
         {
-            using T = TypeParam;
             const int64_t n = K_TRIDIAGONAL_ORDER;
+            const Core::Uplo uplo = GetParam().axis;
+            const bool diagonal_last =
+                (uplo == Core::Uplo::Upper) == (GetParam().layout == Core::Layout::ColumnMajor);
 
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const bool diagonal_last = (uplo == Core::Uplo::Upper) ==
-                                               (layout == Core::Layout::ColumnMajor);
-                    const Tensor A = this->band_of(
-                        elements<T>(diagonal_last ? K_TRIDIAGONAL_DIAGONAL_LAST
-                                                  : K_TRIDIAGONAL_DIAGONAL_FIRST),
-                        n, n, 2);
-                    const Tensor x = this->vector_of(elements<T>({1, 2, 3, 4}));
-                    Tensor y = this->vector_of(std::vector<T>(4, poison<T>()));
+                using T = typename decltype(element)::type;
 
-                    SushiBLAS::BLASOps(this->recorder()).sbmv(A, x, y, uplo, 1);
-                    this->recording->run().value();
+                const Tensor A = band_of<T>(
+                    elements<T>(diagonal_last ? K_TRIDIAGONAL_DIAGONAL_LAST
+                                              : K_TRIDIAGONAL_DIAGONAL_FIRST),
+                    n, n, 2);
+                const Tensor x = vector_of<T>(elements<T>({1, 2, 3, 4}));
+                Tensor y = vector_of<T>(std::vector<T>(4, poison<T>()));
 
-                    expect_equal(read_tensor<T>(y), elements<T>({5, 20, 47, 46}));
-                }
+                SushiBLAS::BLASOps(recorder()).sbmv(A, x, y, uplo, 1);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(y), elements<T>({5, 20, 47, 46}));
             });
         }
 
-        /**
-         * @brief Tests tbmv on both hand triangles, transposed and with a unit diagonal.
-         */
-        TYPED_TEST(Medium_BlasBand, TbmvMatchesByHand)
+        /** @brief Tests tbmv on one hand triangle, transposed or with a unit diagonal. */
+        TEST_P(Medium_BlasBandProduct, TbmvMatchesByHand)
         {
-            using T = TypeParam;
+            const TriangularRow row = GetParam().axis;
 
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const TriangularRow& row : K_TRIANGULAR_ROWS)
-                {
-                    SCOPED_TRACE(flags_name(row.uplo, row.trans, row.diag));
-                    const Tensor A = this->hand_triangle(row.uplo);
-                    Tensor x = this->vector_of(elements<T>({1, 2, 3}));
+                using T = typename decltype(element)::type;
 
-                    SushiBLAS::BLASOps(this->recorder()).tbmv(A, x, row.uplo, 1, row.trans,
-                                                           row.diag);
-                    this->recording->run().value();
+                const Tensor A = hand_triangle<T>(row.uplo);
+                Tensor x = vector_of<T>(elements<T>({1, 2, 3}));
 
-                    expect_equal(read_tensor<T>(x),
-                                 elements<T>({row.product[0], row.product[1], row.product[2]}));
-                }
+                SushiBLAS::BLASOps(recorder()).tbmv(A, x, row.uplo, 1, row.trans, row.diag);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(x),
+                             elements<T>({row.product[0], row.product[1], row.product[2]}));
             });
         }
 
-        /**
-         * @brief Tests that tbsv recovers [1, 2, 3] from each product of TbmvMatchesByHand.
-         */
-        TYPED_TEST(Medium_BlasBand, TbsvInvertsTbmv)
+        /** @brief Tests that tbsv recovers [1, 2, 3] from the product of TbmvMatchesByHand. */
+        TEST_P(Medium_BlasBandProduct, TbsvInvertsTbmv)
         {
-            using T = TypeParam;
+            const TriangularRow row = GetParam().axis;
 
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const TriangularRow& row : K_TRIANGULAR_ROWS)
-                {
-                    SCOPED_TRACE(flags_name(row.uplo, row.trans, row.diag));
-                    const Tensor A = this->hand_triangle(row.uplo);
-                    Tensor b = this->vector_of(
-                        elements<T>({row.product[0], row.product[1], row.product[2]}));
+                using T = typename decltype(element)::type;
 
-                    SushiBLAS::BLASOps(this->recorder()).tbsv(A, b, row.uplo, 1, row.trans,
-                                                           row.diag);
-                    this->recording->run().value();
+                const Tensor A = hand_triangle<T>(row.uplo);
+                Tensor b = vector_of<T>(
+                    elements<T>({row.product[0], row.product[1], row.product[2]}));
 
-                    expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
-                }
+                SushiBLAS::BLASOps(recorder()).tbsv(A, b, row.uplo, 1, row.trans, row.diag);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
             });
         }
 
@@ -988,95 +1221,111 @@ namespace SushiBLAS
          * @brief Tests that tbsv solves in a view of every second element and leaves the
          *        elements between as they were.
          */
-        TYPED_TEST(Medium_BlasBand, TbsvTakesAStridedVector)
+        TEST_P(Medium_BlasBand, TbsvTakesAStridedVector)
         {
-            using T = TypeParam;
-
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const Tensor A = this->hand_triangle(Core::Uplo::Upper);
-                Tensor parent = this->vector_of(
-                    elements<T>({5, K_POISON, 18, K_POISON, 15, K_POISON}));
-                Tensor b = TestFixture::every_second_element(parent);
+                using T = typename decltype(element)::type;
 
-                SushiBLAS::BLASOps(this->recorder()).tbsv(A, b, Core::Uplo::Upper, 1);
-                this->recording->run().value();
+                const Tensor A = hand_triangle<T>(Core::Uplo::Upper);
+                Tensor parent = vector_of<T>(
+                    elements<T>({5, K_POISON, 18, K_POISON, 15, K_POISON}));
+                Tensor b = every_second_element(parent);
+
+                SushiBLAS::BLASOps(recorder()).tbsv(A, b, Core::Uplo::Upper, 1);
+                recording->run().value();
 
                 expect_equal(read_tensor<T>(parent),
                              elements<T>({1, K_POISON, 2, K_POISON, 3, K_POISON}));
             });
         }
 
-        /**
-         * @brief Tests that a band wide enough to hold the whole matrix gives the elements of
-         *        gemv, symv and hemv.
-         */
-        TYPED_TEST(Medium_BlasBand, AFullBandEqualsTheDenseSibling)
+        /** @brief Tests that a band wide enough to hold the whole matrix gives the elements of gemv. */
+        TEST_P(Medium_BlasBandForm, AFullGeneralBandEqualsGemv)
         {
-            using T = TypeParam;
+            const Core::Transpose trans = GetParam().axis;
+            const bool transposed = Core::is_transposed(trans);
 
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
+                using T = typename decltype(element)::type;
                 std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(this->recorder());
+                SushiBLAS::BLASOps ops(recorder());
 
                 const int64_t m = K_SIBLING_ROWS;
                 const int64_t n = K_SIBLING_COLS;
                 const int64_t ld = m + n - 1;
                 const std::vector<T> general = random_elements<T>(generator, m * n);
-                const Tensor band = this->band_of(
-                    to_band(general, m, n, m - 1, n - 1, ld, layout, poison<T>()), m, n, ld);
-                const Tensor full = this->dense_of(m, n, general);
+                const Tensor band = band_of<T>(
+                    to_band(general, m, n, m - 1, n - 1, ld, GetParam().layout, poison<T>()), m, n,
+                    ld);
+                const Tensor full = dense_of<T>(m, n, general);
+                const Tensor x = vector_of<T>(random_elements<T>(generator, transposed ? m : n));
+                const std::vector<T> y = random_elements<T>(generator, transposed ? n : m);
 
-                for (const Core::Transpose trans : K_TRANSPOSES)
-                {
-                    SCOPED_TRACE(std::string("gbmv, ") + Core::to_string(trans));
-                    const bool transposed = Core::is_transposed(trans);
-                    const Tensor x =
-                        this->vector_of(random_elements<T>(generator, transposed ? m : n));
-                    const std::vector<T> y = random_elements<T>(generator, transposed ? n : m);
+                expect_same_result<T>(
+                    y,
+                    [&](Tensor& out)
+                    {
+                        ops.gbmv(band, x, out, m - 1, n - 1, trans, K_ALPHA, K_BETA);
+                    },
+                    [&](Tensor& out) { ops.gemv(full, x, out, trans, K_ALPHA, K_BETA); });
+            });
+        }
 
-                    this->expect_same_result(
-                        y,
-                        [&](Tensor& out)
-                        {
-                            ops.gbmv(band, x, out, m - 1, n - 1, trans, K_ALPHA, K_BETA);
-                        },
-                        [&](Tensor& out) { ops.gemv(full, x, out, trans, K_ALPHA, K_BETA); });
-                }
+        /** @brief Tests that a full symmetric band gives the elements of symv. */
+        TEST_P(Medium_BlasBandTriangle, AFullSymmetricBandEqualsSymv)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                std::mt19937 generator(K_SEED);
+                SushiBLAS::BLASOps ops(recorder());
 
                 const int64_t order = K_SIBLING_ORDER;
                 const std::vector<T> square = random_elements<T>(generator, order * order);
-                const Tensor square_full = this->dense_of(order, order, square);
+                const Tensor square_full = dense_of<T>(order, order, square);
+                const Tensor triangle = triangle_band_of<T>(square, order, uplo, order - 1);
+                const Tensor x = vector_of<T>(random_elements<T>(generator, order));
+                const std::vector<T> y = random_elements<T>(generator, order);
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor triangle = this->triangle_band_of(square, order, uplo, order - 1);
-                    const Tensor x = this->vector_of(random_elements<T>(generator, order));
-                    const std::vector<T> y = random_elements<T>(generator, order);
+                expect_same_result<T>(
+                    y,
+                    [&](Tensor& out)
+                    {
+                        ops.sbmv(triangle, x, out, uplo, order - 1, K_ALPHA, K_BETA);
+                    },
+                    [&](Tensor& out) { ops.symv(square_full, x, out, uplo, K_ALPHA, K_BETA); });
+            });
+        }
 
-                    this->expect_same_result(
-                        y,
-                        [&](Tensor& out)
-                        {
-                            ops.sbmv(triangle, x, out, uplo, order - 1, K_ALPHA, K_BETA);
-                        },
-                        [&](Tensor& out)
-                        {
-                            ops.symv(square_full, x, out, uplo, K_ALPHA, K_BETA);
-                        });
-                    this->expect_same_result(
-                        y,
-                        [&](Tensor& out)
-                        {
-                            ops.hbmv(triangle, x, out, uplo, order - 1, K_ALPHA, K_BETA);
-                        },
-                        [&](Tensor& out)
-                        {
-                            ops.hemv(square_full, x, out, uplo, K_ALPHA, K_BETA);
-                        });
-                }
+        /** @brief Tests that a full Hermitian band gives the elements of hemv. */
+        TEST_P(Medium_BlasBandTriangle, AFullHermitianBandEqualsHemv)
+        {
+            const Core::Uplo uplo = GetParam().axis;
+
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                std::mt19937 generator(K_SEED);
+                SushiBLAS::BLASOps ops(recorder());
+
+                const int64_t order = K_SIBLING_ORDER;
+                const std::vector<T> square = random_elements<T>(generator, order * order);
+                const Tensor square_full = dense_of<T>(order, order, square);
+                const Tensor triangle = triangle_band_of<T>(square, order, uplo, order - 1);
+                const Tensor x = vector_of<T>(random_elements<T>(generator, order));
+                const std::vector<T> y = random_elements<T>(generator, order);
+
+                expect_same_result<T>(
+                    y,
+                    [&](Tensor& out)
+                    {
+                        ops.hbmv(triangle, x, out, uplo, order - 1, K_ALPHA, K_BETA);
+                    },
+                    [&](Tensor& out) { ops.hemv(square_full, x, out, uplo, K_ALPHA, K_BETA); });
             });
         }
 
@@ -1084,145 +1333,144 @@ namespace SushiBLAS
          * @brief Tests that tbmv and tbsv on a full triangle band give the elements of trmv and
          *        trsv, and the product and the solution formed in integers on the host.
          */
-        TYPED_TEST(Medium_BlasBand, AFullTriangleBandEqualsTheDenseSibling)
+        TEST_P(Medium_BlasBandFlags, AFullTriangleBandEqualsTrmvAndTrsv)
         {
-            using T = TypeParam;
             const int64_t n = K_SIBLING_ORDER;
+            const TriangleFlags flags = GetParam().axis;
 
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                SushiBLAS::BLASOps ops(this->recorder());
+                using T = typename decltype(element)::type;
+                SushiBLAS::BLASOps ops(recorder());
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    for (const Core::Transpose trans : K_TRANSPOSES)
+                const ExactTriangle exact = exact_triangle(n, flags.uplo, flags.trans, flags.diag,
+                                                           Core::is_complex_v<T>);
+                const std::vector<T> stored = narrowed_all<T>(exact.stored);
+                const std::vector<T> x = narrowed_all<T>(exact.x);
+                const std::vector<T> b = narrowed_all<T>(exact.b);
+
+                const Tensor band = triangle_band_of<T>(stored, n, flags.uplo, n - 1);
+                const Tensor full = dense_of<T>(n, n, stored);
+
+                const std::vector<T> product = expect_same_result<T>(
+                    x,
+                    [&](Tensor& out)
                     {
-                        for (const Core::Diag diag : K_DIAGONALS)
-                        {
-                            SCOPED_TRACE(flags_name(uplo, trans, diag));
-                            const ExactTriangle exact =
-                                exact_triangle(n, uplo, trans, diag, Core::is_complex_v<T>);
-                            const std::vector<T> stored = narrowed_all<T>(exact.stored);
-                            const std::vector<T> x = narrowed_all<T>(exact.x);
-                            const std::vector<T> b = narrowed_all<T>(exact.b);
+                        ops.tbmv(band, out, flags.uplo, n - 1, flags.trans, flags.diag);
+                    },
+                    [&](Tensor& out) { ops.trmv(full, out, flags.uplo, flags.trans, flags.diag); });
+                expect_equal(product, b);
 
-                            const Tensor band = this->triangle_band_of(stored, n, uplo, n - 1);
-                            const Tensor full = this->dense_of(n, n, stored);
-
-                            const std::vector<T> product = this->expect_same_result(
-                                x,
-                                [&](Tensor& out) { ops.tbmv(band, out, uplo, n - 1, trans, diag); },
-                                [&](Tensor& out) { ops.trmv(full, out, uplo, trans, diag); });
-                            expect_equal(product, b);
-
-                            const std::vector<T> solution = this->expect_same_result(
-                                b,
-                                [&](Tensor& out) { ops.tbsv(band, out, uplo, n - 1, trans, diag); },
-                                [&](Tensor& out) { ops.trsv(full, out, uplo, trans, diag); });
-                            expect_equal(solution, x);
-                        }
-                    }
-                }
+                const std::vector<T> solution = expect_same_result<T>(
+                    b,
+                    [&](Tensor& out)
+                    {
+                        ops.tbsv(band, out, flags.uplo, n - 1, flags.trans, flags.diag);
+                    },
+                    [&](Tensor& out) { ops.trsv(full, out, flags.uplo, flags.trans, flags.diag); });
+                expect_equal(solution, x);
             });
         }
 
         /**
-         * @brief Tests that the two kernels agree within ModeTolerance at four band widths.
+         * @brief Tests that the two kernels agree within the rounding bound at one band width.
+         *
+         * The row names the SYCL kernel; the case runs ForceReference itself to compare it with.
          */
-        TYPED_TEST(Medium_BlasBand, BothModesAgree)
+        TEST_P(Medium_BlasBandWidth, BothModesAgree)
         {
-            using T = TypeParam;
+            const int64_t k = GetParam().axis;
 
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_element(GetParam().type, [&](auto element)
             {
-                for (const int64_t k : K_MODE_WIDTHS)
-                {
-                    SCOPED_TRACE(::testing::Message()
-                                 << engine_name(layout, ExecutionMode::ForceSYCL) << ", k " << k);
+                using T = typename decltype(element)::type;
 
-                    this->start(layout, ExecutionMode::ForceReference);
-                    const std::vector<T> reference = this->banded_results(k);
-                    this->start(layout, ExecutionMode::ForceSYCL);
-                    const std::vector<T> device = this->banded_results(k);
+                start(GetParam().layout, ExecutionMode::ForceReference);
+                const std::vector<T> reference = banded_results<T>(k);
+                start(GetParam().layout, ExecutionMode::ForceSYCL);
+                const std::vector<T> device = banded_results<T>(k);
 
-                    expect_near(device, reference);
-                }
-            }
+                expect_near(device, reference);
+            });
         }
 
-        /**
-         * @brief Tests gbmv under each transpose on a complex band matrix.
-         */
-        TYPED_TEST(Medium_BlasBandComplex, GbmvConjTransposed)
+        /** @brief Tests gbmv under one form of op(A) on a complex band matrix. */
+        TEST_P(Medium_BlasBandComplexForm, GbmvConjTransposed)
         {
-            using T = TypeParam;
             const std::vector<Wide> dense = {Wide(1, 2), Wide(3, -1), Wide(0, 0), Wide(4, 1)};
             const std::vector<Wide> x = {Wide(1, 0), Wide(0, 1)};
             const std::vector<Wide> expected[] = {{Wide(2, 5), Wide(-1, 4)},
                                                   {Wide(1, 2), Wide(2, 3)},
                                                   {Wide(1, -2), Wide(4, 5)}};
+            const Core::Transpose trans = GetParam().axis;
 
-            this->for_each_engine([&](Core::Layout layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const Tensor A = this->band_of(
-                    to_band(narrowed_all<T>(dense), 2, 2, 0, 1, 2, layout, poison<T>()), 2, 2, 2);
-                const Tensor x_tensor = this->vector_of(narrowed_all<T>(x));
+                using T = typename decltype(element)::type;
 
-                for (std::size_t form = 0; form < 3; ++form)
-                {
-                    SCOPED_TRACE(Core::to_string(K_TRANSPOSES[form]));
-                    Tensor y = this->vector_of(std::vector<T>(2, poison<T>()));
+                const Tensor A = band_of<T>(
+                    to_band(narrowed_all<T>(dense), 2, 2, 0, 1, 2, GetParam().layout, poison<T>()),
+                    2, 2, 2);
+                const Tensor x_tensor = vector_of<T>(narrowed_all<T>(x));
+                Tensor y = vector_of<T>(std::vector<T>(2, poison<T>()));
 
-                    SushiBLAS::BLASOps(this->recorder()).gbmv(A, x_tensor, y, 0, 1,
-                                                           K_TRANSPOSES[form]);
-                    this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).gbmv(A, x_tensor, y, 0, 1, trans);
+                recording->run().value();
 
-                    expect_equal(read_tensor<T>(y), narrowed_all<T>(expected[form]));
-                }
+                expect_equal(read_tensor<T>(y), narrowed_all<T>(expected[form_index(trans)]));
             });
         }
 
         /**
          * @brief Tests that hbmv conjugates the mirrored triangle and reads no imaginary
-         *        diagonal, and that sbmv on the same storage mirrors without conjugating.
+         *        diagonal.
          */
-        TYPED_TEST(Medium_BlasBandComplex, HbmvConjugatesTheMirror)
+        TEST_P(Medium_BlasBandComplexTriangle, HbmvConjugatesTheMirror)
         {
-            using T = TypeParam;
             const int64_t n = K_HAND_ORDER;
             const std::vector<Wide> hermitian = {
                 Wide(1, K_DIAGONAL_IMAGINARY), Wide(2, 1),  Wide(0, 0),
                 Wide(2, -1), Wide(3, K_DIAGONAL_IMAGINARY), Wide(4, -2),
                 Wide(0, 0),  Wide(4, 2), Wide(5, K_DIAGONAL_IMAGINARY)};
+            const std::vector<Wide> x = {Wide(1, 0), Wide(0, 1), Wide(2, 0)};
+
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+
+                const Tensor x_tensor = vector_of<T>(narrowed_all<T>(x));
+                const Tensor A =
+                    triangle_band_of<T>(narrowed_all<T>(hermitian), n, GetParam().axis, 1);
+                Tensor y = vector_of<T>(std::vector<T>(3, poison<T>()));
+
+                SushiBLAS::BLASOps(recorder()).hbmv(A, x_tensor, y, GetParam().axis, 1);
+                recording->run().value();
+
+                expect_equal(read_tensor<T>(y),
+                             narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
+            });
+        }
+
+        /** @brief Tests that sbmv on the Hermitian storage mirrors without conjugating. */
+        TEST_P(Medium_BlasBandComplex, SbmvMirrorsWithoutConjugating)
+        {
+            const int64_t n = K_HAND_ORDER;
             const std::vector<Wide> real_diagonal = {Wide(1, 0), Wide(2, 1),  Wide(0, 0),
                                                      Wide(2, -1), Wide(3, 0), Wide(4, -2),
                                                      Wide(0, 0),  Wide(4, 2), Wide(5, 0)};
             const std::vector<Wide> x = {Wide(1, 0), Wide(0, 1), Wide(2, 0)};
 
-            this->for_each_engine([&](Core::Layout)
+            with_element(GetParam().type, [&](auto element)
             {
-                const Tensor x_tensor = this->vector_of(narrowed_all<T>(x));
+                using T = typename decltype(element)::type;
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    SCOPED_TRACE(Core::to_string(uplo));
-                    const Tensor A =
-                        this->triangle_band_of(narrowed_all<T>(hermitian), n, uplo, 1);
-                    Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
+                const Tensor x_tensor = vector_of<T>(narrowed_all<T>(x));
+                const Tensor A = triangle_band_of<T>(narrowed_all<T>(real_diagonal), n,
+                                                     Core::Uplo::Upper, 1);
+                Tensor y = vector_of<T>(std::vector<T>(3, poison<T>()));
 
-                    SushiBLAS::BLASOps(this->recorder()).hbmv(A, x_tensor, y, uplo, 1);
-                    this->recording->run().value();
-
-                    expect_equal(read_tensor<T>(y),
-                                 narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
-                }
-
-                const Tensor A = this->triangle_band_of(narrowed_all<T>(real_diagonal), n,
-                                                        Core::Uplo::Upper, 1);
-                Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
-
-                SushiBLAS::BLASOps(this->recorder()).sbmv(A, x_tensor, y, Core::Uplo::Upper, 1);
-                this->recording->run().value();
+                SushiBLAS::BLASOps(recorder()).sbmv(A, x_tensor, y, Core::Uplo::Upper, 1);
+                recording->run().value();
 
                 expect_equal(read_tensor<T>(y),
                              narrowed_all<T>({Wide(0, 2), Wide(10, 0), Wide(12, 4)}));
@@ -1233,7 +1481,7 @@ namespace SushiBLAS
          * @brief Tests that gbmv, sbmv and tbmv sum a HALF row in FLOAT32: 2048 + 1 + 1 - 2048
          *        is 2 there and 0 in HALF.
          */
-        TEST_F(Medium_BlasBandHalf, HalfSumsInFloat)
+        TEST_P(Medium_BlasBandHalf, HalfSumsInFloat)
         {
             using T = sycl::half;
             constexpr int64_t n = 4;
@@ -1241,78 +1489,63 @@ namespace SushiBLAS
             std::vector<double> square(static_cast<std::size_t>(n * n), 0.0);
             std::copy(row.begin(), row.end(), square.begin());
 
-            for_each_engine([&](Core::Layout layout)
-            {
-                SushiBLAS::BLASOps ops(recorder());
-                const Tensor ones = vector_of(elements<T>({1, 1, 1, 1}));
+            SushiBLAS::BLASOps ops(recorder());
+            const Tensor ones = vector_of<T>(elements<T>({1, 1, 1, 1}));
 
-                const Tensor general = band_of(
-                    to_band(elements<T>(row), 1, n, 0, n - 1, n, layout, poison<T>()), 1, n, n);
-                Tensor from_gbmv = vector_of(std::vector<T>(1, poison<T>()));
-                ops.gbmv(general, ones, from_gbmv, 0, n - 1);
+            const Tensor general = band_of<T>(
+                to_band(elements<T>(row), 1, n, 0, n - 1, n, GetParam().layout, poison<T>()), 1, n,
+                n);
+            Tensor from_gbmv = vector_of<T>(std::vector<T>(1, poison<T>()));
+            ops.gbmv(general, ones, from_gbmv, 0, n - 1);
 
-                const Tensor triangle =
-                    triangle_band_of(elements<T>(square), n, Core::Uplo::Upper, n - 1);
-                Tensor from_sbmv = vector_of(std::vector<T>(4, poison<T>()));
-                ops.sbmv(triangle, ones, from_sbmv, Core::Uplo::Upper, n - 1);
+            const Tensor triangle =
+                triangle_band_of<T>(elements<T>(square), n, Core::Uplo::Upper, n - 1);
+            Tensor from_sbmv = vector_of<T>(std::vector<T>(4, poison<T>()));
+            ops.sbmv(triangle, ones, from_sbmv, Core::Uplo::Upper, n - 1);
 
-                Tensor from_tbmv = vector_of(elements<T>({1, 1, 1, 1}));
-                ops.tbmv(triangle, from_tbmv, Core::Uplo::Upper, n - 1);
-                recording->run().value();
+            Tensor from_tbmv = vector_of<T>(elements<T>({1, 1, 1, 1}));
+            ops.tbmv(triangle, from_tbmv, Core::Uplo::Upper, n - 1);
+            recording->run().value();
 
-                expect_equal(read_tensor<T>(from_gbmv), elements<T>({2}));
-                expect_equal(read_tensor<T>(from_sbmv), elements<T>({2, 1, 1, -2048}));
-                expect_equal(read_tensor<T>(from_tbmv), elements<T>({2, 0, 0, 0}));
-            });
+            expect_equal(read_tensor<T>(from_gbmv), elements<T>({2}));
+            expect_equal(read_tensor<T>(from_sbmv), elements<T>({2, 1, 1, -2048}));
+            expect_equal(read_tensor<T>(from_tbmv), elements<T>({2, 0, 0, 0}));
         }
 
         /**
          * @brief Tests that tbsv carries a HALF solution in FLOAT32: the middle element is
          *        2049 there, stored as 2048, and the last is 2050 - 2049.
          */
-        TEST_F(Medium_BlasBandHalf, HalfSolveCarriesTheSolutionInFloat)
+        TEST_P(Medium_BlasBandHalf, HalfSolveCarriesTheSolutionInFloat)
         {
             using T = sycl::half;
             const std::vector<double> lower = {1, 0, 0, -1, 1, 0, 0, 1, 1};
 
-            for_each_engine([&](Core::Layout)
-            {
-                const Tensor A =
-                    triangle_band_of(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower, 1);
-                Tensor b = vector_of(elements<T>({2048, 1, 2050}));
+            const Tensor A =
+                triangle_band_of<T>(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower, 1);
+            Tensor b = vector_of<T>(elements<T>({2048, 1, 2050}));
 
-                SushiBLAS::BLASOps(recorder()).tbsv(A, b, Core::Uplo::Lower, 1);
-                recording->run().value();
+            SushiBLAS::BLASOps(recorder()).tbsv(A, b, Core::Uplo::Lower, 1);
+            recording->run().value();
 
-                expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
-            });
+            expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
         }
 
         /**
          * @brief Tests gbmv and sbmv against gemv and symv at an order where a device that
          *        plans a work-group per row runs one.
          */
-        TEST_F(Medium_BlasBandLarge, AFullBandEqualsTheDenseSiblingLarge)
+        TEST_P(Medium_BlasBandLarge, AFullBandEqualsTheDenseSiblingLarge)
         {
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(engine_name(Core::Layout::RowMajor, mode));
-                start(Core::Layout::RowMajor, mode);
-                const std::array<std::vector<float>, 2> general = large_general_products();
-                expect_equal(general[0], general[1]);
-            }
+            const std::array<std::vector<float>, 2> general = large_general_products<float>();
+            expect_equal(general[0], general[1]);
 
-            for_each_engine([&](Core::Layout)
-            {
-                const std::array<std::vector<float>, 2> symmetric = large_symmetric_products();
-                expect_equal(symmetric[0], symmetric[1]);
-            });
+            const std::array<std::vector<float>, 2> symmetric = large_symmetric_products<float>();
+            expect_equal(symmetric[0], symmetric[1]);
         }
 
-        /**
-         * @brief Tests that gbmv and sbmv give the same bits when the device runs them twice.
-         */
-        TEST_F(Medium_BlasBandLarge, RepeatsToTheBit)
+        /** @brief Tests that gbmv and sbmv give the same bits when the device runs them twice. */
+        TEST_P(Medium_BlasBandLarge, RepeatsToTheBit)
         {
             const auto same_bits = [](const std::vector<float>& first,
                                       const std::vector<float>& second)
@@ -1322,17 +1555,56 @@ namespace SushiBLAS
                                    first.size() * sizeof(float)) == 0;
             };
 
-            start(Core::Layout::RowMajor, ExecutionMode::ForceSYCL);
-            const std::vector<float> general = large_general_products()[0];
-            EXPECT_TRUE(same_bits(general, large_general_products()[0])) << "gbmv";
+            const std::vector<float> general = large_general_products<float>()[0];
+            EXPECT_TRUE(same_bits(general, large_general_products<float>()[0])) << "gbmv";
 
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL));
-                start(layout, ExecutionMode::ForceSYCL);
-                const std::vector<float> symmetric = large_symmetric_products()[0];
-                EXPECT_TRUE(same_bits(symmetric, large_symmetric_products()[0])) << "sbmv";
-            }
+            const std::vector<float> symmetric = large_symmetric_products<float>()[0];
+            EXPECT_TRUE(same_bits(symmetric, large_symmetric_products<float>()[0])) << "sbmv";
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBand, ::testing::ValuesIn(plain_rows(K_ALL_TYPES, K_BOTH_MODES)),
+            row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandShape,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, K_EDGE_SHAPES)),
+            row_name<BandShape>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandTriangle,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, K_TRIANGLES)),
+            row_name<Core::Uplo>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandForm,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, K_TRANSPOSES)),
+            row_name<Core::Transpose>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandProduct,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, K_TRIANGULAR_ROWS)),
+            row_name<TriangularRow>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandFlags,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_BOTH_MODES, all_triangle_flags())),
+            row_name<TriangleFlags>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandWidth,
+            ::testing::ValuesIn(rows_of(K_ALL_TYPES, K_DEVICE_MODE, K_MODE_WIDTHS)),
+            row_name<int64_t>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandComplex,
+            ::testing::ValuesIn(plain_rows(K_COMPLEX_TYPES, K_BOTH_MODES)), row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandComplexTriangle,
+            ::testing::ValuesIn(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES, K_TRIANGLES)),
+            row_name<Core::Uplo>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandComplexForm,
+            ::testing::ValuesIn(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES, K_TRANSPOSES)),
+            row_name<Core::Transpose>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandHalf, ::testing::ValuesIn(plain_rows(K_HALF_TYPE, K_BOTH_MODES)),
+            row_name<NoAxis>);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_BlasBandLarge, ::testing::ValuesIn(plain_rows(K_FLOAT_TYPE, K_BOTH_MODES)),
+            row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS
