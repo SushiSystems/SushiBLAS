@@ -215,6 +215,14 @@ namespace SushiBLAS
                       CeilingsReadStatus::Invalid);
         }
 
+        TEST(Small_CeilingsFile, RefusesAMemberOfTheWrongKind)
+        {
+            const std::string text = replaced(Profiling::write_ceilings(valid_ceilings()),
+                                              "\"1.2.3\"", "5");
+
+            EXPECT_EQ(Profiling::read_ceilings(text).status, CeilingsReadStatus::Invalid);
+        }
+
         TEST(Small_CeilingsFile, RefusesAMemberThatIsNotInTheFormat)
         {
             const std::string text = replaced(Profiling::write_ceilings(valid_ceilings()),
