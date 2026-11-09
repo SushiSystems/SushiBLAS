@@ -19,7 +19,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/level2/test_spmv.cpp` | Tests the reference spmv against a dense loop over the mirrored packed triangle |
 | `reference/level2/test_spr.cpp` | Tests the reference spr, which adds alpha * x * x^T to a packed triangle |
 | `reference/level2/test_spr2.cpp` | Tests the reference spr2, which adds alpha * (x * y^T + y * x^T) to a packed triangle |
-| `reference/level2/test_symmetric_product.cpp` | Tests the reference symmetric product through a packed and a band access |
+| `reference/level2/compile_symmetric_product.cpp` | Checks at compile time that the reference symmetric product keeps the signature of its access form |
 | `reference/level2/test_symv.cpp` | Tests the reference symv against a dense loop over the mirrored triangle |
 | `reference/level2/test_syr.cpp` | Tests the reference syr, which adds alpha * x * x^T to one triangle and nothing else |
 | `reference/level2/test_syr2.cpp` | Tests the reference syr2, which adds alpha * (x * y^T + y * x^T) to one triangle |
@@ -27,8 +27,8 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/level2/test_tbsv.cpp` | Tests that the reference tbsv recovers x from op(A) * x for a band triangle |
 | `reference/level2/test_tpmv.cpp` | Tests the reference tpmv against a dense product with the packed triangle, for every flag |
 | `reference/level2/test_tpsv.cpp` | Tests that the reference tpsv recovers x from op(A) * x for a packed triangle |
-| `reference/level2/test_triangular_product.cpp` | Tests the reference triangular product through a packed access, for every flag |
-| `reference/level2/test_triangular_solve.cpp` | Tests that the reference triangular solve undoes a dense product through a packed access |
+| `reference/level2/compile_triangular_product.cpp` | Checks at compile time that the reference triangular product keeps the signature of its access form |
+| `reference/level2/compile_triangular_solve.cpp` | Checks at compile time that the reference triangular solve keeps the signature of its access form |
 | `reference/level2/test_trmv.cpp` | Tests the reference trmv against a dense product with the triangle, for every flag |
 | `reference/level3/test_syr2k.cpp` | Tests the reference syr2k, single and batched, against a dense rank-2k update |
 | `reference/level3/test_syrk.cpp` | Tests the reference syrk, single and batched, against a dense rank-k update |

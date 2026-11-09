@@ -35,7 +35,7 @@ sushiblas_add_test_program(
         reference/level2/test_spmv.cpp
         reference/level2/test_spr.cpp
         reference/level2/test_spr2.cpp
-        reference/level2/test_symmetric_product.cpp
+        reference/level2/compile_symmetric_product.cpp
         reference/level2/test_symv.cpp
         reference/level2/test_syr.cpp
         reference/level2/test_syr2.cpp
@@ -43,8 +43,8 @@ sushiblas_add_test_program(
         reference/level2/test_tbsv.cpp
         reference/level2/test_tpmv.cpp
         reference/level2/test_tpsv.cpp
-        reference/level2/test_triangular_product.cpp
-        reference/level2/test_triangular_solve.cpp
+        reference/level2/compile_triangular_product.cpp
+        reference/level2/compile_triangular_solve.cpp
         reference/level2/test_trmv.cpp
         reference/level2/test_trsv.cpp
         reference/level3/test_syr2k.cpp
