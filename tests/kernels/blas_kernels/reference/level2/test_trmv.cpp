@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,35 +44,42 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceTrmv, MatchesADenseProductForEveryFlag)
+        /// @brief Names a row after its layout, triangle, transpose and diagonal.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool, bool, bool>>& info)
         {
+            return triangular_label(std::get<0>(info.param), std::get<1>(info.param),
+                                    std::get<2>(info.param), std::get<3>(info.param));
+        }
+
+        /// @brief Runs trmv for one layout, triangle, transpose and diagonal, as a row of (row major, upper, transposed, unit).
+        class Small_ReferenceTrmv : public ::testing::TestWithParam<std::tuple<bool, bool, bool, bool>> {};
+
+        /// @brief Tests that trmv matches a dense product of the triangle for every flag.
+        TEST_P(Small_ReferenceTrmv, MatchesADenseProductForEveryFlag)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
+            const bool transposed = std::get<2>(GetParam());
+            const bool unit = std::get<3>(GetParam());
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);
             const std::vector<double> start = small_integers<double>(n, 2);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    for (const bool transposed : {false, true})
-                    {
-                        for (const bool unit : {false, true})
-                        {
-                            SCOPED_TRACE(4 * upper + 2 * transposed + unit);
-                            std::vector<double> x = start;
-                            const std::vector<double> expected =
-                                dense_matvec(triangle_of(a, n, upper, unit), n, n, transposed,
-                                             1.0, start, 0.0, start);
+            std::vector<double> x = start;
+            const std::vector<double> expected =
+                dense_matvec(triangle_of(a, n, upper, unit), n, n, transposed,
+                             1.0, start, 0.0, start);
 
-                            Kernels::Reference::trmv(layout, uplo_of(upper),
-                                                     transpose_of(transposed), diag_of(unit), n,
-                                                     in_layout(a, n, n, layout).data(), n,
-                                                     x.data(), 1);
+            Kernels::Reference::trmv(layout, uplo_of(upper),
+                                     transpose_of(transposed), diag_of(unit), n,
+                                     in_layout(a, n, n, layout).data(), n,
+                                     x.data(), 1);
 
-                            EXPECT_EQ(x, expected);
-                        }
-                    }
-                }
-            }
+            EXPECT_EQ(x, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsTrianglesTransposesAndDiagonals, Small_ReferenceTrmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool(),
+                                                    ::testing::Bool(), ::testing::Bool()),
+                                 row_name);
     } // namespace Test
 } // namespace SushiBLAS
