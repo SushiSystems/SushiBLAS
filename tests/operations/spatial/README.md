@@ -49,18 +49,25 @@ instead of 0 and 2.
 
 ## test_spatial/test_spatial_col2im.cpp
 
+The value tests run `Small_` on the host engine, where the operation takes its reference path;
+only the agreement of the two paths needs a device and stays `Medium_`.
+
 `EachPixelReceivesOncePerWindowThatReadIt`: col2im of an all-ones column matrix is the overlap
 count of each pixel, the number of windows that read it. The test computes that answer
 independently, and it is the strongest cheap check that the gather visits exactly the right
 set. A rule that drops contributions or double-counts fails it, where a round trip against
 im2col would not necessarily. With a 3x3 stride-1 window padded by 1, a pixel is read by every
 window whose origin is within one step of it and inside the image: 3x3 in the interior, fewer
-at the edges. The count is made by brute force and not by a closed form, so the expectation
-cannot share a mistake with the kernel.
+at the edges. The count is made by `overlap_counts`, a host helper that walks every tap of every window,
+and not by a closed form, so the expectation cannot share a mistake with the kernel.
 
-`StrideAndDilationSelectTheRightContributors`: a stride-2 window means every pixel is read by
+`StrideSelectsTheRightContributors`: a stride-2 window means every pixel is read by
 exactly one window. Getting the divisibility test wrong, by dropping the `% stride != 0` guard,
 turns this into a count of 4 and is otherwise invisible.
+
+`DilationSpacesTheTapsAWindowFolds`: one window of two taps two columns apart over a row of
+three pixels reads pixels 0 and 2 and leaves pixel 1 at zero, which the name of the former
+stride-and-dilation test claimed and its body never checked.
 
 `PixelsNoWindowReadsAreWrittenZeroRatherThanLeftAlone`: a 2x2 stride-2 window over a 5x5 image
 covers rows 0..3 and columns 0..3, and the last row and column are read by nothing. The gather
