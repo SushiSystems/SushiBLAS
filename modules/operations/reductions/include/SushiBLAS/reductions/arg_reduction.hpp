@@ -67,6 +67,41 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief Reads element i of a sequence a function generates as a (value, index) candidate.
+         * @tparam T The element type of the sequence.
+         * @tparam ValueAt Callable `T(std::size_t)` that returns the value at an index.
+         */
+        template<typename T, typename ValueAt>
+        struct GeneratedRead
+        {
+            /** @brief The generator of the sequence. */
+            ValueAt value_at;
+
+            /** @brief Returns the candidate of element i. */
+            [[nodiscard]] Reduce::IndexedValue<T> operator()(std::size_t i) const
+            {
+                return Reduce::IndexedValue<T>{value_at(i), static_cast<std::int64_t>(i)};
+            }
+        };
+
+        /**
+         * @brief Finds on the host the index an arg accumulator elects over a generated sequence.
+         * @tparam T The element type; the sequence is never stored.
+         * @tparam ArgAccum Reduce::RunningArgMax or Reduce::RunningArgMin.
+         * @param count The number of elements.
+         * @param value_at Callable `T(std::size_t)` that returns the value at an index.
+         * @return The 64-bit index of the winning element.
+         */
+        template<typename T, template<typename> class ArgAccum, typename ValueAt>
+        [[nodiscard]] std::int64_t host_arg_index(std::size_t count, ValueAt value_at)
+        {
+            std::int64_t winner = 0;
+            Serial::reduce_indexed<ArgAccum>(count, GeneratedRead<T, ValueAt>{value_at}, &winner,
+                                             WinningIndex{});
+            return winner;
+        }
+
+        /**
          * @brief Finds the index an arg accumulator elects over a whole tensor.
          * @tparam ArgAccum Reduce::RunningArgMax or Reduce::RunningArgMin.
          */

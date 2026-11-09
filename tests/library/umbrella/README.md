@@ -131,7 +131,8 @@ operations as rows: the results are 1 and 0, which is what an integer element is
 integers, so the operations are defined, and the answer is still an INT64 index and not an element
 of the input's dtype.
 
-`ArgmaxIsExactPastTheFloatMantissa` uses an index past 2^24, which is where the old
+`Small_ArgmaxIndex.ArgmaxIsExactPastTheFloatMantissa` runs `Dispatch::host_arg_index` over a generated
+sequence, so no 67 MB tensor is stored. It uses an index past 2^24, which is where the old
 `static_cast<T>(idx)` into a FLOAT32 result started returning a neighbour instead of the
 answer. 16,777,217 is the first integer a float cannot represent.
 

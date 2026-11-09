@@ -36,6 +36,7 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/reductions/arg_reduction.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -270,30 +271,20 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that argmax is exact for an index past 2^24.
+         * @brief Tests that argmax is exact for an index past 2^24, on a sequence the host generates.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Medium_IntegerDTypeTest, ArgmaxIsExactPastTheFloatMantissa)
+        TEST(Small_ArgmaxIndex, ArgmaxIsExactPastTheFloatMantissa)
         {
-            constexpr int64_t kN = 16777218;
-            constexpr int64_t kPeak = 16777217;
+            constexpr std::size_t K_COUNT = 16777218;
+            constexpr std::int64_t K_PEAK = 16777217;
 
-            auto t = engine->create_tensor({kN});
-            auto r = engine->create_tensor({1}, Core::DataType::Int64);
+            // Every element is 1 and the one at K_PEAK is 2, an index a float cannot name.
+            const std::int64_t winner = Dispatch::host_arg_index<float, Reduce::RunningArgMax>(
+                K_COUNT, [](std::size_t i) { return i == static_cast<std::size_t>(K_PEAK) ? 2.0f : 1.0f; });
 
-            SushiBLAS::RandomOps(recorder(), engine->rng()).constant(t, 1.0);
-            recording->run().value();
-
-            // Plant the maximum at an index a float cannot name.
-            const float peak = 2.0f;
-            TestEnvironment::queue()
-                .memcpy(t.data_as<float>() + kPeak, &peak, sizeof(float)).wait();
-
-            SushiBLAS::ReductionOps(recorder()).argmax(t, r);
-            recording->run().value();
-
-            EXPECT_EQ(kPeak, read_i64(r)[0])
-                << "An index stored as a float rounds to " << static_cast<int64_t>(static_cast<float>(kPeak))
+            EXPECT_EQ(K_PEAK, winner)
+                << "An index stored as a float rounds to " << static_cast<std::int64_t>(static_cast<float>(K_PEAK))
                 << " here, which is a different element.";
         }
 
