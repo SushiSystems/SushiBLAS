@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <string_view>
 #include <stdexcept>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiRuntime/core/determinism.hpp>
@@ -47,23 +48,70 @@ namespace SushiBLAS
             EXPECT_EQ(options.determinism, SushiRuntime::Determinism::Unstated);
         }
 
-        TEST(Small_OperationOptions, AClassIsTheRuntimesOwn)
+        namespace
         {
-            const OperationOptions options{"pgs_project", SushiRuntime::Determinism::Bitwise};
-
-            EXPECT_EQ(options.determinism, SushiRuntime::Determinism::Bitwise);
-        }
-
-        TEST(Small_OperationOptions, TheSharedCheckAcceptsEveryClassOfTheRuntime)
-        {
-            for (const SushiRuntime::Determinism held :
-                 {SushiRuntime::Determinism::Unstated, SushiRuntime::Determinism::Bitwise,
-                  SushiRuntime::Determinism::Tolerant, SushiRuntime::Determinism::Cosmetic})
+            /** @brief Names one class of the runtime. */
+            struct ClassRow
             {
-                EXPECT_NO_THROW(
-                    Dispatch::require_operation_options(OperationOptions{"node", held}, "op"));
+                const char* name;                 /**< The row name a failure shows. */
+                SushiRuntime::Determinism held;   /**< The class the options state. */
+            };
+
+            /** @brief Returns one row per class of the runtime. */
+            std::vector<ClassRow> class_rows()
+            {
+                return {{"Unstated", SushiRuntime::Determinism::Unstated},
+                        {"Bitwise", SushiRuntime::Determinism::Bitwise},
+                        {"Tolerant", SushiRuntime::Determinism::Tolerant},
+                        {"Cosmetic", SushiRuntime::Determinism::Cosmetic}};
             }
+
+            /** @brief Returns whether the shared check refuses the options. */
+            bool is_refused(const OperationOptions& options)
+            {
+                try
+                {
+                    Dispatch::require_operation_options(options, "op");
+                }
+                catch (const std::invalid_argument&)
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            /** @brief Returns the text of the refusal the shared check gives an empty name, or "". */
+            std::string refusal_of_an_empty_name()
+            {
+                try
+                {
+                    Dispatch::require_operation_options(OperationOptions{""}, "family.verb");
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+
+                return std::string();
+            }
+        } // namespace
+
+        /** @brief Runs one row of class_rows() through the shared check. */
+        class Small_OperationOptionsClass : public ::testing::TestWithParam<ClassRow>
+        {
+
+        };
+
+        TEST_P(Small_OperationOptionsClass, TheSharedCheckAcceptsTheClass)
+        {
+            EXPECT_FALSE(is_refused(OperationOptions{"node", GetParam().held}));
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_OperationOptionsClass, ::testing::ValuesIn(class_rows()),
+            [](const ::testing::TestParamInfo<ClassRow>& info)
+            { return std::string(info.param.name); });
 
         TEST(Small_OperationOptions, TheSharedCheckRefusesAnEmptyOrNullName)
         {
@@ -88,17 +136,10 @@ namespace SushiBLAS
 
         TEST(Small_OperationOptions, TheMessageNamesTheOperationAndOptions)
         {
-            try
-            {
-                Dispatch::require_operation_options(OperationOptions{""}, "family.verb");
-                ADD_FAILURE() << "an empty name was accepted";
-            }
-            catch (const std::invalid_argument& error)
-            {
-                const std::string text = error.what();
-                EXPECT_NE(text.find("family.verb"), std::string::npos) << text;
-                EXPECT_NE(text.find("'options'"), std::string::npos) << text;
-            }
+            const std::string text = refusal_of_an_empty_name();
+
+            EXPECT_NE(text.find("family.verb"), std::string::npos) << text;
+            EXPECT_NE(text.find("'options'"), std::string::npos) << text;
         }
     } // namespace Test
 } // namespace SushiBLAS
