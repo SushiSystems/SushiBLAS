@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -181,6 +182,13 @@ namespace SushiBLAS
                 return {
                     random_row("PoissonLambdaAboveTheCap", f32,
                                [](RandomOps& o, Tensor& t) { o.poisson(t, K_LAMBDA_ABOVE_CAP); },
+                               Ending::Refused),
+                    random_row("PoissonLambdaAtTheCap", f32,
+                               [](RandomOps& o, Tensor& t) { o.poisson(t, K_MAX_POISSON_LAMBDA); },
+                               Ending::Accepted),
+                    random_row("PoissonLambdaJustAboveTheCap", f32,
+                               [=](RandomOps& o, Tensor& t)
+                               { o.poisson(t, std::nextafter(K_MAX_POISSON_LAMBDA, inf)); },
                                Ending::Refused),
                     random_row("PoissonNegativeLambda", f32,
                                [](RandomOps& o, Tensor& t) { o.poisson(t, K_LAMBDA_NEGATIVE); },

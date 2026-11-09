@@ -42,6 +42,15 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /** @brief The first input vector of the seams. */
+            const std::vector<float> K_RAMP = {1.0f, 2.0f, 3.0f, 4.0f};
+
+            /** @brief The second input vector of the seams. */
+            const std::vector<float> K_TENS = {10.0f, 20.0f, 30.0f, 40.0f};
+        } // namespace
+
         /** @brief Records one task on a probe, runs it and compares what it computed. */
         class Medium_TaskDependencies : public SushiBLASTest
         {
@@ -81,94 +90,95 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that one operation of each recording seam runs as a recorded task. */
-        TEST_F(Medium_TaskDependencies, ARecordedTaskComputesItsResult)
+        /** @brief Tests that an elementwise add runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedElementwiseAddComputesItsResult)
         {
-            const std::vector<float> ramp = {1.0f, 2.0f, 3.0f, 4.0f};
-            const std::vector<float> tens = {10.0f, 20.0f, 30.0f, 40.0f};
+            auto a = vector_of(K_RAMP);
+            auto b = vector_of(K_TENS);
+            auto c = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
+            expect_task_computes("elementwise add",
+                [&](TaskRecorder& r) { return SushiBLAS::ElementwiseOps(r).add(a, b, c); },
+                [&] { expect_tensor_equal(c, std::vector<float>{11, 22, 33, 44}); });
+        }
 
-            {
-                auto a = vector_of(ramp);
-                auto b = vector_of(tens);
-                auto c = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                expect_task_computes("elementwise add",
-                    [&](TaskRecorder& r) { return SushiBLAS::ElementwiseOps(r).add(a, b, c); },
-                    [&] { EXPECT_TENSOR_NEAR(c, (std::vector<float>{11, 22, 33, 44}),
-                                             absolute_tolerance<float>(16)); });
-            }
+        /** @brief Tests that a nonlinear relu runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedReLUComputesItsResult)
+        {
+            auto t = vector_of({-1.0f, 2.0f, -3.0f, 4.0f});
+            expect_task_computes("nonlinear relu",
+                [&](TaskRecorder& r) { return SushiBLAS::NonLinearOps(r).relu(t); },
+                [&] { expect_tensor_equal(t, std::vector<float>{0, 2, 0, 4}); });
+        }
 
-            {
-                auto t = vector_of({-1.0f, 2.0f, -3.0f, 4.0f});
-                expect_task_computes("nonlinear relu",
-                    [&](TaskRecorder& r) { return SushiBLAS::NonLinearOps(r).relu(t); },
-                    [&] { EXPECT_TENSOR_NEAR(t, (std::vector<float>{0, 2, 0, 4}),
-                                             absolute_tolerance<float>(16)); });
-            }
+        /** @brief Tests that a logic equal runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedLogicEqualComputesItsResult)
+        {
+            auto a = vector_of(K_RAMP);
+            auto b = vector_of({1.0f, 5.0f, 3.0f, 7.0f});
+            auto same = vector_of({9.0f, 9.0f, 9.0f, 9.0f});
+            expect_task_computes("logic equal",
+                [&](TaskRecorder& r) { return SushiBLAS::LogicOps(r).equal(a, b, same); },
+                [&] { expect_tensor_equal(same, std::vector<float>{1, 0, 1, 0}); });
+        }
 
-            {
-                auto a = vector_of(ramp);
-                auto b = vector_of({1.0f, 5.0f, 3.0f, 7.0f});
-                auto same = vector_of({9.0f, 9.0f, 9.0f, 9.0f});
-                expect_task_computes("logic equal",
-                    [&](TaskRecorder& r) { return SushiBLAS::LogicOps(r).equal(a, b, same); },
-                    [&] { EXPECT_TENSOR_NEAR(same, (std::vector<float>{1, 0, 1, 0}),
-                                             absolute_tolerance<float>(16)); });
-            }
+        /** @brief Tests that a reduction sum runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedSumComputesItsResult)
+        {
+            auto t = vector_of(K_RAMP);
+            auto total = vector_of({0.0f});
+            expect_task_computes("reduction sum",
+                [&](TaskRecorder& r) { return SushiBLAS::ReductionOps(r).sum(t, total); },
+                [&] { expect_tensor_equal(total, std::vector<float>{10}); });
+        }
 
-            {
-                auto t = vector_of(ramp);
-                auto total = vector_of({0.0f});
-                expect_task_computes("reduction sum",
-                    [&](TaskRecorder& r) { return SushiBLAS::ReductionOps(r).sum(t, total); },
-                    [&] { EXPECT_TENSOR_NEAR(total, (std::vector<float>{10}),
-                                             absolute_tolerance<float>(16)); });
-            }
+        /** @brief Tests that a uniform fill runs as a recorded task and draws the block of its offset. */
+        TEST_F(Medium_TaskDependencies, ARecordedUniformFillComputesItsResult)
+        {
+            namespace Random = Kernels::SYCL::Random;
 
-            {
-                namespace Random = Kernels::SYCL::Random;
+            constexpr std::uint64_t K_SEED = 20261007u;
 
-                constexpr std::uint64_t K_SEED = 20261007u;
+            auto t = vector_of(std::vector<float>(Random::K_DRAWS_PER_BLOCK<float>, 9.0f));
+            engine->rng().reseed(K_SEED);
+            const std::uint64_t offset = engine->rng().reserve(0).offset;
+            expect_task_computes("random uniform",
+                [&](TaskRecorder& r)
+                {
+                    return SushiBLAS::RandomOps(r, engine->rng()).uniform(t, 0.0, 1.0);
+                },
+                [&]
+                {
+                    const auto draws = Random::uniform_block<float>(K_SEED, offset, 0, 0.0f, 1.0f);
+                    const std::vector<float> expected(draws.begin(), draws.end());
+                    EXPECT_TENSOR_NEAR(t, expected, absolute_tolerance<float>(2));
+                });
+        }
 
-                auto t = vector_of(std::vector<float>(Random::K_DRAWS_PER_BLOCK<float>, 9.0f));
-                engine->rng().reseed(K_SEED);
-                const std::uint64_t offset = engine->rng().reserve(0).offset;
-                expect_task_computes("random uniform",
-                    [&](TaskRecorder& r)
-                    {
-                        return SushiBLAS::RandomOps(r, engine->rng()).uniform(t, 0.0, 1.0);
-                    },
-                    [&]
-                    {
-                        const auto draws =
-                            Random::uniform_block<float>(K_SEED, offset, 0, 0.0f, 1.0f);
-                        const std::vector<float> expected(draws.begin(), draws.end());
-                        EXPECT_TENSOR_NEAR(t, expected, absolute_tolerance<float>(2));
-                    });
-            }
+        /** @brief Tests that a BLAS axpy runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedAxpyComputesItsResult)
+        {
+            auto x = vector_of(K_RAMP);
+            auto y = vector_of(K_TENS);
+            expect_task_computes("blas axpy",
+                [&](TaskRecorder& r) { return SushiBLAS::BLASOps(r).axpy(2.0, x, y); },
+                [&] { expect_tensor_equal(y, std::vector<float>{12, 24, 36, 48}); });
+        }
 
-            {
-                auto x = vector_of(ramp);
-                auto y = vector_of(tens);
-                expect_task_computes("blas axpy",
-                    [&](TaskRecorder& r) { return SushiBLAS::BLASOps(r).axpy(2.0, x, y); },
-                    [&] { EXPECT_TENSOR_NEAR(y, (std::vector<float>{12, 24, 36, 48}),
-                                             absolute_tolerance<float>(16)); });
-            }
-
-            {
-                // A 1x1 window gathers each pixel into its own row, so the columns equal the image.
-                auto image = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-                auto columns = engine->create_tensor({4, 1}, Core::DataType::Float32);
-                fill_tensor(image, ramp);
-                fill_tensor(columns, {0.0f, 0.0f, 0.0f, 0.0f});
-                const Spatial::ConvGeometry unit_window;
-                expect_task_computes("spatial im2col",
-                    [&](TaskRecorder& r)
-                    {
-                        return SushiBLAS::SpatialOps(r).im2col(image, columns, unit_window);
-                    },
-                    [&] { EXPECT_TENSOR_NEAR(columns, ramp, absolute_tolerance<float>(16)); });
-            }
+        /** @brief Tests that a spatial im2col runs as a recorded task. */
+        TEST_F(Medium_TaskDependencies, ARecordedIm2colComputesItsResult)
+        {
+            // A 1x1 window gathers each pixel into its own row, so the columns equal the image.
+            auto image = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto columns = engine->create_tensor({4, 1}, Core::DataType::Float32);
+            fill_tensor(image, K_RAMP);
+            fill_tensor(columns, {0.0f, 0.0f, 0.0f, 0.0f});
+            const Spatial::ConvGeometry unit_window;
+            expect_task_computes("spatial im2col",
+                [&](TaskRecorder& r)
+                {
+                    return SushiBLAS::SpatialOps(r).im2col(image, columns, unit_window);
+                },
+                [&] { expect_tensor_equal(columns, K_RAMP); });
         }
     } // namespace Test
 } // namespace SushiBLAS

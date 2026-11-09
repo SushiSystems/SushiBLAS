@@ -26,7 +26,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_SushiBLAS/test_operand_refusals.cpp` | Tests, on a host engine, which operands the elementwise, nonlinear and reduction ops refuse at record time |
 | `test_SushiBLAS/test_operand_lifetime.cpp` | Tests that a recorded task keeps its operands and its scratch allocated until it has run |
 | `test_SushiBLAS/test_regression.cpp` | Tests one fast, deterministic sentinel per fixed defect |
-| `test_SushiBLAS/test_spatial_random_io_validation.cpp` | Tests the device pooling extremes, the degenerate random fills and the IO round trip |
+| `test_SushiBLAS/test_spatial_random_io_validation.cpp` | Tests the device pooling extremes, the degenerate random fills the IO round trip and its refusals |
 | `test_SushiBLAS/test_spatial_random_refusals.cpp` | Tests, on a host engine, which spatial geometries and random fills are refused at record time |
 | `test_SushiBLAS/test_storage_offset.cpp` | Tests every operation family on views at a non-zero storage offset |
 | `test_SushiBLAS/test_task_dependencies.cpp` | Tests that one recorded task of each recording seam runs and computes its result |

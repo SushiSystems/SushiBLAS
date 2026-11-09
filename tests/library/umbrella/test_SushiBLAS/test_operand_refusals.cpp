@@ -120,6 +120,39 @@ namespace SushiBLAS
             EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
+        /// @brief Names one real-only nonlinear op and the call that records it on a tensor.
+        struct NonLinearRow
+        {
+            /** @brief The row name, which gtest takes as the suffix of the test. */
+            std::string name;
+
+            /** @brief Records the operation in place on t. */
+            std::function<void(NonLinearOps&, Tensor&)> record;
+        };
+
+        /// @brief Records a real-only nonlinear op over a complex tensor, one op per row.
+        class Small_ComplexNonLinear : public Small_OperandRefusal,
+                                       public ::testing::WithParamInterface<NonLinearRow> {};
+
+        /// @brief Tests that a real-only nonlinear op refuses a complex tensor and records nothing.
+        TEST_P(Small_ComplexNonLinear, IsRefusedAndRecordsNothing)
+        {
+            auto t = engine->create_tensor({2}, Core::DataType::Complex32);
+            NonLinearOps ops(recorder());
+
+            EXPECT_THROW(GetParam().record(ops, t), std::invalid_argument);
+            EXPECT_EQ(recording->recorded_count(), 0u);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            Operations, Small_ComplexNonLinear,
+            ::testing::Values(
+                NonLinearRow{"GELU", [](NonLinearOps& o, Tensor& t) { o.gelu(t); }},
+                NonLinearRow{"SiLU", [](NonLinearOps& o, Tensor& t) { o.silu(t); }},
+                NonLinearRow{"Softplus", [](NonLinearOps& o, Tensor& t) { o.softplus(t); }},
+                NonLinearRow{"LeakyReLU", [](NonLinearOps& o, Tensor& t) { o.leaky_relu(t); }}),
+            [](const ::testing::TestParamInfo<NonLinearRow>& info) { return info.param.name; });
+
         /// @brief Tests that a dtype mismatch names the operand and both dtypes.
         TEST_F(Small_OperandRefusal, AMismatchedDtypeNamesTheOperand)
         {

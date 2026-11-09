@@ -29,12 +29,14 @@
 
 #include <cmath>
 #include <cstdio>
+#include <fstream>
 #include <limits>
 #include <string>
 #include <vector>
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 namespace SushiBLAS
@@ -67,6 +69,25 @@ namespace SushiBLAS
                 /** @brief The value every draw takes. */
                 float expected;
             };
+
+            /** @brief Names one file format and the dimensions of the tensor loaded from it. */
+            struct ShapeRow
+            {
+                /** @brief The row name, which gtest takes as the suffix of the test. */
+                std::string name;
+
+                /** @brief Whether the file is the raw binary form; otherwise the .sushi form. */
+                bool binary;
+
+                /** @brief The dimensions of the tensor the file is loaded into. */
+                std::vector<int64_t> dims;
+            };
+
+            /** @brief Names a shape row by its name. */
+            std::string shape_row_name(const ::testing::TestParamInfo<ShapeRow>& info)
+            {
+                return info.param.name;
+            }
 
             /** @brief Names a row by its name. */
             std::string bernoulli_row_name(const ::testing::TestParamInfo<BernoulliRow>& info)
@@ -214,5 +235,51 @@ namespace SushiBLAS
 
             expect_tensor_equal(target, values);
         }
+
+        TEST_F(Medium_SpatialRandomIOValidationTest, LoadFromAMissingPathIsUnreadable)
+        {
+            auto target = engine->create_tensor({2, 2}, Core::DataType::Float32);
+
+            EXPECT_EQ(SushiBLAS::IO().load(target, temp_path("missing.sushi")),
+                      SushiBLAS::IOStatus::FileUnreadable);
+        }
+
+        TEST_F(Medium_SpatialRandomIOValidationTest, SaveToAnUnwritablePathIsUnwritableAndLeavesNoFile)
+        {
+            const std::string path = temp_path("no_such_folder/unwritable.sushi");
+            auto source = create_initialized_tensor<float>({2, 2}, {1.0f, 2.0f, 3.0f, 4.0f});
+
+            EXPECT_EQ(SushiBLAS::IO().save(source, path), SushiBLAS::IOStatus::FileUnwritable);
+            EXPECT_FALSE(std::ifstream(path).good()) << "the partial file must be removed";
+        }
+
+        /// @brief Loads a saved 2 x 2 file into a tensor of another shape, one format and shape per row.
+        class Medium_LoadShape : public Medium_SpatialRandomIOValidationTest,
+                                 public ::testing::WithParamInterface<ShapeRow> {};
+
+        TEST_P(Medium_LoadShape, OfAnotherRankOrDimensionIsRefused)
+        {
+            const std::string path = temp_path(GetParam().binary ? "shape.bin" : "shape.sushi");
+            auto source = create_initialized_tensor<float>({2, 2}, {1.0f, 2.0f, 3.0f, 4.0f});
+            auto target = engine->create_tensor(
+                SushiRuntime::span<const int64_t>(GetParam().dims.data(), GetParam().dims.size()),
+                Core::DataType::Float32);
+
+            const IOStatus saved = GetParam().binary ? SushiBLAS::IO().save_bin(source, path)
+                                                      : SushiBLAS::IO().save(source, path);
+            ASSERT_EQ(saved, IOStatus::Ok);
+
+            const IOStatus loaded = GetParam().binary ? SushiBLAS::IO().load_bin(target, path)
+                                                       : SushiBLAS::IO().load(target, path);
+            EXPECT_EQ(loaded, IOStatus::ShapeMismatch);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            Formats, Medium_LoadShape,
+            ::testing::Values(ShapeRow{"SushiAnotherDimension", false, {2, 3}},
+                              ShapeRow{"SushiAnotherRank", false, {4}},
+                              ShapeRow{"BinAnotherDimension", true, {2, 3}},
+                              ShapeRow{"BinAnotherRank", true, {4}}),
+            shape_row_name);
     } // namespace Test
 } // namespace SushiBLAS
