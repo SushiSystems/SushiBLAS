@@ -27,47 +27,49 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <vector>
+#include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include <SushiBLAS/blas_kernels/reference/level1/level1.hpp>
+#include "support/tolerance.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
-        /// for every comparison in this file.
-        constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
-
         /**
-         * @brief Runs every Level 1 call of a test on the reference kernels.
+         * @brief Tests that the reference rot turns each pair by the cosine 0.6 and the sine 0.8,
+         *        a rotation no other test uses.
+         *
+         * The expected pairs are worked out by hand; each is within three FLOAT32 roundings of
+         * |c| * |x| + |s| * |y|, the terms that form it.
          */
-        class Medium_Level1ReferenceTest : public SushiBLASTest
+        TEST(Small_Level1Reference, RotAppliesThePlaneRotation)
         {
-            protected:
-                /** @brief Builds the engine and forces the reference path. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    set_mode(ExecutionMode::ForceReference);
-                }
-        };
+            constexpr double K_COSINE = 0.6;
+            constexpr double K_SINE = 0.8;
+            constexpr std::size_t K_ROUNDINGS = 3;
 
-        TEST_F(Medium_Level1ReferenceTest, RotAppliesThePlaneRotation)
-        {
-            const std::vector<float> K_EXPECTED_X = {3.0f, 4.4f};
-            const std::vector<float> K_EXPECTED_Y = {1.0f, 0.8f};
+            std::vector<float> x = {1.0f, 2.0f};
+            std::vector<float> y = {3.0f, 4.0f};
+            const std::vector<double> want_x = {3.0, 4.4};
+            const std::vector<double> want_y = {1.0, 0.8};
 
-            auto x = create_initialized_tensor<float>({2}, {1.0f, 2.0f});
-            auto y = create_initialized_tensor<float>({2}, {3.0f, 4.0f});
+            Kernels::Reference::rot<float>(2, x.data(), 1, y.data(), 1, static_cast<float>(K_COSINE),
+                                           static_cast<float>(K_SINE));
 
-            SushiBLAS::BLASOps(recorder()).rot(x, y, 0.6, 0.8);
-            recording->run().value();
+            for (std::size_t i = 0; i < x.size(); ++i)
+            {
+                const double magnitude = K_COSINE * std::abs(want_x[i]) + K_SINE * std::abs(want_y[i]);
+                const double bound = static_cast<double>(K_ROUNDINGS) *
+                                     TestSupport::unit_roundoff<float>() * (magnitude + 4.0);
 
-            EXPECT_TENSOR_NEAR(x, K_EXPECTED_X, K_TOLERANCE);
-            EXPECT_TENSOR_NEAR(y, K_EXPECTED_Y, K_TOLERANCE);
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(x[i], want_x[i], bound)))
+                    << "x[" << i << "]";
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(y[i], want_y[i], bound)))
+                    << "y[" << i << "]";
+            }
         }
     } // namespace Test
 } // namespace SushiBLAS

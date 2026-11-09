@@ -57,6 +57,8 @@ sushiblas_add_test_program(
     TESTS
         test_band_operand.cpp
         test_blas/test_iamax.cpp
+        test_blas/test_level1_reference.cpp
+        test_blas/test_level2_reference.cpp
         test_blas_task.cpp
         test_level1.cpp
         test_level2.cpp
@@ -78,8 +80,6 @@ sushiblas_add_test_program(
         test_blas/test_blas_validation.cpp
         test_blas/test_gemm.cpp
         test_blas/test_level1_parallel_reductions.cpp
-        test_blas/test_level1_reference.cpp
-        test_blas/test_level2_reference.cpp
         test_blas/test_level2_sycl_parity.cpp
         test_blas/test_packed_symm.cpp
         test_blas/test_packed_syrk.cpp

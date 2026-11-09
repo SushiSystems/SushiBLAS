@@ -28,8 +28,8 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
 | `test_blas/test_iamax.cpp` | Tests that iamax refuses a result tensor that cannot hold the INT64 index |
 | `test_blas/test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and HALF accumulation |
-| `test_blas/test_level1_reference.cpp` | Tests the BLAS Level 1 reference kernels against hand-computed results |
-| `test_blas/test_level2_reference.cpp` | Tests the BLAS Level 2 reference kernels against hand-computed results |
+| `test_blas/test_level1_reference.cpp` | Tests that the reference rot turns a pair by a cosine of 0.6 and a sine of 0.8 |
+| `test_blas/test_level2_reference.cpp` | Tests that a reference solve with a unit diagonal never reads the stored diagonal |
 | `test_blas/test_level2_sycl_parity.cpp` | Tests that the GEMV and SYMV kernels stay within their rounding bound of a double-precision truth, and that the SYCL kernels repeat to the bit |
 | `test_blas/test_packed_symm.cpp` | Tests SYMM and HEMM on the packed product against the reference kernel |
 | `test_blas/test_packed_syrk.cpp` | Tests SYRK and HERK on the packed product against the reference kernel |

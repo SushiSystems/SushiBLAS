@@ -27,141 +27,88 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
+#include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/blas_kernels/reference/level3/trsm.hpp>
+
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
-        /// for every comparison in this file.
-        constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
-
-        /// @brief Fills the triangle a call must neither read nor write.
-        constexpr float K_POISON = 999.0f;
-
-        /**
-         * @brief Runs every Level 2 call of a test on the reference kernels.
-         */
-        class Medium_Level2ReferenceTest : public SushiBLASTest
+        namespace
         {
-            protected:
-                /** @brief Builds the engine and forces the reference path. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    set_mode(ExecutionMode::ForceReference);
-                }
+            /// @brief Fills the triangle a call must neither read nor write.
+            constexpr float K_POISON = 999.0f;
 
-                /** @brief Returns U = [[1,2,3],[0,4,5],[0,0,6]] with its lower part poisoned. */
-                [[nodiscard]] static std::vector<float> upper_matrix()
-                {
-                    return {1.0f, 2.0f, 3.0f,
-                            K_POISON, 4.0f, 5.0f,
-                            K_POISON, K_POISON, 6.0f};
-                }
+            /** @brief Holds the triangle and the form of A a unit-diagonal solve runs on. */
+            struct UnitSolveRow
+            {
+                const char* name;       /**< The row name a failure shows. */
+                Core::Uplo uplo;        /**< The triangle of A that is read. */
+                Core::Transpose trans;  /**< The form of A the solve uses. */
+                std::vector<float> a;   /**< A, row-major, with the other triangle poisoned. */
+            };
 
-                /** @brief Returns L = U^T with its upper part poisoned. */
-                [[nodiscard]] static std::vector<float> lower_matrix()
-                {
-                    return {1.0f, K_POISON, K_POISON,
-                            2.0f, 4.0f, K_POISON,
-                            3.0f, 5.0f, 6.0f};
-                }
+            /** @brief Returns U = [[1,2,3],[0,4,5],[0,0,6]] with its lower part poisoned. */
+            std::vector<float> upper_matrix()
+            {
+                return {1.0f, 2.0f, 3.0f,
+                        K_POISON, 4.0f, 5.0f,
+                        K_POISON, K_POISON, 6.0f};
+            }
+
+            /** @brief Returns L = U^T with its upper part poisoned. */
+            std::vector<float> lower_matrix()
+            {
+                return {1.0f, K_POISON, K_POISON,
+                        2.0f, 4.0f, K_POISON,
+                        3.0f, 5.0f, 6.0f};
+            }
+
+            /** @brief Returns the rows the reference solve is run on. */
+            std::vector<UnitSolveRow> unit_solve_rows()
+            {
+                return {{"UpperNoTranspose", Core::Uplo::Upper, Core::Transpose::NoTrans, upper_matrix()},
+                        {"LowerTransposed", Core::Uplo::Lower, Core::Transpose::Trans, lower_matrix()}};
+            }
+
+            /** @brief Returns the name of a row for GoogleTest. */
+            std::string row_name(const ::testing::TestParamInfo<UnitSolveRow>& info)
+            {
+                return info.param.name;
+            }
+        } // namespace
+
+        /** @brief Runs the unit-diagonal solve once per triangle and form of A. */
+        class Small_Level2ReferenceUnitSolve : public ::testing::TestWithParam<UnitSolveRow>
+        {
+
         };
 
-        TEST_F(Medium_Level2ReferenceTest, TrsvUpperNoTranspose)
+        /**
+         * @brief Tests that a solve with a unit diagonal ignores the stored diagonal and the
+         *        other triangle, on integers the host solves exactly.
+         *
+         * Both rows solve (I + N) x = [9, 11, 2] to x = [1, 1, 2], where N is the strict triangle
+         * [[0,2,3],[0,0,5],[0,0,0]], used as given or transposed.
+         */
+        TEST_P(Small_Level2ReferenceUnitSolve, TheStoredDiagonalIsNeverRead)
         {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
+            const UnitSolveRow& row = GetParam();
+            const std::vector<float> want = {1.0f, 1.0f, 2.0f};
+            std::vector<float> b = {9.0f, 11.0f, 2.0f};
 
-            auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
-            auto b = create_initialized_tensor<float>({3}, {9.0f, 14.0f, 12.0f});
+            Kernels::Reference::trsm<float>(Core::Layout::RowMajor, Core::Side::Left, row.uplo,
+                                            row.trans, Core::Diag::Unit, 3, 1, 1.0f, row.a.data(), 3,
+                                            b.data(), 1);
 
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Upper,
-                                             Core::Transpose::NoTrans,
-                                             Core::Diag::NonUnit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
+            EXPECT_EQ(b, want);
         }
 
-        TEST_F(Medium_Level2ReferenceTest, TrsvUpperTransposed)
-        {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
-
-            auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
-            auto b = create_initialized_tensor<float>({3}, {1.0f, 6.0f, 20.0f});
-
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Upper,
-                                             Core::Transpose::Trans,
-                                             Core::Diag::NonUnit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level2ReferenceTest, TrsvUpperUnitDiagonal)
-        {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
-
-            auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
-            auto b = create_initialized_tensor<float>({3}, {9.0f, 11.0f, 2.0f});
-
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Upper,
-                                             Core::Transpose::NoTrans,
-                                             Core::Diag::Unit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level2ReferenceTest, TrsvLowerNoTranspose)
-        {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
-
-            auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
-            auto b = create_initialized_tensor<float>({3}, {1.0f, 6.0f, 20.0f});
-
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower,
-                                             Core::Transpose::NoTrans,
-                                             Core::Diag::NonUnit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level2ReferenceTest, TrsvLowerTransposed)
-        {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
-
-            auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
-            auto b = create_initialized_tensor<float>({3}, {9.0f, 14.0f, 12.0f});
-
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower,
-                                             Core::Transpose::Trans,
-                                             Core::Diag::NonUnit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
-        }
-
-        TEST_F(Medium_Level2ReferenceTest, TrsvLowerTransposedUnitDiagonal)
-        {
-            const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
-
-            auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
-            auto b = create_initialized_tensor<float>({3}, {9.0f, 11.0f, 2.0f});
-
-            SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower,
-                                             Core::Transpose::Trans,
-                                             Core::Diag::Unit);
-            recording->run().value();
-
-            EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_Level2ReferenceUnitSolve, ::testing::ValuesIn(unit_solve_rows()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
