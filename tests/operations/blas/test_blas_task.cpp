@@ -28,6 +28,7 @@
  */
 
 #include <cstddef>
+#include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -63,7 +64,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Medium_BLASTask, RecordsOneTaskForARealOrAComplexDtype)
+        TEST(Small_BLASTask, RecordsOneTaskForARealOrAComplexDtype)
         {
             GraphProbe probe;
             TaskDescription description;
@@ -77,15 +78,16 @@ namespace SushiBLAS
             EXPECT_EQ(probe.recorded_count(), std::size_t{2});
         }
 
-        TEST(Medium_BLASTask, RefusesAnIntegerDtypeAndRecordsNothing)
+        TEST(Small_BLASTask, RefusesAnIntegerDtypeAndRecordsNothing)
         {
             GraphProbe probe;
             TaskDescription description;
             description.name = "nothing";
 
-            EXPECT_ANY_THROW(Internal::execute_blas_task(probe.recorder(), description,
+            EXPECT_THROW(Internal::execute_blas_task(probe.recorder(), description,
                                                          OperandSet(), Core::DataType::Int64,
-                                                         NothingBody{}));
+                                                         NothingBody{}),
+                         std::invalid_argument);
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
         }
     } // namespace Test
