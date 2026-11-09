@@ -30,8 +30,12 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <gtest/gtest.h>
+#include <SushiBLAS/arithmetic/safe_math.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/elementwise/scalar_math.hpp>
+#include <SushiBLAS/functor_map/scalar.hpp>
 #include "support/tolerance.hpp"
 
 namespace SushiBLAS
@@ -137,5 +141,127 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::scalar_min(3, 7), 3);
             EXPECT_EQ(Dispatch::scalar_min(int64_t{-3}, int64_t{-7}), int64_t{-7});
         }
+
+        /// @brief A positive infinity of double.
+        constexpr double K_INF = std::numeric_limits<double>::infinity();
+
+        TEST(Small_ScalarMath, SineAndTangentOfOneReturnTheirSpecifiedValues)
+        {
+            expect_close(Dispatch::scalar_sin(1.0), 0.8414709848078965);
+            expect_close(Dispatch::scalar_tan(1.0), 1.5574077246549023);
+            EXPECT_EQ(Dispatch::scalar_sin(0.0), 0.0);
+            EXPECT_EQ(Dispatch::scalar_tan(0.0), 0.0);
+        }
+
+        TEST(Small_ScalarMath, HyperbolicSineOfOneIsHalfTheDifferenceOfEAndItsInverse)
+        {
+            expect_close(Dispatch::scalar_sinh(1.0), 1.1752011936438014);
+            EXPECT_EQ(Dispatch::scalar_sinh(0.0), 0.0);
+        }
+
+        TEST(Small_ScalarMath, SineAndCosineOfInfinityAreNaN)
+        {
+            EXPECT_TRUE(std::isnan(Dispatch::scalar_sin(K_INF)));
+            EXPECT_TRUE(std::isnan(Dispatch::scalar_cos(K_INF)));
+        }
+
+        TEST(Small_ScalarMath, RoundSendsAHalfwayValueAwayFromZero)
+        {
+            EXPECT_EQ(Dispatch::scalar_round(2.5), 3.0);
+            EXPECT_EQ(Dispatch::scalar_round(-2.5), -3.0);
+            EXPECT_EQ(Dispatch::scalar_round(2.4), 2.0);
+        }
+
+        TEST(Small_ScalarMath, SquareMultipliesTheValueByItself)
+        {
+            EXPECT_EQ(Dispatch::scalar_square(-3.0), 9.0);
+            EXPECT_EQ(Dispatch::scalar_square(0.5f), 0.25f);
+        }
+
+        TEST(Small_ScalarMath, ReciprocalDividesOneByTheValue)
+        {
+            EXPECT_EQ(Dispatch::scalar_reciprocal(4.0), 0.25);
+            EXPECT_TRUE(std::isinf(Dispatch::scalar_reciprocal(0.0)));
+        }
+
+        TEST(Small_ScalarMath, PowRaisesTheBaseToTheExponent)
+        {
+            EXPECT_EQ(Dispatch::scalar_pow(2.0, 10.0), 1024.0);
+            EXPECT_EQ(Dispatch::scalar_pow(9.0, 0.5), 3.0);
+        }
+
+        TEST(Small_ScalarMath, RemainderRoundsTheQuotientToTheNearestEven)
+        {
+            // 5.5 / 2 = 2.75 rounds to 3, so the remainder is 5.5 - 6 = -0.5.
+            EXPECT_EQ(Dispatch::scalar_remainder(5.5, 2.0), -0.5);
+            // 5 / 2 = 2.5 rounds to the even 2, so the remainder is 1.
+            EXPECT_EQ(Dispatch::scalar_remainder(5.0, 2.0), 1.0);
+        }
+
+        TEST(Small_ScalarMath, ExponentialOfZeroIsOneAndOfInfinityIsInfinity)
+        {
+            EXPECT_EQ(Dispatch::safe_exp(0.0), 1.0);
+            EXPECT_EQ(Dispatch::safe_exp(K_INF), K_INF);
+        }
+
+        TEST(Small_ScalarMath, LogOfZeroIsMinusInfinityAndOfInfinityIsInfinity)
+        {
+            EXPECT_EQ(Dispatch::safe_log(0.0), -K_INF);
+            EXPECT_EQ(Dispatch::safe_log(K_INF), K_INF);
+        }
+
+        TEST(Small_ScalarMath, LogOfANegativeNumberIsNaN)
+        {
+            EXPECT_TRUE(std::isnan(Dispatch::safe_log(-1.0)));
+        }
+
+        TEST(Small_ScalarMath, SquareRootOfANegativeNumberIsNaN)
+        {
+            EXPECT_TRUE(std::isnan(Dispatch::safe_sqrt(-1.0)));
+        }
+
+        TEST(Small_ScalarMath, SquareRootOfZeroIsZero)
+        {
+            EXPECT_EQ(Dispatch::safe_sqrt(0.0), 0.0);
+        }
+
+        TEST(Small_ScalarMath, SquareRootOfInfinityIsInfinity)
+        {
+            EXPECT_EQ(Dispatch::safe_sqrt(K_INF), K_INF);
+        }
+
+        TEST(Small_ScalarMath, ClampWithEqualBoundsGivesThatBound)
+        {
+            // Equal bounds pass the record-time check, or the call throws and the test fails.
+            Dispatch::require_clamp_bounds(2.0, 2.0);
+            EXPECT_EQ(Dispatch::scalar_clamp(-5.0, 2.0, 2.0), 2.0);
+            EXPECT_EQ(Dispatch::scalar_clamp(9.0, 2.0, 2.0), 2.0);
+        }
+
+        TEST(Small_ScalarMath, ClampBoundsTruncateTowardZeroOnAnIntegerElement)
+        {
+            // A lower bound of -2.5 truncates to -2 and an upper bound of 7.9 truncates to 7.
+            const Dispatch::ElementScalar low(-2.5);
+            const Dispatch::ElementScalar high(7.9);
+
+            EXPECT_EQ(Dispatch::scalar_clamp(int32_t{-10}, low.as<int32_t>(), high.as<int32_t>()), -2);
+            EXPECT_EQ(Dispatch::scalar_clamp(int32_t{0}, low.as<int32_t>(), high.as<int32_t>()), 0);
+            EXPECT_EQ(Dispatch::scalar_clamp(int32_t{10}, low.as<int32_t>(), high.as<int32_t>()), 7);
+        }
+
+        TEST(Small_ScalarMath, ClampKeepsADoubleBoundThatFloatWouldDrop)
+        {
+            // 1 + 1e-9 rounds to exactly 1.0f in float and is kept in double.
+            constexpr double K_FINE_LOW = 1.0 + 1e-9;
+            const Dispatch::ElementScalar low(K_FINE_LOW);
+
+            EXPECT_EQ(Dispatch::scalar_clamp(1.0, low.as<double>(), 2.0), K_FINE_LOW);
+        }
+
+        TEST(Small_ScalarMath, ClampBoundsRefuseALowerBoundAboveTheUpperOne)
+        {
+            EXPECT_THROW(Dispatch::require_clamp_bounds(7.9, -2.5), std::invalid_argument);
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

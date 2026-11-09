@@ -222,6 +222,18 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Throws unless the lower clamp bound does not exceed the upper one.
+         * @param min_val The lower bound; equal bounds are accepted.
+         * @param max_val The upper bound.
+         * @throws std::invalid_argument naming math.ew.clamp, min_val and both bounds.
+         */
+        inline void require_clamp_bounds(double min_val, double max_val)
+        {
+            require_operand(!(min_val > max_val), "math.ew.clamp", "min_val",
+                            "is {}, above max_val {}", min_val, max_val);
+        }
+
+        /**
          * @brief Returns `a + b`, wrapping modulo 2^N when T is an integer type.
          * @see modules/operations/MATH_README.md
          */
