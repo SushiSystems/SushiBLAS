@@ -1,6 +1,6 @@
 # graph_probe
 
-`GraphProbe`, a graph a test owns so it can read what its record calls added. The module is internal and test-only: its headers are not installed, and it is added
+`GraphProbe` and `HostGraphProbe`, graphs a test owns so it can read what its record calls added. The module is internal and test-only: its headers are not installed, and it is added
 only when `SB_BUILD_TESTS` is on.
 
 It depends on `engine`, `engine_fixture` and `test_runner`. Its headers are included as `<SushiBLAS/graph_probe/graph_probe.hpp>`.
@@ -8,6 +8,7 @@ It depends on `engine`, `engine_fixture` and `test_runner`. Its headers are incl
 | File | Declares |
 | --- | --- |
 | `graph_probe.hpp` | `GraphProbe` and `RecordedTask` |
+| `host_graph_probe.hpp` | `HostGraphProbe` |
 
 ## graph_probe.hpp
 
@@ -29,3 +30,15 @@ into a `RecordedTask`: the task's `name` and `operation`, its `dependency_count`
 error that kept the graph from compiling. `dependency_counts()` returns the counts alone. A test
 reads the tasks before `execute()`, which leaves the graph empty. The plan holds no task body, so
 a test cannot call one; it runs a task through `execute()`.
+
+## host_graph_probe.hpp
+
+`HostGraphProbe` is the probe for a test that makes no runtime. It owns a `HostScratchSource`, a
+`ScratchPool` over it, a `HostTaskSink` and a `TaskRecorder` over both, which records under
+`ForceReference`. Its tensors need host storage only, because it reads the regions a task declared
+and never the memory behind them. `recorded_tasks()` returns the tasks in record order as
+`RecordedTask`s whose `dependency_count` is computed from the regions: a task waits for an earlier
+one when a region it reads overlaps a region the earlier one writes, or a region it writes overlaps
+a region the earlier one reads or writes (`SushiRuntime::BufferRegion::overlaps`), and an earlier
+task counts once. The runtime plan of `GraphProbe` is the reference for that rule; the host probe
+reproduces it and has no test that compares the two. `cost` stays empty.

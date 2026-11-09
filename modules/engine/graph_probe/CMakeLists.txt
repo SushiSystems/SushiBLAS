@@ -16,4 +16,5 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE graph_probe
     TESTS
-        test_graph_probe.cpp)
+        test_graph_probe.cpp
+        test_host_graph_probe.cpp)

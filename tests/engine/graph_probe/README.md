@@ -9,3 +9,4 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_graph_probe.cpp` | Tests that GraphProbe reports the tasks, the dependencies and the counts it recorded |
+| `test_host_graph_probe.cpp` | Tests that HostGraphProbe counts the tasks each recorded task waits for from their declared regions |
