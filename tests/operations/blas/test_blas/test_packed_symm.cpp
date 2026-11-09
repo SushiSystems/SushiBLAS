@@ -57,10 +57,10 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
 #include <SushiBLAS/packed_product_harness/packed_product_harness.hpp>
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -86,15 +86,20 @@ namespace SushiBLAS
             /// @brief Holds the largest order tried for a product the profile packs.
             constexpr int64_t K_LARGEST_SEAM_ORDER = 768;
 
-            /// @brief Holds the two storage orders every exact-data test runs in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
             /// @brief Holds the two sides A can stand on.
             constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
 
             /// @brief Holds the two triangles A can be stored in.
             constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
+
+            /// @brief Holds the five element types every row suite runs over.
+            const std::vector<Core::DataType> K_ALL_TYPES = {
+                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
+                Core::DataType::Complex32, Core::DataType::Complex64};
+
+            /// @brief Holds the two complex element types, the only ones with a Hermitian product.
+            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
+                                                                 Core::DataType::Complex64};
 
             /**
              * @brief Holds the relative error of storing a part of T: 2^-11 for HALF, the unit
@@ -103,7 +108,7 @@ namespace SushiBLAS
             template<typename T>
             constexpr double K_STORE_ROUNDOFF =
                 std::is_same_v<T, sycl::half>
-                    ? 0x1p-11
+                    ? K_HALF_UNIT_ROUNDOFF
                     : unit_roundoff<Kernels::RealType<Kernels::Accumulator<T>>>();
 
             /** @brief Names the routine a seam case records. */
@@ -113,38 +118,121 @@ namespace SushiBLAS
                 Hemm  /**< The Hermitian product. */
             };
 
-            /// @brief Holds the two routines the seam test records.
-            constexpr Routine K_ROUTINES[] = {Routine::Symm, Routine::Hemm};
+            /** @brief Names one of the three blockings the exact-data rows inject. */
+            enum class BlockingKind : std::uint8_t
+            {
+                Smallest, /**< The smallest blocking, planned for one compute unit. */
+                Widest,   /**< The widest blocking, planned for one compute unit. */
+                Ragged    /**< A blocking that leaves ragged edges, planned for three compute units. */
+            };
+
+            /** @brief Holds the three blockings, in the order of BlockingKind. */
+            constexpr BlockingKind K_BLOCKINGS[] = {BlockingKind::Smallest, BlockingKind::Widest,
+                                                    BlockingKind::Ragged};
 
             /** @brief Holds one injected blocking and the compute units it is planned for. */
             struct InjectedBlocking
             {
-                const char* name;               /**< Names the blocking in a failure message. */
                 Device::CacheBlocking blocking; /**< The budgets handed to the plan. */
                 std::size_t compute_units;      /**< The compute units handed to the plan. */
             };
 
-            /** @brief Returns the blockings every exact-data test runs under, for type T. */
+            /** @brief Returns the blocking of a kind for type T. */
             template<typename T>
-            [[nodiscard]] std::vector<InjectedBlocking> injected_blockings()
+            [[nodiscard]] InjectedBlocking injected_blocking(BlockingKind kind)
             {
-                return {
-                    {"smallest, one unit", smallest_blocking(), 1},
-                    {"widest, one unit", widest_blocking(), 1},
-                    {"ragged, three units", ragged_blocking<T>(), 3},
-                };
+                switch (kind)
+                {
+                    case BlockingKind::Smallest:
+                        return {smallest_blocking(), 1};
+                    case BlockingKind::Widest:
+                        return {widest_blocking(), 1};
+                    case BlockingKind::Ragged:
+                        break;
+                }
+                return {ragged_blocking<T>(), 3};
             }
 
-            /** @brief Returns the name of a layout for a failure message. */
-            [[nodiscard]] const char* layout_name(Core::Layout layout) noexcept
+            /** @brief Returns the word that names a blocking in a row name. */
+            [[nodiscard]] std::string blocking_word(BlockingKind kind)
             {
-                return layout == Core::Layout::RowMajor ? "row-major" : "column-major";
+                return kind == BlockingKind::Smallest ? "Smallest"
+                       : kind == BlockingKind::Widest ? "Widest"
+                                                      : "Ragged";
             }
 
-            /** @brief Returns the name of a routine for a failure message. */
-            [[nodiscard]] const char* routine_name(Routine routine) noexcept
+            /** @brief Returns the word that names a routine in a row name. */
+            [[nodiscard]] std::string routine_word(Routine routine)
             {
-                return routine == Routine::Symm ? "symm" : "hemm";
+                return routine == Routine::Symm ? "Symm" : "Hemm";
+            }
+
+            /** @brief Holds one exact-data row: the type, the storage, the side, the triangle and the blocking. */
+            struct ExactRow
+            {
+                Core::DataType type;   /**< The element type of every operand. */
+                Core::Layout layout;   /**< The storage order of A, B and C. */
+                Core::Side side;       /**< The side A stands on. */
+                Core::Uplo uplo;       /**< The triangle A is stored in. */
+                BlockingKind blocking; /**< The blocking handed to the plan. */
+            };
+
+            /** @brief Holds one seam row: the type, the routine and the side. */
+            struct SeamRow
+            {
+                Core::DataType type; /**< The element type of every operand. */
+                Routine routine;     /**< The routine the seam records. */
+                Core::Side side;     /**< The side A stands on. */
+            };
+
+            /** @brief Returns every exact-data row over the given types. */
+            [[nodiscard]] std::vector<ExactRow> exact_rows(const std::vector<Core::DataType>& types)
+            {
+                std::vector<ExactRow> rows;
+                for (const Core::DataType type : types)
+                    for (const Core::Layout layout : K_ROW_LAYOUTS)
+                        for (const Core::Side side : K_SIDES)
+                            for (const Core::Uplo uplo : K_TRIANGLES)
+                                for (const BlockingKind blocking : K_BLOCKINGS)
+                                    rows.push_back({type, layout, side, uplo, blocking});
+                return rows;
+            }
+
+            /** @brief Returns every seam row. */
+            [[nodiscard]] std::vector<SeamRow> seam_rows()
+            {
+                std::vector<SeamRow> rows;
+                for (const Core::DataType type : K_ALL_TYPES)
+                    for (const Routine routine : {Routine::Symm, Routine::Hemm})
+                        for (const Core::Side side : K_SIDES)
+                            rows.push_back({type, routine, side});
+                return rows;
+            }
+
+            /** @brief Returns the name of an exact-data row. */
+            [[nodiscard]] std::string exact_row_name(const ::testing::TestParamInfo<ExactRow>& info)
+            {
+                const ExactRow& row = info.param;
+                return std::string(Core::to_string(row.type)) + "_" + word(row.layout) + "_" +
+                       word(row.side) + "_" + word(row.uplo) + "_" + blocking_word(row.blocking);
+            }
+
+            /** @brief Returns the name of a seam row. */
+            [[nodiscard]] std::string seam_row_name(const ::testing::TestParamInfo<SeamRow>& info)
+            {
+                const SeamRow& row = info.param;
+                return std::string(Core::to_string(row.type)) + "_" + routine_word(row.routine) + "_" +
+                       word(row.side);
+            }
+
+            /** @brief Calls body with the Element of FLOAT32 or of FLOAT64's complex pair. */
+            template<typename Body>
+            void with_complex_element(Core::DataType type, Body&& body)
+            {
+                if (type == Core::DataType::Complex64)
+                    body(Element<std::complex<double>>{});
+                else
+                    body(Element<std::complex<float>>{});
             }
 
             /** @brief Returns the real and the imaginary part of value; a real T has no second. */
@@ -217,17 +305,6 @@ namespace SushiBLAS
                             ++beyond;
                 }
                 return beyond;
-            }
-
-            /** @brief Returns whether the device computes in the precision T needs. */
-            template<typename T>
-            [[nodiscard]] bool device_runs(const Device::Profile& profile) noexcept
-            {
-                if (std::is_same_v<T, sycl::half>)
-                    return profile.supports_fp16;
-                if (std::is_same_v<Kernels::RealType<T>, double>)
-                    return profile.supports_fp64;
-                return true;
             }
 
             /**
@@ -408,45 +485,30 @@ namespace SushiBLAS
 
             /**
              * @brief Expects the packed kernel to leave the bits the reference leaves and no NaN,
-             *        for each layout, side, triangle and blocking.
+             *        for the layout, side, triangle and blocking of a row.
              * @tparam Conj Kernels::Unconjugated for SYMM, Kernels::Conjugated for HEMM.
              * @param diagonal_imaginary Written on the diagonal of A when not zero.
              */
             template<typename T, typename Conj>
-            void expect_packed_equals_reference(sycl::queue& q, double diagonal_imaginary)
+            void expect_packed_equals_reference(sycl::queue& q, const ExactRow& row,
+                                                double diagonal_imaginary)
             {
                 const T alpha = T(2);
                 const T beta = T(-1);
 
-                for (const Core::Layout layout : K_LAYOUTS)
-                {
-                    for (const Core::Side side : K_SIDES)
-                    {
-                        for (const Core::Uplo uplo : K_TRIANGLES)
-                        {
-                            SCOPED_TRACE(std::string(layout_name(layout)) + " " +
-                                         Core::to_string(side) + " " + Core::to_string(uplo));
+                SymmetricProblem<T, Conj> problem(q, row.layout, row.side, row.uplo,
+                                                  K_EXACT_ROWS, K_EXACT_COLS);
+                if (diagonal_imaginary != 0.0)
+                    problem.set_diagonal_imaginary(diagonal_imaginary);
 
-                            SymmetricProblem<T, Conj> problem(q, layout, side, uplo,
-                                                              K_EXACT_ROWS, K_EXACT_COLS);
-                            if (diagonal_imaginary != 0.0)
-                                problem.set_diagonal_imaginary(diagonal_imaginary);
-
-                            const std::vector<T> want = problem.expected(alpha, beta);
-                            for (const InjectedBlocking& injected : injected_blockings<T>())
-                            {
-                                SCOPED_TRACE(injected.name);
-                                const std::vector<T> got = problem.packed(
-                                    injected.blocking, injected.compute_units, alpha, beta);
-                                ASSERT_EQ(got.size(), want.size());
-                                EXPECT_EQ(count_bit_mismatches(got.data(), want.data(),
-                                                               want.size()),
-                                          std::size_t{0});
-                                EXPECT_EQ(count_nans(got), std::size_t{0});
-                            }
-                        }
-                    }
-                }
+                const std::vector<T> want = problem.expected(alpha, beta);
+                const InjectedBlocking injected = injected_blocking<T>(row.blocking);
+                const std::vector<T> got =
+                    problem.packed(injected.blocking, injected.compute_units, alpha, beta);
+                ASSERT_EQ(got.size(), want.size());
+                EXPECT_EQ(count_bit_mismatches(got.data(), want.data(), want.size()),
+                          std::size_t{0});
+                EXPECT_EQ(count_nans(got), std::size_t{0});
             }
 
             /** @brief Records the product of a routine with its default scalars. */
@@ -459,19 +521,10 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Gives the packed SYMM tests an engine and the queue, per element type. */
-        template<typename T>
-        class Medium_PackedSymm : public SushiBLASTest
+        /** @brief Gives the packed SYMM tests an engine and the queue. */
+        class PackedSymmEngine : public SushiBLASTest
         {
             protected:
-                /** @brief Skips the test when the device does not compute in T's precision. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>(Device::profile_for(queue())))
-                        GTEST_SKIP() << "the device does not compute in this precision";
-                }
-
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
@@ -479,6 +532,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns a square tensor of T of order s with elements in [-1, 1]. */
+                template<typename T>
                 [[nodiscard]] Tensor random_square(int64_t s)
                 {
                     Tensor tensor = engine->create_tensor({s, s}, sushiblas_dtype<T>());
@@ -487,76 +541,124 @@ namespace SushiBLAS
                 }
         };
 
-        using PackedSymmTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
-                                                 std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_PackedSymm, PackedSymmTypes);
-
-        /** @brief Tests a symmetric brick as either factor against the reference, bit for bit. */
-        TYPED_TEST(Medium_PackedSymm, BothSidesEqualTheReferenceOnExactData)
+        /**
+         * @brief Runs a case once per row, and skips a device that does not compute in the type of
+         *        the row.
+         * @tparam Row One of the row types above; it holds the element type as `type`.
+         */
+        template<typename Row>
+        class PackedSymmRowCase : public PackedSymmEngine, public ::testing::WithParamInterface<Row>
         {
-            expect_packed_equals_reference<TypeParam, Kernels::Unconjugated>(this->queue(), 0.0);
-        }
-
-        /** @brief Tests a Hermitian brick whose stored diagonal carries an imaginary part. */
-        TYPED_TEST(Medium_PackedSymm, HemmReadsTheMirrorConjugatedAndTheDiagonalReal)
-        {
-            if constexpr (Core::is_complex_v<TypeParam>)
-            {
-                expect_packed_equals_reference<TypeParam, Kernels::Conjugated>(
-                    this->queue(), K_DIAGONAL_IMAGINARY);
-            }
-            else
-            {
-                GTEST_SKIP() << "a real element type has no conjugate and no imaginary diagonal";
-            }
-        }
-
-        /** @brief Tests that symm and hemm lease scratch on SYCL alone and keep parity. */
-        TYPED_TEST(Medium_PackedSymm, TheSeamLeasesScratchForASymmetricProduct)
-        {
-            using T = TypeParam;
-            const Device::Profile& profile = Device::profile_for(this->queue());
-            const int64_t s = packed_order<T>(profile);
-            if (s == 0)
-                GTEST_SKIP() << "no order up to " << K_LARGEST_SEAM_ORDER
-                             << " selects the packed kernel; cache_bytes=" << profile.cache_bytes;
-
-            const Core::DataType dtype = sushiblas_dtype<T>();
-
-            for (const Routine routine : K_ROUTINES)
-            {
-                for (const Core::Side side : K_SIDES)
+            protected:
+                /** @brief Skips the case when the device does not compute in the type of the row. */
+                void SetUp() override
                 {
-                    SCOPED_TRACE(std::string(routine_name(routine)) + " " +
-                                 Core::to_string(side));
-
-                    const Tensor A = this->random_square(s);
-                    const Tensor B = this->random_square(s);
-                    Tensor sycl_result = this->engine->create_tensor({s, s}, dtype);
-                    Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
-
-                    this->set_mode(ExecutionMode::ForceSYCL);
-                    const std::size_t live_before_sycl = TestEnvironment::live_allocation_count();
-                    record_product(this->recorder(), routine, A, B, sycl_result, side,
-                                   Core::Uplo::Upper);
-                    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_sycl + 1);
-                    this->recording->run().value();
-
-                    this->set_mode(ExecutionMode::ForceReference);
-                    const std::size_t live_before_reference =
-                        TestEnvironment::live_allocation_count();
-                    record_product(this->recorder(), routine, A, B, reference_result, side,
-                                   Core::Uplo::Upper);
-                    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);
-                    this->recording->run().value();
-
-                    const std::vector<T> got = read_tensor<T>(sycl_result);
-                    const std::vector<T> want = read_tensor<T>(reference_result);
-                    ASSERT_EQ(got.size(), want.size());
-                    EXPECT_EQ(count_parts_beyond(got, want, parity_bound<T>(s, 1.0, 0.0)),
-                              std::size_t{0});
+                    PackedSymmEngine::SetUp();
+                    if (!device_runs(this->GetParam().type))
+                        GTEST_SKIP() << "the device does not compute in this precision";
                 }
-            }
+        };
+
+        /** @brief Compares a symmetric brick as either factor with the reference, bit for bit. */
+        class Medium_PackedSymm : public PackedSymmRowCase<ExactRow>
+        {
+        };
+
+        /** @brief Compares a Hermitian brick whose stored diagonal carries an imaginary part. */
+        class Medium_PackedHemm : public PackedSymmRowCase<ExactRow>
+        {
+        };
+
+        /** @brief Compares the seam of symm and hemm with the reference on a product the profile packs. */
+        class Medium_PackedSymmSeam : public PackedSymmRowCase<SeamRow>
+        {
+            protected:
+                /** @brief Skips the case when no order up to the largest tried selects the packed kernel. */
+                void SetUp() override
+                {
+                    PackedSymmRowCase<SeamRow>::SetUp();
+                    if (IsSkipped())
+                        return;
+
+                    const Device::Profile& profile = Device::profile_for(queue());
+                    with_element(GetParam().type, [&](auto element)
+                    {
+                        using T = typename decltype(element)::type;
+                        order_ = packed_order<T>(profile);
+                    });
+                    if (order_ == 0)
+                        GTEST_SKIP() << "no order up to " << K_LARGEST_SEAM_ORDER
+                                     << " selects the packed kernel; cache_bytes="
+                                     << profile.cache_bytes;
+                }
+
+                /// @brief The smallest order the profile packs a product of the type of the row at.
+                int64_t order_ = 0;
+        };
+
+        TEST_P(Medium_PackedSymm, BothSidesEqualTheReferenceOnExactData)
+        {
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_packed_equals_reference<T, Kernels::Unconjugated>(queue(), GetParam(), 0.0);
+            });
         }
+
+        TEST_P(Medium_PackedHemm, HemmReadsTheMirrorConjugatedAndTheDiagonalReal)
+        {
+            with_complex_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_packed_equals_reference<T, Kernels::Conjugated>(queue(), GetParam(),
+                                                                       K_DIAGONAL_IMAGINARY);
+            });
+        }
+
+        TEST_P(Medium_PackedSymmSeam, TheSeamLeasesScratchForASymmetricProduct)
+        {
+            const SeamRow& row = GetParam();
+            with_element(row.type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const int64_t s = order_;
+                const Core::DataType dtype = sushiblas_dtype<T>();
+
+                const Tensor A = random_square<T>(s);
+                const Tensor B = random_square<T>(s);
+                Tensor sycl_result = engine->create_tensor({s, s}, dtype);
+                Tensor reference_result = engine->create_tensor({s, s}, dtype);
+
+                set_mode(ExecutionMode::ForceSYCL);
+                const std::size_t live_before_sycl = TestEnvironment::live_allocation_count();
+                record_product(recorder(), row.routine, A, B, sycl_result, row.side,
+                               Core::Uplo::Upper);
+                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_sycl + 1);
+                recording->run().value();
+
+                set_mode(ExecutionMode::ForceReference);
+                const std::size_t live_before_reference =
+                    TestEnvironment::live_allocation_count();
+                record_product(recorder(), row.routine, A, B, reference_result, row.side,
+                               Core::Uplo::Upper);
+                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);
+                recording->run().value();
+
+                const std::vector<T> got = read_tensor<T>(sycl_result);
+                const std::vector<T> want = read_tensor<T>(reference_result);
+                ASSERT_EQ(got.size(), want.size());
+                EXPECT_EQ(count_parts_beyond(got, want, parity_bound<T>(s, 1.0, 0.0)),
+                          std::size_t{0});
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_PackedSymm,
+                                 ::testing::ValuesIn(exact_rows(K_ALL_TYPES)), exact_row_name);
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_PackedHemm,
+                                 ::testing::ValuesIn(exact_rows(K_COMPLEX_TYPES)), exact_row_name);
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_PackedSymmSeam,
+                                 ::testing::ValuesIn(seam_rows()), seam_row_name);
     } // namespace Test
 } // namespace SushiBLAS
