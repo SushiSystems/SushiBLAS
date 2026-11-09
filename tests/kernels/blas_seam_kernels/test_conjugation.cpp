@@ -45,36 +45,44 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::Unconjugated::apply(3.0f), 3.0f);
         }
 
-        TEST(Small_Conjugation, ConjugatedFlipsTheImaginaryPartAndRealisesTheDiagonal)
+        TEST(Small_Conjugation, ConjugatedFlipsTheImaginaryPartOfAnElement)
         {
             const std::complex<double> z(1.0, -2.0);
 
             EXPECT_EQ(Kernels::Conjugated::apply(z), std::complex<double>(1.0, 2.0));
-            EXPECT_EQ(Kernels::Conjugated::diagonal(z), std::complex<double>(1.0, 0.0));
             EXPECT_EQ(Kernels::Conjugated::apply(-4.0), -4.0);
+        }
+
+        TEST(Small_Conjugation, ConjugatedRealisesTheDiagonal)
+        {
+            const std::complex<double> z(1.0, -2.0);
+
+            EXPECT_EQ(Kernels::Conjugated::diagonal(z), std::complex<double>(1.0, 0.0));
         }
 
         TEST(Small_Conjugation, ARealTypeNeverConjugates)
         {
-            static_assert(std::is_same<Kernels::ConjugationFor<float, Kernels::Conjugated>,
-                                       Kernels::Unconjugated>::value,
-                          "A real type ignores the conjugating policy.");
-            static_assert(std::is_same<Kernels::ConjugationFor<std::complex<float>,
-                                                               Kernels::Conjugated>,
-                                       Kernels::Conjugated>::value,
-                          "A complex type keeps it.");
+            const bool real_ignores_policy = std::is_same<Kernels::ConjugationFor<float, Kernels::Conjugated>,
+                                                          Kernels::Unconjugated>::value;
+            const bool complex_keeps_policy = std::is_same<Kernels::ConjugationFor<std::complex<float>,
+                                                                                   Kernels::Conjugated>,
+                                                           Kernels::Conjugated>::value;
+
+            EXPECT_TRUE(real_ignores_policy);
+            EXPECT_TRUE(complex_keeps_policy);
         }
 
         TEST(Small_Conjugation, AHermitianUpdateTakesARealScalar)
         {
-            static_assert(std::is_same<Kernels::RankUpdateScalar<std::complex<double>,
-                                                                 Kernels::Conjugated>,
-                                       double>::value,
-                          "HER takes a real alpha.");
-            static_assert(std::is_same<Kernels::RankUpdateScalar<std::complex<double>,
-                                                                 Kernels::Unconjugated>,
-                                       std::complex<double>>::value,
-                          "SYR takes an alpha of the element type.");
+            const bool her_takes_real = std::is_same<Kernels::RankUpdateScalar<std::complex<double>,
+                                                                               Kernels::Conjugated>,
+                                                     double>::value;
+            const bool syr_takes_element = std::is_same<Kernels::RankUpdateScalar<std::complex<double>,
+                                                                                  Kernels::Unconjugated>,
+                                                        std::complex<double>>::value;
+
+            EXPECT_TRUE(her_takes_real);
+            EXPECT_TRUE(syr_takes_element);
         }
     } // namespace Test
 } // namespace SushiBLAS
