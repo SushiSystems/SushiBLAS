@@ -21,6 +21,7 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+
 /**
  * @file test_rotmg.cpp
  * @brief Tests rotmg on its four outcomes, on both rescalings and across both kernels.
@@ -42,8 +43,10 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/tolerance.hpp"
+#include "blas_rows.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
@@ -80,16 +83,11 @@ namespace SushiBLAS
             /// @brief Largest value of a drawn operand.
             constexpr double K_DRAW_MAXIMUM = 8.0;
 
-            /// @brief Units in the last place the two kernels may differ by.
-            constexpr double K_MODE_ULPS = 2.0;
-
-            /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
-
-            /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
+            /**
+             * @brief Roundoffs of the larger value the two kernels may differ by: two units in
+             *        the last place, each at most two roundoffs.
+             */
+            constexpr std::size_t K_MODE_ROUNDOFFS = 4;
 
             /** @brief Holds the four scalars one call of rotmg receives. */
             struct Operands
@@ -118,84 +116,84 @@ namespace SushiBLAS
                  {-2.0, K_UNWRITTEN, K_UNWRITTEN, K_UNWRITTEN, K_UNWRITTEN}, 3.0, 0.0, 5.0},
                 {{-1.0, 1.0, 1.0, 1.0}, {-1.0, 0.0, 0.0, 0.0, 0.0}, 0.0, 0.0, 0.0}};
 
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
-            {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
-            }
+            /// @brief The suffixes of the rows of K_OUTCOMES, in order: what each outcome is.
+            constexpr const char* K_OUTCOME_WORDS[] = {"FlagMinusOne", "FlagZero", "FlagMinusTwo",
+                                                       "NegativeD1"};
 
-            /** @brief Returns whether the test device computes in T. */
+            /** @brief Holds every operand of one call as read after the graph ran. */
             template<typename T>
-            [[nodiscard]] bool device_runs()
+            struct Outcome
             {
-                if constexpr (std::is_same_v<T, double>)
-                    return TestEnvironment::queue().get_device().has(
-                        sycl::aspect::fp64);
-                else
-                    return true;
-            }
+                T d1;                 /**< The first scale factor. */
+                T d2;                 /**< The second scale factor. */
+                T x1;                 /**< The first component. */
+                T y1;                 /**< The second component, which a call only reads. */
+                std::vector<T> param; /**< The parameter tensor. */
+            };
 
-            /** @brief Returns the spacing of the values of R at a magnitude. */
-            template<typename R>
-            [[nodiscard]] double ulp_at(double magnitude)
+            /** @brief Returns the entries of an array of doubles in the element type T. */
+            template<typename T, std::size_t N>
+            [[nodiscard]] std::vector<T> as_elements(const double (&values)[N])
             {
-                const int exponent = std::max(std::ilogb(magnitude),
-                                              std::numeric_limits<R>::min_exponent - 1);
-                return std::ldexp(1.0, exponent - (std::numeric_limits<R>::digits - 1));
+                std::vector<T> out;
+                out.reserve(N);
+                for (const double value : values)
+                    out.push_back(static_cast<T>(value));
+                return out;
             }
 
             /**
-             * @brief Expects actual within K_MODE_ULPS units in the last place of expected, the
-             *        unit taken at the larger magnitude of the two.
+             * @brief Expects actual within K_MODE_ROUNDOFFS roundoffs of expected, the roundoff
+             *        taken at the larger magnitude of the two.
              */
             template<typename R>
-            void expect_within_ulps(R actual, R expected, const char* what)
+            void expect_within_roundoffs(R actual, R expected, const char* what)
             {
                 const double a = static_cast<double>(actual);
                 const double e = static_cast<double>(expected);
-                const double unit = ulp_at<R>(std::max(std::abs(a), std::abs(e)));
-                EXPECT_LE(std::abs(a - e), K_MODE_ULPS * unit) << what;
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                    a, e, static_cast<double>(K_MODE_ROUNDOFFS) * TestSupport::unit_roundoff<R>() *
+                              std::max(std::abs(a), std::abs(e)))))
+                    << what;
+            }
+
+            /** @brief Expects two outcomes of one quadruple to agree within the mode bound. */
+            template<typename T>
+            void expect_outcomes_agree(const Outcome<T>& device, const Outcome<T>& reference)
+            {
+                expect_within_roundoffs<T>(device.d1, reference.d1, "d1");
+                expect_within_roundoffs<T>(device.d2, reference.d2, "d2");
+                expect_within_roundoffs<T>(device.x1, reference.x1, "x1");
+
+                ASSERT_EQ(device.param.size(), reference.param.size());
+                for (std::size_t slot = 0; slot < device.param.size(); ++slot)
+                    expect_within_roundoffs<T>(device.param[slot], reference.param[slot], "param");
             }
         } // namespace
 
+        /** @brief Holds the index of the row of K_OUTCOMES that completes a row of the suite. */
+        struct OutcomeAxis
+        {
+            std::size_t index; /**< The row of K_OUTCOMES the case checks. */
+        };
+
+        /** @brief Returns the tail of a row named by the outcome it checks. */
+        [[nodiscard]] inline std::string axis_name(const OutcomeAxis& axis)
+        {
+            return std::string("_") + K_OUTCOME_WORDS[axis.index];
+        }
+
         /**
-         * @brief Records rotmg on scalar tensors of element type T and reads them back.
+         * @brief Records rotmg on scalar tensors and reads them back.
          */
-        template<typename T>
-        class Medium_Rotmg : public SushiBLASTest
+        class RotmgStart : public BlasEngineStart
         {
             protected:
-                /** @brief Holds every operand of one call as read after the graph ran. */
-                struct Outcome
-                {
-                    T d1;                 /**< The first scale factor. */
-                    T d2;                 /**< The second scale factor. */
-                    T x1;                 /**< The first component. */
-                    T y1;                 /**< The second component, which a call only reads. */
-                    std::vector<T> param; /**< The parameter tensor. */
-                };
-
-                /** @brief Skips the case on a device that does not compute in T. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>())
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                }
-
-                /** @brief Rebuilds the engine in a layout and selects a kernel. */
-                void start(Core::Layout layout, ExecutionMode mode)
-                {
-                    this->reinit_engine(layout);
-                    this->set_mode(mode);
-                }
-
                 /** @brief Returns a rank-1 tensor of count elements that all hold value. */
+                template<typename T>
                 [[nodiscard]] Tensor filled(int64_t count, double value)
                 {
-                    Tensor tensor = this->engine->create_tensor({count}, sushiblas_dtype<T>());
+                    Tensor tensor = engine->create_tensor({count}, sushiblas_dtype<T>());
                     const std::vector<T> values(static_cast<std::size_t>(count),
                                                 static_cast<T>(value));
                     TestEnvironment::queue()
@@ -207,7 +205,8 @@ namespace SushiBLAS
                  * @brief Returns what each call leaves, all recorded in one graph with param
                  *        preset to K_UNWRITTEN.
                  */
-                [[nodiscard]] std::vector<Outcome> transform(const std::vector<Operands>& calls)
+                template<typename T>
+                [[nodiscard]] std::vector<Outcome<T>> transform(const std::vector<Operands>& calls)
                 {
                     std::vector<Tensor> d1;
                     std::vector<Tensor> d2;
@@ -220,172 +219,198 @@ namespace SushiBLAS
                     y1.reserve(calls.size());
                     param.reserve(calls.size());
 
-                    SushiBLAS::BLASOps ops(this->recorder());
+                    SushiBLAS::BLASOps ops(recorder());
                     for (const Operands& call : calls)
                     {
-                        d1.push_back(filled(1, call.d1));
-                        d2.push_back(filled(1, call.d2));
-                        x1.push_back(filled(1, call.x1));
-                        y1.push_back(filled(1, call.y1));
-                        param.push_back(filled(K_PARAMETERS, K_UNWRITTEN));
+                        d1.push_back(filled<T>(1, call.d1));
+                        d2.push_back(filled<T>(1, call.d2));
+                        x1.push_back(filled<T>(1, call.x1));
+                        y1.push_back(filled<T>(1, call.y1));
+                        param.push_back(filled<T>(K_PARAMETERS, K_UNWRITTEN));
                         ops.rotmg(d1.back(), d2.back(), x1.back(), y1.back(), param.back());
                     }
-                    this->recording->run().value();
+                    recording->run().value();
 
-                    std::vector<Outcome> outcomes;
+                    std::vector<Outcome<T>> outcomes;
                     outcomes.reserve(calls.size());
                     for (std::size_t i = 0; i < calls.size(); ++i)
-                        outcomes.push_back(Outcome{read_tensor<T>(d1[i])[0],
-                                                   read_tensor<T>(d2[i])[0],
-                                                   read_tensor<T>(x1[i])[0],
-                                                   read_tensor<T>(y1[i])[0],
-                                                   read_tensor<T>(param[i])});
+                        outcomes.push_back(Outcome<T>{read_tensor<T>(d1[i])[0],
+                                                      read_tensor<T>(d2[i])[0],
+                                                      read_tensor<T>(x1[i])[0],
+                                                      read_tensor<T>(y1[i])[0],
+                                                      read_tensor<T>(param[i])});
                     return outcomes;
                 }
 
                 /**
-                 * @brief Expects the rescaled H of (factor, factor, 4, 2) in both kernels.
+                 * @brief Expects the rescaled H of (factor, factor, 4, 2) in the kernel of the row.
                  * @param gamma What the entries of H and x1 are multiplied by.
                  * @param scaled What both scale factors become.
                  */
+                template<typename T>
                 void expect_rescaled(T factor, T gamma, T scaled)
                 {
                     const std::vector<T> expected = {T(-1), gamma, T(-0.5) * gamma,
                                                      T(0.5) * gamma, gamma};
 
-                    for (const Core::Layout layout : K_LAYOUTS)
-                    {
-                        for (const ExecutionMode mode : K_MODES)
-                        {
-                            SCOPED_TRACE(engine_name(layout, mode));
-                            start(layout, mode);
-                            const Outcome outcome = transform(
-                                {Operands{static_cast<double>(factor),
-                                          static_cast<double>(factor), 4.0, 2.0}}).front();
+                    const Outcome<T> outcome = transform<T>(
+                        {Operands{static_cast<double>(factor), static_cast<double>(factor),
+                                  4.0, 2.0}}).front();
 
-                            ASSERT_EQ(outcome.param.size(), expected.size());
-                            for (std::size_t slot = 0; slot < expected.size(); ++slot)
-                                EXPECT_EQ(outcome.param[slot], expected[slot])
-                                    << "param[" << slot << "]";
-                            EXPECT_EQ(outcome.d1, scaled);
-                            EXPECT_EQ(outcome.d2, scaled);
-                            EXPECT_EQ(outcome.x1, T(5) * gamma);
-                            EXPECT_EQ(outcome.y1, T(2));
-                        }
+                    EXPECT_EQ(outcome.param, expected);
+                    EXPECT_EQ(outcome.d1, scaled);
+                    EXPECT_EQ(outcome.d2, scaled);
+                    EXPECT_EQ(outcome.x1, T(5) * gamma);
+                    EXPECT_EQ(outcome.y1, T(2));
+                }
+
+                /** @brief Returns the operands of the random quadruples both kernels run. */
+                [[nodiscard]] static std::vector<Operands> random_quadruples()
+                {
+                    std::mt19937 generator(K_SEED);
+                    std::uniform_real_distribution<double> distribution(K_DRAW_MINIMUM,
+                                                                        K_DRAW_MAXIMUM);
+                    std::vector<Operands> calls(static_cast<std::size_t>(K_RANDOM_QUADRUPLES));
+                    for (Operands& call : calls)
+                    {
+                        call.d1 = distribution(generator);
+                        call.d2 = distribution(generator);
+                        call.x1 = distribution(generator);
+                        call.y1 = distribution(generator);
+                    }
+                    return calls;
+                }
+
+                /** @brief Expects the device and the reference outcomes of all calls to agree. */
+                template<typename T>
+                static void expect_all_agree(const std::vector<Outcome<T>>& device,
+                                             const std::vector<Outcome<T>>& reference)
+                {
+                    ASSERT_EQ(device.size(), reference.size());
+                    for (std::size_t i = 0; i < device.size(); ++i)
+                    {
+                        SCOPED_TRACE(::testing::Message() << "quadruple " << i);
+                        expect_outcomes_agree(device[i], reference[i]);
                     }
                 }
         };
 
-        /// @brief Names the element types rotmg accepts.
-        using RotmgTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Medium_Rotmg, RotmgTypes);
+        /** @brief Runs one outcome of xROTMG per row, over the element types, layouts and kernels. */
+        class Medium_RotmgOutcomes : public BlasRowCase<RotmgStart, OutcomeAxis>
+        {
+
+        };
+
+        /** @brief Runs the rescalings of xROTMG per row, over the element types, layouts and kernels. */
+        class Medium_Rotmg : public BlasRowCase<RotmgStart, NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the comparison of the two kernels per layout and element type. */
+        class Medium_RotmgKernels : public BlasRowCase<RotmgStart, NoAxis>
+        {
+
+        };
+
+        /** @brief Returns the element types rotmg accepts. */
+        [[nodiscard]] inline std::vector<Core::DataType> rotmg_types()
+        {
+            return {Core::DataType::Float32, Core::DataType::Float64};
+        }
 
         /**
-         * @brief Tests the four outcomes of xROTMG and which parameters each one writes.
+         * @brief Tests one outcome of xROTMG and which parameters it writes.
          */
-        TYPED_TEST(Medium_Rotmg, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
+        TEST_P(Medium_RotmgOutcomes, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
         {
-            using T = TypeParam;
-
-            std::vector<Operands> calls;
-            for (const OutcomeRow& row : K_OUTCOMES)
-                calls.push_back(row.in);
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            const OutcomeRow& row = K_OUTCOMES[GetParam().axis.index];
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
-                    const auto outcomes = this->transform(calls);
+                using T = typename decltype(element)::type;
 
-                    for (std::size_t i = 0; i < outcomes.size(); ++i)
-                    {
-                        const OutcomeRow& row = K_OUTCOMES[i];
-                        SCOPED_TRACE(::testing::Message()
-                                     << "d1 " << row.in.d1 << ", d2 " << row.in.d2 << ", x1 "
-                                     << row.in.x1 << ", y1 " << row.in.y1);
+                const Outcome<T> outcome = transform<T>({row.in}).front();
 
-                        ASSERT_EQ(outcomes[i].param.size(),
-                                  static_cast<std::size_t>(K_PARAMETERS));
-                        for (std::size_t slot = 0; slot < outcomes[i].param.size(); ++slot)
-                            EXPECT_EQ(outcomes[i].param[slot], static_cast<T>(row.param[slot]))
-                                << "param[" << slot << "]";
-
-                        EXPECT_EQ(outcomes[i].d1, static_cast<T>(row.d1));
-                        EXPECT_EQ(outcomes[i].d2, static_cast<T>(row.d2));
-                        EXPECT_EQ(outcomes[i].x1, static_cast<T>(row.x1));
-                        EXPECT_EQ(outcomes[i].y1, static_cast<T>(row.in.y1));
-                    }
-                }
-            }
+                EXPECT_EQ(outcome.param, as_elements<T>(row.param));
+                EXPECT_EQ(outcome.d1, static_cast<T>(row.d1));
+                EXPECT_EQ(outcome.d2, static_cast<T>(row.d2));
+                EXPECT_EQ(outcome.x1, static_cast<T>(row.x1));
+                EXPECT_EQ(outcome.y1, static_cast<T>(row.in.y1));
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotmgOutcomes,
+            ::testing::ValuesIn(rows_of(rotmg_types(),
+                                        {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL},
+                                        std::vector<OutcomeAxis>{{0}, {1}, {2}, {3}})),
+            row_name<OutcomeAxis>);
 
         /**
          * @brief Tests that scale factors above the window are divided back into it.
          */
-        TYPED_TEST(Medium_Rotmg, LargeFactorsAreRescaledDown)
+        TEST_P(Medium_Rotmg, LargeFactorsAreRescaledDown)
         {
-            using T = TypeParam;
-            const T factor = std::ldexp(T(1), K_LARGE_EXPONENT);
-            const T scaled = (factor / T(1.25)) / static_cast<T>(K_GAMMA_SQUARED);
+            with_real_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
 
-            this->expect_rescaled(factor, static_cast<T>(K_GAMMA), scaled);
+                const T factor = std::ldexp(T(1), K_LARGE_EXPONENT);
+                const T scaled = (factor / T(1.25)) / static_cast<T>(K_GAMMA_SQUARED);
+
+                expect_rescaled<T>(factor, static_cast<T>(K_GAMMA), scaled);
+            });
         }
 
         /**
          * @brief Tests that scale factors below the window are multiplied back into it.
          */
-        TYPED_TEST(Medium_Rotmg, SmallFactorsAreRescaledUp)
+        TEST_P(Medium_Rotmg, SmallFactorsAreRescaledUp)
         {
-            using T = TypeParam;
-            const T factor = std::ldexp(T(1), K_SMALL_EXPONENT);
-            const T scaled = (factor / T(1.25)) * static_cast<T>(K_GAMMA_SQUARED);
+            with_real_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
 
-            this->expect_rescaled(factor, T(1) / static_cast<T>(K_GAMMA), scaled);
+                const T factor = std::ldexp(T(1), K_SMALL_EXPONENT);
+                const T scaled = (factor / T(1.25)) * static_cast<T>(K_GAMMA_SQUARED);
+
+                expect_rescaled<T>(factor, T(1) / static_cast<T>(K_GAMMA), scaled);
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Rotmg,
+            ::testing::ValuesIn(plain_rows(rotmg_types(), {ExecutionMode::ForceReference,
+                                                           ExecutionMode::ForceSYCL})),
+            row_name<NoAxis>);
 
         /**
-         * @brief Tests that the two kernels give transformations within K_MODE_ULPS of each
-         *        other on positive operands.
+         * @brief Tests that the two kernels give transformations within K_MODE_ROUNDOFFS
+         *        roundoffs of each other on positive operands.
+         *
+         * The row names the layout and the element type; its kernel is the device one, and the
+         * reference run is made inside the case.
          */
-        TYPED_TEST(Medium_Rotmg, BothModesAgree)
+        TEST_P(Medium_RotmgKernels, BothModesAgree)
         {
-            using T = TypeParam;
-
-            std::mt19937 generator(K_SEED);
-            std::uniform_real_distribution<double> distribution(K_DRAW_MINIMUM, K_DRAW_MAXIMUM);
-            std::vector<Operands> calls(static_cast<std::size_t>(K_RANDOM_QUADRUPLES));
-            for (Operands& call : calls)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                call.d1 = distribution(generator);
-                call.d2 = distribution(generator);
-                call.x1 = distribution(generator);
-                call.y1 = distribution(generator);
-            }
+                using T = typename decltype(element)::type;
 
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
-                this->start(layout, ExecutionMode::ForceReference);
-                const auto reference = this->transform(calls);
-                this->start(layout, ExecutionMode::ForceSYCL);
-                const auto device = this->transform(calls);
+                const std::vector<Operands> calls = random_quadruples();
 
-                ASSERT_EQ(device.size(), reference.size());
-                for (std::size_t i = 0; i < device.size(); ++i)
-                {
-                    SCOPED_TRACE(::testing::Message() << "quadruple " << i);
-                    expect_within_ulps<T>(device[i].d1, reference[i].d1, "d1");
-                    expect_within_ulps<T>(device[i].d2, reference[i].d2, "d2");
-                    expect_within_ulps<T>(device[i].x1, reference[i].x1, "x1");
+                start(GetParam().layout, ExecutionMode::ForceReference);
+                const auto reference = transform<T>(calls);
+                start(GetParam().layout, ExecutionMode::ForceSYCL);
+                const auto device = transform<T>(calls);
 
-                    ASSERT_EQ(device[i].param.size(), reference[i].param.size());
-                    for (std::size_t slot = 0; slot < device[i].param.size(); ++slot)
-                        expect_within_ulps<T>(device[i].param[slot], reference[i].param[slot],
-                                              "param");
-                }
-            }
+                expect_all_agree(device, reference);
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotmgKernels,
+            ::testing::ValuesIn(plain_rows(rotmg_types(), {ExecutionMode::ForceSYCL})),
+            row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS
