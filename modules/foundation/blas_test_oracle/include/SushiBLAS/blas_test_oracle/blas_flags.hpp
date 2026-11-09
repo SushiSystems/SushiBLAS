@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <string>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/common.hpp>
 
@@ -75,6 +76,18 @@ namespace SushiBLAS
             }
 
             return transposed ? "ColumnMajorTrans" : "ColumnMajorNoTrans";
+        }
+
+        /** @brief Returns the name of the row a layout and a triangle make, such as "ColumnMajorUpper". */
+        [[nodiscard]] inline std::string layout_uplo_label(bool row_major, bool upper)
+        {
+            return std::string(row_major ? "RowMajor" : "ColumnMajor") + (upper ? "Upper" : "Lower");
+        }
+
+        /** @brief Returns the name of the row the four flags of a triangular routine make, such as "RowMajorLowerTransUnit". */
+        [[nodiscard]] inline std::string triangular_label(bool row_major, bool upper, bool transposed, bool unit)
+        {
+            return layout_uplo_label(row_major, upper) + (transposed ? "Trans" : "NoTrans") + (unit ? "Unit" : "NonUnit");
         }
     } // namespace Test
 } // namespace SushiBLAS
