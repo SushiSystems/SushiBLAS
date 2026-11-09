@@ -14,4 +14,8 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE recording_graph
     DEVICE_TESTS
-        test_recording_graph.cpp)
+        test_host_graph_host.cpp
+        test_recording_graph.cpp
+        test_runtime_graph_host.cpp
+    COMPILE_CHECKS
+        compile_graph_host.cpp)

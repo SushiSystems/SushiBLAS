@@ -23,145 +23,102 @@
 
 /**
  * @file test_recording_graph.cpp
- * @brief Tests that RecordingGraph records on its own graph, runs it and leaves it empty.
+ * @brief Tests that RecordingGraph records on its own host, runs it, leaves it empty and lets go of the storages of its late-count tasks.
  * @author Mustafa Garip
+ * @see tests/engine/recording_graph/README.md
  */
 
+#include <memory>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/recording_graph/host_graph_host.hpp>
 #include <SushiBLAS/recording_graph/recording_graph.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include "recording_graph_tasks.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Records a task that does nothing and reads or writes nothing. */
-        static void record_nothing(RecordingGraph& graph)
-        {
-            TaskDescription description;
-            description.name = "nothing";
-            graph.recorder().record_pair(description, OperandSet(), "test",
-                                         [](const KernelPairDispatcher& dispatcher,
-                                            const std::vector<sycl::event>& deps)
-                                         {
-                                             return dispatcher.run(deps,
-                                                 []()
-                                                 {
-
-                                                 },
-                                                 [](sycl::queue&,
-                                                    const std::vector<sycl::event>& events)
-                                                 {
-                                                     sycl::event::wait(events);
-                                                     return sycl::event();
-                                                 });
-                                         });
-        }
-
-        /** @brief Builds a runtime and an engine over it for each test. */
-        class Medium_RecordingGraph : public ::testing::Test
+        /** @brief Builds a host engine and a graph over a host for each test. */
+        class Small_RecordingGraph : public ::testing::Test
         {
             protected:
-                /// @brief The runtime the engine and the graphs run on.
-                SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+                /** @brief Returns a graph that records and runs on the host. */
+                std::unique_ptr<RecordingGraph> make_graph()
+                {
+                    return std::make_unique<RecordingGraph>(std::make_unique<HostGraphHost>(),
+                                                            engine.scratch_pool(),
+                                                            ExecutionMode::ForceReference);
+                }
 
-                /// @brief The engine whose scratch pool and mode the graphs borrow.
-                Engine engine{runtime};
+                /// @brief The host engine whose scratch pool and tensors the graphs use.
+                Engine engine{Engine::Host{}, Core::Layout::RowMajor};
         };
 
-        TEST_F(Medium_RecordingGraph, AFreshGraphIsEmptyAndRunsNothing)
+        TEST_F(Small_RecordingGraph, AFreshGraphIsEmptyAndRunsNothing)
         {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
 
-            EXPECT_TRUE(graph.is_empty());
-            EXPECT_EQ(graph.recorded_count(), std::size_t{0});
-            EXPECT_TRUE(graph.run().has_value());
+            EXPECT_TRUE(graph->is_empty());
+            EXPECT_EQ(graph->recorded_count(), std::size_t{0});
+            EXPECT_TRUE(graph->run().has_value());
         }
 
-        TEST_F(Medium_RecordingGraph, RunningTheGraphEmptiesIt)
+        TEST_F(Small_RecordingGraph, RunningTheGraphEmptiesIt)
         {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
-            record_nothing(graph);
-            EXPECT_EQ(graph.recorded_count(), std::size_t{1});
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
+            record_nothing(*graph);
+            EXPECT_EQ(graph->recorded_count(), std::size_t{1});
 
-            EXPECT_TRUE(graph.run().has_value());
-            EXPECT_EQ(graph.recorded_count(), std::size_t{0});
+            EXPECT_TRUE(graph->run().has_value());
+            EXPECT_EQ(graph->recorded_count(), std::size_t{0});
         }
 
-        TEST_F(Medium_RecordingGraph, DiscardDropsTheTasksAndCountsThem)
+        TEST_F(Small_RecordingGraph, DiscardDropsTheTasksAndCountsThem)
         {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
-            record_nothing(graph);
-            record_nothing(graph);
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
+            record_nothing(*graph);
+            record_nothing(*graph);
 
-            EXPECT_EQ(graph.discard(), std::size_t{2});
-            EXPECT_TRUE(graph.is_empty());
+            EXPECT_EQ(graph->discard(), std::size_t{2});
+            EXPECT_TRUE(graph->is_empty());
         }
 
-        TEST_F(Medium_RecordingGraph, TheRecorderBorrowsTheModeOfTheEngine)
+        TEST_F(Small_RecordingGraph, TheRecorderRecordsUnderTheModeItIsGiven)
         {
-            engine.set_mode(ExecutionMode::ForceReference);
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
 
-            EXPECT_EQ(graph.recorder().mode(), ExecutionMode::ForceReference);
+            EXPECT_EQ(graph->recorder().mode(), ExecutionMode::ForceReference);
         }
 
-        TEST_F(Medium_RecordingGraph, TheRuntimeConstructorRecordsUnderTheModeItIsGiven)
+        TEST_F(Small_RecordingGraph, TheGraphRunsAgainAfterItWasEmptied)
         {
-            RecordingGraph graph(runtime, engine.scratch_pool(), ExecutionMode::ForceSYCL);
-            RecordingGraph default_graph(runtime, engine.scratch_pool());
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
+            record_nothing(*graph);
+            ASSERT_TRUE(graph->run().has_value());
 
-            EXPECT_EQ(graph.recorder().mode(), ExecutionMode::ForceSYCL);
-            EXPECT_EQ(default_graph.recorder().mode(), K_DEFAULT_RECORDING_MODE);
+            record_nothing(*graph);
+            EXPECT_EQ(graph->recorded_count(), std::size_t{1});
+            EXPECT_TRUE(graph->run().has_value());
         }
 
-        TEST_F(Medium_RecordingGraph, TheGraphRunsAgainAfterItWasEmptied)
+        TEST_F(Small_RecordingGraph, ALabelledGraphRecordsAndRunsAsAnUnlabelledOneDoes)
         {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
-            record_nothing(graph);
-            ASSERT_TRUE(graph.run().has_value());
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
+            graph->set_label("scenario");
+            record_nothing(*graph);
 
-            record_nothing(graph);
-            EXPECT_EQ(graph.recorded_count(), std::size_t{1});
-            EXPECT_TRUE(graph.run().has_value());
-        }
-
-        TEST_F(Medium_RecordingGraph, ThePlanOrdersOneEntryPerRecordedTask)
-        {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
-            record_nothing(graph);
-            record_nothing(graph);
-
-            const auto plan = graph.plan();
-
-            ASSERT_TRUE(plan.has_value());
-            EXPECT_EQ(plan->nodes.size(), std::size_t{2});
-            EXPECT_EQ(graph.recorded_count(), std::size_t{2});
-        }
-
-        /** @brief Records one late-count task over out, whose width count holds, on graph. */
-        static void record_late_task(RecordingGraph& graph, Tensor& out, const Tensor& count)
-        {
-            OperandSet operands;
-            operands.writes(out);
-            graph.recorder().record_late_pair(TaskDescription(), operands, "test", count,
-                                              static_cast<std::size_t>(out.num_elements),
-                                              [] {}, [](std::size_t) {});
+            EXPECT_EQ(graph->recorded_count(), std::size_t{1});
+            EXPECT_TRUE(graph->run().has_value());
+            EXPECT_EQ(graph->recorded_count(), std::size_t{0});
         }
 
         /** @brief Runs the RecordingGraph tests that guard the release of late-count storage. */
-        class Medium_Regression_RecordingGraph : public Medium_RecordingGraph
+        class Small_Regression_RecordingGraph : public Small_RecordingGraph
         {
 
         };
@@ -170,49 +127,35 @@ namespace SushiBLAS
          * @brief Tests that after a run the graph holds no late-count storage, so dropping every
          *        tensor frees it.
          */
-        TEST_F(Medium_Regression_RecordingGraph, ARunLetsGoOfTheStoragesOfItsLateCountTasks)
+        TEST_F(Small_Regression_RecordingGraph, ARunLetsGoOfTheStoragesOfItsLateCountTasks)
         {
-            RecordingGraph graph(runtime, engine.scratch_pool(), ExecutionMode::ForceSYCL);
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
             Tensor out = engine.create_tensor({4}, Core::DataType::Float32);
             Tensor count = engine.create_tensor({1}, Core::DataType::Int32,
                                                 SushiRuntime::Residency::Host);
             count.data_as<std::int32_t>()[0] = 2;
 
-            record_late_task(graph, out, count);
-            ASSERT_EQ(graph.late_counts().held_count(), std::size_t{1});
+            record_late_task(*graph, out, count);
             EXPECT_GT(out.storage->ref_count(), 1);
 
-            ASSERT_TRUE(graph.run().has_value());
-            EXPECT_EQ(graph.late_counts().held_count(), std::size_t{0});
+            ASSERT_TRUE(graph->run().has_value());
             EXPECT_EQ(out.storage->ref_count(), 1);
             EXPECT_EQ(count.storage->ref_count(), 1);
         }
 
         /** @brief Tests that a discard lets go of the storages of its late-count tasks. */
-        TEST_F(Medium_Regression_RecordingGraph, ADiscardLetsGoOfTheStoragesOfItsLateCountTasks)
+        TEST_F(Small_Regression_RecordingGraph, ADiscardLetsGoOfTheStoragesOfItsLateCountTasks)
         {
-            RecordingGraph graph(runtime, engine.scratch_pool(), ExecutionMode::ForceSYCL);
+            const std::unique_ptr<RecordingGraph> graph = make_graph();
             Tensor out = engine.create_tensor({4}, Core::DataType::Float32);
             Tensor count = engine.create_tensor({1}, Core::DataType::Int32,
                                                 SushiRuntime::Residency::Host);
             count.data_as<std::int32_t>()[0] = 2;
 
-            record_late_task(graph, out, count);
-            EXPECT_EQ(graph.discard(), std::size_t{1});
-            EXPECT_EQ(graph.late_counts().held_count(), std::size_t{0});
+            record_late_task(*graph, out, count);
+            EXPECT_EQ(graph->discard(), std::size_t{1});
             EXPECT_EQ(out.storage->ref_count(), 1);
             EXPECT_EQ(count.storage->ref_count(), 1);
-        }
-
-        TEST_F(Medium_RecordingGraph, ALabelledGraphRecordsAndRunsAsAnUnlabelledOneDoes)
-        {
-            RecordingGraph graph(TestEnvironment::runtime(), engine.scratch_pool(), engine.mode());
-            graph.set_label("scenario");
-            record_nothing(graph);
-
-            EXPECT_EQ(graph.recorded_count(), std::size_t{1});
-            EXPECT_TRUE(graph.run().has_value());
-            EXPECT_EQ(graph.recorded_count(), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

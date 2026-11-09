@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <memory>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -37,6 +38,8 @@
 #include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/recording_graph/graph_host.hpp>
+#include <SushiBLAS/recording_graph/runtime_graph_host.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
@@ -45,10 +48,11 @@ namespace SushiBLAS
     constexpr ExecutionMode K_DEFAULT_RECORDING_MODE = ExecutionMode::Auto;
 
     /**
-     * @brief Owns a runtime graph and a TaskRecorder over its recorder, the way a caller that
-     *        records a few operations does.
+     * @brief Owns a GraphHost and a TaskRecorder over its sink, the way a caller that records
+     *        a few operations does.
      *
-     * It includes no test framework, so a test fixture and a benchmark program share it.
+     * A runtime builds a runtime graph; a HostGraphHost records and runs on the host. It
+     * includes no test framework, so a test fixture and a benchmark program share it.
      * @see modules/engine/recording_graph/README.md
      */
     class RecordingGraph final
@@ -62,8 +66,22 @@ namespace SushiBLAS
              */
             RecordingGraph(SushiRuntime::Runtime& runtime, ScratchPool& scratch_pool,
                            ExecutionMode mode = K_DEFAULT_RECORDING_MODE)
-                : graph_(runtime.graph()), late_counts_(runtime),
-                  recorder_(graph_.recorder(), scratch_pool, late_counts_, mode)
+                : RecordingGraph(std::make_unique<RuntimeGraphHost>(runtime), scratch_pool, mode)
+            {
+
+            }
+
+            /**
+             * @brief Builds an empty graph over a host.
+             * @param host Holds the tasks and runs them; this object owns it.
+             * @param scratch_pool Lends operation scratch; it must outlive this object.
+             * @param mode The execution mode the recorder records under.
+             * @throws UnsupportedExecution when the host does not admit the mode.
+             */
+            RecordingGraph(std::unique_ptr<GraphHost> host, ScratchPool& scratch_pool,
+                           ExecutionMode mode = K_DEFAULT_RECORDING_MODE)
+                : host_(std::move(host)),
+                  recorder_(host_->sink(), &scratch_pool, host_->late_counts(), mode, host_->late_sink())
             {
 
             }
@@ -80,8 +98,11 @@ namespace SushiBLAS
             /** @brief Returns the recorder a view or a seam records on this graph through. */
             [[nodiscard]] const TaskRecorder& recorder() const noexcept { return recorder_; }
 
-            /** @brief Returns the hold that keeps the storages of this graph's late-count tasks. */
-            [[nodiscard]] const LateCountHold& late_counts() const noexcept { return late_counts_; }
+            /**
+             * @brief Returns the hold that keeps the storages of this graph's late-count tasks.
+             * @return Null when the host holds none.
+             */
+            [[nodiscard]] const LateCountHold* late_counts() const noexcept { return host_->late_counts(); }
 
             /**
              * @brief Names the graph in the spans of its runs, so a profile can tell graphs apart.
@@ -89,19 +110,19 @@ namespace SushiBLAS
              */
             void set_label(std::string label)
             {
-                graph_.set_label(std::move(label));
+                host_->set_label(std::move(label));
             }
 
             /** @brief Returns how many tasks are recorded and have not run. */
             [[nodiscard]] std::size_t recorded_count() const noexcept
             {
-                return graph_.recorder().node_count();
+                return host_->node_count();
             }
 
             /** @brief Reports whether a run would have nothing to do and nothing to report. */
             [[nodiscard]] bool is_empty() const noexcept
             {
-                return recorded_count() == 0 && graph_.recorder().refusal() == nullptr;
+                return recorded_count() == 0 && !host_->has_refusal();
             }
 
             /**
@@ -111,7 +132,7 @@ namespace SushiBLAS
              */
             [[nodiscard]] SushiRuntime::Result<SushiRuntime::PlanView> plan()
             {
-                return graph_.plan();
+                return host_->plan();
             }
 
             /**
@@ -126,8 +147,8 @@ namespace SushiBLAS
                 if (is_empty())
                     return {};
 
-                const bool recording_refused = graph_.recorder().refusal() != nullptr;
-                SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph_.run(report_);
+                const bool recording_refused = host_->has_refusal();
+                SushiRuntime::Result<void> ran = host_->run();
                 if (ran)
                 {
                     forget();
@@ -158,30 +179,22 @@ namespace SushiBLAS
 
         private:
             /**
-             * @brief Empties the graph and frees its compiled plan while no record call adds a
-             *        task, and lets go of the storages its late-count tasks held.
+             * @brief Empties the host while no record call adds a task: it drops the tasks, frees
+             *        the compiled plan and lets go of the storages the late-count tasks held.
              */
             void forget()
             {
                 recorder_.run_exclusive(
                     [this]()
                     {
-                        graph_.clear();
-                        late_counts_.release();
+                        host_->clear();
                     });
             }
 
-            /// @brief The graph recorded tasks wait in.
-            SushiRuntime::Graph graph_;
+            /// @brief Holds the recorded tasks and runs them.
+            std::unique_ptr<GraphHost> host_;
 
-            /// @brief The storages of graph_'s late-count tasks, released when graph_ is emptied.
-            LateCountHold late_counts_;
-
-            /// @brief The recorder bound to the recorder of graph_, a scratch pool and
-            ///        late_counts_.
+            /// @brief The recorder bound to the sink of host_, a scratch pool and the hold of host_.
             TaskRecorder recorder_;
-
-            /// @brief The report every run writes into, so a run allocates none.
-            SushiRuntime::RunReport report_;
     };
 } // namespace SushiBLAS

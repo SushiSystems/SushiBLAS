@@ -11,14 +11,20 @@ It depends on `engine`. Its header is included as
 | File | Declares |
 | --- | --- |
 | `recording_graph.hpp` | `RecordingGraph` and `K_DEFAULT_RECORDING_MODE` |
+| `graph_host.hpp` | `GraphHost`, the port the graph records into and runs through |
+| `runtime_graph_host.hpp` | `RuntimeGraphHost`, the adapter over a SushiRuntime graph, the default |
+| `host_graph_host.hpp` | `HostGraphHost`, the adapter over a `HostTaskSink`: no runtime, ForceReference only |
 
 ## recording_graph.hpp
 
 `set_label` names the graph in the spans of its runs, as `Graph::set_label` does.
 
-`Engine` keeps no graph to run. `RecordingGraph` holds a `SushiRuntime::Graph`, a `TaskRecorder`
-over that graph's recorder and the `RunReport` every run writes into. The one constructor
-takes the runtime, a scratch pool and a mode; a caller that holds an engine passes
+`Engine` keeps no graph to run. `RecordingGraph` holds a `GraphHost` and a `TaskRecorder` over the
+host's sink. The constructor that takes a runtime builds a `RuntimeGraphHost`, which owns a
+`SushiRuntime::Graph`, the `GraphTaskSink` over its recorder, the `LateCountHold` and the `RunReport`
+every run writes into; the constructor that takes a `std::unique_ptr<GraphHost>` takes any host, such
+as `HostGraphHost`, which records and runs on the host without a runtime. Both take a scratch pool
+and a mode; a caller that holds an engine passes
 `engine.scratch_pool()` and `engine.mode()`. `K_DEFAULT_RECORDING_MODE` is the mode when none is
 passed.
 
@@ -31,4 +37,5 @@ records late-count tasks into; each time `run()` or `discard()` empties the grap
 hold, so no storage of a late-count task outlives the graph that held it. Emptying the graph also
 destroys its compiled plan, which holds a copy of every task, so a task's operands and scratch are
 freed or back in the pool when `run()` returns. `late_counts()` returns
-the hold.
+the hold, or null for a host that holds none; `HostGraphHost` takes no late-count node and records
+a late-count task as a host body.
