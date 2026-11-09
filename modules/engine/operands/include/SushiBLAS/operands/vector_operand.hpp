@@ -48,17 +48,14 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Returns the geometry of a vector operand.
-         * @throws std::invalid_argument on missing storage, a non-contiguous tensor of rank
-         *         above 1, or a rank-1 stride of zero or less.
-         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         * @brief Returns the geometry of a vector operand from its shape and strides, with no
+         *        storage and no device in view.
+         * @throws std::invalid_argument on a non-contiguous tensor of rank above 1, or a rank-1
+         *         stride of zero or less.
          */
-        [[nodiscard]] inline VectorOperand describe_vector_operand(const Tensor& t, const char* op,
-                                                                   const char* operand)
+        [[nodiscard]] inline VectorOperand describe_vector_shape(const Tensor& t, const char* op,
+                                                                 const char* operand)
         {
-            require_storage(t, op, operand);
-            require_device_dtype(t, op, operand);
-
             VectorOperand v;
             v.length = t.num_elements;
             if (t.is_contiguous())
@@ -76,6 +73,20 @@ namespace SushiBLAS
 
             v.increment = t.strides[0];
             return v;
+        }
+
+        /**
+         * @brief Returns the geometry of a vector operand.
+         * @throws std::invalid_argument on missing storage, a non-contiguous tensor of rank
+         *         above 1, or a rank-1 stride of zero or less.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         */
+        [[nodiscard]] inline VectorOperand describe_vector_operand(const Tensor& t, const char* op,
+                                                                   const char* operand)
+        {
+            require_storage(t, op, operand);
+            require_device_dtype(t, op, operand);
+            return describe_vector_shape(t, op, operand);
         }
 
         /**

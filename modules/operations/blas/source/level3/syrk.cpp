@@ -34,6 +34,7 @@
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/blas/local_tile.hpp>
+#include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/tensor_profile.hpp>
@@ -66,21 +67,16 @@ namespace SushiBLAS
             Dispatch::require_real_scalar(alpha, A.dtype, op, "alpha");
             Dispatch::require_real_scalar(beta, A.dtype, op, "beta");
 
-            const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
-            const Dispatch::MatrixOperand c = Dispatch::describe_matrix_operand(C, op, "C");
-            Dispatch::require_same_layout(a, c, op, "A", "C");
-            Dispatch::require_square(c, op, "C");
-
-            const bool transposed = Core::is_transposed(trans);
-            const int64_t n = c.rows;
-            const int64_t k = transposed ? a.rows : a.cols;
-            Dispatch::require_matrix_extent(transposed ? a.cols : a.rows, n, "rows in op(A)", op,
-                                            "A");
-
-            const int64_t batch_size = c.batch_count;
-            const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
-            const int64_t str_c = Dispatch::batch_stride(c, batch_size, op, "C");
-            Dispatch::require_same_batch_axes(A, a, C, c, op, "A", "C");
+            Dispatch::require_operand_storage(A, op, "A");
+            Dispatch::require_operand_storage(C, op, "C");
+            const Dispatch::SyrkGeometry geometry = Dispatch::check_syrk_shapes(A, C, trans, op);
+            const Dispatch::MatrixOperand& a = geometry.a;
+            const Dispatch::MatrixOperand& c = geometry.c;
+            const int64_t n = geometry.n;
+            const int64_t k = geometry.k;
+            const int64_t batch_size = geometry.batch_size;
+            const int64_t str_a = geometry.stride_a;
+            const int64_t str_c = geometry.stride_c;
 
             // C is read-modify-write whatever beta is; see modules/operations/README.md.
             OperandSet operands;

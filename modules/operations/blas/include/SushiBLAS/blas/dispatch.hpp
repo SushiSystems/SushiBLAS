@@ -43,6 +43,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
+#include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
@@ -240,38 +241,22 @@ namespace SushiBLAS
             require_real_scalar(alpha, A.dtype, name, "alpha");
             require_real_scalar(beta, A.dtype, name, "beta");
 
-            if constexpr (Dom == Domain::Real)
-            {
-                if (Core::is_complex_dtype(A.dtype))
-                    Detail::throw_operand_error(name, "A",
-                                                "has dtype {}, but the epilogue of this call was "
-                                                "declared for real tensors; pass "
-                                                "Domain::RealAndComplex when the epilogue is "
-                                                "well-formed for std::complex",
-                                                Core::to_string(A.dtype));
-            }
+            require_gemm_domain(Dom == Domain::Real, A, name);
 
-            const MatrixOperand a = describe_matrix_operand(A, name, "A");
-            const MatrixOperand b = describe_matrix_operand(B, name, "B");
-            const MatrixOperand c = describe_matrix_operand(C, name, "C");
-            require_same_layout(a, c, name, "A", "C");
-            require_same_layout(b, c, name, "B", "C");
-
-            const bool a_transposed = Core::is_transposed(transA);
-            const bool b_transposed = Core::is_transposed(transB);
-            const int64_t m = c.rows;
-            const int64_t n = c.cols;
-            const int64_t k = a_transposed ? a.rows : a.cols;
-            require_matrix_extent(a_transposed ? a.cols : a.rows, m, "rows in op(A)", name, "A");
-            require_matrix_extent(b_transposed ? b.cols : b.rows, k, "rows in op(B)", name, "B");
-            require_matrix_extent(b_transposed ? b.rows : b.cols, n, "columns in op(B)", name, "B");
-
-            const int64_t batch_size = c.batch_count;
-            const int64_t str_a = batch_stride(a, batch_size, name, "A");
-            const int64_t str_b = batch_stride(b, batch_size, name, "B");
-            const int64_t str_c = batch_stride(c, batch_size, name, "C");
-            require_same_batch_axes(A, a, C, c, name, "A", "C");
-            require_same_batch_axes(B, b, C, c, name, "B", "C");
+            require_operand_storage(A, name, "A");
+            require_operand_storage(B, name, "B");
+            require_operand_storage(C, name, "C");
+            const GemmGeometry geometry = check_gemm_shapes(A, B, C, transA, transB, name);
+            const MatrixOperand& a = geometry.a;
+            const MatrixOperand& b = geometry.b;
+            const MatrixOperand& c = geometry.c;
+            const int64_t m = geometry.m;
+            const int64_t n = geometry.n;
+            const int64_t k = geometry.k;
+            const int64_t batch_size = geometry.batch_size;
+            const int64_t str_a = geometry.stride_a;
+            const int64_t str_b = geometry.stride_b;
+            const int64_t str_c = geometry.stride_c;
 
             // C is read unless beta is zero; see modules/operations/blas/README.md.
             OperandSet operands;

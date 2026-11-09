@@ -81,6 +81,20 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
+        TEST(Small_TensorFactory, AllocationBytesRefusesAnOverflowingCount)
+        {
+            constexpr int64_t K_HUGE = int64_t{1} << 40;
+            const std::vector<int64_t> square{K_HUGE, K_HUGE};
+            const std::vector<int64_t> wide{int64_t{1} << 62};
+
+            EXPECT_THROW((void)TensorFactory::allocation_bytes(span_of(square),
+                                                                Core::DataType::Float32),
+                         std::runtime_error);
+            EXPECT_THROW((void)TensorFactory::allocation_bytes(span_of(wide),
+                                                                Core::DataType::Float64),
+                         std::runtime_error);
+        }
+
         TEST(Small_TensorFactory, ACreatedTensorCountsItsElements)
         {
             const TensorFactory factory(TensorFactory::Host{});

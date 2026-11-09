@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <vector>
 #include <string>
 #include <iterator>
@@ -37,7 +36,6 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
@@ -299,73 +297,6 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_BlasValidationTest, GemmRejectsInnerDimensionMismatch)
-        {
-            auto A = engine->create_tensor({2, 3});
-            auto B = engine->create_tensor({4, 2});
-            auto C = engine->create_tensor({2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, GemmRejectsMixedLayouts)
-        {
-            auto A = engine->create_tensor({2, 2});
-            auto row_major_B = engine->create_tensor({2, 2});
-            auto C = engine->create_tensor({2, 2});
-            const Tensor B(row_major_B.storage, {2, 2}, Core::DataType::Float32, 0,
-                           Core::Layout::ColumnMajor);
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, GemmRejectsBatchCountMismatch)
-        {
-            auto A = engine->create_tensor({3, 2, 2});
-            auto B = engine->create_tensor({2, 2, 2});
-            auto C = engine->create_tensor({2, 2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, GemmRejectsTransposedView)
-        {
-            auto parent = engine->create_tensor({2, 3});
-            const Tensor A = parent.transpose(0, 1);
-            auto B = engine->create_tensor({2, 2});
-            auto C = engine->create_tensor({3, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, SyrkRejectsNonSquareC)
-        {
-            auto A = engine->create_tensor({3, 2});
-            auto C = engine->create_tensor({3, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, TrsmRejectsNonSquareA)
-        {
-            auto A = engine->create_tensor({2, 3});
-            auto B = engine->create_tensor({2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, B, Core::Side::Left,
-                                                          Core::Uplo::Lower),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, DotRejectsResultOfWrongDtype)
-        {
-            auto x = engine->create_tensor({4});
-            auto y = engine->create_tensor({4});
-            auto result = engine->create_tensor({1}, Core::DataType::Half);
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, result), std::invalid_argument);
-        }
-
         TEST_P(Medium_BlasScalarResultValidation, RejectsAResultOfMoreThanOneElement)
         {
             auto x = engine->create_tensor({4});
@@ -375,34 +306,6 @@ namespace SushiBLAS
             SushiBLAS::BLASOps ops(recorder());
 
             EXPECT_THROW(K_SCALAR_RESULTS[GetParam()].record(ops, x, y, wide, wide_index),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, GemmRejectsBatchAxesThatDifferWithEqualProduct)
-        {
-            auto A = engine->create_tensor({2, 3, 2, 2});
-            auto B = engine->create_tensor({2, 2});
-            auto C = engine->create_tensor({3, 2, 2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, SyrkRejectsBatchAxesThatDiffer)
-        {
-            auto A = engine->create_tensor({2, 3, 2, 2});
-            auto C = engine->create_tensor({6, 2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, TrsmRejectsBatchAxesThatDiffer)
-        {
-            auto A = engine->create_tensor({2, 3, 2, 2});
-            auto C = engine->create_tensor({6, 2, 2});
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, C, Core::Side::Left,
-                                                          Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -459,33 +362,6 @@ namespace SushiBLAS
             EXPECT_THROW(K_LEVEL2[GetParam()].record(ops, A, x, y), std::invalid_argument);
         }
 
-        TEST_F(Medium_BlasValidationTest, TensorCreationRejectsNegativeDimension)
-        {
-            EXPECT_THROW((void)engine->create_tensor({-1, 4}), std::runtime_error);
-            EXPECT_THROW((void)engine->create_tensor({4, -1}, Core::DataType::Float64),
-                         std::runtime_error);
-        }
-
-        TEST_F(Medium_BlasValidationTest, TensorCreationRejectsOverflowingSize)
-        {
-            constexpr int64_t K_HUGE = int64_t{1} << 40;
-
-            EXPECT_THROW((void)engine->create_tensor({K_HUGE, K_HUGE}), std::runtime_error);
-            EXPECT_THROW((void)engine->create_tensor({int64_t{1} << 62}, Core::DataType::Float64),
-                         std::runtime_error);
-        }
-
-        TEST_F(Medium_BlasValidationTest, ScalRejectsVectorOfStrideZero)
-        {
-            auto parent = engine->create_tensor({4});
-            const std::vector<int64_t> dims = {4};
-            const std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides = {0};
-            Tensor x(parent.storage, dims, strides, Core::DataType::Float32, 0,
-                     Core::Layout::RowMajor);
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).scal(2.0, x), std::invalid_argument);
-        }
-
         TEST_P(Medium_BlasLevel1Validation, RejectsOperandsOfDifferentDtypes)
         {
             auto x = engine->create_tensor({4});
@@ -504,28 +380,6 @@ namespace SushiBLAS
             SushiBLAS::BLASOps ops(recorder());
 
             EXPECT_THROW(K_LEVEL1[GetParam()].record(ops, x, y, result), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, ScalRejectsNonContiguousVectorOfRankTwo)
-        {
-            auto parent = engine->create_tensor({2, 3});
-            Tensor x = parent.transpose(0, 1);
-            ASSERT_FALSE(x.is_contiguous());
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).scal(2.0, x), std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, TrsvRejectsStridedB)
-        {
-            auto A = engine->create_tensor({3, 3});
-            auto parent = engine->create_tensor({6});
-            const std::vector<int64_t> dims = {3};
-            const std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides = {2};
-            Tensor b(parent.storage, dims, strides, Core::DataType::Float32, 0,
-                     Core::Layout::RowMajor);
-
-            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower),
-                         std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, SymvRejectsAUploThatIsNoEnumerator)
@@ -618,19 +472,6 @@ namespace SushiBLAS
 
             EXPECT_THROW(SushiBLAS::BLASOps(recorder()).herk(A, C, Core::Uplo::Lower,
                                                           Core::Transpose::Trans),
-                         std::invalid_argument);
-        }
-
-        TEST_F(Medium_BlasValidationTest, ExecuteGemmUnderTheRealDomainRejectsComplexTensors)
-        {
-            auto A = engine->create_tensor({2, 2}, Core::DataType::Complex32);
-            auto B = engine->create_tensor({2, 2}, Core::DataType::Complex32);
-            auto C = engine->create_tensor({2, 2}, Core::DataType::Complex32);
-
-            EXPECT_THROW(Dispatch::execute_gemm<Dispatch::Domain::Real>(
-                             recorder(), A, B, C, Core::Transpose::NoTrans,
-                             Core::Transpose::NoTrans, 1.0, 0.0, "test.gemm_real_domain",
-                             "test.gemm_real_domain"_op, Kernels::GemmIdentityEpilogue{}),
                          std::invalid_argument);
         }
 

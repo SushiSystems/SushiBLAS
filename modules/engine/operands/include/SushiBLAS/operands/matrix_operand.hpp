@@ -55,22 +55,11 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Returns the geometry of a dense matrix operand of rank 2 or more.
-         * @throws std::invalid_argument on rank < 2, missing storage or a non-contiguous tensor.
-         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
-         * @see modules/operations/blas/README.md
+         * @brief Returns the geometry of a matrix operand of rank 2 or more, from its shape alone.
+         * @pre The tensor has passed require_matrix_rank and require_contiguous.
          */
-        [[nodiscard]] inline MatrixOperand describe_matrix_operand(const Tensor& t, const char* op,
-                                                                   const char* operand)
+        [[nodiscard]] inline MatrixOperand matrix_geometry(const Tensor& t) noexcept
         {
-            if (t.rank < 2)
-                Detail::throw_operand_error(op, operand, "has rank {}, a matrix needs rank 2 or more",
-                                            t.rank);
-
-            require_storage(t, op, operand);
-            require_device_dtype(t, op, operand);
-            require_contiguous(t, op, operand);
-
             MatrixOperand m;
             m.rank = t.rank;
             m.rows = t.shape[t.rank - 2];
@@ -83,6 +72,47 @@ namespace SushiBLAS
                 m.batch_count *= t.shape[i];
 
             return m;
+        }
+
+        /**
+         * @brief Throws unless a tensor has rank 2 or more.
+         * @throws std::invalid_argument naming the rank.
+         */
+        inline void require_matrix_rank(const Tensor& t, const char* op, const char* operand)
+        {
+            if (t.rank < 2)
+                Detail::throw_operand_error(op, operand, "has rank {}, a matrix needs rank 2 or more",
+                                            t.rank);
+        }
+
+        /**
+         * @brief Returns the geometry of a dense matrix operand from its shape and strides, with
+         *        no storage and no device in view.
+         * @throws std::invalid_argument on rank < 2 or a non-contiguous tensor.
+         * @see modules/operations/blas/README.md
+         */
+        [[nodiscard]] inline MatrixOperand describe_matrix_shape(const Tensor& t, const char* op,
+                                                                 const char* operand)
+        {
+            require_matrix_rank(t, op, operand);
+            require_contiguous(t, op, operand);
+            return matrix_geometry(t);
+        }
+
+        /**
+         * @brief Returns the geometry of a dense matrix operand of rank 2 or more.
+         * @throws std::invalid_argument on rank < 2, missing storage or a non-contiguous tensor.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         * @see modules/operations/blas/README.md
+         */
+        [[nodiscard]] inline MatrixOperand describe_matrix_operand(const Tensor& t, const char* op,
+                                                                   const char* operand)
+        {
+            require_matrix_rank(t, op, operand);
+            require_storage(t, op, operand);
+            require_device_dtype(t, op, operand);
+            require_contiguous(t, op, operand);
+            return matrix_geometry(t);
         }
 
         /**

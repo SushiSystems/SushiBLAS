@@ -35,6 +35,7 @@
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
+#include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
@@ -58,23 +59,16 @@ namespace SushiBLAS
         Dispatch::require_dtype(B, A.dtype, op, "B");
         Dispatch::require_real_scalar(alpha, A.dtype, op, "alpha");
 
-        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
-        const Dispatch::MatrixOperand b = Dispatch::describe_matrix_operand(B, op, "B");
-        Dispatch::require_same_layout(a, b, op, "A", "B");
-        Dispatch::require_square(a, op, "A");
-
-        const bool left = (side == Core::Side::Left);
-        const int64_t m = b.rows;
-        const int64_t n = b.cols;
-        Dispatch::require_matrix_extent(a.rows, left ? m : n,
-                                        left ? "rows against the rows of B"
-                                             : "rows against the columns of B",
-                                        op, "A");
-
-        const int64_t batch_size = b.batch_count;
-        const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
-        const int64_t str_b = Dispatch::batch_stride(b, batch_size, op, "B");
-        Dispatch::require_same_batch_axes(A, a, B, b, op, "A", "B");
+        Dispatch::require_operand_storage(A, op, "A");
+        Dispatch::require_operand_storage(B, op, "B");
+        const Dispatch::TrsmGeometry geometry = Dispatch::check_trsm_shapes(A, B, side, op);
+        const Dispatch::MatrixOperand& a = geometry.a;
+        const Dispatch::MatrixOperand& b = geometry.b;
+        const int64_t m = geometry.m;
+        const int64_t n = geometry.n;
+        const int64_t batch_size = geometry.batch_size;
+        const int64_t str_a = geometry.stride_a;
+        const int64_t str_b = geometry.stride_b;
 
         // B arrives as the right-hand sides and leaves as the solution X: read, then written.
         OperandSet operands;

@@ -52,6 +52,22 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Throws unless a scalar result tensor has the expected dtype and exactly one
+         *        element; it reads no storage.
+         * @throws std::invalid_argument naming the first rule that fails.
+         */
+        inline void require_scalar_result_shape(const Tensor& result, Core::DataType expected,
+                                                const char* op)
+        {
+            Dispatch::require_dtype(result, expected, op, "result");
+            if (result.num_elements != 1)
+                Dispatch::Detail::throw_operand_error(op, "result",
+                                                      "holds {} elements; a scalar result holds "
+                                                      "exactly one",
+                                                      result.num_elements);
+        }
+
+        /**
          * @brief Throws unless a scalar result tensor has storage, the expected dtype and exactly
          *        one element.
          * @throws std::invalid_argument naming the first rule that fails.
@@ -60,12 +76,7 @@ namespace SushiBLAS
                                           const char* op)
         {
             Dispatch::require_storage(result, op, "result");
-            Dispatch::require_dtype(result, expected, op, "result");
-            if (result.num_elements != 1)
-                Dispatch::Detail::throw_operand_error(op, "result",
-                                                      "holds {} elements; a scalar result holds "
-                                                      "exactly one",
-                                                      result.num_elements);
+            require_scalar_result_shape(result, expected, op);
         }
     } // namespace Internal
 } // namespace SushiBLAS

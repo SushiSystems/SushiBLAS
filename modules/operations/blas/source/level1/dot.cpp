@@ -34,6 +34,7 @@
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
+#include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/operands/scalar_result.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
@@ -59,10 +60,10 @@ namespace SushiBLAS
                               const Tensor& x, const Tensor& y, Tensor& result)
         {
             Dispatch::require_dtype(y, x.dtype, op, "y");
-            const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
-            const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
-            Dispatch::require_same_element_count(x, y, op, "x", "y");
-            Internal::require_scalar_result(result, x.dtype, op);
+            Dispatch::require_operand_storage(x, op, "x");
+            Dispatch::require_operand_storage(y, op, "y");
+            Dispatch::require_storage(result, op, "result");
+            const auto [vx, vy] = Dispatch::check_dot_shapes(x, y, result, op);
 
             const int64_t n = vx.length;
 

@@ -24,7 +24,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_blas_packed.cpp` | Tests the packed routines against hand-computed results, their dense siblings and each other's kernels |
 | `test_blas/test_blas_structured_validation.cpp` | Tests what the band, packed and rotation routines refuse at record time, and the forwards of the Hermitian routines on a real tensor |
 | `test_blas/test_blas_symmetric_bits.cpp` | Tests that the unconjugated reference kernels equal a plain host loop bit for bit |
-| `test_blas/test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations and of tensor creation |
+| `test_blas/test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations that need a device |
 | `test_blas/test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
 | `test_blas/test_iamax.cpp` | Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64 |
 | `test_blas/test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and HALF accumulation |
@@ -50,6 +50,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand |
 | `test_packed_product_scratch.cpp` | Tests that the packed product leases the scratch its plan names, and none without a plan |
 | `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand |
+| `test_shape_check.cpp` | Tests that the shape checks of gemm, syrk, trsm, trsv, dot and scal refuse what the routines refuse, on tensors with no storage |
 | `compile_sparse.cpp` | Checks at compile time that SparseBLAS is built from a recorder and only from one; the build compiles it and no test runner lists it |
 
 ## test_blas/test_gemm.cpp

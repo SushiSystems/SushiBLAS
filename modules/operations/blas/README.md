@@ -16,6 +16,7 @@ so one view records all three levels.
 | `band_operand.hpp` | `BandOperand`, the geometry of one band-stored matrix operand |
 | `packed_operand.hpp` | `PackedOperand`, the geometry of one packed triangle operand |
 | `scalar_operand.hpp` | The check on a tensor that stands for one scalar of a call |
+| `shape_check.hpp` | The shape checks of `gemm`, `syrk`, `trsm`, `trsv` and `dot`, which read shape, strides and dtype and need no queue |
 | `blas_metadata.hpp` | `BLASMetadata`, which fills a task's metadata slots in one fixed order |
 | `blas_task.hpp` | `execute_blas_task`, which records one dtype-dispatched BLAS task |
 | `local_tile.hpp` | The local-memory demand of a tiled kernel and its record-time check |
@@ -315,6 +316,16 @@ finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
 
 `require_scalar_operand` checks a tensor that stands for one scalar, as the four operands of
 `rotg` do: storage, the expected dtype and exactly one element.
+
+## `shape_check.hpp`
+
+`check_gemm_shapes`, `check_syrk_shapes`, `check_trsm_shapes`, `check_trsv_shapes` and
+`check_dot_shapes` hold the layout, extent, batch and stride rules of their routine. They read the
+shape, strides and dtype of a tensor through `describe_matrix_shape` and `describe_vector_shape`,
+so a tensor with no storage can be checked and no queue is needed. The routine first calls
+`require_operand_storage` on each operand, then the shape check, and takes its extents and strides
+from the returned geometry. `require_gemm_domain` is the check that a real-domain epilogue meets a
+real tensor. Each throws `std::invalid_argument` through `Detail::throw_operand_error`.
 
 ## `blas_metadata.hpp`
 
