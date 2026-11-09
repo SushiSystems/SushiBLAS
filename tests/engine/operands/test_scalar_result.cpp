@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
@@ -43,16 +45,39 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_ScalarResult, AComplexDtypeHasTheRealDtypeOfItsParts)
+        namespace
         {
-            static_assert(Internal::real_result_dtype(Core::DataType::Complex32) ==
-                              Core::DataType::Float32,
-                          "COMPLEX32 has FLOAT32 parts.");
+            /** @brief Names a dtype and the real dtype of its parts. */
+            struct RealDtypeRow
+            {
+                const char* name;         /**< The row name a failure shows. */
+                Core::DataType dtype;     /**< The dtype of the result. */
+                Core::DataType expected;  /**< The dtype of its parts. */
+            };
 
-            EXPECT_EQ(Internal::real_result_dtype(Core::DataType::Complex64),
-                      Core::DataType::Float64);
-            EXPECT_EQ(Internal::real_result_dtype(Core::DataType::Half), Core::DataType::Half);
+            /** @brief Returns one row per complex dtype and one real dtype. */
+            std::vector<RealDtypeRow> real_dtype_rows()
+            {
+                return {{"Complex32", Core::DataType::Complex32, Core::DataType::Float32},
+                        {"Complex64", Core::DataType::Complex64, Core::DataType::Float64},
+                        {"Half", Core::DataType::Half, Core::DataType::Half}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of real_dtype_rows(). */
+        class Small_ScalarResultDtype : public ::testing::TestWithParam<RealDtypeRow>
+        {
+        };
+
+        TEST_P(Small_ScalarResultDtype, AComplexDtypeHasTheRealDtypeOfItsParts)
+        {
+            EXPECT_EQ(Internal::real_result_dtype(GetParam().dtype), GetParam().expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ScalarResultDtype, ::testing::ValuesIn(real_dtype_rows()),
+            [](const ::testing::TestParamInfo<RealDtypeRow>& info)
+            { return std::string(info.param.name); });
 
         TEST_F(Medium_ScalarResult, AResultHoldsOneElementOfTheExpectedDtype)
         {
