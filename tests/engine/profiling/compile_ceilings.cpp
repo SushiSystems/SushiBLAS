@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_profiling_log_category.cpp                                        */
+/* compile_ceilings.cpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,17 @@
 /**************************************************************************/
 
 /**
- * @file test_profiling_log_category.cpp
- * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
+ * @file compile_ceilings.cpp
+ * @brief Checks at compile time that a default bandwidth ceiling and method state nothing a reader would accept as measured; the strings and the vector of DeviceCeilings are not literal types; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
+ * @see tests/engine/profiling/README.md
  */
 
-#include <SushiBLAS/profiling/profiling_log_category.hpp>
+#include <SushiBLAS/profiling/ceilings.hpp>
 
 namespace SushiBLAS
 {
-    static_assert(K_PROFILING_LOG_CATEGORY.module() == "profiling", "the folder name of the module");
-    static_assert(K_PROFILING_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+    static_assert(Profiling::BandwidthCeiling{}.bytes_per_second == 0.0, "a bandwidth ceiling starts at zero");
+    static_assert(Profiling::BandwidthCeiling{}.runs == 0U, "a bandwidth ceiling starts with no timed run");
+    static_assert(Profiling::CeilingsMethod{}.runs == 0U, "a default method states no timed run");
 } // namespace SushiBLAS

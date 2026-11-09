@@ -15,3 +15,4 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_scalar_result.cpp` | Tests the real dtype of a scalar result and the check on the tensor that receives it |
 | `test_scratch_lease.cpp` | Tests when a BLAS call leases scratch, how much, and that the lease is declared written |
 | `test_vector_operand.cpp` | Tests how a tensor is read as a vector operand, strided ones included, and its checks |
+| `compile_operands_log_category.cpp` | Checks at compile time that the log category names its module and the project; compiled, never run |

@@ -26,4 +26,4 @@ sushiblas_add_test_program(
         test_scratch_lease.cpp
         test_vector_operand.cpp
     COMPILE_CHECKS
-        test_operands_log_category.cpp)
+        compile_operands_log_category.cpp)

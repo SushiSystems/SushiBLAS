@@ -26,4 +26,4 @@ sushiblas_add_test_program(
         test_update_binding.cpp
         test_write_binding.cpp
     COMPILE_CHECKS
-        test_functor_map_log_category.cpp)
+        compile_functor_map_log_category.cpp)

@@ -15,3 +15,4 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_scalar.cpp` | Tests that ElementScalar holds one parameter in every element type, integers saturated |
 | `test_scalar_binding.cpp` | Tests that bound scalars reach the functor after its elements, narrowed to their type |
 | `test_write_binding.cpp` | Tests bind_writes, the bundle that declares the tensors an element functor writes |
+| `compile_functor_map_log_category.cpp` | Checks at compile time that the log category names its module and the project; compiled, never run |

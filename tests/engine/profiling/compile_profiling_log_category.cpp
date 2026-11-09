@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_operands_log_category.cpp                                         */
+/* compile_profiling_log_category.cpp                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,15 @@
 /**************************************************************************/
 
 /**
- * @file test_operands_log_category.cpp
+ * @file compile_profiling_log_category.cpp
  * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/operands/operands_log_category.hpp>
+#include <SushiBLAS/profiling/profiling_log_category.hpp>
 
 namespace SushiBLAS
 {
-    static_assert(K_OPERANDS_LOG_CATEGORY.module() == "operands", "the folder name of the module");
-    static_assert(K_OPERANDS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+    static_assert(K_PROFILING_LOG_CATEGORY.module() == "profiling", "the folder name of the module");
+    static_assert(K_PROFILING_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
 } // namespace SushiBLAS

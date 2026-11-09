@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_ceilings.cpp                                                      */
+/* compile_functor_map_log_category.cpp                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,34 +22,15 @@
 /**************************************************************************/
 
 /**
- * @file test_ceilings.cpp
- * @brief Tests that a default DeviceCeilings states nothing a reader would accept as measured.
+ * @file compile_functor_map_log_category.cpp
+ * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
- * @see tests/engine/profiling/README.md
  */
 
-#include <gtest/gtest.h>
-#include <SushiBLAS/profiling/ceilings.hpp>
+#include <SushiBLAS/functor_map/functor_map_log_category.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
-    {
-        TEST(Small_Ceilings, ADefaultValueStatesNoDtypeAndNoBandwidth)
-        {
-            const Profiling::DeviceCeilings ceilings;
-
-            EXPECT_TRUE(ceilings.compute.empty());
-            EXPECT_EQ(ceilings.bandwidth.bytes_per_second, 0.0);
-            EXPECT_FALSE(ceilings.smoke_only);
-        }
-
-        TEST(Small_Ceilings, AComputeCeilingStartsAtZero)
-        {
-            const Profiling::ComputeCeiling ceiling;
-
-            EXPECT_EQ(ceiling.flops_per_second, 0.0);
-            EXPECT_EQ(ceiling.runs, 0U);
-        }
-    } // namespace Test
+    static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.module() == "functor_map", "the folder name of the module");
+    static_assert(K_FUNCTOR_MAP_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
 } // namespace SushiBLAS
