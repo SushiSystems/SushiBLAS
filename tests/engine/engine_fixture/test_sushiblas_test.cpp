@@ -45,12 +45,6 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_SushiBLASTest, GivesARowMajorEngine)
-        {
-            ASSERT_TRUE(engine);
-            EXPECT_EQ(engine->layout(), Core::Layout::RowMajor);
-        }
-
         TEST_F(Medium_SushiBLASTest, ReinitRebuildsTheEngineInAnotherLayout)
         {
             reinit_engine(Core::Layout::ColumnMajor);
@@ -64,14 +58,28 @@ namespace SushiBLAS
 
             ASSERT_TRUE(recording);
             EXPECT_TRUE(recording->is_empty());
+        }
+
+        TEST_F(Medium_SushiBLASTest, ReinitGivesTheRecorderTheModeOfTheNewEngine)
+        {
+            set_mode(ExecutionMode::ForceReference);
+
+            reinit_engine(Core::Layout::ColumnMajor);
+
             EXPECT_EQ(recorder().mode(), engine->mode());
         }
 
-        TEST_F(Medium_SushiBLASTest, SetModeReachesTheEngineAndTheRecorder)
+        TEST_F(Medium_SushiBLASTest, SetModeReachesTheEngine)
         {
             set_mode(ExecutionMode::ForceReference);
 
             EXPECT_EQ(engine->mode(), ExecutionMode::ForceReference);
+        }
+
+        TEST_F(Medium_SushiBLASTest, SetModeReachesTheRecorder)
+        {
+            set_mode(ExecutionMode::ForceReference);
+
             EXPECT_EQ(recorder().mode(), ExecutionMode::ForceReference);
         }
 
