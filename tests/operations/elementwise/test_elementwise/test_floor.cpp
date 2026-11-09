@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_FloorTest : public SushiBLASTest {};
+class Small_FloorTest : public HostEngineTest {};
 
-TEST_F(Medium_FloorTest, FloatForward) 
+/**
+ * @brief Tests that the recorded floor rounds each element down to a whole number when the task runs.
+ */
+TEST_F(Small_FloorTest, FloorRoundsEachElementDownToAWholeNumber) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).floor(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.00000f, 2.00000f, -3.00000f, 0.00000f});
 }
