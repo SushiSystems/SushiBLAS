@@ -31,7 +31,6 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
@@ -57,6 +56,29 @@ namespace SushiBLAS
 
             /// @brief Holds the (value, index) partial the index case folds.
             using Candidate = Reduce::IndexedValue<float>;
+
+            /// @brief Holds the distinct values the sum case repeats: 0 up to 96.
+            constexpr std::size_t K_VALUE_PERIOD = 97;
+
+            /** @brief Returns K_TWO_STAGE_ELEMENTS whole numbers, element i holding i % 97. */
+            std::vector<float> whole_number_values()
+            {
+                std::vector<float> values(K_TWO_STAGE_ELEMENTS);
+                for (std::size_t i = 0; i < values.size(); ++i)
+                    values[i] = static_cast<float>(i % K_VALUE_PERIOD);
+                return values;
+            }
+
+            /**
+             * @brief Returns the sum of whole_number_values().
+             *
+             * 100000 = 1030 * 97 + 90, so the sum is 1030 full periods of 0..96 (4656 each)
+             * plus the first 90 values 0..89 (4005).
+             */
+            constexpr std::size_t whole_number_total()
+            {
+                return 1030 * 4656 + 4005;
+            }
         }
 
         /// @brief Runs the reductions whose launch geometry the test chooses.
@@ -141,16 +163,15 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that the queue form and the plan form give the same bits under one plan.
+         * @brief Tests that the queue form and the plan form each give the exact sum.
+         *
+         * The values are whole numbers whose every partial sum a float holds exactly, so the
+         * sum is the same in any fold order and the plan the queue form names cannot change it.
          */
         TEST_F(Medium_ReducePlans, TheQueueFormMatchesThePlanItComputes)
         {
-            std::vector<float> values(K_TWO_STAGE_ELEMENTS);
-            for (std::size_t i = 0; i < values.size(); ++i)
-                values[i] = 0.1f + static_cast<float>(i % 97) * 0.017f;
-
             auto in = create_initialized_tensor<float>(
-                {static_cast<int64_t>(K_TWO_STAGE_ELEMENTS)}, values);
+                {static_cast<int64_t>(K_TWO_STAGE_ELEMENTS)}, whole_number_values());
             auto partials = engine->create_tensor({static_cast<int64_t>(Reduce::K_MAX_GROUPS)});
             auto by_queue = engine->create_tensor({1});
             auto by_plan = engine->create_tensor({1});
@@ -171,12 +192,9 @@ namespace SushiBLAS
                 queue(), geometry, in.data_as<float>(), by_plan.data_as<float>(),
                 K_TWO_STAGE_ELEMENTS, partials.data_as<float>(), identity, keep, {}).wait();
 
-            const float queue_sum = read_tensor<float>(by_queue)[0];
-            const float plan_sum = read_tensor<float>(by_plan)[0];
-
-            ASSERT_NE(0.0f, queue_sum) << "the queue form wrote nothing";
-            EXPECT_EQ(0, std::memcmp(&queue_sum, &plan_sum, sizeof(float)))
-                << "the queue form gave " << queue_sum << ", the plan form " << plan_sum;
+            const float expected = static_cast<float>(whole_number_total());
+            EXPECT_EQ(read_tensor<float>(by_queue)[0], expected);
+            EXPECT_EQ(read_tensor<float>(by_plan)[0], expected);
         }
     } // namespace Test
 } // namespace SushiBLAS
