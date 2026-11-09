@@ -34,6 +34,7 @@
 #include <vector>
 #include <complex>
 #include <cstdint>
+#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -41,6 +42,8 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -201,6 +204,16 @@ namespace SushiBLAS
                 default:
                     FAIL() << "a BLAS routine takes no such element type";
             }
+        }
+
+        /** @brief Returns the unit roundoff of the component type R of an element type. */
+        template<typename R>
+        [[nodiscard]] constexpr double unit_roundoff_of()
+        {
+            if constexpr (std::is_same_v<R, sycl::half>)
+                return K_HALF_UNIT_ROUNDOFF;
+            else
+                return TestSupport::unit_roundoff<R>();
         }
 
         /** @brief Returns whether the test device computes in the component type of a data type. */

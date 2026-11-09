@@ -125,9 +125,6 @@ namespace SushiBLAS
              */
             constexpr double K_AGREEMENT_THRESHOLD = 64.0;
 
-            /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
-            constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
-
             /// @brief Rounded operations on the path to a HALF result: the sum is carried in FLOAT32.
             constexpr std::size_t K_HALF_ROUNDINGS = 2;
 
@@ -494,16 +491,6 @@ namespace SushiBLAS
                     EXPECT_EQ(a.real(), e.real()) << "real part of element " << i;
                     EXPECT_EQ(a.imag(), e.imag()) << "imaginary part of element " << i;
                 }
-            }
-
-            /** @brief Returns the unit roundoff of the component type R of an element type. */
-            template<typename R>
-            [[nodiscard]] constexpr double unit_roundoff_of()
-            {
-                if constexpr (std::is_same_v<R, sycl::half>)
-                    return K_HALF_UNIT_ROUNDOFF;
-                else
-                    return TestSupport::unit_roundoff<R>();
             }
 
             /**

@@ -174,9 +174,6 @@ namespace SushiBLAS
              */
             constexpr double K_ENTRY_PRODUCT_MAGNITUDE = 2.0;
 
-            /// @brief Unit roundoff of HALF, which has no std::numeric_limits entry: 2^-11.
-            constexpr double K_HALF_UNIT_ROUNDOFF = 0x1p-11;
-
             /// @brief Rounded operations on the path to a HALF result: the sum is carried in FLOAT32.
             constexpr std::size_t K_HALF_ROUNDINGS = 2;
 
@@ -193,17 +190,6 @@ namespace SushiBLAS
             {
                 using type = typename T::value_type; /**< The type of the real and imaginary part. */
             };
-
-            /** @brief Returns the unit roundoff of the component type of an element type. */
-            template<typename T>
-            [[nodiscard]] constexpr double unit_roundoff_of_element()
-            {
-                using R = typename ComponentOf<T>::type;
-                if constexpr (std::is_same_v<R, sycl::half>)
-                    return K_HALF_UNIT_ROUNDOFF;
-                else
-                    return TestSupport::unit_roundoff<R>();
-            }
 
             /** @brief Returns the rounded operations on the path to one result of depth k. */
             template<typename T>
@@ -351,7 +337,7 @@ namespace SushiBLAS
                     const double scale = std::abs(c.alpha) * magnitude[i] +
                                          std::abs(c.beta) * K_ENTRY_PRODUCT_MAGNITUDE;
                     const double bound = static_cast<double>(roundings_of<T>(c.k)) *
-                                         unit_roundoff_of_element<T>() * scale;
+                                         unit_roundoff_of<typename ComponentOf<T>::type>() * scale;
                     const auto [got_re, got_im] = parts_of(actual[i]);
                     const auto [want_re, want_im] = parts_of(expected[i]);
 
