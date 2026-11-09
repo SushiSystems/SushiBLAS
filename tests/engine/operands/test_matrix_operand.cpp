@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
@@ -115,6 +116,72 @@ namespace SushiBLAS
 
             EXPECT_NO_THROW(Dispatch::require_unbatched(single, "op", "a"));
             EXPECT_THROW(Dispatch::require_unbatched(batch, "op", "b"), std::invalid_argument);
+        }
+
+        namespace
+        {
+            /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
+            template<typename Check>
+            std::string message_of(const Check& check)
+            {
+                try
+                {
+                    check();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+
+                return std::string();
+            }
+        } // namespace
+
+        TEST(Small_MatrixOperand, ANonSquareMatrixIsRefusedAndNamesItsExtents)
+        {
+            Dispatch::MatrixOperand rectangle;
+            rectangle.rows = 2;
+            rectangle.cols = 3;
+
+            EXPECT_EQ(message_of([&] { Dispatch::require_square(rectangle, "op", "a"); }),
+                      "op: operand 'a' is 2 x 3; the operation needs a square matrix");
+        }
+
+        TEST(Small_MatrixOperand, ASquareMatrixIsAccepted)
+        {
+            Dispatch::MatrixOperand square;
+            square.rows = 3;
+            square.cols = 3;
+
+            EXPECT_EQ(message_of([&] { Dispatch::require_square(square, "op", "a"); }), "");
+        }
+
+        TEST_F(Medium_MatrixOperand, BatchesWithDifferentAxesAreRefused)
+        {
+            const Tensor base = engine->create_tensor({2, 3, 4});
+            const Tensor other_size = engine->create_tensor({3, 3, 4});
+            const Tensor other_count = engine->create_tensor({1, 2, 3, 4});
+            const Dispatch::MatrixOperand mb = Dispatch::describe_matrix_operand(base, "op", "a");
+            const Dispatch::MatrixOperand ms = Dispatch::describe_matrix_operand(other_size, "op", "b");
+            const Dispatch::MatrixOperand mc = Dispatch::describe_matrix_operand(other_count, "op", "b");
+
+            EXPECT_THROW(Dispatch::require_same_batch_axes(base, mb, other_size, ms, "op", "a", "b"),
+                         std::invalid_argument);
+            EXPECT_THROW(Dispatch::require_same_batch_axes(base, mb, other_count, mc, "op", "a", "b"),
+                         std::invalid_argument);
+        }
+
+        TEST_F(Medium_MatrixOperand, BatchesWithTheSameAxesAreAccepted)
+        {
+            const Tensor a = engine->create_tensor({2, 3, 4});
+            const Tensor b = engine->create_tensor({2, 4, 5});
+            const Dispatch::MatrixOperand ma = Dispatch::describe_matrix_operand(a, "op", "a");
+            const Dispatch::MatrixOperand mb = Dispatch::describe_matrix_operand(b, "op", "b");
+
+            EXPECT_EQ(message_of([&] {
+                          Dispatch::require_same_batch_axes(a, ma, b, mb, "op", "a", "b");
+                      }),
+                      "");
         }
     } // namespace Test
 } // namespace SushiBLAS
