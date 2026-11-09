@@ -27,6 +27,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
@@ -60,14 +61,50 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Medium_VectorOperand, LengthAndIncrementChecksNameTheirOperand)
+        namespace
+        {
+            /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
+            template<typename Check>
+            std::string message_of(const Check& check)
+            {
+                try
+                {
+                    check();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+
+                return std::string();
+            }
+        } // namespace
+
+        TEST(Small_VectorOperand, ALengthMismatchIsRefusedAndNamesItsOperand)
         {
             const Dispatch::VectorOperand v{5, 2};
 
-            EXPECT_THROW(Dispatch::require_vector_length(v, 4, "A's columns", "op", "x"),
-                         std::invalid_argument);
+            EXPECT_EQ(message_of([&] {
+                          Dispatch::require_vector_length(v, 4, "A's columns", "op", "x");
+                      }),
+                      "op: operand 'x' holds 5 elements, A's columns need 4");
+        }
+
+        TEST(Small_VectorOperand, AMatchingLengthIsAccepted)
+        {
+            const Dispatch::VectorOperand v{5, 2};
+
+            EXPECT_EQ(message_of([&] {
+                          Dispatch::require_vector_length(v, 5, "A's columns", "op", "x");
+                      }),
+                      "");
+        }
+
+        TEST(Small_VectorOperand, AnIncrementOtherThanOneIsRefused)
+        {
+            const Dispatch::VectorOperand v{5, 2};
+
             EXPECT_THROW(Dispatch::require_unit_increment(v, "op", "x"), std::invalid_argument);
-            EXPECT_NO_THROW(Dispatch::require_vector_length(v, 5, "A's columns", "op", "x"));
         }
     } // namespace Test
 } // namespace SushiBLAS
