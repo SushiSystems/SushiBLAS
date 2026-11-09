@@ -53,6 +53,21 @@ namespace SushiBLAS
                 Engine engine{runtime};
         };
 
+        /** @brief Tests that borrowing a count exposes its words, one per four bytes of its storage. */
+        TEST_F(Medium_LateCountHold, BorrowingExposesTheCountsWordsOnePerFourBytes)
+        {
+            LateCountHold hold(runtime);
+            Tensor out = engine.create_tensor({4}, Core::DataType::Float32);
+            Tensor count = engine.create_tensor({1}, Core::DataType::Int32,
+                                                SushiRuntime::Residency::Host);
+            OperandSet operands;
+            operands.writes(out);
+
+            const LateCount late = hold.borrow(operands, count);
+
+            EXPECT_EQ(late.words.size(), count.storage->size_bytes() / sizeof(std::uint32_t));
+        }
+
         /**
          * @brief Tests that a kept token holds the operand and count storages and the borrowed
          *        count's owner, and that release() lets all of them go.
@@ -69,7 +84,6 @@ namespace SushiBLAS
                 operands.writes(out);
                 LateCount late = hold.borrow(operands, count);
                 watch = late.owner;
-                EXPECT_EQ(late.words.size(), count.storage->size_bytes() / sizeof(std::uint32_t));
                 hold.keep(std::move(late.owner));
             }
 
