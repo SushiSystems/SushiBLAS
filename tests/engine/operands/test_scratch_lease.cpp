@@ -113,5 +113,20 @@ namespace SushiBLAS
                                                           operands).is_empty());
             EXPECT_TRUE(operands.write_regions().empty());
         }
+
+        TEST_F(Medium_ScratchLease, ALevelOneLeaseIsThePlannedPartialsTimesThePartialBytes)
+        {
+            GraphProbe probe;
+            const Tensor x = engine->create_tensor({1024});
+            OperandSet operands;
+            constexpr std::size_t K_PARTIAL_BYTES = 8;
+
+            const ScratchBuffer scratch =
+                Internal::allocate_level1_scratch(probe.recorder(), x, 1024, K_PARTIAL_BYTES, operands);
+
+            EXPECT_EQ(scratch.bytes(),
+                      Reduce::planned_partials(Dispatch::profile_of(x), 1024) * K_PARTIAL_BYTES);
+            EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
+        }
     } // namespace Test
 } // namespace SushiBLAS
