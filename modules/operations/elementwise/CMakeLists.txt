@@ -53,15 +53,9 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE elementwise
     TESTS
-        test_ordered_sum_element.cpp
-        test_scalar_math.cpp
-        test_wrapping_math.cpp
-    DEVICE_TESTS
-        test_dispatch.cpp
         test_elementwise/test_abs.cpp
         test_elementwise/test_acos.cpp
         test_elementwise/test_acosh.cpp
-        test_elementwise/test_add.cpp
         test_elementwise/test_asin.cpp
         test_elementwise/test_asinh.cpp
         test_elementwise/test_atan.cpp
@@ -81,7 +75,6 @@ sushiblas_add_test_program(
         test_elementwise/test_min.cpp
         test_elementwise/test_mul.cpp
         test_elementwise/test_neg.cpp
-        test_elementwise/test_ordered_sum.cpp
         test_elementwise/test_pow.cpp
         test_elementwise/test_reciprocal.cpp
         test_elementwise/test_remainder.cpp
@@ -92,5 +85,12 @@ sushiblas_add_test_program(
         test_elementwise/test_square.cpp
         test_elementwise/test_sub.cpp
         test_elementwise/test_tan.cpp
+        test_ordered_sum_element.cpp
+        test_scalar_math.cpp
+        test_wrapping_math.cpp
+    DEVICE_TESTS
+        test_dispatch.cpp
+        test_elementwise/test_add.cpp
+        test_elementwise/test_ordered_sum.cpp
     COMPILE_CHECKS
-        test_elementwise_log_category.cpp)
+        compile_elementwise_log_category.cpp)
