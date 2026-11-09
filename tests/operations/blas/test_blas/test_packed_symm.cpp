@@ -50,7 +50,7 @@
 #include <SushiBLAS/blas_seam_kernels/symmetric_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
-#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_accessed_packed.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
@@ -395,10 +395,11 @@ namespace SushiBLAS
                         multiply([&](const T* x, auto at_x, int64_t str_x,
                                      const T* y, auto at_y, int64_t str_y)
                         {
-                            Kernels::SYCL::Detail::packed_gemm<T>(
-                                queue_, plan, m_, n_, order_, alpha, x, at_x, str_x,
-                                y, at_y, str_y, beta, c_.get(), at_c, str_c, panels, {},
-                                Kernels::GemmIdentityEpilogue{}).wait();
+                            Kernels::SYCL::gemm_accessed<T>(
+                                queue_, m_, n_, order_, alpha, x, at_x, str_x,
+                                y, at_y, str_y, beta, c_.get(), at_c, str_c, 1, panels,
+                                plan.scratch_bytes, {}, Kernels::GemmIdentityEpilogue{},
+                                Kernels::PackedBlockingOverride{blocking, compute_units}).wait();
                         });
 
                         return std::vector<T>(c_.get(), c_.get() + c_.size());

@@ -175,6 +175,12 @@ scratch (`Internal::allocate_packed_product_scratch`), and at launch. `packed_pr
 is the launch test: the profile selected the plan and the scratch holds its bytes. When it fails,
 the GEMM forms run the kernel they ran before the packed path existed.
 
+`PackedBlockingOverride` (a blocking and a compute-unit count) and its optional form
+`PackedOverride` replace the profile's blocking for one call. The `plan_packed_product` overload
+that takes a `PackedOverride` plans under it through `plan_packed_blocks` and marks the plan
+selected whenever it holds a block, so a caller runs the packed kernel at a blocking it chose.
+An empty override plans from the profile, as before.
+
 ## `level3/channel_bias_epilogue.hpp`
 
 The stride pair exists because "which axis is the channel" is a property of the *tensor layout*, not
@@ -692,7 +698,7 @@ it is 3 to 5 times faster than the local-tiled kernel in HALF, median of five ru
 Each declares one more overload of an existing entry point, `gemm` and `gemm_accessed`, that
 takes a scratch pointer and its byte count. It plans the product with `plan_packed_product` and,
 when `packed_product_is_ready` holds, launches `packed_gemm`; otherwise it calls the overload
-without scratch. `Dispatch::execute_gemm` calls the scratch form. `GemmStore` is the store the
+without scratch. Both take a last parameter, a `PackedOverride`, empty by default. `Dispatch::execute_gemm` calls the scratch form. `GemmStore` is the store the
 packed kernel hands each finished sum to: it writes `epilogue(alpha * sum + beta * C)` and does
 not read C when `beta` is exactly zero.
 

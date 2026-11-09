@@ -63,10 +63,12 @@ namespace SushiBLAS
                             T beta, T* c, OperandAccess c_access, int64_t str_c,
                             int64_t batch_size, void* scratch, std::size_t scratch_bytes,
                             const std::vector<sycl::event>& deps,
-                            Epilogue epilogue = Epilogue{})
+                            Epilogue epilogue = Epilogue{},
+                            const PackedOverride& packing = PackedOverride{})
             {
                 const PackedProductPlan plan =
-                    plan_packed_product<T>(Device::profile_for(queue), m, n, k, batch_size);
+                    plan_packed_product<T>(Device::profile_for(queue), m, n, k, batch_size,
+                                           packing);
 
                 if (!packed_product_is_ready(plan, scratch, scratch_bytes))
                     return gemm_accessed<T, AccessA, AccessB, Epilogue>(

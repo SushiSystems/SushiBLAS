@@ -144,8 +144,8 @@ namespace SushiBLAS
              *        the device profile selects the packed kernel.
              * @param scratch Device memory for the packed panels; may be null.
              * @param scratch_bytes Bytes behind scratch; below the plan's demand nothing is packed.
+             * @param packing A blocking to pack under in place of the profile's; empty by default.
              * @param c Must not overlap A, B or scratch.
-             * @see modules/kernels/blas_seam_kernels/README.md
              */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
             [[nodiscard]] sycl::event gemm(sycl::queue& queue, Core::Layout layout,
@@ -156,10 +156,12 @@ namespace SushiBLAS
                             T beta, T* c, int64_t ldc, int64_t str_c,
                             int64_t batch_size, void* scratch, std::size_t scratch_bytes,
                             const std::vector<sycl::event>& deps,
-                            Epilogue epilogue = Epilogue{})
+                            Epilogue epilogue = Epilogue{},
+                            const PackedOverride& packing = PackedOverride{})
             {
                 const PackedProductPlan plan =
-                    plan_packed_product<T>(Device::profile_for(queue), m, n, k, batch_size);
+                    plan_packed_product<T>(Device::profile_for(queue), m, n, k, batch_size,
+                                           packing);
 
                 if (!packed_product_is_ready(plan, scratch, scratch_bytes))
                     return gemm<T, Epilogue>(queue, layout, transA, transB, m, n, k,

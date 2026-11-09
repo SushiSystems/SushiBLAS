@@ -50,7 +50,6 @@
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
-#include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -320,22 +319,14 @@ namespace SushiBLAS
                         const Kernels::PackedProductPlan plan = Kernels::plan_packed_blocks<T>(
                             blocking, compute_units, n_, n_, k_, 1);
 
-                        const Kernels::OperandAccess a_access =
-                            Kernels::operand_access(layout_, trans_, lda_);
-                        Kernels::OperandAccess second = a_access.transposed();
-                        second.conjugated =
-                            (a_access.conjugated != std::is_same_v<Conj, Kernels::Conjugated>);
-
                         // The scratch starts off its alignment, so the kernel has to align it.
                         const USMArray<unsigned char> scratch(
                             queue_, plan.scratch_bytes + K_PACKED_TEST_SCRATCH_SKEW);
-                        Kernels::SYCL::Detail::packed_product<T>(
-                            queue_, plan, n_, n_, k_, a_.get(), a_access, str_a_,
-                            a_.get(), second, str_a_, c_.get(), str_c_,
-                            scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
-                            Kernels::SYCL::Detail::SyrkStore<T, Conj, Scalar>(
-                                uplo_ == Core::Uplo::Upper, alpha, beta,
-                                Kernels::operand_access(layout_, Core::Transpose::NoTrans, ldc_)))
+                        Kernels::SYCL::syrk<T, Conj, Scalar>(
+                            queue_, layout_, uplo_, trans_, n_, k_, alpha, a_.get(), lda_, str_a_,
+                            beta, c_.get(), ldc_, str_c_, 1,
+                            scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, plan.scratch_bytes, {},
+                            Kernels::PackedBlockingOverride{blocking, compute_units})
                             .wait();
 
                         return std::vector<T>(c_.get(), c_.get() + c_.size());

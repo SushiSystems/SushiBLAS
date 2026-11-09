@@ -32,6 +32,7 @@
 #include <complex>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <algorithm>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
@@ -238,6 +239,43 @@ namespace SushiBLAS
             PackedProductPlan plan = plan_packed_blocks<T>(profile.blocking, profile.compute_units,
                                                            m, n, k, batch_size);
             plan.selected = plan.blocks > 0 && selects_packed_product<T>(profile, m, n, k);
+            return plan;
+        }
+
+        /**
+         * @brief Holds a blocking and a compute-unit count that replace the ones a device
+         *        profile reports, so a caller runs the packed kernel under a chosen blocking.
+         * @see modules/kernels/blas_seam_kernels/README.md
+         */
+        struct PackedBlockingOverride
+        {
+            Device::CacheBlocking blocking; /**< The cache budgets handed to the plan. */
+            std::size_t compute_units;      /**< The compute units handed to the plan. */
+        };
+
+        /** @brief Holds the override of a call, or nothing for the blocking of the profile. */
+        using PackedOverride = std::optional<PackedBlockingOverride>;
+
+        /**
+         * @brief Plans one product under an override when one is given, else for the profile.
+         * @tparam T The element type of the operands.
+         * @param packing The blocking to plan under; empty plans as plan_packed_product does.
+         * @return The plan of plan_packed_blocks, selected whenever it holds a block, under an
+         *         override: the caller chose the packed kernel.
+         * @see modules/kernels/blas_seam_kernels/README.md
+         */
+        template<typename T>
+        [[nodiscard]] inline PackedProductPlan
+        plan_packed_product(const Device::Profile& profile, int64_t m, int64_t n, int64_t k,
+                            int64_t batch_size, const PackedOverride& packing) noexcept
+        {
+            if (!packing)
+                return plan_packed_product<T>(profile, m, n, k, batch_size);
+
+            PackedProductPlan plan = plan_packed_blocks<T>(packing->blocking,
+                                                           packing->compute_units, m, n, k,
+                                                           batch_size);
+            plan.selected = plan.blocks > 0;
             return plan;
         }
 

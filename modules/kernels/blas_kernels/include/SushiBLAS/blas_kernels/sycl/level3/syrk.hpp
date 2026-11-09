@@ -184,8 +184,8 @@ namespace SushiBLAS
              * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
              * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
              * @param scratch Device memory for the packed panels; may be null.
+             * @param packing A blocking to pack under in place of the profile's; empty by default.
              * @throws std::runtime_error When the device cannot host the tile's work-group.
-             * @see kernels/README.md
              */
             template<typename T, typename Conj = Unconjugated, typename Scalar = T>
             [[nodiscard]] sycl::event syrk(sycl::queue& queue, Core::Layout layout,
@@ -194,7 +194,8 @@ namespace SushiBLAS
                              Scalar alpha, const T* a, int64_t lda, int64_t str_a,
                              Scalar beta, T* c, int64_t ldc, int64_t str_c,
                              int64_t batch_size, void* scratch, std::size_t scratch_bytes,
-                             const std::vector<sycl::event>& deps)
+                             const std::vector<sycl::event>& deps,
+                             const PackedOverride& packing = PackedOverride{})
             {
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
@@ -217,7 +218,7 @@ namespace SushiBLAS
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const PackedProductPlan packed =
-                    plan_packed_product<T>(profile, n, n, k, batch_size);
+                    plan_packed_product<T>(profile, n, n, k, batch_size, packing);
 
                 if (packed_product_is_ready(packed, scratch, scratch_bytes))
                 {
