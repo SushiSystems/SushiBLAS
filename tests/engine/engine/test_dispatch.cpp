@@ -30,7 +30,9 @@
 #include <complex>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
+#include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -56,7 +58,8 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Medium_Dispatch, TheDomainsAreBitsAndTheirUnions)
+        /** @brief Tests that domain_admits() admits exactly the families the bits of a domain name. */
+        TEST(Small_Dispatch, TheDomainsAreBitsAndTheirUnions)
         {
             EXPECT_TRUE(Dispatch::domain_admits(Domain::RealAndComplex, Domain::Complex));
             EXPECT_FALSE(Dispatch::domain_admits(Domain::RealAndComplex, Domain::Integral));
@@ -64,59 +67,115 @@ namespace SushiBLAS
             EXPECT_FALSE(Dispatch::domain_admits(Domain::Real, Domain::Complex));
         }
 
-        TEST(Medium_Dispatch, EveryDtypeBelongsToItsDomain)
+        namespace
         {
-            EXPECT_EQ(Dispatch::domain_of(Core::DataType::Half), Domain::Real);
-            EXPECT_EQ(Dispatch::domain_of(Core::DataType::Float64), Domain::Real);
-            EXPECT_EQ(Dispatch::domain_of(Core::DataType::Complex32), Domain::Complex);
-            EXPECT_EQ(Dispatch::domain_of(Core::DataType::Int64), Domain::Integral);
-            EXPECT_EQ(Dispatch::domain_of(Core::DataType::UInt32), Domain::None);
+            /** @brief Names a dtype and the family domain_of() gives it. */
+            struct DomainRow
+            {
+                const char* name;      /**< The row name a failure shows. */
+                Core::DataType dtype;  /**< The dtype whose family is read. */
+                Domain domain;         /**< The family the dtype belongs to. */
+            };
+
+            /** @brief Returns one row per dtype. */
+            std::vector<DomainRow> domain_rows()
+            {
+                return {{"Half", Core::DataType::Half, Domain::Real},
+                        {"Float32", Core::DataType::Float32, Domain::Real},
+                        {"Float64", Core::DataType::Float64, Domain::Real},
+                        {"Complex32", Core::DataType::Complex32, Domain::Complex},
+                        {"Complex64", Core::DataType::Complex64, Domain::Complex},
+                        {"Int32", Core::DataType::Int32, Domain::Integral},
+                        {"Int64", Core::DataType::Int64, Domain::Integral},
+                        {"UInt32", Core::DataType::UInt32, Domain::None}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of domain_rows(). */
+        class Small_DispatchDomain : public ::testing::TestWithParam<DomainRow>
+        {
+
+        };
+
+        TEST_P(Small_DispatchDomain, DomainOfNamesTheFamilyOfTheDtype)
+        {
+            EXPECT_EQ(Dispatch::domain_of(GetParam().dtype), GetParam().domain);
         }
 
-        TEST(Medium_Dispatch, NoDomainAdmitsUInt32)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_DispatchDomain, ::testing::ValuesIn(domain_rows()),
+            [](const ::testing::TestParamInfo<DomainRow>& info)
+            { return std::string(info.param.name); });
+
+        /** @brief Tests that no domain, All included, admits the family of UInt32. */
+        TEST(Small_Dispatch, NoDomainAdmitsUInt32)
         {
             EXPECT_FALSE(Dispatch::domain_admits(
                 Domain::All, Dispatch::domain_of(Core::DataType::UInt32)));
+        }
+
+        /** @brief Tests that require_domain() refuses UInt32 under every domain with invalid_argument. */
+        TEST(Small_Dispatch, RequireDomainRefusesUInt32)
+        {
             EXPECT_THROW(Dispatch::require_domain<Domain::All>(Core::DataType::UInt32, "f", "op"),
                          std::invalid_argument);
+        }
 
+        /** @brief Tests that with_element_type() refuses UInt32 and never calls its arm. */
+        TEST(Small_Dispatch, WithElementTypeRefusesUInt32WithoutCallingTheArm)
+        {
             int bytes = 0;
-            EXPECT_ANY_THROW(Dispatch::with_element_type<Domain::All>(
-                Core::DataType::UInt32, "f", "op", SizeArm{&bytes}));
+
+            EXPECT_THROW(Dispatch::with_element_type<Domain::All>(
+                             Core::DataType::UInt32, "f", "op", SizeArm{&bytes}),
+                         std::runtime_error);
             EXPECT_EQ(bytes, 0);
         }
 
-        TEST(Medium_Dispatch, RequireDomainRefusesADtypeOutsideIt)
+        /** @brief Tests that require_domain() admits a dtype of its domain and refuses one outside it. */
+        TEST(Small_Dispatch, RequireDomainAdmitsItsDtypesAndRefusesTheRest)
         {
             EXPECT_NO_THROW(Dispatch::require_domain<Domain::Real>(Core::DataType::Float32, "f",
                                                                    "op"));
-            EXPECT_ANY_THROW(Dispatch::require_domain<Domain::Real>(Core::DataType::Int32, "f",
-                                                                    "op"));
+            EXPECT_THROW(Dispatch::require_domain<Domain::Real>(Core::DataType::Int32, "f", "op"),
+                         std::invalid_argument);
         }
 
-        TEST(Medium_Dispatch, WithElementTypeCallsTheArmForTheDtypesType)
+        /** @brief Tests that the arm of Complex64 is called with the 16-byte complex double. */
+        TEST(Small_Dispatch, WithElementTypeCallsTheArmForComplex64)
         {
             int bytes = 0;
 
             Dispatch::with_element_type<Domain::All>(Core::DataType::Complex64, "f", "op",
                                                      SizeArm{&bytes});
-            EXPECT_EQ(bytes, static_cast<int>(sizeof(std::complex<double>)));
 
-            Dispatch::with_element_type<Domain::All>(Core::DataType::Half, "f", "op",
-                                                     SizeArm{&bytes});
-            EXPECT_EQ(bytes, static_cast<int>(sizeof(sycl::half)));
+            EXPECT_EQ(bytes, static_cast<int>(sizeof(std::complex<double>)));
         }
 
-        TEST(Medium_Dispatch, WithElementTypeThrowsForADtypeTheDomainDoesNotServe)
+        /** @brief Tests that the arm of Half is called with sycl::half. */
+        TEST(Small_Dispatch, WithElementTypeCallsTheArmForHalf)
         {
             int bytes = 0;
 
-            EXPECT_ANY_THROW(Dispatch::with_element_type<Domain::Real>(
-                Core::DataType::Int32, "f", "op", SizeArm{&bytes}));
+            Dispatch::with_element_type<Domain::All>(Core::DataType::Half, "f", "op",
+                                                     SizeArm{&bytes});
+
+            EXPECT_EQ(bytes, static_cast<int>(sizeof(sycl::half)));
+        }
+
+        /** @brief Tests that with_element_type() refuses a dtype its domain does not serve. */
+        TEST(Small_Dispatch, WithElementTypeThrowsForADtypeTheDomainDoesNotServe)
+        {
+            int bytes = 0;
+
+            EXPECT_THROW(Dispatch::with_element_type<Domain::Real>(
+                             Core::DataType::Int32, "f", "op", SizeArm{&bytes}),
+                         std::runtime_error);
             EXPECT_EQ(bytes, 0);
         }
 
-        TEST(Medium_Dispatch, SetTaskParamsFillsTheSlotsInOrderAndRefusesTooMany)
+        /** @brief Tests that set_task_params() writes its values to slots 0 to n - 1 in order. */
+        TEST(Small_Dispatch, SetTaskParamsFillsTheSlotsInOrder)
         {
             TaskDescription description;
 
@@ -125,8 +184,16 @@ namespace SushiBLAS
             EXPECT_EQ(description.parameter<int64_t>(0), int64_t{3});
             EXPECT_EQ(description.parameter<int64_t>(1), int64_t{-4});
             EXPECT_EQ(description.parameter<int64_t>(2), int64_t{5});
-            EXPECT_ANY_THROW(Dispatch::set_task_params<int64_t>(description,
-                                                                {1, 2, 3, 4, 5, 6, 7}, "op", 2));
+        }
+
+        /** @brief Tests that set_task_params() refuses values plus reserved slots above capacity. */
+        TEST(Small_Dispatch, SetTaskParamsRefusesMoreValuesThanTheSlotsHold)
+        {
+            TaskDescription description;
+
+            EXPECT_THROW(Dispatch::set_task_params<int64_t>(description, {1, 2, 3, 4, 5, 6, 7},
+                                                            "op", 2),
+                         std::invalid_argument);
         }
     } // namespace Test
 } // namespace SushiBLAS
