@@ -21,8 +21,9 @@ the benchmark section of `tests/README.md` describes them.
 | `test_SushiBLAS/test_empty_tensors.cpp` | Tests, on a host engine, what elementwise, non-linear, logic and reduction ops do with an empty tensor |
 | `test_SushiBLAS/test_framework_sim.cpp` | Tests a ten-layer forward pass and 24 independent models through the engine |
 | `test_SushiBLAS/test_integer_dtypes.cpp` | Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every operation refuses UINT32 |
-| `test_SushiBLAS/test_math_validation.cpp` | Tests the operand checks and numeric edge cases of the elementwise, nonlinear and reduction ops |
+| `test_SushiBLAS/test_math_validation.cpp` | Tests the device-only operand refusal, the mode independence of operand errors and the softplus range |
 | `test_SushiBLAS/test_pack_ordered_sum.cpp` | Tests that ordered_sum sums the same segment tensor of several packs into another pack; built with `SB_ENABLE_DISTRIBUTED` |
+| `test_SushiBLAS/test_operand_refusals.cpp` | Tests, on a host engine, which operands the elementwise, nonlinear and reduction ops refuse at record time |
 | `test_SushiBLAS/test_operand_lifetime.cpp` | Tests that a recorded task keeps its operands and its scratch allocated until it has run |
 | `test_SushiBLAS/test_regression.cpp` | Tests one fast, deterministic sentinel per fixed defect |
 | `test_SushiBLAS/test_spatial_random_io_validation.cpp` | Tests the record-time checks of spatial geometry, random fills and IO |

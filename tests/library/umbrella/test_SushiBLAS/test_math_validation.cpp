@@ -23,7 +23,7 @@
 
 /**
  * @file test_math_validation.cpp
- * @brief Tests the operand checks and numeric edge cases of the elementwise, nonlinear and reduction ops.
+ * @brief Tests the device-only operand refusal, the mode independence of operand errors and the softplus range.
  * @author Mustafa Garip
  */
 
@@ -42,7 +42,6 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
@@ -69,22 +68,7 @@ namespace SushiBLAS
             /** @brief Upper bound: the smallest normal float, so exp(-100) must come back subnormal or zero. */
             constexpr float K_SOFTPLUS_SMALL_BOUND = std::numeric_limits<float>::min();
 
-            /** @brief Holds every execution mode a record call can be made under. */
-            constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::Auto,
-                                                      ExecutionMode::ForceSYCL,
-                                                      ExecutionMode::ForceReference};
-
-            /** @brief Names one record call of an operation. */
-            struct RecordCase
-            {
-                /** @brief The operation name, for the failure message. */
-                const char* name;
-
-                /** @brief Records the operation. */
-                std::function<void()> record;
-            };
-
-            /** @brief Holds the operands the record cases share. */
+            /** @brief Holds the operands the family rows share. */
             struct RecordOperands
             {
                 /** @brief First input of four elements. */
@@ -106,6 +90,74 @@ namespace SushiBLAS
                 Tensor index;
             };
 
+            /** @brief Names one operation family and the call that records one of its operations. */
+            struct FamilyRow
+            {
+                /** @brief The row name, which gtest takes as the suffix of the test. */
+                std::string name;
+
+                /** @brief Records the operation over the shared operands. */
+                std::function<void(TaskRecorder&, RecordOperands&, RNGStream&)> record;
+            };
+
+            /** @brief Names one execution mode. */
+            struct ModeRow
+            {
+                /** @brief The row name, which gtest takes as the suffix of the test. */
+                std::string name;
+
+                /** @brief The mode the row records under. */
+                ExecutionMode mode;
+            };
+
+            /** @brief Returns one record call per seam and per hand-recorded source. */
+            std::vector<FamilyRow> family_rows()
+            {
+                return {
+                    {"Add", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { ElementwiseOps(r).add(on.a, on.b, on.c); }},
+                    {"Clamp", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { ElementwiseOps(r).clamp(on.c, 0.0, 1.0); }},
+                    {"Convert", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { ElementwiseOps(r).convert(on.a, on.c); }},
+                    {"ReLU", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { NonLinearOps(r).relu(on.c); }},
+                    {"EluBackward", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { NonLinearOps(r).elu_backward(on.a, on.b, on.c, 1.0); }},
+                    {"Equal", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { LogicOps(r).equal(on.a, on.b, on.c); }},
+                    {"LogicalNot", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { LogicOps(r).logical_not(on.a, on.c); }},
+                    {"Where", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { LogicOps(r).where(on.a, on.a, on.b, on.c); }},
+                    {"All", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { LogicOps(r).all(on.a, on.scalar); }},
+                    {"Uniform", [](TaskRecorder& r, RecordOperands& on, RNGStream& rng)
+                     { RandomOps(r, rng).uniform(on.c); }},
+                    {"Constant", [](TaskRecorder& r, RecordOperands& on, RNGStream& rng)
+                     { RandomOps(r, rng).constant(on.c, 1.0); }},
+                    {"Shuffle", [](TaskRecorder& r, RecordOperands& on, RNGStream& rng)
+                     { RandomOps(r, rng).shuffle(on.c); }},
+                    {"Orthogonal", [](TaskRecorder& r, RecordOperands& on, RNGStream& rng)
+                     { RandomOps(r, rng).orthogonal(on.matrix); }},
+                    {"Sum", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { ReductionOps(r).sum(on.a, on.scalar); }},
+                    {"Argmax", [](TaskRecorder& r, RecordOperands& on, RNGStream&)
+                     { ReductionOps(r).argmax(on.a, on.index); }}};
+            }
+
+            /** @brief Names a family row by its name. */
+            std::string family_row_name(const ::testing::TestParamInfo<FamilyRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Names a mode row by its name. */
+            std::string mode_row_name(const ::testing::TestParamInfo<ModeRow>& info)
+            {
+                return info.param.name;
+            }
+
             /** @brief Returns what record throws as std::invalid_argument, or an empty string. */
             std::string refusal_of(const std::function<void()>& record)
             {
@@ -125,7 +177,7 @@ namespace SushiBLAS
             {
                 return text.find(part) != std::string::npos;
             }
-        }
+        } // namespace
 
         class Medium_MathValidationTest : public SushiBLASTest
         {
@@ -140,16 +192,7 @@ namespace SushiBLAS
                     return host;
                 }
 
-                /** @brief Returns the FLOAT32 sum of data, computed by ReductionOps::sum. */
-                float sum_of(const std::vector<float>& data)
-                {
-                    auto t = create_initialized_tensor<float>({static_cast<int64_t>(data.size())}, data);
-                    auto result = engine->create_tensor({1}, Core::DataType::Float32);
-                    SushiBLAS::ReductionOps(recorder()).sum(t, result);
-                    return run_and_read(result);
-                }
-
-                /** @brief Returns the operands the record cases share, in one residency. */
+                /** @brief Returns the operands the family rows share, in one residency. */
                 RecordOperands operands_in(SushiRuntime::Residency residency)
                 {
                     const auto make = [&](std::initializer_list<int64_t> dims,
@@ -192,76 +235,7 @@ namespace SushiBLAS
                         return std::nullopt;
                     }
                 }
-
-                /** @brief Returns one record call per seam and per hand-recorded source. */
-                std::vector<RecordCase> record_cases(TaskRecorder& recorder, RecordOperands& on)
-                {
-                    RNGStream& rng = engine->rng();
-                    return {
-                        {"add", [&] { SushiBLAS::ElementwiseOps(recorder).add(on.a, on.b, on.c); }},
-                        {"clamp", [&] { SushiBLAS::ElementwiseOps(recorder).clamp(on.c, 0.0, 1.0); }},
-                        {"convert", [&] { SushiBLAS::ElementwiseOps(recorder).convert(on.a, on.c); }},
-                        {"relu", [&] { SushiBLAS::NonLinearOps(recorder).relu(on.c); }},
-                        {"elu_backward",
-                         [&] { SushiBLAS::NonLinearOps(recorder).elu_backward(on.a, on.b, on.c, 1.0); }},
-                        {"equal", [&] { SushiBLAS::LogicOps(recorder).equal(on.a, on.b, on.c); }},
-                        {"logical_not", [&] { SushiBLAS::LogicOps(recorder).logical_not(on.a, on.c); }},
-                        {"where", [&] { SushiBLAS::LogicOps(recorder).where(on.a, on.a, on.b, on.c); }},
-                        {"all", [&] { SushiBLAS::LogicOps(recorder).all(on.a, on.scalar); }},
-                        {"uniform", [&] { SushiBLAS::RandomOps(recorder, rng).uniform(on.c); }},
-                        {"constant", [&] { SushiBLAS::RandomOps(recorder, rng).constant(on.c, 1.0); }},
-                        {"shuffle", [&] { SushiBLAS::RandomOps(recorder, rng).shuffle(on.c); }},
-                        {"orthogonal", [&] { SushiBLAS::RandomOps(recorder, rng).orthogonal(on.matrix); }},
-                        {"sum", [&] { SushiBLAS::ReductionOps(recorder).sum(on.a, on.scalar); }},
-                        {"argmax",
-                         [&] { SushiBLAS::ReductionOps(recorder).argmax(on.a, on.index); }},
-                    };
-                }
         };
-
-        TEST_F(Medium_MathValidationTest, AddRejectsMismatchedShapes)
-        {
-            auto a = engine->create_tensor({2, 3}, Core::DataType::Float32);
-            auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
-            auto c = engine->create_tensor({2, 3}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
-        }
-
-        TEST_F(Medium_MathValidationTest, AddRejectsTransposedView)
-        {
-            auto a = engine->create_tensor({2, 3}, Core::DataType::Float32).transpose(0, 1);
-            auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
-            auto c = engine->create_tensor({3, 2}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
-        }
-
-        TEST_F(Medium_MathValidationTest, AddRejectsTensorWithoutStorage)
-        {
-            Tensor a(SushiRuntime::sushi_ptr<Storage>(), {4});
-            auto b = engine->create_tensor({4}, Core::DataType::Float32);
-            auto c = engine->create_tensor({4}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
-        }
-
-        TEST_F(Medium_MathValidationTest, UnaryInPlaceRejectsTensorWithoutStorage)
-        {
-            Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).exp(t), std::invalid_argument);
-        }
-
-        TEST_F(Medium_MathValidationTest, SumRejectsTensorWithoutStorage)
-        {
-            Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
-            auto result = engine->create_tensor({1}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ReductionOps(recorder()).sum(t, result), std::invalid_argument);
-        }
-
-        TEST_F(Medium_MathValidationTest, VarRejectsEmptyTensor)
-        {
-            Tensor t(SushiRuntime::sushi_ptr<Storage>(), {0});
-            auto result = engine->create_tensor({1}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ReductionOps(recorder()).var(t, result), std::invalid_argument);
-        }
 
         TEST_F(Medium_MathValidationTest, SoftplusOfLargeInputIsFinite)
         {
@@ -280,92 +254,113 @@ namespace SushiBLAS
             EXPECT_LE(value, K_SOFTPLUS_SMALL_BOUND);
         }
 
-        TEST_F(Medium_MathValidationTest, ReLURejectsComplexTensor)
-        {
-            auto t = engine->create_tensor({2}, Core::DataType::Complex32);
-            EXPECT_THROW(SushiBLAS::NonLinearOps(recorder()).relu(t), std::invalid_argument);
-        }
+        /// @brief Records one operation of each family per row, over operands in one residency.
+        class Medium_FamilyRecord : public Medium_MathValidationTest,
+                                    public ::testing::WithParamInterface<FamilyRow> {};
 
         /**
-         * @brief Tests that ForceReference records every family and refuses a device-only operand.
+         * @brief Tests that ForceReference records an operation of every family over shared operands.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Medium_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
+        TEST_P(Medium_FamilyRecord, IsRecordedUnderForceReference)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
+            RecordOperands shared = operands_in(SushiRuntime::Residency::Shared);
+
+            EXPECT_NO_THROW(GetParam().record(probe.recorder(), shared, engine->rng()));
+            EXPECT_NE(0u, probe.take_recorded_count());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(Families, Medium_FamilyRecord,
+                                 ::testing::ValuesIn(family_rows()), family_row_name);
+
+        /// @brief Holds the operands in device-only USM, and skips each test when the device offers none.
+        class Medium_DeviceOnlyOperand : public Medium_MathValidationTest,
+                                         public ::testing::WithParamInterface<FamilyRow>
+        {
+            protected:
+                /** @brief Allocates the operands in device-only USM or skips the test. */
+                void SetUp() override
+                {
+                    Medium_MathValidationTest::SetUp();
+                    device_only = device_only_operands();
+                    if (!device_only)
+                        GTEST_SKIP() << "This device offers no device-only USM.";
+                }
+
+                /// @brief The operands, in device-only USM.
+                std::optional<RecordOperands> device_only;
+        };
+
+        /**
+         * @brief Tests that ForceReference refuses a device-only operand in every family.
+         * @see tests/library/umbrella/README.md
+         */
+        TEST_P(Medium_DeviceOnlyOperand, IsRefusedUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
 
-            RecordOperands shared = operands_in(SushiRuntime::Residency::Shared);
-            for (const RecordCase& c : record_cases(probe.recorder(), shared))
-            {
-                EXPECT_NO_THROW(c.record()) << c.name;
-                EXPECT_NE(0u, probe.take_recorded_count()) << c.name << " recorded nothing";
-            }
+            const std::string text = refusal_of(
+                [&] { GetParam().record(probe.recorder(), *device_only, engine->rng()); });
 
-            std::optional<RecordOperands> device_only = device_only_operands();
-            if (!device_only)
-                GTEST_SKIP() << "This device offers no device-only USM.";
-
-            for (const RecordCase& c : record_cases(probe.recorder(), *device_only))
-            {
-                EXPECT_TRUE(holds(refusal_of(c.record), "ForceReference"))
-                    << c.name << " did not refuse the device-only operand";
-            }
+            EXPECT_TRUE(holds(text, "ForceReference")) << text;
             EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
+        INSTANTIATE_TEST_SUITE_P(Families, Medium_DeviceOnlyOperand,
+                                 ::testing::ValuesIn(family_rows()), family_row_name);
+
+        /// @brief Records the same bad call under one mode per row.
+        class Medium_OperandErrorMode : public Medium_MathValidationTest,
+                                        public ::testing::WithParamInterface<ModeRow>
+        {
+            protected:
+                /** @brief Returns the text add refuses mismatched shapes with under mode. */
+                std::string add_refusal_under(ExecutionMode mode)
+                {
+                    auto a = engine->create_tensor({2, 3});
+                    auto b = engine->create_tensor({3, 2});
+                    auto c = engine->create_tensor({2, 3});
+
+                    GraphProbe probe(mode);
+                    return refusal_of([&] { SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c); });
+                }
+        };
+
         /**
-         * @brief Tests that an operand error and an empty call read the same under every mode.
+         * @brief Tests that an operand error reads the same under every mode.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Medium_MathValidationTest, OperandErrorsDoNotDependOnTheMode)
+        TEST_P(Medium_OperandErrorMode, ReadsTheSameAsUnderAuto)
         {
-            auto a = engine->create_tensor({2, 3});
-            auto b = engine->create_tensor({3, 2});
-            auto c = engine->create_tensor({2, 3});
+            const std::string text = add_refusal_under(GetParam().mode);
+
+            EXPECT_TRUE(holds(text, "'B'")) << text;
+            EXPECT_FALSE(holds(text, "ForceReference")) << text;
+            EXPECT_EQ(add_refusal_under(ExecutionMode::Auto), text);
+        }
+
+        /**
+         * @brief Tests that an add over empty operands records nothing under every mode.
+         * @see tests/library/umbrella/README.md
+         */
+        TEST_P(Medium_OperandErrorMode, AnEmptyCallRecordsNothing)
+        {
             auto e0 = engine->create_tensor({0});
             auto e1 = engine->create_tensor({0});
             auto e2 = engine->create_tensor({0});
 
-            std::string text_under_auto;
-            for (const ExecutionMode mode : K_EVERY_MODE)
-            {
-                GraphProbe probe(mode);
-                SushiBLAS::ElementwiseOps ops(probe.recorder());
+            GraphProbe probe(GetParam().mode);
 
-                const std::string text = refusal_of([&] { ops.add(a, b, c); });
-                EXPECT_TRUE(holds(text, "'B'")) << text;
-                EXPECT_FALSE(holds(text, "ForceReference")) << text;
-
-                if (mode == ExecutionMode::Auto)
-                    text_under_auto = text;
-                EXPECT_EQ(text_under_auto, text);
-
-                EXPECT_FALSE(ops.add(e0, e1, e2).is_valid());
-                EXPECT_EQ(0u, probe.take_recorded_count());
-            }
+            EXPECT_FALSE(SushiBLAS::ElementwiseOps(probe.recorder()).add(e0, e1, e2).is_valid());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
-        /**
-         * @brief Tests that a dtype mismatch names the operand and both dtypes.
-         * @see tests/library/umbrella/README.md
-         */
-        TEST_F(Medium_MathValidationTest, AMismatchedDtypeNamesTheOperand)
-        {
-            auto a = engine->create_tensor({4}, Core::DataType::Float32);
-            auto b = engine->create_tensor({4}, Core::DataType::Float64);
-            auto c = engine->create_tensor({4}, Core::DataType::Float32);
-
-            const std::string text =
-                refusal_of([&] { SushiBLAS::ElementwiseOps(recorder()).add(a, b, c); });
-            EXPECT_TRUE(holds(text, "operand 'B'")) << text;
-            EXPECT_TRUE(holds(text, "FLOAT64")) << text;
-            EXPECT_TRUE(holds(text, "FLOAT32")) << text;
-        }
-
-        TEST_F(Medium_MathValidationTest, SumOfOppositeInfinitiesIsNaN)
-        {
-            const float inf = std::numeric_limits<float>::infinity();
-            EXPECT_TRUE(std::isnan(sum_of({inf, -inf})));
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            Modes, Medium_OperandErrorMode,
+            ::testing::Values(ModeRow{"Auto", ExecutionMode::Auto},
+                              ModeRow{"ForceSYCL", ExecutionMode::ForceSYCL},
+                              ModeRow{"ForceReference", ExecutionMode::ForceReference}),
+            mode_row_name);
     } // namespace Test
 } // namespace SushiBLAS

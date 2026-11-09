@@ -954,7 +954,7 @@ class Medium_DispatchSeamDeviceUsmTest : public Medium_DispatchSeamTest
 
 /**
  * @brief Tests that ForceSYCL records a declared read in device-only USM; the refusal under
- *        ForceReference is checked by ADeviceOnlyOperandIsRefusedInEveryFamily.
+ *        ForceReference is checked by Medium_DeviceOnlyOperand.IsRefusedUnderForceReference.
  * @see tests/library/umbrella/README.md
  */
 TEST_F(Medium_DispatchSeamDeviceUsmTest, ADeviceOnlyReadIsRecordedUnderForceSYCL)

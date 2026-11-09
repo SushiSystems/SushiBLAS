@@ -52,6 +52,7 @@ sushiblas_add_test_program(
     TESTS
         test_SushiBLAS/test_dispatch_checks.cpp
         test_SushiBLAS/test_empty_tensors.cpp
+        test_SushiBLAS/test_operand_refusals.cpp
         ${sushiblas_umbrella_distributed_tests}
     DEVICE_TESTS
         test_SushiBLAS/test_dependency_stress.cpp
