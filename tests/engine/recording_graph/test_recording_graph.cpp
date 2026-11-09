@@ -143,7 +143,10 @@ namespace SushiBLAS
             record_nothing(graph);
             record_nothing(graph);
 
-            EXPECT_TRUE(graph.plan().has_value());
+            const auto plan = graph.plan();
+
+            ASSERT_TRUE(plan.has_value());
+            EXPECT_EQ(plan->nodes.size(), std::size_t{2});
             EXPECT_EQ(graph.recorded_count(), std::size_t{2});
         }
 
