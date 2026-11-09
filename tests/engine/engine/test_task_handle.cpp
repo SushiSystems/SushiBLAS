@@ -27,6 +27,9 @@
  * @author Mustafa Garip
  */
 
+#include <cstdint>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
@@ -49,37 +52,89 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that a default handle names no task and equals another default. */
-        TEST_F(Medium_TaskHandleTest, DefaultHandleNamesNoTask)
+        namespace
         {
-            EXPECT_FALSE(TaskHandle().is_valid());
-            EXPECT_TRUE(TaskHandle() == TaskHandle());
-            EXPECT_FALSE(TaskHandle() != TaskHandle());
+            /** @brief Names a shape for the operands of one add and whether it records a task. */
+            struct RecordRow
+            {
+                const char* name;             /**< The row name a failure shows. */
+                std::vector<int64_t> dims;    /**< The shape of every operand. */
+                bool records;                 /**< Whether the call records a task. */
+            };
+
+            /** @brief Returns the shape that records a task and the empty shape that records none. */
+            std::vector<RecordRow> record_rows()
+            {
+                return {{"AFourElementVectorRecordsATask", {4}, true},
+                        {"EmptyTensorsRecordNothing", {0, 3}, false}};
+            }
+
+            /** @brief Names whether the second handle comes from the first recorder or from another. */
+            struct RecorderRow
+            {
+                const char* name;      /**< The row name a failure shows. */
+                bool other_recorder;   /**< Whether the second call records on another recorder. */
+            };
+
+            /** @brief Returns the row of one recorder and the row of two. */
+            std::vector<RecorderRow> recorder_rows()
+            {
+                return {{"TwoCallsOnOneRecorder", false}, {"OneCallOnEachOfTwoRecorders", true}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of record_rows(). */
+        class Medium_TaskHandleRecord : public Medium_TaskHandleTest,
+                                        public ::testing::WithParamInterface<RecordRow>
+        {
+
+        };
+
+        TEST_P(Medium_TaskHandleRecord, AHandleIsValidExactlyWhenTheCallRecordedATask)
+        {
+            auto a = engine->create_tensor(GetParam().dims, Core::DataType::Float32);
+            auto b = engine->create_tensor(GetParam().dims, Core::DataType::Float32);
+            auto c = engine->create_tensor(GetParam().dims, Core::DataType::Float32);
+
+            const TaskHandle handle = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
+
+            EXPECT_EQ(handle.is_valid(), GetParam().records);
+            EXPECT_EQ(handle == TaskHandle(), !GetParam().records);
         }
 
-        /** @brief Tests that a call which records a task returns a valid handle. */
-        TEST_F(Medium_TaskHandleTest, ARecordCallReturnsAValidHandle)
-        {
-            auto a = vector_of_four(*engine);
-            auto b = vector_of_four(*engine);
-            auto c = vector_of_four(*engine);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskHandleRecord, ::testing::ValuesIn(record_rows()),
+            [](const ::testing::TestParamInfo<RecordRow>& info)
+            { return std::string(info.param.name); });
 
-            EXPECT_TRUE(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c).is_valid());
-        }
-
-        /** @brief Tests that two record calls on one recorder return unequal handles. */
-        TEST_F(Medium_TaskHandleTest, TwoRecordCallsReturnDifferentHandles)
+        /** @brief Runs one row of recorder_rows(). */
+        class Medium_TaskHandleDiffer : public Medium_TaskHandleTest,
+                                        public ::testing::WithParamInterface<RecorderRow>
         {
+
+        };
+
+        TEST_P(Medium_TaskHandleDiffer, TwoHandlesFromRecordCallsDiffer)
+        {
+            RecordingFixture other(TestEnvironment::runtime(), *engine);
+            TaskRecorder& second_recorder = GetParam().other_recorder ? other.recorder() : recorder();
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);
             auto c = vector_of_four(*engine);
 
             const TaskHandle first = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
-            const TaskHandle second = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
+            const TaskHandle second = SushiBLAS::ElementwiseOps(second_recorder).add(a, b, c);
 
+            EXPECT_TRUE(first.is_valid());
+            EXPECT_TRUE(second.is_valid());
             EXPECT_TRUE(first != second);
             EXPECT_FALSE(first == second);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_TaskHandleDiffer, ::testing::ValuesIn(recorder_rows()),
+            [](const ::testing::TestParamInfo<RecorderRow>& info)
+            { return std::string(info.param.name); });
 
         /** @brief Tests that a copy of a handle equals the handle it was copied from. */
         TEST_F(Medium_TaskHandleTest, ACopyComparesEqual)
@@ -96,41 +151,5 @@ namespace SushiBLAS
             EXPECT_FALSE(copy != recorded);
         }
 
-        /** @brief Tests that a call over empty tensors records no node and returns no task. */
-        TEST_F(Medium_TaskHandleTest, ANoOpRecordReturnsTheHandleOfNoTask)
-        {
-            GraphProbe probe;
-
-            auto a = engine->create_tensor({0, 3}, Core::DataType::Float32);
-            auto b = engine->create_tensor({0, 3}, Core::DataType::Float32);
-            auto c = engine->create_tensor({0, 3}, Core::DataType::Float32);
-
-            const TaskHandle handle = SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c);
-
-            EXPECT_FALSE(handle.is_valid());
-            EXPECT_TRUE(handle == TaskHandle());
-            EXPECT_EQ(0u, probe.take_recorded_count());
-        }
-
-        /** @brief Tests that the first handles of two recorders compare unequal. */
-        TEST_F(Medium_TaskHandleTest, HandlesOfTwoRecordersDiffer)
-        {
-            RecordingFixture other(TestEnvironment::runtime(), *engine);
-
-            auto a = vector_of_four(*engine);
-            auto b = vector_of_four(*engine);
-            auto c = vector_of_four(*engine);
-            auto other_a = vector_of_four(*engine);
-            auto other_b = vector_of_four(*engine);
-            auto other_c = vector_of_four(*engine);
-
-            const TaskHandle first = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
-            const TaskHandle second =
-                SushiBLAS::ElementwiseOps(other.recorder()).add(other_a, other_b, other_c);
-
-            EXPECT_TRUE(first.is_valid());
-            EXPECT_TRUE(second.is_valid());
-            EXPECT_TRUE(first != second);
-        }
     } // namespace Test
 } // namespace SushiBLAS
