@@ -29,6 +29,7 @@
  */
 
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/profiling/ceilings_file.hpp>
 
@@ -80,9 +81,15 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Small_CeilingsFile, TheWriterOutputPassesTheReader)
+        /** @brief Runs the round trip once with smoke_only false and once true. */
+        class Small_CeilingsFileRoundTrip : public ::testing::TestWithParam<bool>
         {
-            const DeviceCeilings written = valid_ceilings();
+        };
+
+        TEST_P(Small_CeilingsFileRoundTrip, TheWriterOutputPassesTheReader)
+        {
+            DeviceCeilings written = valid_ceilings();
+            written.smoke_only = GetParam();
 
             const Profiling::CeilingsReadResult read =
                 Profiling::read_ceilings(Profiling::write_ceilings(written));
@@ -91,7 +98,7 @@ namespace SushiBLAS
             EXPECT_EQ(read.ceilings.device_name, written.device_name);
             EXPECT_EQ(read.ceilings.backend, written.backend);
             EXPECT_EQ(read.ceilings.driver, written.driver);
-            EXPECT_EQ(read.ceilings.smoke_only, written.smoke_only);
+            EXPECT_EQ(read.ceilings.smoke_only, GetParam());
             EXPECT_EQ(read.ceilings.method.runs, written.method.runs);
             EXPECT_DOUBLE_EQ(read.ceilings.method.min_span_ms, written.method.min_span_ms);
             ASSERT_EQ(read.ceilings.compute.size(), written.compute.size());
@@ -100,6 +107,11 @@ namespace SushiBLAS
             EXPECT_DOUBLE_EQ(read.ceilings.bandwidth.bytes_per_second, 7.5e11);
             EXPECT_DOUBLE_EQ(read.ceilings.launch_floor_ns, 5200.0);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsFileRoundTrip, ::testing::Values(false, true),
+            [](const ::testing::TestParamInfo<bool>& info)
+            { return std::string(info.param ? "SmokeOnly" : "Measured"); });
 
         TEST(Small_CeilingsFile, RefusesAnUnknownVersion)
         {
@@ -156,18 +168,43 @@ namespace SushiBLAS
                       CeilingsReadStatus::Invalid);
         }
 
-        TEST(Small_CeilingsFile, RefusesACeilingThatIsNotPositive)
+        namespace
         {
-            DeviceCeilings compute = valid_ceilings();
-            compute.compute[0].flops_per_second = 0.0;
-            DeviceCeilings bandwidth = valid_ceilings();
-            bandwidth.bandwidth.bytes_per_second = -1.0;
+            /** @brief Names a ceiling set to a value the reader must refuse. */
+            struct NonPositiveRow
+            {
+                const char* name;                  /**< The row name a failure shows. */
+                void (*spoil)(DeviceCeilings&);    /**< Sets one ceiling to a value that is not positive. */
+            };
 
-            EXPECT_EQ(Profiling::read_ceilings(Profiling::write_ceilings(compute)).status,
-                      CeilingsReadStatus::Invalid);
-            EXPECT_EQ(Profiling::read_ceilings(Profiling::write_ceilings(bandwidth)).status,
+            /** @brief Returns one row per ceiling. */
+            std::vector<NonPositiveRow> non_positive_rows()
+            {
+                return {{"ZeroCompute",
+                         [](DeviceCeilings& ceilings) { ceilings.compute[0].flops_per_second = 0.0; }},
+                        {"NegativeBandwidth",
+                         [](DeviceCeilings& ceilings) { ceilings.bandwidth.bytes_per_second = -1.0; }}};
+            }
+        } // namespace
+
+        /** @brief Runs one row of non_positive_rows(). */
+        class Small_CeilingsFileNonPositive : public ::testing::TestWithParam<NonPositiveRow>
+        {
+        };
+
+        TEST_P(Small_CeilingsFileNonPositive, RefusesACeilingThatIsNotPositive)
+        {
+            DeviceCeilings ceilings = valid_ceilings();
+            GetParam().spoil(ceilings);
+
+            EXPECT_EQ(Profiling::read_ceilings(Profiling::write_ceilings(ceilings)).status,
                       CeilingsReadStatus::Invalid);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsFileNonPositive, ::testing::ValuesIn(non_positive_rows()),
+            [](const ::testing::TestParamInfo<NonPositiveRow>& info)
+            { return std::string(info.param.name); });
 
         TEST(Small_CeilingsFile, RefusesAFileWithNoDtype)
         {
@@ -186,25 +223,39 @@ namespace SushiBLAS
             EXPECT_EQ(Profiling::read_ceilings(text).status, CeilingsReadStatus::Invalid);
         }
 
-        TEST(Small_CeilingsFile, ASmokeOnlyFlagSurvivesTheRoundTrip)
+        namespace
         {
-            DeviceCeilings ceilings = valid_ceilings();
-            ceilings.smoke_only = true;
+            /** @brief Names a device name and the file name derived from it. */
+            struct FileNameRow
+            {
+                const char* name;        /**< The row name a failure shows. */
+                const char* device;      /**< The device name. */
+                const char* expected;    /**< The file name the rule gives. */
+            };
 
-            const Profiling::CeilingsReadResult read =
-                Profiling::read_ceilings(Profiling::write_ceilings(ceilings));
+            /** @brief Returns one row per shape of device name. */
+            std::vector<FileNameRow> file_name_rows()
+            {
+                return {{"PunctuationAndDigits", "NVIDIA GeForce RTX 3080 Ti",
+                         "nvidia_geforce_rtx_3080_ti.ceilings.json"},
+                        {"TrimmedBrackets", "  Intel(R) Core(TM)  ", "intel_r_core_tm.ceilings.json"},
+                        {"EmptyName", "", "device.ceilings.json"}};
+            }
+        } // namespace
 
-            ASSERT_TRUE(read.ok()) << read.message;
-            EXPECT_TRUE(read.ceilings.smoke_only);
+        /** @brief Runs one row of file_name_rows(). */
+        class Small_CeilingsFileName : public ::testing::TestWithParam<FileNameRow>
+        {
+        };
+
+        TEST_P(Small_CeilingsFileName, TheFileNameIsTheDeviceNameInLowerCaseWithUnderscores)
+        {
+            EXPECT_EQ(Profiling::ceilings_file_name(GetParam().device), GetParam().expected);
         }
 
-        TEST(Small_CeilingsFile, TheFileNameIsTheDeviceNameInLowerCaseWithUnderscores)
-        {
-            EXPECT_EQ(Profiling::ceilings_file_name("NVIDIA GeForce RTX 3080 Ti"),
-                      "nvidia_geforce_rtx_3080_ti.ceilings.json");
-            EXPECT_EQ(Profiling::ceilings_file_name("  Intel(R) Core(TM)  "),
-                      "intel_r_core_tm.ceilings.json");
-            EXPECT_EQ(Profiling::ceilings_file_name(""), "device.ceilings.json");
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_CeilingsFileName, ::testing::ValuesIn(file_name_rows()),
+            [](const ::testing::TestParamInfo<FileNameRow>& info)
+            { return std::string(info.param.name); });
     } // namespace Test
 } // namespace SushiBLAS
