@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -113,19 +114,90 @@ namespace SushiBLAS
                 EXPECT_TRUE(choice.role.has_value());
                 return choice.role.value_or(Kernels::GemmTileRole::Balanced);
             }
+
+            /** @brief Names the GPU profiles a product is chosen for. */
+            enum class GpuName : std::uint8_t
+            {
+                Sm86,
+                Gfx90a,
+                Pvc,
+                UnknownGpu
+            };
+
+            /** @brief Returns the profile a GpuName stands for. */
+            [[nodiscard]] Device::Profile profile_of(GpuName name)
+            {
+                switch (name)
+                {
+                    case GpuName::Sm86:
+                        return sm_86();
+                    case GpuName::Gfx90a:
+                        return gfx90a();
+                    case GpuName::Pvc:
+                        return pvc();
+                    case GpuName::UnknownGpu:
+                        return unknown_gpu();
+                }
+                return unknown_gpu();
+            }
+
+            /** @brief Names a GPU for the test name. */
+            std::string gpu_name(const ::testing::TestParamInfo<GpuName>& info)
+            {
+                static const char* const names[] = {"Sm86", "Gfx90a", "Pvc", "UnknownGpu"};
+                return names[static_cast<std::size_t>(info.param)];
+            }
+
+            /** @brief Names the hard limits that rule the Wide shape out on an sm_86 profile. */
+            enum class HardLimit : std::uint8_t
+            {
+                WorkGroupSize,
+                LocalMemory,
+                LocalMemoryPerComputeUnit
+            };
+
+            /** @brief Returns the sm_86 profile with one hard limit tightened below Wide. */
+            [[nodiscard]] Device::Profile limited_profile(HardLimit limit)
+            {
+                Device::Profile profile = sm_86();
+                if (limit == HardLimit::WorkGroupSize)
+                    profile.max_work_group_size = 64;
+                else if (limit == HardLimit::LocalMemory)
+                    profile.local_mem_bytes = 16 * 1024;
+                else
+                    profile.local_mem_per_compute_unit = 16 * 1024;
+                return profile;
+            }
+
+            /** @brief Names a hard limit for the test name. */
+            std::string hard_limit_name(const ::testing::TestParamInfo<HardLimit>& info)
+            {
+                static const char* const names[] = {"WorkGroupSize", "LocalMemory",
+                                                    "LocalMemoryPerComputeUnit"};
+                return names[static_cast<std::size_t>(info.param)];
+            }
         } // namespace
 
-        TEST(Small_GemmTileChoice, ALargeProductTakesTheDensestShapeOnEveryGPU)
+        /** @brief Chooses a tile for one GPU profile at a time. */
+        class Small_GemmTileChoiceGpus : public ::testing::TestWithParam<GpuName>
         {
-            for (const Device::Profile& profile : {sm_86(), gfx90a(), pvc(), unknown_gpu()})
-                EXPECT_EQ(modeled(profile, square(2048)), Kernels::GemmTileRole::Wide);
+
+        };
+
+        TEST_P(Small_GemmTileChoiceGpus, ALargeProductTakesTheDensestShapeOnEveryGPU)
+        {
+            EXPECT_EQ(modeled(profile_of(GetParam()), square(2048)), Kernels::GemmTileRole::Wide);
         }
 
-        TEST(Small_GemmTileChoice, ASmallProductTakesTheShapeThatSpreadsItWidest)
+        TEST_P(Small_GemmTileChoiceGpus, ASmallProductTakesTheShapeThatSpreadsItWidest)
         {
-            for (const Device::Profile& profile : {sm_86(), gfx90a(), pvc(), unknown_gpu()})
-                EXPECT_EQ(modeled(profile, square(128)), Kernels::GemmTileRole::Compact);
+            EXPECT_EQ(modeled(profile_of(GetParam()), square(128)), Kernels::GemmTileRole::Compact);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmTileChoiceGpus,
+                                 ::testing::Values(GpuName::Sm86, GpuName::Gfx90a, GpuName::Pvc,
+                                                   GpuName::UnknownGpu),
+                                 gpu_name);
 
         TEST(Small_GemmTileChoice, AProductOnlyBalancedFillsTakesBalanced)
         {
@@ -153,16 +225,22 @@ namespace SushiBLAS
             EXPECT_FALSE(choice.role.has_value());
         }
 
-        TEST(Small_GemmTileChoice, AShapePastAHardLimitIsNeverReturned)
+        /** @brief Chooses a tile for a profile with one hard limit tightened at a time. */
+        class Small_GemmTileChoiceLimits : public ::testing::TestWithParam<HardLimit>
         {
-            Device::Profile narrow = sm_86();
-            narrow.max_work_group_size = 64;
-            Device::Profile small_local = sm_86();
-            small_local.local_mem_bytes = 16 * 1024;
 
-            for (const Device::Profile& profile : {narrow, small_local})
-                EXPECT_NE(modeled(profile, square(2048)), Kernels::GemmTileRole::Wide);
+        };
+
+        TEST_P(Small_GemmTileChoiceLimits, AShapePastAHardLimitIsNeverReturned)
+        {
+            EXPECT_NE(modeled(limited_profile(GetParam()), square(2048)),
+                      Kernels::GemmTileRole::Wide);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmTileChoiceLimits,
+                                 ::testing::Values(HardLimit::WorkGroupSize, HardLimit::LocalMemory,
+                                                   HardLimit::LocalMemoryPerComputeUnit),
+                                 hard_limit_name);
 
         TEST(Small_GemmTileChoice, OnlyShapesOfWholeSubGroupsAreReturned)
         {
@@ -171,14 +249,6 @@ namespace SushiBLAS
             profile.sub_group_size = 128;
 
             EXPECT_EQ(modeled(profile, square(128)), Kernels::GemmTileRole::Wide);
-        }
-
-        TEST(Small_GemmTileChoice, LocalMemoryPerComputeUnitIsAHardLimit)
-        {
-            Device::Profile profile = sm_86();
-            profile.local_mem_per_compute_unit = 16 * 1024;
-
-            EXPECT_NE(modeled(profile, square(2048)), Kernels::GemmTileRole::Wide);
         }
 
         TEST(Small_GemmTileChoice, APinInTheCatalogIsApplied)
@@ -190,23 +260,37 @@ namespace SushiBLAS
             EXPECT_EQ(choice.role, Kernels::GemmTileRole::Compact);
         }
 
-        TEST(Small_GemmTileChoice, AnUnknownPinIsReportedAndTheModelChooses)
+        TEST(Small_GemmTileChoice, AnUnknownPinIsReported)
         {
             const Kernels::GemmTileChoice choice = Kernels::choose_gemm_tile(
                 sm_86(), Kernels::gemm_tile_traits<float>(), square(2048), "Tile64x64x16");
 
             EXPECT_EQ(choice.pin, Kernels::GemmTilePinStatus::Unknown);
+        }
+
+        TEST(Small_GemmTileChoice, AnUnknownPinLeavesTheChoiceToTheModel)
+        {
+            const Kernels::GemmTileChoice choice = Kernels::choose_gemm_tile(
+                sm_86(), Kernels::gemm_tile_traits<float>(), square(2048), "Tile64x64x16");
+
             EXPECT_EQ(choice.role, Kernels::GemmTileRole::Wide);
         }
 
-        TEST(Small_GemmTileChoice, APinPastAHardLimitIsRefusedAndTheModelChooses)
+        TEST(Small_GemmTileChoice, APinPastAHardLimitIsRefused)
         {
-            Device::Profile profile = sm_86();
-            profile.max_work_group_size = 64;
             const Kernels::GemmTileChoice choice = Kernels::choose_gemm_tile(
-                profile, Kernels::gemm_tile_traits<float>(), square(2048), "Wide");
+                limited_profile(HardLimit::WorkGroupSize), Kernels::gemm_tile_traits<float>(),
+                square(2048), "Wide");
 
             EXPECT_EQ(choice.pin, Kernels::GemmTilePinStatus::Refused);
+        }
+
+        TEST(Small_GemmTileChoice, APinPastAHardLimitLeavesTheChoiceToTheModel)
+        {
+            const Kernels::GemmTileChoice choice = Kernels::choose_gemm_tile(
+                limited_profile(HardLimit::WorkGroupSize), Kernels::gemm_tile_traits<float>(),
+                square(2048), "Wide");
+
             EXPECT_EQ(choice.role, Kernels::GemmTileRole::Balanced);
         }
 
