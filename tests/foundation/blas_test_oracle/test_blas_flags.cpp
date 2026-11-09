@@ -31,6 +31,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 
 namespace SushiBLAS
@@ -79,6 +80,8 @@ namespace SushiBLAS
                 {"diag_false", &number_of<Diag, &diag_of>, false, number(Diag::NonUnit)},
                 {"side_true", &number_of<Side, &side_of>, true, number(Side::Left)},
                 {"side_false", &number_of<Side, &side_of>, false, number(Side::Right)},
+                {"layout_true", &number_of<Layout, &layout_of>, true, number(Layout::RowMajor)},
+                {"layout_false", &number_of<Layout, &layout_of>, false, number(Layout::ColumnMajor)},
             };
         }
 
@@ -98,6 +101,14 @@ namespace SushiBLAS
         TEST(Small_BlasFlagsValidity, AHelperGivesAValidEnumerator)
         {
             EXPECT_TRUE(Core::is_valid(uplo_of(true)));
+        }
+
+        TEST(Small_BlasFlagsLabel, TheLabelNamesTheLayoutAndTheTranspose)
+        {
+            EXPECT_STREQ(layout_transpose_label(true, false), "RowMajorNoTrans");
+            EXPECT_STREQ(layout_transpose_label(true, true), "RowMajorTrans");
+            EXPECT_STREQ(layout_transpose_label(false, false), "ColumnMajorNoTrans");
+            EXPECT_STREQ(layout_transpose_label(false, true), "ColumnMajorTrans");
         }
     } // namespace Test
 } // namespace SushiBLAS
