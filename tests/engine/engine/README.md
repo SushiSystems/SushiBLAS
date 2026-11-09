@@ -14,8 +14,8 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_engine/test_run_failure.cpp` | Tests what a run of a test-owned graph returns and leaves behind when a body throws |
 | `test_engine/test_runtime_shapes.cpp` | Tests create_tensor and reshape with dimensions held in a std::vector |
 | `test_engine/test_tensor_const_access.cpp` | Tests that Tensor's const and non-const data accessors return matching pointers |
-| `test_engine/test_tensor_factory.cpp` | Tests TensorFactory and Engine::create_tensor: shapes, layout, device index and size |
-| `test_engine/test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |
+| `test_engine/test_tensor_factory.cpp` | Tests TensorFactory and Engine::create_tensor: the shape and strides each overload gives and the device-index refusal |
+| `test_engine/test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies, on a host engine |
 | `test_engine/test_unsupported_execution.cpp` | Tests which record-time refusals throw UnsupportedExecution and which do not |
 | `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
 | `test_late_count_hold.cpp` | Tests that a late count's token holds every storage and dies at release |
@@ -61,32 +61,35 @@ Each test therefore addresses the view's elements through its own reported strid
 what it finds against the value the parent put there. That is the only formulation that fails
 when the strides are wrong, and it is what a downstream kernel would do.
 
-`SliceAlongEachAxisAddressesItsElementsRowMajor`: dim 0 always worked; dim 1 is the case that
-reported contiguous strides for non-contiguous memory. In column-major the strides run the
-other way and a dim-0 slice is the non-contiguous one. The rank-3 test adds an axis that is
-neither the outermost nor the innermost, which a two-dimensional test cannot distinguish.
+`Small_TensorViewSlice` has one row per axis of a row-major matrix, a column-major matrix and a
+rank-3 tensor, all on a host engine. Each row asserts the parent's strides against the literal
+values its layout gives ({4, 1}, {1, 4}, {20, 5, 1}) before it checks the view, so the oracle
+is not the code under test. dim 0 always worked; dim 1 is the case that reported contiguous
+strides for non-contiguous memory. In column-major the strides run the other way and a dim-0
+slice is the non-contiguous one. The rank-3 rows add an axis that is neither the outermost nor
+the innermost, which a two-dimensional test cannot distinguish.
 
-`InnerAxisSliceReportsItselfNonContiguous`: a slice keeps its parent's strides, so it reports
+`ReshapeRefusesAnInnerAxisSlice`: a slice keeps its parent's strides, so it reports
 non-contiguous whenever narrowing an inner axis leaves gaps. `reshape`, which requires
-contiguity, refuses it and does not produce a second wrong view.
+contiguity, refuses it and does not produce a second wrong view. That an outer-axis slice stays
+contiguous is held by `tests/data/tensor/test_tensor/test_tensor.cpp`.
 
-`FullWidthSliceIsTheIdentity`: a whole-axis slice changes nothing, so it must leave a tensor
-that compares equal to its parent in offset, strides and shape.
+`Small_TensorViewIdentity`: a whole-axis slice changes nothing, so it must leave a tensor
+that compares equal to its parent in offset, strides and shape, one row per axis.
 
-`RegionCoversEveryByteAStridedViewReaches`: `region()` is what SushiRuntime's dependency
-tracker orders on, so it has to cover every byte the view can reach, not merely as many bytes
-as the view has elements. For a strided view those are different numbers, and the smaller one
-would leave the tail of the view unguarded.
-
-`ContiguousTensorSpansExactlyItsElements`: the contiguous case must not have moved.
-`element_span` and `num_elements` agree there, which is why the distinction went unnoticed for
-so long.
+`Small_TensorViewRegion`: `region()` is what SushiRuntime's dependency tracker orders on, so it
+has to cover every byte the view can reach, not merely as many bytes as the view has elements.
+For the inner-axis slice those are different numbers (8 elements over a span of 14, a region of
+56 bytes from byte 4), and the smaller one would leave the tail of the view unguarded. The
+contiguous row is the control: `element_span` and `num_elements` agree there, which is why the
+distinction went unnoticed for so long.
 
 `TransposeSpansItsWholeMatrix`: a transpose swaps strides without moving data, so it spans its
 whole matrix, and it always did, which makes it a useful control on `element_span`.
 
-`StrideExplicitConstructorRejectsIncoherentMetadata`: the stride-explicit constructor is the
-seam `slice` now goes through, so its guards are the last thing between a mis-described view
-and a kernel reading past the end of an allocation. In the last case, 4 rows at a stride of 64
-reach element 195 of a 16-element allocation. The element count alone (16) would have fitted,
-which is why the capacity check has to be asked in terms of the span.
+The stride-explicit constructor tests: the stride-explicit constructor is the seam `slice` now
+goes through, so its guards are the last thing between a mis-described view and a kernel
+reading past the end of an allocation. A coherent set of strides is kept, a negative stride is
+refused, and so is a span past the capacity: 4 rows at a stride of 64 reach element 195 of a
+16-element allocation. The element count alone (16) would have fitted, which is why the
+capacity check has to be asked in terms of the span.
