@@ -35,58 +35,80 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds one factory over the test environment's runtime for each test. */
-        class Medium_TensorFactoryTest : public SushiBLASTest
+        namespace
         {
-            protected:
-                /** @brief Returns a view of dims, which must outlive the call it is passed to. */
-                [[nodiscard]] static SushiRuntime::span<const int64_t> span_of(
-                    const std::vector<int64_t>& dims)
-                {
-                    return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
-                }
+            /** @brief Returns a view of dims, which must outlive the call it is passed to. */
+            SushiRuntime::span<const int64_t> span_of(const std::vector<int64_t>& dims)
+            {
+                return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
+            }
 
-                /// @brief The factory under test, row-major.
-                TensorFactory factory_{TestEnvironment::runtime()};
+            /** @brief Expects the shape {2, 3, 4} with the row-major strides {12, 4, 1}. */
+            void expect_two_by_three_by_four(const Tensor& tensor)
+            {
+                EXPECT_EQ(tensor.rank, 3);
+                EXPECT_EQ(tensor.shape[0], 2);
+                EXPECT_EQ(tensor.shape[1], 3);
+                EXPECT_EQ(tensor.shape[2], 4);
+                EXPECT_EQ(tensor.strides[0], 12);
+                EXPECT_EQ(tensor.strides[1], 4);
+                EXPECT_EQ(tensor.strides[2], 1);
+            }
+        } // namespace
+
+        /** @brief Gives each test a fresh host engine. */
+        class Small_TensorFactoryTest : public HostEngineTest
+        {
+
         };
 
-        /** @brief Tests that a device index past the last queue throws, for an empty shape too. */
-        TEST_F(Medium_TensorFactoryTest, ADeviceIndexOutOfRangeThrows)
+        /** @brief Tests that a device index past the last queue throws, on a host factory's one queue. */
+        TEST(Small_TensorFactory, ADeviceIndexOutOfRangeThrows)
         {
+            const TensorFactory factory{TensorFactory::Host{}};
             const std::vector<int64_t> dims = {4};
-            const std::vector<int64_t> empty_dims = {0, 3};
-            const std::size_t past_the_last = TestEnvironment::device_count();
 
-            EXPECT_THROW((void)factory_.create(span_of(dims), Core::DataType::Float32,
-                                               SushiRuntime::Residency::Shared, past_the_last),
-                         std::runtime_error);
-            EXPECT_THROW((void)factory_.create(span_of(empty_dims), Core::DataType::Float32,
-                                               SushiRuntime::Residency::Shared, past_the_last),
+            EXPECT_THROW((void)factory.create(span_of(dims), Core::DataType::Float32,
+                                              SushiRuntime::Residency::Shared, 1),
                          std::runtime_error);
         }
 
-        /** @brief Tests that a brace list, a vector and a span give equal shapes and strides. */
-        TEST_F(Medium_TensorFactoryTest, BraceListVectorAndSpanAgree)
+        /** @brief Tests that the device-index refusal comes before the empty-shape shortcut. */
+        TEST(Small_TensorFactory, ADeviceIndexOutOfRangeThrowsForAnEmptyShapeToo)
+        {
+            const TensorFactory factory{TensorFactory::Host{}};
+            const std::vector<int64_t> empty_dims = {0, 3};
+
+            EXPECT_THROW((void)factory.create(span_of(empty_dims), Core::DataType::Float32,
+                                              SushiRuntime::Residency::Shared, 1),
+                         std::runtime_error);
+        }
+
+        /** @brief Tests that a brace list gives the shape {2, 3, 4} and its row-major strides. */
+        TEST_F(Small_TensorFactoryTest, BraceListGivesTheShapeAndStrides)
+        {
+            expect_two_by_three_by_four(engine->create_tensor({2, 3, 4}));
+        }
+
+        /** @brief Tests that a vector gives the shape {2, 3, 4} and its row-major strides. */
+        TEST_F(Small_TensorFactoryTest, VectorGivesTheShapeAndStrides)
         {
             const std::vector<int64_t> dims = {2, 3, 4};
 
-            const Tensor from_braces = engine->create_tensor({2, 3, 4});
-            const Tensor from_vector = engine->create_tensor(dims);
-            const Tensor from_span = engine->create_tensor(span_of(dims));
+            expect_two_by_three_by_four(engine->create_tensor(dims));
+        }
 
-            EXPECT_EQ(3, from_braces.rank);
-            EXPECT_EQ(from_braces.rank, from_vector.rank);
-            EXPECT_EQ(from_braces.rank, from_span.rank);
-            EXPECT_EQ(from_braces.shape, from_vector.shape);
-            EXPECT_EQ(from_braces.shape, from_span.shape);
-            EXPECT_EQ(from_braces.strides, from_vector.strides);
-            EXPECT_EQ(from_braces.strides, from_span.strides);
+        /** @brief Tests that a span gives the shape {2, 3, 4} and its row-major strides. */
+        TEST_F(Small_TensorFactoryTest, SpanGivesTheShapeAndStrides)
+        {
+            const std::vector<int64_t> dims = {2, 3, 4};
+
+            expect_two_by_three_by_four(engine->create_tensor(span_of(dims)));
         }
     } // namespace Test
 } // namespace SushiBLAS
