@@ -33,6 +33,8 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
@@ -40,13 +42,23 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds operand sets over tensors of the fixture's engine. */
-        class Medium_OperandSet : public SushiBLASTest
+        namespace
+        {
+            /** @brief Reads count tensors of one element each, every one over a storage of its own. */
+            void read_distinct_tensors(Engine& engine, OperandSet& operands, std::size_t count)
+            {
+                for (std::size_t index = 0; index < count; ++index)
+                    operands.reads(engine.create_tensor({2}));
+            }
+        } // namespace
+
+        /** @brief Builds operand sets over tensors of a host engine. */
+        class Small_OperandSet : public HostEngineTest
         {
 
         };
 
-        TEST_F(Medium_OperandSet, ReadsWritesAndUpdatesDeclareTheirRegions)
+        TEST_F(Small_OperandSet, ReadsWritesAndUpdatesDeclareTheirRegions)
         {
             const Tensor a = engine->create_tensor({4});
             const Tensor b = engine->create_tensor({4});
@@ -57,11 +69,22 @@ namespace SushiBLAS
 
             EXPECT_EQ(operands.read_regions().size(), std::size_t{2});
             EXPECT_EQ(operands.write_regions().size(), std::size_t{2});
+        }
+
+        TEST_F(Small_OperandSet, TheSetRetainsItsOperandsAndReportsNoDeviceOnlyOperand)
+        {
+            const Tensor a = engine->create_tensor({4});
+            const Tensor b = engine->create_tensor({4});
+            const Tensor c = engine->create_tensor({4});
+            OperandSet operands;
+
+            operands.reads(a).writes(b).updates(c);
+
             EXPECT_EQ(operands.retained().size(), std::size_t{3});
             EXPECT_FALSE(operands.has_device_only_operand());
         }
 
-        TEST_F(Medium_OperandSet, ATensorWithoutStorageDeclaresNothing)
+        TEST_F(Small_OperandSet, ATensorWithoutStorageDeclaresNothing)
         {
             const Tensor empty = engine->create_tensor({0});
             OperandSet operands;
@@ -73,27 +96,53 @@ namespace SushiBLAS
             EXPECT_EQ(operands.retained().size(), std::size_t{0});
         }
 
-        TEST_F(Medium_OperandSet, AStorageIsRetainedOnceAndKeptAliveByTheSet)
+        TEST_F(Small_OperandSet, AStorageUsedBySeveralOperandsIsRetainedOnce)
+        {
+            const Tensor a = engine->create_tensor({8});
+            OperandSet operands;
+
+            operands.reads(a).writes(a).reads(a.slice(0, 2, 6));
+
+            EXPECT_EQ(operands.retained().size(), std::size_t{1});
+        }
+
+        TEST_F(Small_OperandSet, MoreStoragesThanTheSixInlineSlotsAreAllRetained)
+        {
+            OperandSet operands;
+
+            read_distinct_tensors(*engine, operands, 9);
+
+            EXPECT_EQ(operands.retained().size(), std::size_t{9});
+        }
+
+        TEST_F(Small_OperandSet, DeclaredBytesCountAnUpdatedRegionTwice)
+        {
+            const Tensor a = engine->create_tensor({4});
+            const Tensor b = engine->create_tensor({4});
+            const Tensor c = engine->create_tensor({4});
+            OperandSet operands;
+
+            operands.reads(a).writes(b).updates(c);
+
+            EXPECT_EQ(operands.declared_bytes(), std::uint64_t{4 * sizeof(float) * 4});
+        }
+
+        /** @brief Builds operand sets over tensors of the fixture's engine on the process runtime. */
+        class Medium_OperandSet : public SushiBLASTest
+        {
+
+        };
+
+        TEST_F(Medium_OperandSet, TheSetKeepsAStorageAliveAfterItsTensor)
         {
             const std::size_t before = TestEnvironment::live_allocation_count();
             OperandSet operands;
             {
                 const Tensor a = engine->create_tensor({8});
-                operands.reads(a).writes(a).reads(a.slice(0, 2, 6));
-                EXPECT_EQ(operands.retained().size(), std::size_t{1});
+                operands.reads(a);
             }
 
             EXPECT_EQ(TestEnvironment::live_allocation_count(), before + 1);
-        }
-
-        TEST_F(Medium_OperandSet, MoreStoragesThanTheInlineCapacityAreAllRetained)
-        {
-            OperandSet operands;
-            const std::size_t count = Internal::StorageKeepAlive::K_INLINE_CAPACITY + 3;
-            for (std::size_t i = 0; i < count; ++i)
-                operands.reads(engine->create_tensor({2}));
-
-            EXPECT_EQ(operands.retained().size(), count);
         }
 
         TEST_F(Medium_OperandSet, ADeviceTensorIsReportedAndSurvivesAMerge)
@@ -112,25 +161,6 @@ namespace SushiBLAS
             EXPECT_EQ(first.read_regions().size(), std::size_t{1});
             EXPECT_EQ(first.write_regions().size(), std::size_t{1});
             EXPECT_EQ(first.retained().size(), std::size_t{2});
-        }
-
-        TEST_F(Medium_OperandSet, DeclaredBytesCountAnUpdatedRegionTwice)
-        {
-            const Tensor a = engine->create_tensor({4});
-            const Tensor b = engine->create_tensor({4});
-            const Tensor c = engine->create_tensor({4});
-            OperandSet operands;
-
-            operands.reads(a).writes(b).updates(c);
-
-            EXPECT_EQ(operands.declared_bytes(), std::uint64_t{4 * sizeof(float) * 4});
-        }
-
-        TEST_F(Medium_OperandSet, DeclaredBytesOfAnEmptySetIsZero)
-        {
-            const OperandSet operands;
-
-            EXPECT_EQ(operands.declared_bytes(), std::uint64_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS
