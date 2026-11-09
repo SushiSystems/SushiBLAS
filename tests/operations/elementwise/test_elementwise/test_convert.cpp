@@ -23,23 +23,24 @@
 
 /**
  * @file test_convert.cpp
- * @brief Tests ElementwiseOps::convert between the real dtypes, its refusals and its ordering.
+ * @brief Tests ElementwiseOps::convert between the real dtypes, its refusals and the regions it declares.
  * @author Mustafa Garip
  */
 
 #include <cmath>
+#include <cstddef>
+#include <cstring>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <cstddef>
-#include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/tensor/runtime_block.hpp>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/tensor/host_block.hpp>
+#include <SushiBLAS/engine/host_task_sink.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 
 namespace SushiBLAS
 {
@@ -47,65 +48,63 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief The three dtypes `convert` serves, in the order the switch lists them. */
-            const std::vector<Core::DataType> K_REAL_DTYPES =
-                {Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64};
-
-            /**
-             * @brief The nearest IEEE-754 binary16 value to 0.1, as an exact double.
-             *
-             * 0.1 = 1.100110011001100110... x 2^-4. Keeping ten mantissa bits gives
-             * 1.1001100110 (the first dropped bit is 0, so it rounds down), which is
-             * 1.599609375 x 2^-4. Not equal to 0.1f, which is the point.
-             */
+            /** @brief The nearest binary16 value to 0.1f, as an exact double: 1.599609375 x 2^-4. */
             constexpr double K_TENTH_AS_HALF = 0.0999755859375;
 
             /** @brief The largest finite binary16 value. */
             constexpr double K_HALF_MAX = 65504.0;
 
-            /**
-             * @brief 2 x 2^-24: the binary16 subnormal nearest to 1e-7.
-             *
-             * 1e-7 / 2^-24 is 1.677..., which rounds to 2, so the conversion lands on a
-             * subnormal rather than flushing to zero.
-             */
+            /** @brief 2 x 2^-24: the binary16 subnormal nearest to 1e-7. */
             constexpr double K_TINY_AS_HALF = 1.1920928955078125e-7;
-        }
 
-        class Medium_ConvertTest : public SushiBLASTest
+            /** @brief A positive infinity of double. */
+            constexpr double K_INF = std::numeric_limits<double>::infinity();
+
+            /** @brief A quiet NaN of double. */
+            constexpr double K_NAN = std::numeric_limits<double>::quiet_NaN();
+
+            /** @brief Returns whether two doubles hold the same value, a NaN equalling a NaN. */
+            bool same_value(double expected, double got)
+            {
+                return (std::isnan(expected) && std::isnan(got)) || expected == got;
+            }
+
+            /** @brief Returns the values 0, 1, ..., count - 1 shifted down by five. */
+            std::vector<double> ramp(std::size_t count)
+            {
+                std::vector<double> values(count);
+                for (std::size_t i = 0; i < count; ++i)
+                    values[i] = static_cast<double>(i) - 5.0;
+                return values;
+            }
+        } // namespace
+
+        /// @brief Records convert on a host engine and runs it on the reference path.
+        class Small_ConvertTest : public HostEngineTest
         {
             protected:
-                /**
-                 * @brief Reads a whole real tensor back to the host, widened to double.
-                 *
-                 * Widening HALF or FLOAT32 to double is exact, so an `EXPECT_EQ` against a
-                 * double literal below is a statement about the stored bits and not about
-                 * a tolerance - which is what these cases need, since "close to 0.1" is
-                 * true of both the right answer and the wrong one.
-                 */
+                /** @brief Reads a whole real tensor back, widened to double; the widening is exact. */
                 std::vector<double> read_exact(const Tensor& t)
                 {
-                    const size_t n = static_cast<size_t>(t.num_elements);
+                    const std::size_t n = static_cast<std::size_t>(t.num_elements);
                     std::vector<double> out(n);
-                    auto& q = TestEnvironment::queue();
-
                     if (t.dtype == Core::DataType::Half)
                     {
                         std::vector<sycl::half> host(n);
-                        q.memcpy(host.data(), t.data(), n * sizeof(sycl::half)).wait();
-                        for (size_t i = 0; i < n; ++i)
+                        std::memcpy(host.data(), t.data(), n * sizeof(sycl::half));
+                        for (std::size_t i = 0; i < n; ++i)
                             out[i] = static_cast<double>(host[i]);
                     }
                     else if (t.dtype == Core::DataType::Float32)
                     {
                         std::vector<float> host(n);
-                        q.memcpy(host.data(), t.data(), n * sizeof(float)).wait();
-                        for (size_t i = 0; i < n; ++i)
+                        std::memcpy(host.data(), t.data(), n * sizeof(float));
+                        for (std::size_t i = 0; i < n; ++i)
                             out[i] = static_cast<double>(host[i]);
                     }
                     else
                     {
-                        q.memcpy(out.data(), t.data(), n * sizeof(double)).wait();
+                        std::memcpy(out.data(), t.data(), n * sizeof(double));
                     }
                     return out;
                 }
@@ -113,480 +112,434 @@ namespace SushiBLAS
                 /** @brief Writes host doubles into a tensor of any of the three real dtypes. */
                 void write_exact(Tensor& t, const std::vector<double>& values)
                 {
-                    const size_t n = values.size();
-                    ASSERT_EQ(n, static_cast<size_t>(t.num_elements));
-                    auto& q = TestEnvironment::queue();
-
+                    const std::size_t n = values.size();
                     if (t.dtype == Core::DataType::Half)
                     {
                         std::vector<sycl::half> host(n);
-                        for (size_t i = 0; i < n; ++i)
+                        for (std::size_t i = 0; i < n; ++i)
                             host[i] = static_cast<sycl::half>(static_cast<float>(values[i]));
-                        q.memcpy(t.data(), host.data(), n * sizeof(sycl::half)).wait();
+                        std::memcpy(t.data(), host.data(), n * sizeof(sycl::half));
                     }
                     else if (t.dtype == Core::DataType::Float32)
                     {
                         std::vector<float> host(n);
-                        for (size_t i = 0; i < n; ++i)
+                        for (std::size_t i = 0; i < n; ++i)
                             host[i] = static_cast<float>(values[i]);
-                        q.memcpy(t.data(), host.data(), n * sizeof(float)).wait();
+                        std::memcpy(t.data(), host.data(), n * sizeof(float));
                     }
                     else
                     {
-                        q.memcpy(t.data(), values.data(), n * sizeof(double)).wait();
+                        std::memcpy(t.data(), values.data(), n * sizeof(double));
                     }
                 }
 
-                /** @brief The message of the `std::exception` @p fn throws, or "" if it does not. */
+                /** @brief Converts values from one dtype to another and returns what arrived. */
+                std::vector<double> converted(Core::DataType from, Core::DataType to,
+                                              const std::vector<double>& values)
+                {
+                    const int64_t n = static_cast<int64_t>(values.size());
+                    Tensor src = engine->create_tensor({n}, from);
+                    Tensor dst = engine->create_tensor({n}, to);
+                    write_exact(src, values);
+
+                    ElementwiseOps(recorder()).convert(src, dst);
+                    EXPECT_TRUE(recording->run_succeeds());
+                    return read_exact(dst);
+                }
+
+                /** @brief Returns the message of the std::invalid_argument fn throws, or "". */
                 template<typename Fn>
-                std::string message_of(Fn&& fn)
+                std::string refusal_of(Fn&& fn)
                 {
                     try
                     {
                         fn();
                     }
-                    catch (const std::exception& e)
+                    catch (const std::invalid_argument& error)
                     {
-                        return std::string(e.what());
+                        return error.what();
                     }
                     return std::string();
                 }
+
+                /** @brief Returns a FLOAT32 vector view at an element offset of a host arena. */
+                Tensor view_of(const SushiRuntime::sushi_ptr<Storage>& arena, Core::DataType dtype, int64_t n,
+                               int64_t offset)
+                {
+                    return Tensor(arena, {n}, dtype, offset);
+                }
         };
 
-        /**
-         * @brief Tests that fp32 to fp16 lands on the correctly rounded neighbour, not the input.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, Fp32ToFp16RoundsToTheNearestRepresentableValue)
+        /** @brief One FLOAT32 value converted to HALF and the binary16 value it must arrive as. */
+        struct ValueRow
         {
-            auto src = engine->create_tensor({1}, Core::DataType::Float32);
-            auto dst = engine->create_tensor({1}, Core::DataType::Half);
-            write_exact(src, {static_cast<double>(0.1f)});
+            std::string name;
+            double input;
+            double expected;
+        };
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-            recording->run().value();
-
-            const auto got = read_exact(dst);
-            EXPECT_EQ(K_TENTH_AS_HALF, got[0])
-                << "0.1f must arrive as the binary16 value nearest it, 0.0999755859375.";
-            EXPECT_NE(static_cast<double>(0.1f), got[0])
-                << "0.1 is not representable in binary16, so a result equal to the fp32 "
-                   "input means no conversion happened at all.";
+        /** @brief Names a row by its name. */
+        std::string value_row_name(const ::testing::TestParamInfo<ValueRow>& info)
+        {
+            return info.param.name;
         }
 
-        /**
-         * @brief Tests that fp32 to fp16 breaks ties to even.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, Fp32ToFp16BreaksTiesToEven)
+        /// @brief Runs the rows whose FLOAT32 input lands on a representable HALF neighbour.
+        class Small_ConvertRounding : public Small_ConvertTest, public ::testing::WithParamInterface<ValueRow> {};
+
+        /// @brief Runs the rows whose FLOAT32 input is past the HALF range.
+        class Small_ConvertOverflow : public Small_ConvertTest, public ::testing::WithParamInterface<ValueRow> {};
+
+        /// @brief Runs the rows whose FLOAT32 input is below the HALF range.
+        class Small_ConvertUnderflow : public Small_ConvertTest, public ::testing::WithParamInterface<ValueRow> {};
+
+        /// @brief Tests that fp32 to fp16 lands on the neighbour binary16 rounding gives, ties to even.
+        TEST_P(Small_ConvertRounding, Fp32ToFp16LandsOnTheRoundedNeighbour)
         {
-            auto src = engine->create_tensor({2}, Core::DataType::Float32);
-            auto dst = engine->create_tensor({2}, Core::DataType::Half);
-            write_exact(src, {1.0 + 0.00048828125,        // 1 + 2^-11, exactly halfway
-                              1.0 + 0.000732421875});     // 1 + 3*2^-12, past halfway
+            const std::vector<double> got =
+                converted(Core::DataType::Float32, Core::DataType::Half, {GetParam().input});
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-            recording->run().value();
-
-            const auto got = read_exact(dst);
-            EXPECT_EQ(1.0, got[0]) << "A tie must resolve to the neighbour with the even mantissa.";
-            EXPECT_EQ(1.0 + 0.0009765625, got[1]) << "Past halfway must round up to 1 + 2^-10.";
+            EXPECT_EQ(GetParam().expected, got[0]);
         }
 
-        /**
-         * @brief Tests that an fp32 value past the fp16 range becomes an infinity.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, Fp32PastTheHalfRangeBecomesInfinity)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ConvertRounding,
+            ::testing::Values(
+                // 0.1f has no binary16 form; the first dropped mantissa bit is 0, so it rounds down.
+                ValueRow{"ATenthRoundsDown", static_cast<double>(0.1f), K_TENTH_AS_HALF},
+                // 1 + 2^-11 is exactly halfway between 1 and 1 + 2^-10; the even mantissa is 1.
+                ValueRow{"ATieGoesToTheEvenNeighbour", 1.0 + 0.00048828125, 1.0},
+                // 1 + 3 x 2^-12 is past halfway, so it rounds up to 1 + 2^-10.
+                ValueRow{"PastHalfwayRoundsUp", 1.0 + 0.000732421875, 1.0 + 0.0009765625}),
+            value_row_name);
+
+        /// @brief Tests that an fp32 value past the fp16 range becomes an infinity of its sign.
+        TEST_P(Small_ConvertOverflow, Fp32PastTheHalfRangeBecomesAnInfinity)
         {
-            auto src = engine->create_tensor({4}, Core::DataType::Float32);
-            auto dst = engine->create_tensor({4}, Core::DataType::Half);
-            write_exact(src, {K_HALF_MAX, 70000.0, -70000.0, 1.0e30});
+            const std::vector<double> got =
+                converted(Core::DataType::Float32, Core::DataType::Half, {GetParam().input});
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-            recording->run().value();
-
-            const auto got = read_exact(dst);
-            EXPECT_EQ(K_HALF_MAX, got[0]) << "The largest finite binary16 value must stay finite.";
-            EXPECT_TRUE(std::isinf(got[1]) && got[1] > 0.0) << "70000 is past binary16's range.";
-            EXPECT_TRUE(std::isinf(got[2]) && got[2] < 0.0) << "The sign must survive the overflow.";
-            EXPECT_TRUE(std::isinf(got[3]) && got[3] > 0.0);
+            EXPECT_EQ(GetParam().expected, got[0]);
         }
 
-        /**
-         * @brief Tests that 1e-8 flushes to zero in fp16 while 1e-7 lands on a subnormal.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ConvertOverflow,
+            ::testing::Values(ValueRow{"TheLargestHalfStaysFinite", K_HALF_MAX, K_HALF_MAX},
+                              ValueRow{"SeventyThousandBecomesInfinity", 70000.0, K_INF},
+                              ValueRow{"MinusSeventyThousandBecomesMinusInfinity", -70000.0, -K_INF},
+                              ValueRow{"OneEThirtyBecomesInfinity", 1.0e30, K_INF}),
+            value_row_name);
+
+        /// @brief Tests that an fp32 value below the fp16 range flushes to zero and a subnormal survives.
+        TEST_P(Small_ConvertUnderflow, Fp32BelowTheHalfRangeUnderflowsOrLandsOnASubnormal)
         {
-            auto src = engine->create_tensor({2}, Core::DataType::Float32);
-            auto dst = engine->create_tensor({2}, Core::DataType::Half);
-            write_exact(src, {1.0e-8, 1.0e-7});
+            const std::vector<double> got =
+                converted(Core::DataType::Float32, Core::DataType::Half, {GetParam().input});
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-            recording->run().value();
-
-            const auto got = read_exact(dst);
-            EXPECT_EQ(0.0, got[0]) << "1e-8 is below half the smallest binary16 subnormal.";
-            EXPECT_EQ(K_TINY_AS_HALF, got[1])
-                << "1e-7 rounds to 2 * 2^-24; flushing it to zero would mean subnormals are "
-                   "being discarded rather than represented.";
+            EXPECT_EQ(GetParam().expected, got[0]);
         }
 
-        /**
-         * @brief Tests that infinities and NaN pass through the conversion in both directions.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, NonFiniteValuesSurviveTheConversion)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ConvertUnderflow,
+            ::testing::Values(
+                // 1e-8 is below half the smallest subnormal, 2^-25.
+                ValueRow{"OneEMinusEightFlushesToZero", 1.0e-8, 0.0},
+                // 1e-7 / 2^-24 is 1.677, which rounds to 2.
+                ValueRow{"OneEMinusSevenLandsOnASubnormal", 1.0e-7, K_TINY_AS_HALF}),
+            value_row_name);
+
+        /** @brief A non-finite FLOAT32 value converted to a target dtype. */
+        struct NonFiniteRow
         {
-            auto src = engine->create_tensor({3}, Core::DataType::Float32);
-            auto down = engine->create_tensor({3}, Core::DataType::Half);
-            auto up = engine->create_tensor({3}, Core::DataType::Float64);
-            write_exact(src, {std::numeric_limits<double>::infinity(),
-                              -std::numeric_limits<double>::infinity(),
-                              std::numeric_limits<double>::quiet_NaN()});
+            std::string name;
+            Core::DataType target;
+            double value;
+        };
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, down);
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, up);
-            recording->run().value();
-
-            for (const Tensor* t : {&down, &up})
-            {
-                const auto got = read_exact(*t);
-                EXPECT_TRUE(std::isinf(got[0]) && got[0] > 0.0);
-                EXPECT_TRUE(std::isinf(got[1]) && got[1] < 0.0);
-                EXPECT_TRUE(std::isnan(got[2]));
-            }
+        /** @brief Names a row by its name. */
+        std::string non_finite_row_name(const ::testing::TestParamInfo<NonFiniteRow>& info)
+        {
+            return info.param.name;
         }
 
-        /**
-         * @brief Tests that narrowing then widening returns the fp16 value, not the original.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold)
+        /// @brief Runs the rows of non-finite values over the two targets.
+        class Small_ConvertNonFinite : public Small_ConvertTest, public ::testing::WithParamInterface<NonFiniteRow> {};
+
+        /// @brief Tests that an infinity or a NaN keeps its kind through the conversion.
+        TEST_P(Small_ConvertNonFinite, ANonFiniteValueSurvivesTheConversion)
         {
-            auto src = engine->create_tensor({1}, Core::DataType::Float32);
-            auto narrow = engine->create_tensor({1}, Core::DataType::Half);
-            auto back = engine->create_tensor({1}, Core::DataType::Float32);
-            write_exact(src, {static_cast<double>(0.1f)});
+            const std::vector<double> got =
+                converted(Core::DataType::Float32, GetParam().target, {GetParam().value});
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, narrow);
-            SushiBLAS::ElementwiseOps(recorder()).convert(narrow, back);
-            recording->run().value();
-
-            const auto got = read_exact(back);
-            EXPECT_EQ(K_TENTH_AS_HALF, got[0])
-                << "Widening back must reproduce the fp16 value exactly, and must not "
-                   "recover precision the narrowing threw away.";
+            EXPECT_TRUE(same_value(GetParam().value, got[0]));
         }
 
-        /**
-         * @brief Tests all nine dtype pairs on values every dtype represents exactly.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, EveryRealDTypePairConvertsExactlyRepresentableValues)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ConvertNonFinite,
+            ::testing::Values(NonFiniteRow{"InfinityToHalf", Core::DataType::Half, K_INF},
+                              NonFiniteRow{"MinusInfinityToHalf", Core::DataType::Half, -K_INF},
+                              NonFiniteRow{"NaNToHalf", Core::DataType::Half, K_NAN},
+                              NonFiniteRow{"InfinityToFloat64", Core::DataType::Float64, K_INF},
+                              NonFiniteRow{"MinusInfinityToFloat64", Core::DataType::Float64, -K_INF},
+                              NonFiniteRow{"NaNToFloat64", Core::DataType::Float64, K_NAN}),
+            non_finite_row_name);
+
+        /// @brief Tests that narrowing then widening returns the fp16 value, not the original.
+        TEST_F(Small_ConvertTest, ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold)
+        {
+            const std::vector<double> narrow =
+                converted(Core::DataType::Float32, Core::DataType::Half, {static_cast<double>(0.1f)});
+            const std::vector<double> back = converted(Core::DataType::Half, Core::DataType::Float32, narrow);
+
+            EXPECT_EQ(K_TENTH_AS_HALF, back[0]);
+        }
+
+        /** @brief A source and a target dtype of the nine real pairs. */
+        struct PairRow
+        {
+            std::string name;
+            Core::DataType from;
+            Core::DataType to;
+        };
+
+        /** @brief Names a row by its name. */
+        std::string pair_row_name(const ::testing::TestParamInfo<PairRow>& info)
+        {
+            return info.param.name;
+        }
+
+        /// @brief Runs one row per real dtype pair.
+        class Small_ConvertPair : public Small_ConvertTest, public ::testing::WithParamInterface<PairRow> {};
+
+        /// @brief Tests that values every real dtype represents exactly arrive unchanged in each pair.
+        TEST_P(Small_ConvertPair, ExactlyRepresentableValuesArriveUnchanged)
         {
             const std::vector<double> values = {0.0, 1.0, -2.0, 3.5, -4.25, 1024.0};
 
-            for (Core::DataType from : K_REAL_DTYPES)
-            {
-                for (Core::DataType to : K_REAL_DTYPES)
-                {
-                    auto src = engine->create_tensor({6}, from);
-                    auto dst = engine->create_tensor({6}, to);
-                    write_exact(src, values);
-
-                    SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-                    recording->run().value();
-
-                    const auto got = read_exact(dst);
-                    for (size_t i = 0; i < values.size(); ++i)
-                    {
-                        EXPECT_EQ(values[i], got[i])
-                            << "at index " << i << " converting " << Core::to_string(from)
-                            << " -> " << Core::to_string(to);
-                    }
-                }
-            }
+            EXPECT_EQ(values, converted(GetParam().from, GetParam().to, values));
         }
 
-        /**
-         * @brief Tests that converting a dtype to itself copies.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, ConvertingADTypeToItselfIsAPlainCopy)
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ConvertPair,
+            ::testing::Values(PairRow{"HalfToHalf", Core::DataType::Half, Core::DataType::Half},
+                              PairRow{"HalfToFloat32", Core::DataType::Half, Core::DataType::Float32},
+                              PairRow{"HalfToFloat64", Core::DataType::Half, Core::DataType::Float64},
+                              PairRow{"Float32ToHalf", Core::DataType::Float32, Core::DataType::Half},
+                              PairRow{"Float32ToFloat32", Core::DataType::Float32, Core::DataType::Float32},
+                              PairRow{"Float32ToFloat64", Core::DataType::Float32, Core::DataType::Float64},
+                              PairRow{"Float64ToHalf", Core::DataType::Float64, Core::DataType::Half},
+                              PairRow{"Float64ToFloat32", Core::DataType::Float64, Core::DataType::Float32},
+                              PairRow{"Float64ToFloat64", Core::DataType::Float64, Core::DataType::Float64}),
+            pair_row_name);
+
+        /// @brief Tests that converting a dtype to itself copies a value fp32 holds only at that width.
+        TEST_F(Small_ConvertTest, ConvertingADTypeToItselfIsAPlainCopy)
         {
-            auto src = engine->create_tensor({3}, Core::DataType::Float32);
-            auto dst = engine->create_tensor({3}, Core::DataType::Float32);
-            // 2^40 is exact in fp32; 1e30 would not be. See tests/operations/elementwise/README.md.
+            Tensor src = engine->create_tensor({3}, Core::DataType::Float32);
+            Tensor dst = engine->create_tensor({3}, Core::DataType::Float32);
+            // 2^40 is exact in fp32; 1e30 would not be.
             write_exact(src, {1.5, -2.25, 1099511627776.0});
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(recorder()).convert(src, dst));
-            recording->run().value();
+            EXPECT_NO_THROW(ElementwiseOps(recorder()).convert(src, dst));
+            ASSERT_TRUE(recording->run_succeeds());
 
-            const auto got = read_exact(dst);
-            EXPECT_EQ(1.5, got[0]);
-            EXPECT_EQ(-2.25, got[1]);
-            EXPECT_EQ(1099511627776.0, got[2]);
+            EXPECT_EQ((std::vector<double>{1.5, -2.25, 1099511627776.0}), read_exact(dst));
         }
 
-        // A multi-dimensional operand is converted whole, not just its first row.
-        TEST_F(Medium_ConvertTest, ARankTwoOperandIsConvertedInFull)
+        /// @brief Tests that a rank two operand is converted whole, not just its first row.
+        TEST_F(Small_ConvertTest, ARankTwoOperandIsConvertedInFull)
         {
-            auto src = engine->create_tensor({3, 4}, Core::DataType::Float64);
-            auto dst = engine->create_tensor({3, 4}, Core::DataType::Half);
-            std::vector<double> values(12);
-            for (size_t i = 0; i < values.size(); ++i)
-                values[i] = static_cast<double>(i) - 5.0;
+            const std::vector<double> values = ramp(12);
+            Tensor src = engine->create_tensor({3, 4}, Core::DataType::Float64);
+            Tensor dst = engine->create_tensor({3, 4}, Core::DataType::Half);
             write_exact(src, values);
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
-            recording->run().value();
+            ElementwiseOps(recorder()).convert(src, dst);
+            ASSERT_TRUE(recording->run_succeeds());
 
-            const auto got = read_exact(dst);
-            for (size_t i = 0; i < values.size(); ++i)
-                EXPECT_EQ(values[i], got[i]) << "at index " << i;
+            EXPECT_EQ(values, read_exact(dst));
         }
 
-        TEST_F(Medium_ConvertTest, ADTypePairOutsideTheRealDomainThrowsNamingBoth)
+        /// @brief Tests that a complex source is refused, naming both dtypes.
+        TEST_F(Small_ConvertTest, AComplexSourceIsRefusedNamingBothDTypes)
         {
-            GraphProbe probe;
+            Tensor real32 = engine->create_tensor({2}, Core::DataType::Float32);
+            Tensor cplx = engine->create_tensor({2}, Core::DataType::Complex32);
 
-            auto real32 = engine->create_tensor({2}, Core::DataType::Float32);
-            auto cplx = engine->create_tensor({2}, Core::DataType::Complex32);
-            auto integral = engine->create_tensor({2}, Core::DataType::Int64);
+            const std::string message = refusal_of([&] { ElementwiseOps(recorder()).convert(cplx, real32); });
 
-            const std::string from_complex = message_of(
-                [&]
-                {
-                    SushiBLAS::ElementwiseOps(probe.recorder()).convert(cplx, real32);
-                });
-            EXPECT_NE(std::string::npos, from_complex.find("COMPLEX32")) << from_complex;
-            EXPECT_NE(std::string::npos, from_complex.find("FLOAT32")) << from_complex;
-
-            const std::string to_integer = message_of(
-                [&]
-                {
-                    SushiBLAS::ElementwiseOps(probe.recorder()).convert(real32, integral);
-                });
-            EXPECT_NE(std::string::npos, to_integer.find("FLOAT32")) << to_integer;
-            EXPECT_NE(std::string::npos, to_integer.find("INT64")) << to_integer;
-
-            // And nothing was recorded: a rejected conversion must not leave a task behind.
-            EXPECT_EQ(0u, probe.take_recorded_count());
+            EXPECT_NE(std::string::npos, message.find("COMPLEX32")) << message;
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        /**
-         * @brief Tests that converting between row- and column-major rank-2 tensors throws.
-         */
-        TEST_F(Medium_ConvertTest, DisagreeingLayoutsThrow)
+        /// @brief Tests that an integer target is refused, naming its dtype.
+        TEST_F(Small_ConvertTest, AnIntegerTargetIsRefusedNamingItsDType)
         {
-            GraphProbe probe;
+            Tensor real32 = engine->create_tensor({2}, Core::DataType::Float32);
+            Tensor integral = engine->create_tensor({2}, Core::DataType::Int64);
 
-            constexpr int64_t kRows = 2;
-            constexpr int64_t kCols = 3;
-            constexpr size_t kElements = static_cast<size_t>(kRows * kCols);
+            const std::string message =
+                refusal_of([&] { ElementwiseOps(recorder()).convert(real32, integral); });
 
-            auto f32 = make_runtime_storage(TestEnvironment::runtime(),
-                                                         kElements * sizeof(float),
-                                                         SushiRuntime::Residency::Shared);
-            auto f16 = make_runtime_storage(TestEnvironment::runtime(),
-                                                         kElements * sizeof(sycl::half),
-                                                         SushiRuntime::Residency::Shared);
-
-            Tensor row_major(f32, {kRows, kCols}, Core::DataType::Float32, 0, Core::Layout::RowMajor);
-            Tensor col_major(f16, {kRows, kCols}, Core::DataType::Half, 0, Core::Layout::ColumnMajor);
-
-            EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.recorder()).convert(row_major, col_major),
-                std::invalid_argument);
-            EXPECT_EQ(0u, probe.take_recorded_count());
+            EXPECT_NE(std::string::npos, message.find("INT64")) << message;
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        TEST_F(Medium_ConvertTest, DisagreeingShapesThrowNamingWhatDisagreed)
+        /// @brief Tests that a row-major source and a column-major target are refused.
+        TEST_F(Small_ConvertTest, DisagreeingLayoutsAreRefused)
         {
-            auto src = engine->create_tensor({3, 4}, Core::DataType::Float32);
-            auto wrong_dim = engine->create_tensor({3, 5}, Core::DataType::Half);
-            auto wrong_rank = engine->create_tensor({12}, Core::DataType::Half);
+            constexpr int64_t K_ROWS = 2;
+            constexpr int64_t K_COLUMNS = 3;
+            constexpr std::size_t K_ELEMENTS = static_cast<std::size_t>(K_ROWS * K_COLUMNS);
+            Tensor row_major(make_host_storage(K_ELEMENTS * sizeof(float)), {K_ROWS, K_COLUMNS},
+                             Core::DataType::Float32, 0, Core::Layout::RowMajor);
+            Tensor col_major(make_host_storage(K_ELEMENTS * sizeof(sycl::half)), {K_ROWS, K_COLUMNS},
+                             Core::DataType::Half, 0, Core::Layout::ColumnMajor);
 
-            const std::string dim =
-                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(src, wrong_dim); });
-            EXPECT_NE(std::string::npos, dim.find("dimension")) << dim;
-
-            const std::string rank =
-                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(src, wrong_rank); });
-            EXPECT_NE(std::string::npos, rank.find("rank")) << rank;
+            EXPECT_THROW(ElementwiseOps(recorder()).convert(row_major, col_major), std::invalid_argument);
+            EXPECT_EQ(recording->recorded_count(), 0u);
         }
 
-        /**
-         * @brief Tests that an inner-axis slice, which is not contiguous, is refused by name.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, ANonContiguousOperandIsRefused)
+        /// @brief Tests that a target of another extent is refused, naming the dimension.
+        TEST_F(Small_ConvertTest, ATargetOfAnotherExtentIsRefusedNamingTheDimension)
         {
-            auto parent = engine->create_tensor({4, 4}, Core::DataType::Float32);
-            auto inner = parent.slice(1, 1, 3);
-            auto dst = engine->create_tensor({4, 2}, Core::DataType::Half);
+            Tensor src = engine->create_tensor({3, 4}, Core::DataType::Float32);
+            Tensor wrong_dim = engine->create_tensor({3, 5}, Core::DataType::Half);
+
+            const std::string message = refusal_of([&] { ElementwiseOps(recorder()).convert(src, wrong_dim); });
+
+            EXPECT_NE(std::string::npos, message.find("dimension")) << message;
+        }
+
+        /// @brief Tests that a target of another rank is refused, naming the rank.
+        TEST_F(Small_ConvertTest, ATargetOfAnotherRankIsRefusedNamingTheRank)
+        {
+            Tensor src = engine->create_tensor({3, 4}, Core::DataType::Float32);
+            Tensor wrong_rank = engine->create_tensor({12}, Core::DataType::Half);
+
+            const std::string message = refusal_of([&] { ElementwiseOps(recorder()).convert(src, wrong_rank); });
+
+            EXPECT_NE(std::string::npos, message.find("rank")) << message;
+        }
+
+        /// @brief Tests that an inner-axis slice, which is not contiguous, is refused as strided.
+        TEST_F(Small_ConvertTest, ANonContiguousOperandIsRefused)
+        {
+            Tensor parent = engine->create_tensor({4, 4}, Core::DataType::Float32);
+            Tensor inner = parent.slice(1, 1, 3);
+            Tensor dst = engine->create_tensor({4, 2}, Core::DataType::Half);
 
             ASSERT_FALSE(inner.is_contiguous());
-            const std::string msg =
-                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(inner, dst); });
-            EXPECT_NE(std::string::npos, msg.find("strided")) << msg;
+            const std::string message = refusal_of([&] { ElementwiseOps(recorder()).convert(inner, dst); });
+
+            EXPECT_NE(std::string::npos, message.find("strided")) << message;
         }
 
-        /**
-         * @brief Tests that overlapping operands are refused.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, OverlappingOperandsAreRefused)
+        /// @brief Tests that two views sharing bytes are refused as overlapping.
+        TEST_F(Small_ConvertTest, OverlappingOperandsAreRefused)
         {
-            constexpr int64_t kN = 8;
-            auto storage = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Residency::Shared);
-
+            constexpr int64_t K_N = 8;
+            auto storage = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
             // Two FLOAT32 views four elements apart over eight elements share the middle four.
-            Tensor a(storage, {kN}, Core::DataType::Float32, 0);
-            Tensor b(storage, {kN}, Core::DataType::Float32, kN / 2);
+            Tensor a = view_of(storage, Core::DataType::Float32, K_N, 0);
+            Tensor b = view_of(storage, Core::DataType::Float32, K_N, K_N / 2);
 
-            const std::string msg =
-                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(a, b); });
-            EXPECT_NE(std::string::npos, msg.find("overlap")) << msg;
+            const std::string message = refusal_of([&] { ElementwiseOps(recorder()).convert(a, b); });
+
+            EXPECT_NE(std::string::npos, message.find("overlap")) << message;
         }
 
-        /**
-         * @brief Tests that a convert is ordered behind the op that wrote its offset source view.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, AConvertIsOrderedBehindTheOpThatWroteItsSource)
+        /// @brief Tests that a convert declares the byte interval of its offset source view as a read.
+        TEST_F(Small_ConvertTest, AConvertReadsTheByteIntervalOfItsSource)
         {
-            GraphProbe probe;
+            constexpr int64_t K_N = 4;
+            auto arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
+            Tensor seed = view_of(arena, Core::DataType::Float32, K_N, 0);
+            Tensor src = view_of(arena, Core::DataType::Float32, K_N, K_N);
+            Tensor dst = engine->create_tensor({K_N}, Core::DataType::Half);
 
-            constexpr int64_t kN = 4;
-            auto arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Residency::Shared);
+            ElementwiseOps(recorder()).convert(src, dst);
 
-            Tensor seed(arena, {kN}, Core::DataType::Float32, 0);
-            Tensor src(arena, {kN}, Core::DataType::Float32, kN);
-            auto dst = engine->create_tensor({kN}, Core::DataType::Half);
-            write_exact(seed, {1.0, 2.0, 3.0, 4.0});
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, src);
-            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst);
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                << "The convert reading `src` must depend on the op that wrote it. An "
-                   "in-degree of 0 means the read was declared from a bare pointer rather "
-                   "than from Tensor::region(), so the tracker filed it under a resource "
-                   "nothing else touches and emitted no edge at all.";
+            const std::vector<HostTaskRecord> records = recording->records();
+            ASSERT_EQ(records.size(), 1u);
+            ASSERT_EQ(records[0].reads.size(), 1u);
+            EXPECT_TRUE(records[0].reads[0].overlaps(src.region()));
+            EXPECT_FALSE(records[0].reads[0].overlaps(seed.region()));
         }
 
-        TEST_F(Medium_ConvertTest, AReaderOfTheConvertedTensorIsOrderedBehindTheConvert)
+        /// @brief Tests that a convert declares the byte interval of its offset target view as a write.
+        TEST_F(Small_ConvertTest, AConvertWritesTheByteIntervalOfItsTarget)
         {
-            GraphProbe probe;
+            constexpr int64_t K_N = 4;
+            auto arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
+            Tensor head = view_of(arena, Core::DataType::Float32, K_N, 0);
+            Tensor src = engine->create_tensor({K_N}, Core::DataType::Float32);
+            Tensor dst = view_of(arena, Core::DataType::Float32, K_N, K_N);
 
-            constexpr int64_t kN = 4;
-            auto arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Residency::Shared);
+            ElementwiseOps(recorder()).convert(src, dst);
 
-            auto src = engine->create_tensor({kN}, Core::DataType::Float32);
-            Tensor dst(arena, {kN}, Core::DataType::Float32, kN);
-            auto total = engine->create_tensor({1}, Core::DataType::Float32);
-            write_exact(src, {1.0, 2.0, 3.0, 4.0});
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst);
-            SushiBLAS::ReductionOps(probe.recorder()).sum(dst, total);
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                << "The write set must name `dst` by its own byte interval, so the "
-                   "reduction reading it is ordered behind the conversion. `dst` is a view "
-                   "partway into an arena, which is where a bare-pointer write set stops "
-                   "agreeing with the reader's region.";
+            const std::vector<HostTaskRecord> records = recording->records();
+            ASSERT_EQ(records.size(), 1u);
+            ASSERT_EQ(records[0].writes.size(), 1u);
+            EXPECT_TRUE(records[0].writes[0].overlaps(dst.region()));
+            EXPECT_FALSE(records[0].writes[0].overlaps(head.region()));
         }
 
-        /**
-         * @brief Tests that converts over disjoint views of one arena get no edge between them.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, ConvertsOverDisjointViewsOfOneArenaDoNotSerialise)
+        /// @brief Tests that converts over disjoint views of one arena declare regions that share no bytes.
+        TEST_F(Small_ConvertTest, ConvertsOverDisjointViewsOfOneArenaDeclareNoSharedBytes)
         {
-            GraphProbe probe;
+            constexpr int64_t K_N = 8;
+            auto f32_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
+            auto f16_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(sycl::half));
+            Tensor src_a = view_of(f32_arena, Core::DataType::Float32, K_N, 0);
+            Tensor src_b = view_of(f32_arena, Core::DataType::Float32, K_N, K_N);
+            Tensor dst_a = view_of(f16_arena, Core::DataType::Half, K_N, 0);
+            Tensor dst_b = view_of(f16_arena, Core::DataType::Half, K_N, K_N);
 
-            constexpr int64_t kN = 8;
+            ElementwiseOps(recorder()).convert(src_a, dst_a);
+            ElementwiseOps(recorder()).convert(src_b, dst_b);
 
-            auto f32_arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Residency::Shared);
-            auto f16_arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::Residency::Shared);
-
-            Tensor src_a(f32_arena, {kN}, Core::DataType::Float32, 0);
-            Tensor src_b(f32_arena, {kN}, Core::DataType::Float32, kN);
-            Tensor dst_a(f16_arena, {kN}, Core::DataType::Half, 0);
-            Tensor dst_b(f16_arena, {kN}, Core::DataType::Half, kN);
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src_a, dst_a);
-            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src_b, dst_b);
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-            EXPECT_EQ(0u, (*tasks)[0].dependency_count);
-            EXPECT_EQ(0u, (*tasks)[1].dependency_count)
-                << "Two conversions over non-overlapping halves of one arena share no "
-                   "bytes, so neither may depend on the other. An in-degree of 1 means the "
-                   "operands were described by their allocation rather than by their own "
-                   "byte interval, which serialises everything a memory planner packs.";
+            const std::vector<HostTaskRecord> records = recording->records();
+            ASSERT_EQ(records.size(), 2u);
+            EXPECT_FALSE(records[0].reads[0].overlaps(records[1].reads[0]));
+            EXPECT_FALSE(records[0].writes[0].overlaps(records[1].writes[0]));
+            EXPECT_FALSE(records[0].reads[0].overlaps(records[1].writes[0]));
+            EXPECT_FALSE(records[0].writes[0].overlaps(records[1].reads[0]));
         }
 
-        /**
-         * @brief Tests that a view at a non-zero offset converts its own elements and no others.
-         * @see tests/operations/elementwise/README.md
-         */
-        TEST_F(Medium_ConvertTest, AViewAtANonZeroOffsetConvertsItsOwnElements)
+        /// @brief Tests that a view at a non-zero offset converts its own elements.
+        TEST_F(Small_ConvertTest, AViewAtANonZeroOffsetConvertsItsOwnElements)
         {
-            constexpr int64_t kN = 4;
+            constexpr int64_t K_N = 4;
+            auto f32_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
+            auto f16_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(sycl::half));
+            Tensor tail = view_of(f32_arena, Core::DataType::Float32, K_N, K_N);
+            Tensor out_tail = view_of(f16_arena, Core::DataType::Half, K_N, K_N);
+            write_exact(tail, {5.0, 6.0, 7.0, 8.0});
 
-            auto f32_arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Residency::Shared);
-            auto f16_arena = make_runtime_storage(TestEnvironment::runtime(),
-                static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::Residency::Shared);
+            ElementwiseOps(recorder()).convert(tail, out_tail);
+            ASSERT_TRUE(recording->run_succeeds());
 
-            Tensor head(f32_arena, {kN}, Core::DataType::Float32, 0);
-            Tensor tail(f32_arena, {kN}, Core::DataType::Float32, kN);
-            Tensor out_head(f16_arena, {kN}, Core::DataType::Half, 0);
-            Tensor out_tail(f16_arena, {kN}, Core::DataType::Half, kN);
+            EXPECT_EQ((std::vector<double>{5.0, 6.0, 7.0, 8.0}), read_exact(out_tail));
+        }
 
-            write_exact(head, {1.0, 2.0, 3.0, 4.0});
+        /// @brief Tests that converting the tail view leaves the head bytes of the target arena as they were.
+        TEST_F(Small_ConvertTest, AViewAtANonZeroOffsetLeavesTheHeadUntouched)
+        {
+            constexpr int64_t K_N = 4;
+            auto f32_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(float));
+            auto f16_arena = make_host_storage(static_cast<std::size_t>(2 * K_N) * sizeof(sycl::half));
+            Tensor tail = view_of(f32_arena, Core::DataType::Float32, K_N, K_N);
+            Tensor out_head = view_of(f16_arena, Core::DataType::Half, K_N, 0);
+            Tensor out_tail = view_of(f16_arena, Core::DataType::Half, K_N, K_N);
             write_exact(tail, {5.0, 6.0, 7.0, 8.0});
             write_exact(out_head, {-1.0, -1.0, -1.0, -1.0});
 
-            SushiBLAS::ElementwiseOps(recorder()).convert(tail, out_tail);
-            recording->run().value();
+            ElementwiseOps(recorder()).convert(tail, out_tail);
+            ASSERT_TRUE(recording->run_succeeds());
 
-            const auto got_tail = read_exact(out_tail);
-            EXPECT_EQ(5.0, got_tail[0]);
-            EXPECT_EQ(8.0, got_tail[3]);
-
-            const auto got_head = read_exact(out_head);
-            for (size_t i = 0; i < 4; ++i)
-            {
-                EXPECT_EQ(-1.0, got_head[i])
-                    << "Converting the tail view wrote over the head at index " << i
-                    << ", which is what dropping storage_offset looks like.";
-            }
+            // A conversion that dropped storage_offset would write over the head.
+            EXPECT_EQ((std::vector<double>{-1.0, -1.0, -1.0, -1.0}), read_exact(out_head));
         }
-
     } // namespace Test
 } // namespace SushiBLAS
