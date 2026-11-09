@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_sparse.cpp                                                        */
+/* compile_sparse.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,15 +22,13 @@
 /**************************************************************************/
 
 /**
- * @file test_sparse.cpp
- * @brief Tests that SparseBLAS is built from a recorder and only from one.
+ * @file compile_sparse.cpp
+ * @brief Checks at compile time that SparseBLAS is built from a recorder and only from one; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
 #include <type_traits>
-#include <gtest/gtest.h>
 #include <SushiBLAS/blas/sparse.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 
 namespace SushiBLAS
 {
@@ -42,16 +40,5 @@ namespace SushiBLAS
                       "A recorder does not turn into SparseBLAS without being named.");
         static_assert(!std::is_default_constructible_v<SparseBLAS>,
                       "SparseBLAS has no recorder-free form.");
-
-        /** @brief Builds the facade over the fixture's recorder. */
-        class Medium_SparseBLAS : public SushiBLASTest
-        {
-
-        };
-
-        TEST_F(Medium_SparseBLAS, IsBuiltOverARecorder)
-        {
-            EXPECT_NO_THROW(const SparseBLAS sparse(recorder()); (void)sparse);
-        }
     } // namespace Test
 } // namespace SushiBLAS

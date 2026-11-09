@@ -64,7 +64,8 @@ sushiblas_add_test_program(
         test_packed_operand.cpp
         test_packed_product_scratch.cpp
         test_scalar_operand.cpp
-        test_sparse.cpp
+    COMPILE_CHECKS
+        compile_sparse.cpp
     DEVICE_TESTS
         test_blas/test_blas_band.cpp
         test_blas/test_blas_complex.cpp

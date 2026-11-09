@@ -50,7 +50,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand |
 | `test_packed_product_scratch.cpp` | Tests that the packed product leases the scratch its plan names, and none without a plan |
 | `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand |
-| `test_sparse.cpp` | Tests that SparseBLAS is built from a recorder and only from one |
+| `compile_sparse.cpp` | Checks at compile time that SparseBLAS is built from a recorder and only from one; the build compiles it and no test runner lists it |
 
 ## test_blas/test_gemm.cpp
 
