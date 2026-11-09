@@ -30,20 +30,23 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Medium_ReciprocalTest : public SushiBLASTest {};
+class Small_ReciprocalTest : public HostEngineTest {};
 
-TEST_F(Medium_ReciprocalTest, FloatForward) 
+/**
+ * @brief Tests that the recorded reciprocal replaces each element with its multiplicative inverse when the task runs.
+ */
+TEST_F(Small_ReciprocalTest, ReciprocalReplacesEachElementWithItsInverse) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(recorder()).reciprocal(t);
-    recording->run().value();
+    ASSERT_TRUE(recording->run_succeeds());
     
     expect_tensor(t, {1.00000f, 0.50000f, -0.33333f, 2.00000f});
 }
