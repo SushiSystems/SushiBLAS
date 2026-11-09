@@ -15,13 +15,6 @@ backlog = "RW-133"
 [[finding]]
 checker = "testing/check_test_value.py"
 rule = "rule_weak_assertion_only"
-path = "tests/operations/elementwise/test_elementwise/test_ordered_sum.cpp"
-count = 1
-backlog = "RW-133"
-
-[[finding]]
-checker = "testing/check_test_value.py"
-rule = "rule_weak_assertion_only"
 path = "tests/operations/experimental/test_dense_operand.cpp"
 count = 1
 backlog = "RW-133"

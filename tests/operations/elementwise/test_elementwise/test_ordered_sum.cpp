@@ -41,6 +41,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -176,17 +177,73 @@ namespace SushiBLAS
                     return static_cast<T>(value);
             }
 
-            /// @brief The weights a case with n inputs uses: the first n of K_WEIGHTS, or all 1 for
-            ///        an integer type.
+            /// @brief The weights a case with n inputs uses: K_WEIGHTS repeated to n entries, or all 1
+            ///        for an integer type.
             template<typename T>
             std::vector<double> weights_for(std::size_t n)
             {
-                if constexpr (std::is_integral_v<T>)
-                    return std::vector<double>(n, 1.0);
-                else
-                    return std::vector<double>(K_WEIGHTS.begin(),
-                                               K_WEIGHTS.begin() + static_cast<std::ptrdiff_t>(n));
+                std::vector<double> weights(n, 1.0);
+                if constexpr (!std::is_integral_v<T>)
+                {
+                    for (std::size_t k = 0; k < n; ++k)
+                        weights[k] = K_WEIGHTS[k % K_WEIGHTS.size()];
+                }
+                return weights;
             }
+
+            /// @brief The weights of the hand-worked case: 2 and 3, or 1 and 1 for an integer type.
+            template<typename T>
+            std::vector<double> hand_weights()
+            {
+                if constexpr (std::is_integral_v<T>)
+                    return {1.0, 1.0};
+                else
+                    return {2.0, 3.0};
+            }
+
+            /// @brief The sum of the hand-worked inputs 1 and 4: 2 * 1 + 3 * 4 = 14, or 1 + 4 = 5.
+            template<typename T>
+            T hand_total()
+            {
+                if constexpr (std::is_integral_v<T>)
+                    return make_value<T>(5.0);
+                else
+                    return make_value<T>(14.0);
+            }
+
+            /**
+             * @brief Names an element type and an input count, one row of the serial-sum table.
+             * @tparam Element One of the seven element types.
+             * @tparam Inputs How many inputs the sum takes.
+             */
+            template<typename Element, std::size_t Inputs>
+            struct SerialCase
+            {
+                /// @brief The element type.
+                using Type = Element;
+
+                /// @brief The number of inputs.
+                static constexpr std::size_t K_INPUTS = Inputs;
+            };
+
+            /// @brief The input counts of the table: one, two, five and the limit.
+            template<typename Element>
+            using SerialCounts =
+                ::testing::Types<SerialCase<Element, 1>, SerialCase<Element, 2>,
+                                 SerialCase<Element, 5>,
+                                 SerialCase<Element, ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS>>;
+
+            /// @brief Joins two type lists.
+            template<typename First, typename Second>
+            struct Joined;
+
+            /// @brief Joins two type lists.
+            template<typename... A, typename... B>
+            struct Joined<::testing::Types<A...>, ::testing::Types<B...>>
+            {
+                /// @brief The joined list.
+                using type = ::testing::Types<A..., B...>;
+            };
         } // namespace
 
         /**
@@ -194,7 +251,7 @@ namespace SushiBLAS
          * @tparam T One of the seven element types.
          */
         template<typename T>
-        class Medium_OrderedSumTest : public SushiBLASTest
+        class OrderedSumFixture : public SushiBLASTest
         {
             protected:
                 /// @brief Uploads each vector as a K_ROWS x K_COLUMNS tensor.
@@ -238,180 +295,84 @@ namespace SushiBLAS
                         same_bits(expected, run_sum(ExecutionMode::ForceSYCL, inputs, weights)))
                         << "the SYCL path differs from the serial sum for n = " << n;
                 }
-
-                /// @brief Returns one tensor of this fixture's type and shape.
-                Tensor make_tensor()
-                {
-                    return this->engine->create_tensor({K_ROWS, K_COLUMNS}, sushiblas_dtype<T>());
-                }
         };
+
+        /// @brief Runs one row of the serial-sum table: an element type and an input count.
+        template<typename Case>
+        class Medium_OrderedSumSerialTest : public OrderedSumFixture<typename Case::Type> {};
+
+        /// @brief Runs the cases that hold for each of the seven element types.
+        template<typename T>
+        class Medium_OrderedSumTest : public OrderedSumFixture<T> {};
+
+        /// @brief Runs the cases of the real and complex types, which take any weight.
+        template<typename T>
+        class Medium_OrderedSumWeightedTest : public OrderedSumFixture<T> {};
+
+        /// @brief Runs the cases of the integer types, which take weight 1 and wrap.
+        template<typename T>
+        class Medium_OrderedSumIntegerTest : public OrderedSumFixture<T> {};
 
         /// @brief The seven element types under test.
         using OrderedSumTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                  std::complex<double>, int32_t, int64_t>;
+
+        /// @brief The real and complex element types.
+        using WeightedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
+                                               std::complex<double>>;
+
+        /// @brief The integer element types.
+        using IntegerTypes = ::testing::Types<int32_t, int64_t>;
+
+        /// @brief Every element type at every input count of the table.
+        using SerialRows = typename Joined<
+            typename Joined<
+                typename Joined<SerialCounts<sycl::half>, SerialCounts<float>>::type,
+                typename Joined<SerialCounts<double>, SerialCounts<std::complex<float>>>::type>::type,
+            typename Joined<
+                typename Joined<SerialCounts<std::complex<double>>, SerialCounts<int32_t>>::type,
+                SerialCounts<int64_t>>::type>::type;
+
+        TYPED_TEST_SUITE(Medium_OrderedSumSerialTest, SerialRows, DefaultTypeNames);
         TYPED_TEST_SUITE(Medium_OrderedSumTest, OrderedSumTypes, DefaultTypeNames);
+        TYPED_TEST_SUITE(Medium_OrderedSumWeightedTest, WeightedTypes, DefaultTypeNames);
+        TYPED_TEST_SUITE(Medium_OrderedSumIntegerTest, IntegerTypes, DefaultTypeNames);
 
-        /// @brief Tests that one input is copied through its weight.
-        TYPED_TEST(Medium_OrderedSumTest, OneInputEqualsTheSerialSum)
+        /// @brief Tests that a sum of the row's input count equals the serial sum on both paths.
+        TYPED_TEST(Medium_OrderedSumSerialTest, ASumEqualsTheSerialSumBitForBit)
         {
-            this->expect_serial_equality(1);
+            this->expect_serial_equality(TypeParam::K_INPUTS);
         }
 
-        /// @brief Tests that two inputs add in index order.
-        TYPED_TEST(Medium_OrderedSumTest, TwoInputsEqualTheSerialSum)
-        {
-            this->expect_serial_equality(2);
-        }
-
-        /// @brief Tests that five inputs add in index order.
-        TYPED_TEST(Medium_OrderedSumTest, FiveInputsEqualTheSerialSum)
-        {
-            this->expect_serial_equality(5);
-        }
-
-        /// @brief Tests the hand-worked values 2 * 1 + 3 * 4 = 14, and 1 + 4 = 5 for an integer
-        ///        type.
+        /// @brief Tests the hand-worked values 2 * 1 + 3 * 4 = 14, and 1 + 4 = 5 for an integer type.
         TYPED_TEST(Medium_OrderedSumTest, HandWorkedSumIsExact)
         {
             using T = TypeParam;
-            const bool integer = std::is_integral_v<T>;
             const std::vector<T> first(K_ELEMENTS, make_value<T>(1.0));
             const std::vector<T> second(K_ELEMENTS, make_value<T>(4.0));
-            const std::vector<double> weights = integer ? std::vector<double>{1.0, 1.0}
-                                                        : std::vector<double>{2.0, 3.0};
             const std::vector<Tensor> inputs = this->upload({first, second});
 
-            const std::vector<T> got = this->run_sum(ExecutionMode::ForceSYCL, inputs, weights);
-            const T expected = make_value<T>(integer ? 5.0 : 14.0);
-            EXPECT_TRUE(same_bits(std::vector<T>(K_ELEMENTS, expected), got));
+            const std::vector<T> got =
+                this->run_sum(ExecutionMode::ForceSYCL, inputs, hand_weights<T>());
+            EXPECT_TRUE(same_bits(std::vector<T>(K_ELEMENTS, hand_total<T>()), got));
         }
 
-        /// @brief Tests that an empty input list is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesNoInputs)
-        {
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             std::vector<Tensor>{}, std::vector<double>{}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that a weight count that differs from the input count is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesAWeightCountThatDiffers)
-        {
-            const std::vector<Tensor> inputs{this->make_tensor(), this->make_tensor()};
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that inputs of two shapes are refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesMismatchedShapes)
-        {
-            const std::vector<Tensor> inputs{
-                this->make_tensor(),
-                this->engine->create_tensor({K_ROWS, K_COLUMNS + 1}, sushiblas_dtype<TypeParam>())};
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0, 1.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that an output of another shape is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesAnOutputOfAnotherShape)
-        {
-            const std::vector<Tensor> inputs{this->make_tensor()};
-            Tensor out =
-                this->engine->create_tensor({K_ROWS, K_COLUMNS + 1}, sushiblas_dtype<TypeParam>());
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that an input of another type than the first is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesMismatchedTypes)
+        /// @brief Tests that a weight of 2 on one input of 3 gives 6.
+        TYPED_TEST(Medium_OrderedSumWeightedTest, AWeightOfTwoDoublesItsInput)
         {
             using T = TypeParam;
-            const Core::DataType other = std::is_same_v<T, float> ? Core::DataType::Float64
-                                                                   : Core::DataType::Float32;
-            const std::vector<Tensor> inputs{
-                this->make_tensor(), this->engine->create_tensor({K_ROWS, K_COLUMNS}, other)};
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0, 1.0}, out),
-                         std::invalid_argument);
-        }
+            const std::vector<T> input(K_ELEMENTS, make_value<T>(3.0));
+            const std::vector<Tensor> inputs = this->upload({input});
 
-        /// @brief Tests that an output of another type than the inputs is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesAnOutputOfAnotherType)
-        {
-            using T = TypeParam;
-            const Core::DataType other = std::is_same_v<T, float> ? Core::DataType::Float64
-                                                                   : Core::DataType::Float32;
-            const std::vector<Tensor> inputs{this->make_tensor()};
-            Tensor out = this->engine->create_tensor({K_ROWS, K_COLUMNS}, other);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that an output that is also an input is refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesAnOutputThatOverlapsAnInput)
-        {
-            Tensor out = this->make_tensor();
-            const std::vector<Tensor> inputs{out};
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that more inputs than the limit are refused.
-        TYPED_TEST(Medium_OrderedSumTest, RefusesMoreInputsThanTheLimit)
-        {
-            const std::vector<Tensor> inputs(ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1,
-                                             this->make_tensor());
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder())
-                             .ordered_sum(inputs,
-                                          std::vector<double>(
-                                              ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1, 1.0),
-                                          out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that the integer types refuse a weight other than 1.
-        TYPED_TEST(Medium_OrderedSumTest, IntegerSumRefusesAWeightOtherThanOne)
-        {
-            if (!std::is_integral_v<TypeParam>)
-                GTEST_SKIP() << "Only the integer types refuse a weight.";
-
-            const std::vector<Tensor> inputs{this->make_tensor(), this->make_tensor()};
-            Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs, std::vector<double>{1.0, 2.0}, out),
-                         std::invalid_argument);
-        }
-
-        /// @brief Tests that the floating and complex types accept a weight other than 1.
-        TYPED_TEST(Medium_OrderedSumTest, FloatingSumAcceptsAWeightOtherThanOne)
-        {
-            if (std::is_integral_v<TypeParam>)
-                GTEST_SKIP() << "The integer types take only weight 1.";
-
-            const std::vector<Tensor> inputs{this->make_tensor()};
-            Tensor out = this->make_tensor();
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                inputs, std::vector<double>{2.0}, out));
-            this->recording->run().value();
+            const std::vector<T> got =
+                this->run_sum(ExecutionMode::ForceSYCL, inputs, std::vector<double>{2.0});
+            EXPECT_TRUE(same_bits(std::vector<T>(K_ELEMENTS, make_value<T>(6.0)), got));
         }
 
         /// @brief Tests that integers wrap modulo 2^N instead of overflowing.
-        TYPED_TEST(Medium_OrderedSumTest, IntegerSumWrapsAround)
+        TYPED_TEST(Medium_OrderedSumIntegerTest, ASumWrapsAround)
         {
             using T = TypeParam;
-            if (!std::is_integral_v<T>)
-                GTEST_SKIP() << "Only the integer types wrap.";
-
             const std::vector<T> maximum(K_ELEMENTS, std::numeric_limits<T>::max());
             const std::vector<T> one(K_ELEMENTS, make_value<T>(1.0));
             const std::vector<Tensor> inputs = this->upload({maximum, one});
@@ -419,6 +380,122 @@ namespace SushiBLAS
             const std::vector<T> got = this->run_sum(ExecutionMode::ForceSYCL, inputs,
                                                      std::vector<double>{1.0, 1.0});
             EXPECT_TRUE(same_bits(std::vector<T>(K_ELEMENTS, std::numeric_limits<T>::min()), got));
+        }
+
+        /// @brief Records ordered_sum on a host engine; every refusal is decided on counts, shapes, types and regions.
+        class Small_OrderedSumRefusal : public HostEngineTest
+        {
+            protected:
+                /// @brief Returns a tensor of the shared shape in the given type.
+                Tensor make_tensor(Core::DataType dtype = Core::DataType::Float32)
+                {
+                    return engine->create_tensor({K_ROWS, K_COLUMNS}, dtype);
+                }
+
+                /// @brief Expects the sum to be refused with nothing recorded.
+                void expect_refused(const std::vector<Tensor>& inputs, const std::vector<double>& weights,
+                                    Tensor& out)
+                {
+                    EXPECT_THROW(ElementwiseOps(recorder()).ordered_sum(inputs, weights, out),
+                                 std::invalid_argument);
+                    EXPECT_EQ(recording->recorded_count(), 0u);
+                }
+        };
+
+        /// @brief Tests that an empty input list is refused.
+        TEST_F(Small_OrderedSumRefusal, NoInputsAreRefused)
+        {
+            Tensor out = make_tensor();
+
+            expect_refused({}, {}, out);
+        }
+
+        /// @brief Tests that a weight count that differs from the input count is refused.
+        TEST_F(Small_OrderedSumRefusal, AWeightCountThatDiffersIsRefused)
+        {
+            Tensor out = make_tensor();
+
+            expect_refused({make_tensor(), make_tensor()}, {1.0}, out);
+        }
+
+        /// @brief Tests that inputs of two shapes are refused.
+        TEST_F(Small_OrderedSumRefusal, MismatchedInputShapesAreRefused)
+        {
+            Tensor out = make_tensor();
+            const Tensor wider = engine->create_tensor({K_ROWS, K_COLUMNS + 1}, Core::DataType::Float32);
+
+            expect_refused({make_tensor(), wider}, {1.0, 1.0}, out);
+        }
+
+        /// @brief Tests that an output of another shape is refused.
+        TEST_F(Small_OrderedSumRefusal, AnOutputOfAnotherShapeIsRefused)
+        {
+            Tensor out = engine->create_tensor({K_ROWS, K_COLUMNS + 1}, Core::DataType::Float32);
+
+            expect_refused({make_tensor()}, {1.0}, out);
+        }
+
+        /// @brief Tests that an input of another type than the first is refused.
+        TEST_F(Small_OrderedSumRefusal, MismatchedInputTypesAreRefused)
+        {
+            Tensor out = make_tensor();
+
+            expect_refused({make_tensor(), make_tensor(Core::DataType::Int32)}, {1.0, 1.0}, out);
+        }
+
+        /// @brief Tests that an output of another type than the inputs is refused.
+        TEST_F(Small_OrderedSumRefusal, AnOutputOfAnotherTypeIsRefused)
+        {
+            Tensor out = make_tensor(Core::DataType::Int32);
+
+            expect_refused({make_tensor()}, {1.0}, out);
+        }
+
+        /// @brief Tests that an output that is also an input is refused.
+        TEST_F(Small_OrderedSumRefusal, AnOutputThatOverlapsAnInputIsRefused)
+        {
+            Tensor out = make_tensor();
+
+            expect_refused({out}, {1.0}, out);
+        }
+
+        /// @brief Tests that more inputs than the limit are refused.
+        TEST_F(Small_OrderedSumRefusal, MoreInputsThanTheLimitAreRefused)
+        {
+            Tensor out = make_tensor();
+            const std::size_t count = ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1;
+
+            expect_refused(std::vector<Tensor>(count, make_tensor()), std::vector<double>(count, 1.0), out);
+        }
+
+        /// @brief Tests that the limit itself is accepted.
+        TEST_F(Small_OrderedSumRefusal, ExactlyTheLimitOfInputsIsAccepted)
+        {
+            Tensor out = make_tensor();
+            const std::size_t count = ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS;
+
+            EXPECT_NO_THROW(ElementwiseOps(recorder()).ordered_sum(
+                std::vector<Tensor>(count, make_tensor()), std::vector<double>(count, 1.0), out));
+            EXPECT_EQ(recording->recorded_count(), 1u);
+        }
+
+        /// @brief Tests that an integer sum refuses a weight other than 1.
+        TEST_F(Small_OrderedSumRefusal, AnIntegerSumRefusesAWeightOtherThanOne)
+        {
+            Tensor out = make_tensor(Core::DataType::Int32);
+
+            expect_refused({make_tensor(Core::DataType::Int32), make_tensor(Core::DataType::Int32)},
+                           {1.0, 2.0}, out);
+        }
+
+        /// @brief Tests that a floating sum accepts a weight other than 1.
+        TEST_F(Small_OrderedSumRefusal, AFloatingSumAcceptsAWeightOtherThanOne)
+        {
+            Tensor out = make_tensor();
+
+            EXPECT_NO_THROW(ElementwiseOps(recorder()).ordered_sum(std::vector<Tensor>{make_tensor()},
+                                                                 std::vector<double>{2.0}, out));
+            EXPECT_EQ(recording->recorded_count(), 1u);
         }
     } // namespace Test
 } // namespace SushiBLAS
