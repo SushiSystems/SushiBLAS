@@ -158,7 +158,7 @@ ran. `AnEpilogueOperandIsKept` does the same for a tensor declared through
 ### SyrkAcceptsHalfDtype
 
 SYRK's oneMKL-backed implementation threw for `sycl::half`, because oneMKL has no half-precision
-SYRK. The SB-2 port to the tiling kernel lifted that restriction. This test is what catches a return of the restriction at the umbrella.
+SYRK. The SB-2 port to the tiling kernel lifted that restriction. This test is what catches a return of the restriction at the umbrella. It checks the lower triangle of A * A^T for a 4 x 3 integer A.
 
 ### GemmColumnMajorOperandsUseColumnStrides
 
@@ -183,14 +183,14 @@ B (2x2) = [[1,0],[1,1]]         column-major [1,1,0,1],       ldb = 2
 A*B     = [[3,2],[7,4],[11,6]]  column-major [3,7,11,2,4,6],  ldc = 3
 ```
 
-### Fp64Level1ScalarsAreNotNarrowedToFloat
+### Fp64AxpyIsNotNarrowedToFloat and Fp64ScalIsNotNarrowedToFloat
 
 `axpy`, `scal` and `gemv` declared their scalars `float` while `gemm` declared `double`. An fp64
 computation received a float-rounded scalar: about 1e-7 relative error and no diagnostic.
 
 The test uses alpha = 1 + 2^-30. A double holds that value exactly and a float rounds it to
 exactly 1.0, so the right answer and the narrowed answer are different numbers and not two close
-ones. `scal` is checked in the same test because it had the same defect in the other Level 1
+ones. `scal` has its own test because it had the same defect in the other Level 1
 entry point.
 
 ### BatchedGemmAdvancesEveryBatchSlice
@@ -209,7 +209,7 @@ aliased slice 0 changes the answer:
 A_i = (i+1) * I(2)     B_i = {{1,2},{3,4}} + i     C_i = A_i * B_i
 ```
 
-### AccumulatingOpsDeclareTheirAccumulatorRead
+### GerDeclaresItsAccumulatorRead, GemvWithBetaDeclaresItsAccumulatorRead and GemvWithoutBetaStaysAPureWrite
 
 `ger`, and `gemv` with beta != 0, declared their accumulator write-only while reading it. The
 order still came out right because the tracker inserts a write-after-write edge anyway, so the
@@ -240,14 +240,13 @@ The test asserts on the recorded graph and not on the answer. Without the edge t
 still run in the right order by luck, and a test that passes by luck guards nothing. The
 `dependency_count` of the second task decides it. The two views are disjoint and the consumer's operand is
 not at offset zero, which is the shape a memory planner produces and the one where a bare-pointer
-region and a real region disagree. The same pair of ops is then run once more and its sum
-compared, for a reader who wants to see the behaviour as well.
+region and a real region disagree. `TheSumOfTheProductsIsTheSumOfTheSquares` runs the same pair of ops once more
+and compares its sum, for a reader who wants to see the behaviour as well.
 
 ### scalar_of
 
-The nrm2 sentinels check values near 1e38 and 1e-40. The absolute tolerance `expect_tensor`
-applies means nothing there: 1e-4 of absolute slack accepts any answer against 2e38 and rejects
-every answer at 5e-40. The sentinels compare relative error, so they read the raw number.
+The nrm2 sentinel reads the one FLOAT32 word of its result to the host and compares it with
+`EXPECT_NEAR`, because the answer is a single number and not a tensor to compare.
 
 ### Nrm2UsesTheModulusOfAComplexElement
 
