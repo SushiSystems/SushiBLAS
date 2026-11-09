@@ -45,4 +45,4 @@ sushiblas_add_test_program(
         sycl/level3/test_gemm_packed.cpp
         sycl/level3/test_packed_product.cpp
     COMPILE_CHECKS
-        test_blas_seam_kernels_log_category.cpp)
+        compile_blas_seam_kernels_log_category.cpp)

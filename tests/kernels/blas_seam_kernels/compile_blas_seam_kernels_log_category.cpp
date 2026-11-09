@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_blas_seam_kernels_log_category.cpp                                */
+/* compile_blas_seam_kernels_log_category.cpp                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,7 +22,7 @@
 /**************************************************************************/
 
 /**
- * @file test_blas_seam_kernels_log_category.cpp
+ * @file compile_blas_seam_kernels_log_category.cpp
  * @brief Checks at compile time that the log category names its module and the SushiBLAS project; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */

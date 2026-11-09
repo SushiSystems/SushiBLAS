@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `compile_blas_seam_kernels_log_category.cpp` | Compile check, never run: the log category names its module and the SushiBLAS project |
 | `level3/test_channel_bias_epilogue.cpp` | Tests that the channel bias epilogue adds the bias its stride pair names |
 | `level3/test_gemm_epilogue.cpp` | Tests that the identity epilogue returns the product element unchanged |
 | `level3/test_gemm_tile_catalog.cpp` | Tests the sizes and the stable names of the tiled GEMM's catalog shapes |
