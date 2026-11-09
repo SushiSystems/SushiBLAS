@@ -217,10 +217,18 @@ bit-reproducibility contract, inherited from the PUBLIC link against
 Nothing in the unit tier catches that, so these tests live in the regression tier and compare raw
 bit patterns. `EXPECT_FLOAT_EQ` would accept the very difference they look for.
 
+The oracle of each case is the same operation recorded under `ForceReference`, whose host kernel
+folds in a fixed order, and the code under test is the device kernel. A second run of the device
+kernel is not an oracle, because it passes whenever the kernel is wrong the same way twice.
+`WindowDotWeightsBackwardMatchesTheReferenceBits` and `MeanSpatialMatchesTheReferenceBits` fold
+through the compensated segmented reduction, whose cooperative shape combines in a halving tree
+and not in ascending order; their agreement with the reference rests on the compensated sum
+recovering the same bits in both orders, which no run has confirmed yet.
+
 Every case uses overlapping windows. A non-overlapping geometry has one contribution per output
 element and would pass with an atomic add in place.
 
-### fill_order_sensitive
+### order_sensitive_values
 
 A ramp of similar magnitudes can be reordered without changing one bit of the total, which would
 let every test in the file pass without proving anything. The helper alternates a large magnitude
@@ -229,15 +237,15 @@ with a small one, which makes the sum non-associative in binary32: `1e8 + 1.0` r
 
 ### Geometry of each case
 
-- `Col2ImIsBitReproducible`: 3x3, stride 1, padded by one. Every interior pixel gathers nine
+- `Col2ImMatchesTheReferenceBits`: 3x3, stride 1, padded by one. Every interior pixel gathers nine
   terms of alternating magnitude.
-- `MaxPoolBackwardIsBitReproducible`: 2x2, stride 1, the pool of YOLOv3-tiny. A pixel selected by
+- `MaxPoolBackwardMatchesTheReferenceBits`: 2x2, stride 1, the pool of YOLOv3-tiny. A pixel selected by
   several overlapping windows accumulates all of their gradients, and that is the only place this
   operation adds anything. The input has one dominant pixel per channel plane so that every
   window in reach selects it. A generic input would give most pixels a single contributor.
-- `AvgPoolBackwardIsBitReproducible`: 3x3, stride 1. Every interior pixel gathers nine shares.
-- `UpsampleBackwardIsBitReproducible`: scale 3 in both axes. Every input pixel gathers nine terms.
-- `MeanSpatialIsBitReproducible`: few segments over a long extent (2 x 256 x 256 x 2). The
+- `AvgPoolBackwardMatchesTheReferenceBits`: 3x3, stride 1. Every interior pixel gathers nine shares.
+- `UpsampleBackwardMatchesTheReferenceBits`: scale 3 in both axes. Every input pixel gathers nine terms.
+- `MeanSpatialMatchesTheReferenceBits`: few segments over a long extent (2 x 256 x 256 x 2). The
   reduction takes the cooperative work-group-per-segment shape and folds through the hand-written
   halving tree, not through one item's serial loop. That is the shape whose combination order a
   `sycl::reduction` would have left free.
