@@ -145,7 +145,11 @@ computed per window from the in-bounds count would make the border pixels larger
 
 ## test_spatial/test_spatial_pool_max.cpp
 
-`four_by_four` returns the image every hand-checked case pools. It is chosen so the 2x2
+The value tests run `Small_` on the host engine; the agreement of the two paths is the one
+`Medium_` test. The backward tests take their indices from a hand-written tensor, not from a
+forward run, so a fault in the forward cannot hide one in the backward.
+
+`pool_max_four_by_four` returns the image every hand-checked case pools. It is chosen so the 2x2
 stride-2 windows' maxima do not all sit in the same corner of the window. A kernel that always
 picked, say, the last tap in scan order would pass a window whose maximum happened to be there.
 
@@ -178,8 +182,9 @@ taps of one window and double-counting the gradient.
 exactly zero, not merely small. The gather writes each pixel once, so an unrouted pixel is a
 written zero and never a leftover.
 
-`OverlappingWindowsAccumulateAtASharedArgmax` is YOLOv3-tiny's 2x2 stride-1 pool. One dominant
-pixel is selected by all four windows, so its gradient is the sum of all four. A scatter would
+`OverlappingWindowsSelectTheSharedArgmax` and `OverlappingWindowsAccumulateAtASharedArgmax` are
+YOLOv3-tiny's 2x2 stride-1 pool, selection and accumulation apart. One dominant pixel is
+selected by all four windows, so its gradient is the sum of all four. A scatter would
 have needed an atomic add for this case, and a gather that stopped at its first match would get
 it wrong.
 
