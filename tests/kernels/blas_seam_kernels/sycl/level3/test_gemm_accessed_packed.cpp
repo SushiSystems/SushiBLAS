@@ -45,13 +45,14 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Runs the accessed gemm on the host CPU queue. */
-        class Medium_SYCLGemmAccessedPacked : public HostDeviceTest
+        /** @brief Runs the accessed gemm on the host CPU queue, with one scratch size at a time. */
+        class Medium_SYCLGemmAccessedPacked : public HostDeviceTest,
+                                              public ::testing::WithParamInterface<std::size_t>
         {
 
         };
 
-        TEST_F(Medium_SYCLGemmAccessedPacked, BothPathsMatchTheReference)
+        TEST_P(Medium_SYCLGemmAccessedPacked, BothPathsMatchTheReference)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
             const int64_t m = 61;
@@ -68,24 +69,24 @@ namespace SushiBLAS
                 Kernels::operand_access(Core::Layout::RowMajor, Core::Transpose::NoTrans, n);
             const Kernels::OperandAccess c_access =
                 Kernels::operand_access(Core::Layout::RowMajor, Core::Transpose::NoTrans, n);
-            const std::size_t scratch_bytes = std::size_t{16} << 20;
-            SharedArray<std::byte> scratch(queue(), scratch_bytes);
-            for (const std::size_t bytes : {std::size_t{0}, scratch_bytes})
-            {
-                SCOPED_TRACE(bytes);
-                std::vector<double> c = small_integers<double>(m * n, 3);
-                SharedArray<double> device_c(queue(), c);
+            const std::size_t bytes = GetParam();
+            SharedArray<std::byte> scratch(queue(), std::size_t{16} << 20);
+            std::vector<double> c = small_integers<double>(m * n, 3);
+            SharedArray<double> device_c(queue(), c);
 
-                Kernels::SYCL::gemm_accessed<double>(
-                    queue(), m, n, k, 2.0, device_a.get(), a_access, 0, device_b.get(), b_access,
-                    0, -1.0, device_c.get(), c_access, 0, 1, bytes ? scratch.get() : nullptr,
-                    bytes, {}).wait();
-                Kernels::Reference::gemm_accessed<double>(m, n, k, 2.0, a.data(), a_access,
-                                                          b.data(), b_access, -1.0, c.data(),
-                                                          c_access);
+            Kernels::SYCL::gemm_accessed<double>(
+                queue(), m, n, k, 2.0, device_a.get(), a_access, 0, device_b.get(), b_access, 0,
+                -1.0, device_c.get(), c_access, 0, 1, bytes ? scratch.get() : nullptr, bytes, {})
+                .wait();
+            Kernels::Reference::gemm_accessed<double>(m, n, k, 2.0, a.data(), a_access, b.data(),
+                                                      b_access, -1.0, c.data(), c_access);
 
-                EXPECT_EQ(device_c.values(), c);
-            }
+            EXPECT_EQ(device_c.values(), c);
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Medium_SYCLGemmAccessedPacked,
+                                 ::testing::Values(std::size_t{0}, std::size_t{16} << 20),
+                                 [](const ::testing::TestParamInfo<std::size_t>& info)
+                                 { return info.param == 0 ? "NoScratch" : "WithScratch"; });
     } // namespace Test
 } // namespace SushiBLAS
