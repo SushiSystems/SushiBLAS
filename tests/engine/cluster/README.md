@@ -15,7 +15,8 @@ the way it is. [`tests/README.md`](../../README.md) holds the reasoning the test
 
 ## test_remote_task.cpp
 
-Each test builds a master runtime of its own and a worker runtime joined over an
+The suite runs each of its two round trips once, in `SetUpTestSuite()`, and the tests read the
+run that belongs to them. A trip builds a master runtime of its own and a worker runtime joined over an
 `InProcessFabric`, because `Cluster::attach()` changes the runtime it attaches to and the shared
 test runtime must stay a single machine. The master packs one tensor of each of the eight types,
 `record_remote()` sends the pack to the kernel registered under the layout's fingerprint, the
@@ -26,6 +27,6 @@ transform computed on the host, byte for byte.
 The transform doubles a floating or complex scalar, which is exact, and maps an integer `x` to
 `3x + 1` in unsigned arithmetic, so it wraps without undefined behaviour.
 
-The second test registers the worker's kernel for a layout without the last tensor. Its operation
+The second trip registers the worker's kernel for a layout without the last tensor. Its operation
 name differs, the master never sees it advertised, and the task runs on the master's own kernel,
 which gives the same bytes.

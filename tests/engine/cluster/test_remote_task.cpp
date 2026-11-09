@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -396,39 +397,80 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Tests that a pack of all eight types returns from the worker bit for bit. */
-        TEST(Medium_RemoteTask, PackOfEveryTypeRoundTripsThroughAWorker)
+        /**
+         * @brief Runs each round trip once for the whole suite, so the routing test and the result
+         *        test of a scenario read the same run.
+         *
+         * Each run builds a master runtime and a worker runtime of its own, because
+         * Cluster::attach() changes the runtime it attaches to and the shared test runtime must
+         * stay a single machine.
+         */
+        class Medium_RemoteTask : public ::testing::Test
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            protected:
+                static void SetUpTestSuite()
+                {
+                    if (sycl::device::get_devices().empty())
+                        return;
 
-            const RoundTrip trip = run_round_trip(false);
+                    same_layout_.emplace(run_round_trip(false));
+                    other_layout_.emplace(run_round_trip(true));
+                }
 
-            ASSERT_TRUE(trip.worker_joined);
-            EXPECT_TRUE(trip.worker_has_op);
-            EXPECT_EQ(trip.worker_runs, 1);
-            EXPECT_EQ(trip.local_runs, 0);
-            EXPECT_EQ(trip.offloaded, 1U);
-            EXPECT_TRUE(trip.bitwise_equal);
+                static void TearDownTestSuite()
+                {
+                    same_layout_.reset();
+                    other_layout_.reset();
+                }
+
+                void SetUp() override
+                {
+                    if (!same_layout_.has_value())
+                        GTEST_SKIP() << "SYCL reports no device.";
+                }
+
+                /** @brief The run whose worker has the master's layout; empty without a device. */
+                static inline std::optional<RoundTrip> same_layout_;
+
+                /** @brief The run whose worker lacks the last tensor; empty without a device. */
+                static inline std::optional<RoundTrip> other_layout_;
+        };
+
+        /** @brief Tests that the worker of the same layout runs the task once and the master never. */
+        TEST_F(Medium_RemoteTask, WorkerOfTheSameLayoutRunsTheTaskOnce)
+        {
+            ASSERT_TRUE(same_layout_->worker_joined);
+            EXPECT_TRUE(same_layout_->worker_has_op);
+            EXPECT_EQ(same_layout_->worker_runs, 1);
+            EXPECT_EQ(same_layout_->local_runs, 0);
+            EXPECT_EQ(same_layout_->offloaded, 1U);
+        }
+
+        /** @brief Tests that a pack of all eight types returns from the worker bit for bit. */
+        TEST_F(Medium_RemoteTask, PackOfEveryTypeReturnsFromTheWorkerBitForBit)
+        {
+            ASSERT_TRUE(same_layout_->worker_joined);
+            EXPECT_TRUE(same_layout_->bitwise_equal);
         }
 
         /**
          * @brief Tests that a worker whose layout differs advertises another operation, so the
-         *        master runs the task itself.
+         *        master runs the task itself and offloads nothing.
          */
-        TEST(Medium_RemoteTask, WorkerOfAnotherLayoutNeverSeesTheTask)
+        TEST_F(Medium_RemoteTask, WorkerOfAnotherLayoutNeverSeesTheTask)
         {
-            if (sycl::device::get_devices().empty())
-                GTEST_SKIP() << "SYCL reports no device.";
+            ASSERT_TRUE(other_layout_->worker_joined);
+            EXPECT_FALSE(other_layout_->worker_has_op);
+            EXPECT_EQ(other_layout_->worker_runs, 0);
+            EXPECT_EQ(other_layout_->local_runs, 1);
+            EXPECT_EQ(other_layout_->offloaded, 0U);
+        }
 
-            const RoundTrip trip = run_round_trip(true);
-
-            ASSERT_TRUE(trip.worker_joined);
-            EXPECT_FALSE(trip.worker_has_op);
-            EXPECT_EQ(trip.worker_runs, 0);
-            EXPECT_EQ(trip.local_runs, 1);
-            EXPECT_EQ(trip.offloaded, 0U);
-            EXPECT_TRUE(trip.bitwise_equal);
+        /** @brief Tests that the master's own run returns the bytes the host reference computes. */
+        TEST_F(Medium_RemoteTask, MasterRunOfAnotherLayoutReturnsTheHostReferenceBytes)
+        {
+            ASSERT_TRUE(other_layout_->worker_joined);
+            EXPECT_TRUE(other_layout_->bitwise_equal);
         }
     } // namespace Test
 } // namespace SushiBLAS
