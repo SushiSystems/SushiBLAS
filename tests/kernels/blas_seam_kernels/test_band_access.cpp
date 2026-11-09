@@ -27,11 +27,12 @@
  * @author Mustafa Garip
  */
 
+#include <array>
+#include <string>
 #include <vector>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -46,9 +47,6 @@ namespace SushiBLAS
             using Core::Layout;
             using Core::Transpose;
             using Core::Uplo;
-
-            /// @brief Holds the two band storages every case runs under.
-            constexpr Layout K_LAYOUTS[] = {Layout::ColumnMajor, Layout::RowMajor};
 
             /// @brief Holds the rows of the worked matrix of the design, section 2.1.
             constexpr int64_t K_WORKED_ROWS = 4;
@@ -102,12 +100,6 @@ namespace SushiBLAS
                 Uplo uplo;      /**< The stored triangle. */
                 int64_t offset; /**< The expected offset of the diagonal inside its line. */
             };
-
-            /** @brief Returns the name of a layout for a failure message. */
-            [[nodiscard]] constexpr const char* layout_name(Layout layout) noexcept
-            {
-                return (layout == Layout::RowMajor) ? "row-major" : "column-major";
-            }
 
             /** @brief Returns the band storage of the worked matrix under a layout. */
             [[nodiscard]] constexpr const double* worked_storage(Layout layout) noexcept
@@ -274,37 +266,104 @@ namespace SushiBLAS
                     EXPECT_EQ(end, access.end_column(r, cols));
                 }
             }
-        } // namespace
 
-        /**
-         * @brief Tests at compile time that both band storages follow the CBLAS formulas.
-         */
-        TEST(Small_BandAccess, TheMappingIsTheCblasFormula)
-        {
-            static_assert(band_matches_cblas(Layout::ColumnMajor),
-                          "The column-major band mapping is the CBLAS one.");
-            static_assert(band_matches_cblas(Layout::RowMajor),
-                          "The row-major band mapping is the CBLAS one.");
-
-            static_assert(triangle_band_matches_cblas(Layout::ColumnMajor, Uplo::Upper),
-                          "A column-major upper triangle band is the LAPACK one.");
-            static_assert(triangle_band_matches_cblas(Layout::ColumnMajor, Uplo::Lower),
-                          "A column-major lower triangle band is the LAPACK one.");
-            static_assert(triangle_band_matches_cblas(Layout::RowMajor, Uplo::Upper),
-                          "A row-major upper triangle band is the CBLAS one.");
-            static_assert(triangle_band_matches_cblas(Layout::RowMajor, Uplo::Lower),
-                          "A row-major lower triangle band is the CBLAS one.");
-        }
-
-        /**
-         * @brief Tests that every stored element of the worked matrix is read from its slot.
-         */
-        TEST(Small_BandAccess, TheWorkedMatrixReadsBack)
-        {
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Holds one layout and one Transpose of an access under test. */
+            struct LayoutTranspose
             {
-                SCOPED_TRACE(layout_name(layout));
+                Layout layout;    /**< The band storage. */
+                Transpose trans;  /**< The transpose applied to the stored matrix. */
+            };
 
+            /** @brief Holds one layout and the band shape its column ranges are scanned for. */
+            struct LayoutBand
+            {
+                Layout layout;   /**< The band storage. */
+                ScannedBand band; /**< The shape of the band. */
+            };
+
+            /** @brief Returns both layouts crossed with TRANS and CONJ_TRANS. */
+            [[nodiscard]] std::array<LayoutTranspose, 4> mirror_rows()
+            {
+                return {{{Layout::ColumnMajor, Transpose::Trans},
+                         {Layout::ColumnMajor, Transpose::ConjTrans},
+                         {Layout::RowMajor, Transpose::Trans},
+                         {Layout::RowMajor, Transpose::ConjTrans}}};
+            }
+
+            /** @brief Returns both layouts crossed with NO_TRANS and TRANS. */
+            [[nodiscard]] std::array<LayoutTranspose, 4> cursor_rows()
+            {
+                return {{{Layout::ColumnMajor, Transpose::NoTrans},
+                         {Layout::ColumnMajor, Transpose::Trans},
+                         {Layout::RowMajor, Transpose::NoTrans},
+                         {Layout::RowMajor, Transpose::Trans}}};
+            }
+
+            /** @brief Returns both layouts crossed with the eight scanned band shapes. */
+            [[nodiscard]] std::vector<LayoutBand> scanned_rows()
+            {
+                const ScannedBand bands[] = {
+                    {7, 3, 0, 0}, {7, 3, 1, 0}, {7, 3, 0, 2}, {7, 3, 9, 9},
+                    {3, 7, 0, 0}, {3, 7, 1, 0}, {3, 7, 0, 2}, {3, 7, 9, 9}};
+
+                std::vector<LayoutBand> rows;
+                for (const Layout layout : {Layout::ColumnMajor, Layout::RowMajor})
+                    for (const ScannedBand& band : bands)
+                        rows.push_back({layout, band});
+                return rows;
+            }
+
+            /** @brief Returns the four diagonal lines of the triangle band storages. */
+            [[nodiscard]] std::array<DiagonalLine, 4> diagonal_lines()
+            {
+                constexpr int64_t k = 2;
+                return {{{Layout::ColumnMajor, Uplo::Upper, k},
+                         {Layout::ColumnMajor, Uplo::Lower, 0},
+                         {Layout::RowMajor, Uplo::Upper, 0},
+                         {Layout::RowMajor, Uplo::Lower, k}}};
+            }
+
+            /** @brief Returns the CamelCase word of a Transpose, which a test name can hold. */
+            [[nodiscard]] const char* transpose_word(Transpose trans) noexcept
+            {
+                if (trans == Transpose::NoTrans)
+                    return "NoTrans";
+                return (trans == Transpose::Trans) ? "Trans" : "ConjTrans";
+            }
+
+            /** @brief Names a layout for the test name. */
+            std::string layout_param_name(const ::testing::TestParamInfo<Layout>& info)
+            {
+                return info.param == Layout::RowMajor ? "RowMajor" : "ColumnMajor";
+            }
+
+            /** @brief Names a layout and a Transpose for the test name. */
+            std::string layout_transpose_name(const ::testing::TestParamInfo<LayoutTranspose>& info)
+            {
+                return std::string(info.param.layout == Layout::RowMajor ? "RowMajor" : "ColumnMajor") +
+                       transpose_word(info.param.trans);
+            }
+
+            /** @brief Names a layout and a band shape for the test name. */
+            std::string layout_band_name(const ::testing::TestParamInfo<LayoutBand>& info)
+            {
+                const LayoutBand& row = info.param;
+                return std::string(row.layout == Layout::RowMajor ? "RowMajor" : "ColumnMajor") +
+                       "Rows" + std::to_string(row.band.rows) + "Cols" +
+                       std::to_string(row.band.cols) + "Lower" + std::to_string(row.band.lower) +
+                       "Upper" + std::to_string(row.band.upper);
+            }
+
+            /** @brief Names a triangle band storage for the test name. */
+            std::string diagonal_line_name(const ::testing::TestParamInfo<DiagonalLine>& info)
+            {
+                return std::string(info.param.layout == Layout::RowMajor ? "RowMajor" : "ColumnMajor") +
+                       (info.param.uplo == Uplo::Upper ? "Upper" : "Lower");
+            }
+
+            /** @brief Expects that every element of the worked matrix reads from its slot. */
+            void expect_worked_matrix_reads_back(Layout layout)
+            {
                 const Kernels::BandAccess access = worked_access(layout, Transpose::NoTrans);
                 const double* p = worked_storage(layout);
 
@@ -329,63 +388,34 @@ namespace SushiBLAS
                 }
                 EXPECT_EQ(K_WORKED_STORED, stored);
             }
-        }
 
-        /**
-         * @brief Tests that TRANS and CONJ_TRANS address A(i, j) as (j, i) and exchange the
-         *        band widths.
-         */
-        TEST(Small_BandAccess, ATransposedAccessAddressesTheMirror)
-        {
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Expects that op(X) addresses A(i, j) as (j, i) over the worked matrix. */
+            void expect_mirror_is_addressed(Layout layout, Transpose trans)
             {
                 const Kernels::BandAccess plain = worked_access(layout, Transpose::NoTrans);
+                const Kernels::BandAccess op = worked_access(layout, trans);
                 const double* p = worked_storage(layout);
 
-                EXPECT_EQ(K_WORKED_LOWER, plain.lower);
-                EXPECT_EQ(K_WORKED_UPPER, plain.upper);
-                EXPECT_FALSE(plain.conjugated);
-
-                for (const Transpose trans : {Transpose::Trans, Transpose::ConjTrans})
+                for (int64_t i = 0; i < K_WORKED_ROWS; ++i)
                 {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(layout) << ", " << Core::to_string(trans));
-
-                    const Kernels::BandAccess op = worked_access(layout, trans);
-                    EXPECT_EQ(K_WORKED_UPPER, op.lower);
-                    EXPECT_EQ(K_WORKED_LOWER, op.upper);
-                    EXPECT_EQ(trans == Transpose::ConjTrans, op.conjugated);
-
-                    for (int64_t i = 0; i < K_WORKED_ROWS; ++i)
+                    for (int64_t j = 0; j < K_WORKED_COLS; ++j)
                     {
-                        for (int64_t j = 0; j < K_WORKED_COLS; ++j)
-                        {
-                            const bool in_band =
-                                is_in_band(i, j, K_WORKED_LOWER, K_WORKED_UPPER);
-                            EXPECT_EQ(in_band, op.holds(j, i))
-                                << "at (" << i << ", " << j << ")";
-                            if (!in_band)
-                                continue;
+                        const bool in_band = is_in_band(i, j, K_WORKED_LOWER, K_WORKED_UPPER);
+                        EXPECT_EQ(in_band, op.holds(j, i)) << "at (" << i << ", " << j << ")";
+                        if (!in_band)
+                            continue;
 
-                            EXPECT_EQ(plain.index(i, j), op.index(j, i))
-                                << "at (" << i << ", " << j << ")";
-                            EXPECT_EQ(worked_element(i, j), p[op.index(j, i)])
-                                << "at (" << i << ", " << j << ")";
-                        }
+                        EXPECT_EQ(plain.index(i, j), op.index(j, i))
+                            << "at (" << i << ", " << j << ")";
+                        EXPECT_EQ(worked_element(i, j), p[op.index(j, i)])
+                            << "at (" << i << ", " << j << ")";
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests that at conjugates a complex element under CONJ_TRANS and no other read.
-         */
-        TEST(Small_BandAccess, AtConjugatesOnlyUnderConjTrans)
-        {
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Returns the worked storage of a layout as complex slots with imaginary parts. */
+            [[nodiscard]] std::vector<std::complex<double>> complex_worked_storage(Layout layout)
             {
-                SCOPED_TRACE(layout_name(layout));
-
                 const double* real_storage = worked_storage(layout);
                 const std::size_t slots = static_cast<std::size_t>(worked_slots(layout));
 
@@ -394,7 +424,15 @@ namespace SushiBLAS
                 for (std::size_t slot = 0; slot < slots; ++slot)
                     complex_storage[slot] = std::complex<double>(real_storage[slot],
                                                                  static_cast<double>(slot + 1));
+                return complex_storage;
+            }
 
+            /** @brief Expects that at conjugates only under CONJ_TRANS over the worked matrix. */
+            void expect_at_conjugates_only_under_conj_trans(Layout layout)
+            {
+                const std::vector<std::complex<double>> complex_storage =
+                    complex_worked_storage(layout);
+                const double* real_storage = worked_storage(layout);
                 const Kernels::BandAccess plain = worked_access(layout, Transpose::NoTrans);
                 const Kernels::BandAccess trans = worked_access(layout, Transpose::Trans);
                 const Kernels::BandAccess conj = worked_access(layout, Transpose::ConjTrans);
@@ -418,121 +456,45 @@ namespace SushiBLAS
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests first_column and end_column against a scan, rows without an element
-         *        included.
-         */
-        TEST(Small_BandAccess, TheColumnRangeEqualsAScan)
-        {
-            const ScannedBand bands[] = {
-                {7, 3, 0, 0}, {7, 3, 1, 0}, {7, 3, 0, 2}, {7, 3, 9, 9},
-                {3, 7, 0, 0}, {3, 7, 1, 0}, {3, 7, 0, 2}, {3, 7, 9, 9}};
-
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Expects that a cursor walked along each row stands on the offset of index. */
+            void expect_row_cursors_reach_every_column(Layout layout, Transpose trans)
             {
-                for (const ScannedBand& band : bands)
-                {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(layout) << ", " << band.rows << " x "
-                                 << band.cols << ", kl " << band.lower << ", ku " << band.upper);
+                constexpr int64_t rows = 7;
+                constexpr int64_t cols = 6;
+                constexpr int64_t lower = 2;
+                constexpr int64_t upper = 1;
 
-                    const int64_t ld = band.lower + band.upper + 1;
-                    expect_column_ranges_match_a_scan(
-                        Kernels::band_access(layout, Transpose::NoTrans, band.lower, band.upper,
-                                             ld),
-                        band.rows, band.cols, band.lower, band.upper);
-                    expect_column_ranges_match_a_scan(
-                        Kernels::band_access(layout, Transpose::Trans, band.lower, band.upper, ld),
-                        band.cols, band.rows, band.upper, band.lower);
+                const Kernels::BandAccess access =
+                    Kernels::band_access(layout, trans, lower, upper, lower + upper + 1);
+                const bool transposed = Core::is_transposed(trans);
+                const int64_t op_rows = transposed ? cols : rows;
+                const int64_t op_cols = transposed ? rows : cols;
+
+                for (int64_t r = 0; r < op_rows; ++r)
+                {
+                    const int64_t first = access.first_column(r);
+                    const int64_t end = access.end_column(r, op_cols);
+                    if (first >= end)
+                        continue;
+
+                    Kernels::RowCursor cursor = access.row_cursor(r, first);
+                    for (int64_t c = first; c < end; ++c, cursor.advance())
+                        EXPECT_EQ(access.index(r, c), cursor.offset)
+                            << "forward, row " << r << ", column " << c;
+
+                    cursor = access.row_cursor(r, end - 1);
+                    for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
+                        EXPECT_EQ(access.index(r, c), cursor.offset)
+                            << "backward, row " << r << ", column " << c;
                 }
             }
-        }
 
-        /**
-         * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
-         *        index gives for every stored column.
-         */
-        TEST(Small_BandAccess, ARowCursorReachesTheOffsetOfEveryColumn)
-        {
-            constexpr int64_t rows = 7;
-            constexpr int64_t cols = 6;
-            constexpr int64_t lower = 2;
-            constexpr int64_t upper = 1;
-
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Expects that no index reaches the slots a line holds past its band. */
+            void expect_spare_slots_are_never_addressed(Layout layout)
             {
-                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
-                {
-                    SCOPED_TRACE(::testing::Message()
-                                 << layout_name(layout) << ", " << Core::to_string(trans));
-
-                    const Kernels::BandAccess access =
-                        Kernels::band_access(layout, trans, lower, upper, lower + upper + 1);
-                    const bool transposed = Core::is_transposed(trans);
-                    const int64_t op_rows = transposed ? cols : rows;
-                    const int64_t op_cols = transposed ? rows : cols;
-
-                    for (int64_t r = 0; r < op_rows; ++r)
-                    {
-                        const int64_t first = access.first_column(r);
-                        const int64_t end = access.end_column(r, op_cols);
-                        if (first >= end)
-                            continue;
-
-                        Kernels::RowCursor cursor = access.row_cursor(r, first);
-                        for (int64_t c = first; c < end; ++c, cursor.advance())
-                            EXPECT_EQ(access.index(r, c), cursor.offset)
-                                << "forward, row " << r << ", column " << c;
-
-                        cursor = access.row_cursor(r, end - 1);
-                        for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
-                            EXPECT_EQ(access.index(r, c), cursor.offset)
-                                << "backward, row " << r << ", column " << c;
-                    }
-                }
-            }
-        }
-
-        /**
-         * @brief Tests on which slot of a stored line each triangle band storage puts the
-         *        diagonal.
-         */
-        TEST(Small_BandAccess, ATriangleBandPutsTheDiagonalOnItsLine)
-        {
-            constexpr int64_t n = 6;
-            constexpr int64_t k = 2;
-            constexpr int64_t ld = 4;
-
-            const DiagonalLine lines[] = {{Layout::ColumnMajor, Uplo::Upper, k},
-                                          {Layout::ColumnMajor, Uplo::Lower, 0},
-                                          {Layout::RowMajor, Uplo::Upper, 0},
-                                          {Layout::RowMajor, Uplo::Lower, k}};
-
-            for (const DiagonalLine& line : lines)
-            {
-                SCOPED_TRACE(::testing::Message() << layout_name(line.layout) << ", "
-                                                  << Core::to_string(line.uplo));
-
-                const Kernels::BandAccess access = Kernels::triangle_band_access(
-                    line.layout, line.uplo, Transpose::NoTrans, k, ld);
-                for (int64_t i = 0; i < n; ++i)
-                    EXPECT_EQ(i * ld + line.offset, access.index(i, i)) << "at diagonal " << i;
-            }
-        }
-
-        /**
-         * @brief Tests that no index reaches the slots a line holds past its band.
-         */
-        TEST(Small_BandAccess, SpareSlotsAreNeverAddressed)
-        {
-            constexpr int64_t band_slots = K_WORKED_LOWER + K_WORKED_UPPER + 1;
-            constexpr int64_t ld = band_slots + 2;
-
-            for (const Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(layout_name(layout));
+                constexpr int64_t band_slots = K_WORKED_LOWER + K_WORKED_UPPER + 1;
+                constexpr int64_t ld = band_slots + 2;
 
                 const Kernels::BandAccess access = Kernels::band_access(
                     layout, Transpose::NoTrans, K_WORKED_LOWER, K_WORKED_UPPER, ld);
@@ -552,18 +514,11 @@ namespace SushiBLAS
                     }
                 }
             }
-        }
 
-        /**
-         * @brief Tests that a band of no off-diagonal and one slot per line is the diagonal.
-         */
-        TEST(Small_BandAccess, ADiagonalMatrixIsStoredAsItsDiagonal)
-        {
-            constexpr int64_t n = 5;
-
-            for (const Layout layout : K_LAYOUTS)
+            /** @brief Expects that a band of one slot per line stores the diagonal alone. */
+            void expect_diagonal_matrix_is_its_diagonal(Layout layout)
             {
-                SCOPED_TRACE(layout_name(layout));
+                constexpr int64_t n = 5;
 
                 const Kernels::BandAccess access =
                     Kernels::band_access(layout, Transpose::NoTrans, 0, 0, 1);
@@ -575,6 +530,138 @@ namespace SushiBLAS
                     EXPECT_FALSE(access.holds(i + 1, i));
                 }
             }
+
+            /** @brief Expects that a triangle band puts the diagonal of row i on its line. */
+            void expect_diagonal_sits_on_its_line(const DiagonalLine& line)
+            {
+                constexpr int64_t n = 6;
+                constexpr int64_t k = 2;
+                constexpr int64_t ld = 4;
+
+                const Kernels::BandAccess access = Kernels::triangle_band_access(
+                    line.layout, line.uplo, Transpose::NoTrans, k, ld);
+                for (int64_t i = 0; i < n; ++i)
+                    EXPECT_EQ(i * ld + line.offset, access.index(i, i)) << "at diagonal " << i;
+            }
+        } // namespace
+
+        /** @brief Runs a case of the band access once per band storage. */
+        class Small_BandAccessLayouts : public ::testing::TestWithParam<Layout>
+        {
+
+        };
+
+        TEST_P(Small_BandAccessLayouts, TheMappingIsTheCblasFormula)
+        {
+            EXPECT_TRUE(band_matches_cblas(GetParam()));
         }
+
+        TEST_P(Small_BandAccessLayouts, TheWorkedMatrixReadsBack)
+        {
+            expect_worked_matrix_reads_back(GetParam());
+        }
+
+        TEST_P(Small_BandAccessLayouts, AtConjugatesOnlyUnderConjTrans)
+        {
+            expect_at_conjugates_only_under_conj_trans(GetParam());
+        }
+
+        TEST_P(Small_BandAccessLayouts, SpareSlotsAreNeverAddressed)
+        {
+            expect_spare_slots_are_never_addressed(GetParam());
+        }
+
+        TEST_P(Small_BandAccessLayouts, ADiagonalMatrixIsStoredAsItsDiagonal)
+        {
+            expect_diagonal_matrix_is_its_diagonal(GetParam());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BandAccessLayouts,
+                                 ::testing::Values(Layout::ColumnMajor, Layout::RowMajor),
+                                 layout_param_name);
+
+        /** @brief Runs a case of the triangle band storage once per layout and triangle. */
+        class Small_BandAccessTriangles : public ::testing::TestWithParam<DiagonalLine>
+        {
+
+        };
+
+        TEST_P(Small_BandAccessTriangles, TheMappingIsTheCblasFormula)
+        {
+            EXPECT_TRUE(triangle_band_matches_cblas(GetParam().layout, GetParam().uplo));
+        }
+
+        TEST_P(Small_BandAccessTriangles, ATriangleBandPutsTheDiagonalOnItsLine)
+        {
+            expect_diagonal_sits_on_its_line(GetParam());
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BandAccessTriangles, ::testing::ValuesIn(diagonal_lines()),
+                                 diagonal_line_name);
+
+        /** @brief Runs a case of a transposed access once per layout and Transpose. */
+        class Small_BandAccessMirrors : public ::testing::TestWithParam<LayoutTranspose>
+        {
+
+        };
+
+        TEST_P(Small_BandAccessMirrors, ATransposedAccessExchangesTheBandWidths)
+        {
+            const Kernels::BandAccess plain = worked_access(GetParam().layout, Transpose::NoTrans);
+            const Kernels::BandAccess op = worked_access(GetParam().layout, GetParam().trans);
+
+            EXPECT_EQ(K_WORKED_LOWER, plain.lower);
+            EXPECT_EQ(K_WORKED_UPPER, plain.upper);
+            EXPECT_FALSE(plain.conjugated);
+            EXPECT_EQ(K_WORKED_UPPER, op.lower);
+            EXPECT_EQ(K_WORKED_LOWER, op.upper);
+            EXPECT_EQ(GetParam().trans == Transpose::ConjTrans, op.conjugated);
+        }
+
+        TEST_P(Small_BandAccessMirrors, ATransposedAccessAddressesTheMirror)
+        {
+            expect_mirror_is_addressed(GetParam().layout, GetParam().trans);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BandAccessMirrors, ::testing::ValuesIn(mirror_rows()),
+                                 layout_transpose_name);
+
+        /** @brief Runs a row cursor case once per layout and Transpose. */
+        class Small_BandAccessCursors : public ::testing::TestWithParam<LayoutTranspose>
+        {
+
+        };
+
+        TEST_P(Small_BandAccessCursors, ARowCursorReachesTheOffsetOfEveryColumn)
+        {
+            expect_row_cursors_reach_every_column(GetParam().layout, GetParam().trans);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BandAccessCursors, ::testing::ValuesIn(cursor_rows()),
+                                 layout_transpose_name);
+
+        /** @brief Runs the column range case once per layout and band shape. */
+        class Small_BandAccessScans : public ::testing::TestWithParam<LayoutBand>
+        {
+
+        };
+
+        TEST_P(Small_BandAccessScans, TheColumnRangeEqualsAScan)
+        {
+            const LayoutBand& row = GetParam();
+            const int64_t ld = row.band.lower + row.band.upper + 1;
+
+            expect_column_ranges_match_a_scan(
+                Kernels::band_access(row.layout, Transpose::NoTrans, row.band.lower,
+                                     row.band.upper, ld),
+                row.band.rows, row.band.cols, row.band.lower, row.band.upper);
+            expect_column_ranges_match_a_scan(
+                Kernels::band_access(row.layout, Transpose::Trans, row.band.lower, row.band.upper,
+                                     ld),
+                row.band.cols, row.band.rows, row.band.upper, row.band.lower);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_BandAccessScans, ::testing::ValuesIn(scanned_rows()),
+                                 layout_band_name);
     } // namespace Test
 } // namespace SushiBLAS
