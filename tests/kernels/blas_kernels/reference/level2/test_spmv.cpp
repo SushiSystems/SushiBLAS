@@ -28,6 +28,8 @@
  */
 
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -42,27 +44,35 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_ReferenceSpmv, MatchesADenseLoopOverThePackedTriangle)
+        /// @brief Names a row after its layout and its triangle.
+        static std::string row_name(const ::testing::TestParamInfo<std::tuple<bool, bool>>& info)
         {
+            return layout_uplo_label(std::get<0>(info.param), std::get<1>(info.param));
+        }
+
+        /// @brief Runs spmv for one layout and one triangle, as a row of (row major, upper).
+        class Small_ReferenceSpmv : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+        /// @brief Tests that spmv matches a dense product that reads only the named packed triangle.
+        TEST_P(Small_ReferenceSpmv, MatchesADenseLoopOverThePackedTriangle)
+        {
+            const Core::Layout layout = layout_of(std::get<0>(GetParam()));
+            const bool upper = std::get<1>(GetParam());
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);
-            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
-            {
-                for (const bool upper : {false, true})
-                {
-                    SCOPED_TRACE(upper);
-                    const std::vector<double> x = small_integers<double>(n, 2);
-                    std::vector<double> y = small_integers<double>(n, 3);
-                    const std::vector<double> expected =
-                        dense_matvec(symmetric_from(a, n, upper), n, n, false, 2.0, x, 0.0, y);
-                    const std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
+            const std::vector<double> x = small_integers<double>(n, 2);
+            std::vector<double> y = small_integers<double>(n, 3);
+            const std::vector<double> expected =
+                dense_matvec(symmetric_from(a, n, upper), n, n, false, 2.0, x, 0.0, y);
+            const std::vector<double> packed = to_packed(a, n, uplo_of(upper), layout);
 
-                    Kernels::Reference::spmv(layout, uplo_of(upper), n, 2.0, packed.data(),
-                                             x.data(), 1, 0.0, y.data(), 1);
+            Kernels::Reference::spmv(layout, uplo_of(upper), n, 2.0, packed.data(),
+                                     x.data(), 1, 0.0, y.data(), 1);
 
-                    EXPECT_EQ(y, expected);
-                }
-            }
+            EXPECT_EQ(y, expected);
         }
+
+        INSTANTIATE_TEST_SUITE_P(LayoutsAndTriangles, Small_ReferenceSpmv,
+                                 ::testing::Combine(::testing::Bool(), ::testing::Bool()), row_name);
     } // namespace Test
 } // namespace SushiBLAS
