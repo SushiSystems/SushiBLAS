@@ -119,10 +119,6 @@ namespace SushiBLAS
             /// @brief The kernel the cases that compare the device with the reference run.
             const std::vector<ExecutionMode> K_DEVICE_MODE = {ExecutionMode::ForceSYCL};
 
-            /// @brief The complex element types, the only ones a conjugation changes.
-            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
-                                                                 Core::DataType::Complex64};
-
             /// @brief The element type of the forwards of a conjugating routine on a real tensor.
             const std::vector<Core::DataType> K_REAL_TYPE = {Core::DataType::Float32};
 

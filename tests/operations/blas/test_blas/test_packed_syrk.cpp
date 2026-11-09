@@ -91,15 +91,6 @@ namespace SushiBLAS
             /// @brief Holds the two triangles C can be stored in.
             constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
-            /// @brief Holds the five element types the SYRK rows run over.
-            const std::vector<Core::DataType> K_ALL_TYPES = {
-                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
-                Core::DataType::Complex32, Core::DataType::Complex64};
-
-            /// @brief Holds the two complex element types, the only ones with a Hermitian update.
-            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
-                                                                 Core::DataType::Complex64};
-
             /**
              * @brief Holds the relative error of storing a part of T: 2^-11 for HALF, the unit
              *        roundoff of the accumulation type otherwise.
@@ -218,16 +209,6 @@ namespace SushiBLAS
                 const SeamRow& row = info.param;
                 return std::string(Core::to_string(row.type)) + "_" + word(row.uplo) + "_" +
                        (row.routine == Routine::Syrk ? "Syrk" : "Herk");
-            }
-
-            /** @brief Calls body with the Element of the complex type of a data type. */
-            template<typename Body>
-            void with_complex_element(Core::DataType type, Body&& body)
-            {
-                if (type == Core::DataType::Complex64)
-                    body(Element<std::complex<double>>{});
-                else
-                    body(Element<std::complex<float>>{});
             }
 
             /** @brief Returns the real and the imaginary part of value; a real T has no second. */

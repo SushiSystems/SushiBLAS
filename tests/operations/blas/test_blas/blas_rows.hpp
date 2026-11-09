@@ -53,6 +53,15 @@ namespace SushiBLAS
         inline constexpr Core::Layout K_ROW_LAYOUTS[] = {Core::Layout::RowMajor,
                                                          Core::Layout::ColumnMajor};
 
+        /** @brief Holds the five element types the BLAS routines accept. */
+        inline const std::vector<Core::DataType> K_ALL_TYPES = {
+            Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
+            Core::DataType::Complex32, Core::DataType::Complex64};
+
+        /** @brief Holds the two complex element types, the only ones a conjugation changes. */
+        inline const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
+                                                                    Core::DataType::Complex64};
+
         /** @brief Returns the word that names a triangle in a row name. */
         [[nodiscard]] inline std::string word(Core::Uplo uplo)
         {
@@ -204,6 +213,20 @@ namespace SushiBLAS
                 default:
                     FAIL() << "a BLAS routine takes no such element type";
             }
+        }
+
+        /**
+         * @brief Calls body with the Element of a complex data type.
+         * @param type Complex64 selects the double pair; any other type selects the float pair.
+         * @param body Callable taking an Element.
+         */
+        template<typename Body>
+        void with_complex_element(Core::DataType type, Body&& body)
+        {
+            if (type == Core::DataType::Complex64)
+                body(Element<std::complex<double>>{});
+            else
+                body(Element<std::complex<float>>{});
         }
 
         /** @brief Returns the unit roundoff of the component type R of an element type. */

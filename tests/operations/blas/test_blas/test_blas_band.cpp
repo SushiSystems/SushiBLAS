@@ -190,15 +190,6 @@ namespace SushiBLAS
             /// @brief The kernel the cases that compare the device with itself run.
             const std::vector<ExecutionMode> K_DEVICE_MODE = {ExecutionMode::ForceSYCL};
 
-            /// @brief The five element types the band routines accept.
-            const std::vector<Core::DataType> K_ALL_TYPES = {
-                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
-                Core::DataType::Complex32, Core::DataType::Complex64};
-
-            /// @brief The complex element types, the only ones a conjugation changes.
-            const std::vector<Core::DataType> K_COMPLEX_TYPES = {Core::DataType::Complex32,
-                                                                 Core::DataType::Complex64};
-
             /// @brief The element type of the HALF accumulation cases.
             const std::vector<Core::DataType> K_HALF_TYPE = {Core::DataType::Half};
 
