@@ -28,7 +28,6 @@
  */
 
 #include <cmath>
-#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -36,6 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <utility>
 #include <algorithm>
 #include <type_traits>
@@ -43,15 +43,16 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/blas_seam_kernels/givens.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include "support/tolerance.hpp"
+#include "blas_rows.hpp"
+
 namespace SushiBLAS
 {
     namespace Test
@@ -64,17 +65,23 @@ namespace SushiBLAS
             /// @brief Random pairs the two kernels are compared on, per element type.
             constexpr int K_RANDOM_PAIRS = 100;
 
-            /// @brief Random HALF pairs compared against the rotation evaluated in FLOAT32.
-            constexpr int K_RANDOM_HALF_PAIRS = 50;
-
             /// @brief Largest magnitude of a drawn component.
             constexpr double K_DRAW_RANGE = 1.0;
 
             /// @brief Preset of every tensor a call must overwrite.
             constexpr double K_POISON = 999.0;
 
-            /// @brief Units in the last place the two kernels may differ by: three a device square root may be off by, one for the quotient.
-            constexpr double K_MODE_ULPS = 4.0;
+            /// @brief Rounded operations two kernels may differ by: 4 ulp, which is 8 roundoffs.
+            constexpr double K_AGREEMENT_ROUNDINGS = 8.0;
+
+            /// @brief Ratio above which two kernels disagree; the bound holds the slack.
+            constexpr double K_AGREEMENT_THRESHOLD = 1.0;
+
+            /// @brief Roundoffs, at the magnitude of a row, a complex rotation may be off it by.
+            constexpr double K_TABLE_ROUNDINGS = 1.0;
+
+            /// @brief Ratio above which a complex rotation misses its row: 8 epsilons.
+            constexpr double K_TABLE_THRESHOLD = 16.0;
 
             /// @brief Length of the vectors whose dot product feeds a rotation.
             constexpr int64_t K_DOT_LENGTH = 3;
@@ -85,62 +92,25 @@ namespace SushiBLAS
             /// @brief Second operand of the rotation fed by the dot product.
             constexpr double K_DOT_PARTNER = 4.0;
 
-            /**
-             * @brief Allowed distance of a complex rotation from its table row, for operands of
-             *        unit size: 8 units of the epsilon of R.
-             */
-            template<typename R>
-            constexpr R K_TABLE_TOLERANCE = R(8) * std::numeric_limits<R>::epsilon();
+            /// @brief First operand of the HALF pair whose squares overflow HALF.
+            constexpr double K_LARGE_A = 300.0;
+
+            /// @brief Second operand of the HALF pair whose squares overflow HALF.
+            constexpr double K_LARGE_B = 400.0;
+
+            /// @brief The element types whose rotation overwrites b with z.
+            const std::vector<Core::DataType> K_REAL_TYPES = {
+                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64};
+
+            /// @brief The kernel the cases that compare the device with the reference run.
+            const std::vector<ExecutionMode> K_DEVICE_MODE = {ExecutionMode::ForceSYCL};
+
+            /// @brief The kernel of the HALF case.
+            const std::vector<ExecutionMode> K_REFERENCE_MODE = {ExecutionMode::ForceReference};
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSYCL};
-
-            /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
-            /** @brief Takes the square root of a rotation on the host. */
-            struct StdRoot
-            {
-                /** @brief Returns the square root of value. */
-                template<typename R>
-                [[nodiscard]] static R apply(R value) noexcept
-                {
-                    return std::sqrt(value);
-                }
-            };
-
-            /**
-             * @brief Holds the binary precision of a real element type.
-             * @tparam R sycl::half, float or double.
-             */
-            template<typename R>
-            struct Precision;
-
-            /** @brief Holds the precision of HALF. */
-            template<>
-            struct Precision<sycl::half>
-            {
-                static constexpr int K_DIGITS = 11;        /**< Bits of the significand. */
-                static constexpr int K_MIN_EXPONENT = -14; /**< Exponent of the least normal. */
-            };
-
-            /** @brief Holds the precision of FLOAT32. */
-            template<>
-            struct Precision<float>
-            {
-                static constexpr int K_DIGITS = 24;         /**< Bits of the significand. */
-                static constexpr int K_MIN_EXPONENT = -126; /**< Exponent of the least normal. */
-            };
-
-            /** @brief Holds the precision of FLOAT64. */
-            template<>
-            struct Precision<double>
-            {
-                static constexpr int K_DIGITS = 53;          /**< Bits of the significand. */
-                static constexpr int K_MIN_EXPONENT = -1022; /**< Exponent of the least normal. */
-            };
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceReference,
+                                                             ExecutionMode::ForceSYCL};
 
             /** @brief Names how z of a real rotation is rebuilt from its other values. */
             enum class RebuildValue : std::uint8_t
@@ -192,27 +162,25 @@ namespace SushiBLAS
                 {{0.0, 0.0}, {0.0, 4.0}, {4.0, 0.0}, 0.0, {0.0, -1.0}},
                 {{1.0, 2.0}, {0.0, 0.0}, {1.0, 2.0}, 1.0, {0.0, 0.0}}};
 
-            /** @brief Returns the name of a mode and a layout for a failure message. */
-            [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
+            /** @brief Names a row of a table by its place, as the axis of a suite. */
+            struct TableRow
             {
-                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                     : "ForceReference") +
-                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                std::size_t index; /**< The place of the row in its table. */
+            };
+
+            /** @brief Returns the tail of a row named by its place in a table. */
+            [[nodiscard]] std::string axis_name(const TableRow& row)
+            {
+                return "_row" + std::to_string(row.index);
             }
 
-            /** @brief Returns whether the test device computes in the component type of T. */
-            template<typename T>
-            [[nodiscard]] bool device_runs()
+            /** @brief Returns the places of the first count rows of a table. */
+            [[nodiscard]] std::vector<TableRow> table_rows(std::size_t count)
             {
-                using R = Kernels::RealType<T>;
-                const sycl::device device =
-                    TestEnvironment::queue().get_device();
-                if constexpr (std::is_same_v<R, sycl::half>)
-                    return device.has(sycl::aspect::fp16);
-                else if constexpr (std::is_same_v<R, double>)
-                    return device.has(sycl::aspect::fp64);
-                else
-                    return true;
+                std::vector<TableRow> rows;
+                for (std::size_t index = 0; index < count; ++index)
+                    rows.push_back({index});
+                return rows;
             }
 
             /** @brief Returns real + imaginary * i in T; a real T drops the imaginary part. */
@@ -256,77 +224,125 @@ namespace SushiBLAS
                 return pairs;
             }
 
-            /** @brief Returns the spacing of the values of R at a magnitude. */
-            template<typename R>
-            [[nodiscard]] double ulp_at(double magnitude)
+            /** @brief Holds what one row of the real table expects, rounded to T once. */
+            struct Expected
             {
-                const int exponent =
-                    std::max(std::ilogb(magnitude), Precision<R>::K_MIN_EXPONENT);
-                return std::ldexp(1.0, exponent - (Precision<R>::K_DIGITS - 1));
+                double r; /**< The expected r. */
+                double z; /**< The expected z. */
+                double c; /**< The expected cosine. */
+                double s; /**< The expected sine. */
+            };
+
+            /** @brief Returns the expectation of a row, each quotient formed in the accumulation type of T. */
+            template<typename T>
+            [[nodiscard]] Expected expected_of(const RealRotationRow& row)
+            {
+                using Wide = Kernels::Accumulator<T>;
+                const auto stored = [](Wide value)
+                {
+                    return Detail::to_double(static_cast<T>(value));
+                };
+
+                const Wide c = static_cast<Wide>(row.c_numerator) /
+                               static_cast<Wide>(row.c_denominator);
+                const Wide s = static_cast<Wide>(row.s_numerator) /
+                               static_cast<Wide>(row.s_denominator);
+
+                Wide z = Wide(0);
+                switch (row.z)
+                {
+                    case RebuildValue::Zero:
+                        z = Wide(0);
+                        break;
+                    case RebuildValue::One:
+                        z = Wide(1);
+                        break;
+                    case RebuildValue::Sine:
+                        z = s;
+                        break;
+                    case RebuildValue::InverseCosine:
+                        z = Wide(1) / c;
+                        break;
+                }
+
+                return Expected{stored(static_cast<Wide>(row.r)), stored(z), stored(c), stored(s)};
+            }
+
+            /** @brief Holds the four scalar tensors of one call as read after the graph ran. */
+            template<typename T>
+            struct Rotation
+            {
+                T a;                    /**< What a holds: r. */
+                T b;                    /**< What b holds: z for a real T, b itself for a complex one. */
+                Kernels::RealType<T> c; /**< The cosine. */
+                T s;                    /**< The sine. */
+            };
+
+            /** @brief Returns a part of a value widened to double: 0 the real, 1 the imaginary. */
+            template<typename V>
+            [[nodiscard]] double part_of(const V& value, int part)
+            {
+                if constexpr (Core::is_complex_v<V>)
+                {
+                    const std::complex<double> wide = Detail::to_complex_double(value);
+                    return part == 0 ? wide.real() : wide.imag();
+                }
+                else
+                    return part == 0 ? Detail::to_double(value) : 0.0;
             }
 
             /**
-             * @brief Expects every part of actual within K_MODE_ULPS units in the last place of
-             *        expected, the unit taken at the larger magnitude of the two.
+             * @brief Expects every part of actual within the rounding bound two kernels of the
+             *        component type of V may differ by.
+             *
+             * The bound is K_AGREEMENT_ROUNDINGS * unit roundoff * the larger modulus of the two
+             * values, floored at the least normal of the component type, measured through
+             * TestSupport::measure_error.
              */
             template<typename V>
-            void expect_within_ulps(const V& actual, const V& expected, const char* what)
+            void expect_agreement(const V& actual, const V& expected, const char* what)
             {
-                using Wide = std::complex<double>;
-                Wide a;
-                Wide e;
-                if constexpr (Core::is_complex_v<V>)
+                using R = Kernels::RealType<V>;
+                const double least_normal = std::ldexp(
+                    1.0, std::is_same_v<R, sycl::half> ? -14 : (std::is_same_v<R, float> ? -126 : -1022));
+                for (int part = 0; part < 2; ++part)
                 {
-                    a = Detail::to_complex_double(actual);
-                    e = Detail::to_complex_double(expected);
+                    const double magnitude =
+                        std::max({std::fabs(part_of(actual, part)), std::fabs(part_of(expected, part)),
+                                  least_normal});
+                    const double bound = K_AGREEMENT_ROUNDINGS * unit_roundoff_of<R>() * magnitude;
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        part_of(actual, part), part_of(expected, part), bound,
+                        K_AGREEMENT_THRESHOLD)))
+                        << what << ", part " << part;
                 }
-                else
-                {
-                    a = Wide(Detail::to_double(actual), 0.0);
-                    e = Wide(Detail::to_double(expected), 0.0);
-                }
+            }
 
-                const double unit =
-                    ulp_at<Kernels::RealType<V>>(std::max(std::abs(a), std::abs(e)));
-                EXPECT_LE(std::abs(a.real() - e.real()), K_MODE_ULPS * unit) << what;
-                EXPECT_LE(std::abs(a.imag() - e.imag()), K_MODE_ULPS * unit) << what;
+            /**
+             * @brief Expects a value within the rounding bound of a table row.
+             *
+             * The bound is K_TABLE_ROUNDINGS * unit roundoff * the larger of 1 and the modulus of
+             * the row, held to K_TABLE_THRESHOLD.
+             */
+            template<typename R>
+            void expect_table(const std::complex<R>& actual, const std::complex<double>& row,
+                              const char* what)
+            {
+                const double bound =
+                    K_TABLE_ROUNDINGS * unit_roundoff_of<R>() * std::max(1.0, std::abs(row));
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                    static_cast<double>(actual.real()), row.real(), bound, K_TABLE_THRESHOLD)))
+                    << what << ", real part";
+                EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                    static_cast<double>(actual.imag()), row.imag(), bound, K_TABLE_THRESHOLD)))
+                    << what << ", imaginary part";
             }
         } // namespace
 
-        /**
-         * @brief Records rotations on scalar tensors of element type T and reads them back.
-         */
-        template<typename T>
-        class RotgCases : public SushiBLASTest
+        /** @brief Records rotations on scalar tensors of element type T and reads them back. */
+        class RotgStart : public BlasEngineStart
         {
             protected:
-                /// @brief The component type of T, which the cosine has.
-                using Real = Kernels::RealType<T>;
-
-                /** @brief Holds the four scalar tensors of one call as read after the graph ran. */
-                struct Rotation
-                {
-                    T a;    /**< What a holds: r. */
-                    T b;    /**< What b holds: z for a real T, b itself for a complex one. */
-                    Real c; /**< The cosine. */
-                    T s;    /**< The sine. */
-                };
-
-                /** @brief Skips the case on a device that lacks the component type of T. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
-                    if (!device_runs<T>())
-                        GTEST_SKIP() << "the device does not compute in this element type";
-                }
-
-                /** @brief Rebuilds the engine in a layout and selects a kernel. */
-                void start(Core::Layout layout, ExecutionMode mode)
-                {
-                    this->reinit_engine(layout);
-                    this->set_mode(mode);
-                }
-
                 /** @brief Returns a tensor of one element that holds value. */
                 template<typename V>
                 [[nodiscard]] Tensor scalar_tensor(const V& value)
@@ -338,9 +354,12 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the rotation of each pair, all recorded in one graph. */
-                [[nodiscard]] std::vector<Rotation>
+                template<typename T>
+                [[nodiscard]] std::vector<Rotation<T>>
                 rotate(const std::vector<std::pair<T, T>>& pairs)
                 {
+                    using Real = Kernels::RealType<T>;
+
                     std::vector<Tensor> a;
                     std::vector<Tensor> b;
                     std::vector<Tensor> c;
@@ -361,282 +380,195 @@ namespace SushiBLAS
                     }
                     this->recording->run().value();
 
-                    std::vector<Rotation> rotations;
+                    std::vector<Rotation<T>> rotations;
                     rotations.reserve(pairs.size());
                     for (std::size_t i = 0; i < pairs.size(); ++i)
-                        rotations.push_back(Rotation{read_tensor<T>(a[i])[0],
-                                                     read_tensor<T>(b[i])[0],
-                                                     read_tensor<Real>(c[i])[0],
-                                                     read_tensor<T>(s[i])[0]});
+                        rotations.push_back(Rotation<T>{read_tensor<T>(a[i])[0],
+                                                        read_tensor<T>(b[i])[0],
+                                                        read_tensor<Real>(c[i])[0],
+                                                        read_tensor<T>(s[i])[0]});
                     return rotations;
                 }
         };
 
-        /** @brief Runs rotg over the five element types. */
-        template<typename T>
-        class Medium_Rotg : public RotgCases<T>
+        /** @brief Runs one row of the real table per layout, kernel and real element type. */
+        class Medium_RotgRealTable : public BlasRowCase<RotgStart, TableRow>
         {
 
         };
 
-        /** @brief Runs rotg over the real element types. */
-        template<typename T>
-        class Medium_RotgReal : public RotgCases<T>
-        {
-            protected:
-                /// @brief The type a rotation of T is computed in.
-                using Wide = Kernels::Accumulator<T>;
-
-                /** @brief Holds what one row of the real table expects, rounded to T once. */
-                struct Expected
-                {
-                    double r; /**< The expected r. */
-                    double z; /**< The expected z. */
-                    double c; /**< The expected cosine. */
-                    double s; /**< The expected sine. */
-                };
-
-                /** @brief Returns a value of Wide as T holds it, widened to double. */
-                [[nodiscard]] static double stored(Wide value)
-                {
-                    return Detail::to_double(static_cast<T>(value));
-                }
-
-                /** @brief Returns the expectation of a row, each quotient formed in Wide. */
-                [[nodiscard]] static Expected expected_of(const RealRotationRow& row)
-                {
-                    const Wide c = static_cast<Wide>(row.c_numerator) /
-                                   static_cast<Wide>(row.c_denominator);
-                    const Wide s = static_cast<Wide>(row.s_numerator) /
-                                   static_cast<Wide>(row.s_denominator);
-
-                    Wide z = Wide(0);
-                    switch (row.z)
-                    {
-                        case RebuildValue::Zero:
-                            z = Wide(0);
-                            break;
-                        case RebuildValue::One:
-                            z = Wide(1);
-                            break;
-                        case RebuildValue::Sine:
-                            z = s;
-                            break;
-                        case RebuildValue::InverseCosine:
-                            z = Wide(1) / c;
-                            break;
-                    }
-
-                    return Expected{stored(static_cast<Wide>(row.r)), stored(z), stored(c),
-                                    stored(s)};
-                }
-        };
-
-        /** @brief Runs rotg over the complex element types. */
-        template<typename T>
-        class Medium_RotgComplex : public RotgCases<T>
+        /** @brief Runs the graph-ordering case per layout, kernel and real element type. */
+        class Medium_RotgRealGraph : public BlasRowCase<RotgStart, NoAxis>
         {
 
         };
 
-        /// @brief Names the suite of the cases that run on HALF alone.
-        using Medium_RotgHalf = RotgCases<sycl::half>;
-
-        /// @brief Names the five element types rotg accepts.
-        using RotgTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
-                                           std::complex<double>>;
-        /// @brief Names the real element types, whose rotation overwrites b with z.
-        using RotgRealTypes = ::testing::Types<sycl::half, float, double>;
-        /// @brief Names the complex element types, whose rotation leaves b as it is.
-        using RotgComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_Rotg, RotgTypes);
-        SB_TYPED_TEST_SUITE(Medium_RotgReal, RotgRealTypes);
-        SB_TYPED_TEST_SUITE(Medium_RotgComplex, RotgComplexTypes);
-
-        /**
-         * @brief Tests the real rotation against the table of the design; a and b receive r
-         *        and z.
-         */
-        TYPED_TEST(Medium_RotgReal, RealPairsMatchTheTable)
+        /** @brief Runs one row of the complex table per layout, kernel and complex element type. */
+        class Medium_RotgComplexTable : public BlasRowCase<RotgStart, TableRow>
         {
-            using T = TypeParam;
 
-            std::vector<std::pair<T, T>> pairs;
-            for (const RealRotationRow& row : K_REAL_ROWS)
-                pairs.emplace_back(make<T>(row.a), make<T>(row.b));
+        };
 
-            for (const Core::Layout layout : K_LAYOUTS)
+        /** @brief Runs the kernel comparison per layout and element type. */
+        class Medium_RotgModes : public BlasRowCase<RotgStart, NoAxis>
+        {
+
+        };
+
+        /** @brief Runs the HALF rotation per layout on the reference kernel. */
+        class Medium_RotgHalf : public BlasRowCase<RotgStart, NoAxis>
+        {
+
+        };
+
+        /** @brief Tests the real rotation against a row of the design table; a and b receive r and z. */
+        TEST_P(Medium_RotgRealTable, TheRotationMatchesTheTableRow)
+        {
+            const RealRotationRow& row = K_REAL_ROWS[GetParam().axis.index];
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
-                    const auto rotations = this->rotate(pairs);
+                using T = typename decltype(element)::type;
 
-                    for (std::size_t i = 0; i < rotations.size(); ++i)
-                    {
-                        const RealRotationRow& row = K_REAL_ROWS[i];
-                        SCOPED_TRACE(::testing::Message() << "a " << row.a << ", b " << row.b);
+                const auto rotations = rotate<T>({{make<T>(row.a), make<T>(row.b)}});
 
-                        const auto expected = TestFixture::expected_of(row);
-                        EXPECT_EQ(Detail::to_double(rotations[i].a), expected.r);
-                        EXPECT_EQ(Detail::to_double(rotations[i].b), expected.z);
-                        EXPECT_EQ(Detail::to_double(rotations[i].c), expected.c);
-                        EXPECT_EQ(Detail::to_double(rotations[i].s), expected.s);
-                    }
-                }
-            }
+                const Expected expected = expected_of<T>(row);
+                EXPECT_EQ(Detail::to_double(rotations[0].a), expected.r);
+                EXPECT_EQ(Detail::to_double(rotations[0].b), expected.z);
+                EXPECT_EQ(Detail::to_double(rotations[0].c), expected.c);
+                EXPECT_EQ(Detail::to_double(rotations[0].s), expected.s);
+            });
         }
 
-        /**
-         * @brief Tests that rotg reads an operand an earlier task of the same graph writes.
-         */
-        TYPED_TEST(Medium_RotgReal, AnInputWrittenByAnEarlierTaskIsRead)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotgRealTable,
+            ::testing::ValuesIn(rows_of(K_REAL_TYPES, K_BOTH_MODES,
+                                        table_rows(std::size(K_REAL_ROWS)))),
+            row_name<TableRow>);
+
+        /** @brief Tests that rotg reads an operand an earlier task of the same graph writes. */
+        TEST_P(Medium_RotgRealGraph, AnInputWrittenByAnEarlierTaskIsRead)
         {
-            using T = TypeParam;
             const RealRotationRow row = {K_DOT_VALUE, K_DOT_PARTNER, 5.0, 3.0, 5.0, 4.0, 5.0,
                                          RebuildValue::InverseCosine};
-            const auto expected = TestFixture::expected_of(row);
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_real_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
+                using T = typename decltype(element)::type;
 
-                    Tensor ones = this->engine->create_tensor({K_DOT_LENGTH},
-                                                              sushiblas_dtype<T>());
-                    const std::vector<T> one_values(static_cast<std::size_t>(K_DOT_LENGTH),
-                                                    make<T>(1.0));
-                    TestEnvironment::queue()
-                        .memcpy(ones.data(), one_values.data(), one_values.size() * sizeof(T))
-                        .wait();
+                const Expected expected = expected_of<T>(row);
 
-                    Tensor a = this->scalar_tensor(make<T>(K_POISON));
-                    Tensor b = this->scalar_tensor(make<T>(K_DOT_PARTNER));
-                    Tensor c = this->scalar_tensor(make<T>(K_POISON));
-                    Tensor s = this->scalar_tensor(make<T>(K_POISON));
+                Tensor ones = this->engine->create_tensor({K_DOT_LENGTH}, sushiblas_dtype<T>());
+                const std::vector<T> one_values(static_cast<std::size_t>(K_DOT_LENGTH),
+                                                make<T>(1.0));
+                TestEnvironment::queue()
+                    .memcpy(ones.data(), one_values.data(), one_values.size() * sizeof(T))
+                    .wait();
 
-                    SushiBLAS::BLASOps ops(this->recorder());
-                    ops.dot(ones, ones, a);
-                    ops.rotg(a, b, c, s);
-                    this->recording->run().value();
+                Tensor a = scalar_tensor(make<T>(K_POISON));
+                Tensor b = scalar_tensor(make<T>(K_DOT_PARTNER));
+                Tensor c = scalar_tensor(make<T>(K_POISON));
+                Tensor s = scalar_tensor(make<T>(K_POISON));
 
-                    EXPECT_EQ(Detail::to_double(read_tensor<T>(a)[0]), expected.r);
-                    EXPECT_EQ(Detail::to_double(read_tensor<T>(b)[0]), expected.z);
-                    EXPECT_EQ(Detail::to_double(read_tensor<T>(c)[0]), expected.c);
-                    EXPECT_EQ(Detail::to_double(read_tensor<T>(s)[0]), expected.s);
-                }
-            }
+                SushiBLAS::BLASOps ops(this->recorder());
+                ops.dot(ones, ones, a);
+                ops.rotg(a, b, c, s);
+                this->recording->run().value();
+
+                EXPECT_EQ(Detail::to_double(read_tensor<T>(a)[0]), expected.r);
+                EXPECT_EQ(Detail::to_double(read_tensor<T>(b)[0]), expected.z);
+                EXPECT_EQ(Detail::to_double(read_tensor<T>(c)[0]), expected.c);
+                EXPECT_EQ(Detail::to_double(read_tensor<T>(s)[0]), expected.s);
+            });
         }
 
-        /**
-         * @brief Tests the complex rotation against the table of the design; b is only read.
-         */
-        TYPED_TEST(Medium_RotgComplex, ComplexPairsMatchTheTable)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotgRealGraph, ::testing::ValuesIn(plain_rows(K_REAL_TYPES, K_BOTH_MODES)),
+            row_name<NoAxis>);
+
+        /** @brief Tests the complex rotation against a row of the design table; b is only read. */
+        TEST_P(Medium_RotgComplexTable, TheRotationMatchesTheTableRow)
         {
-            using T = TypeParam;
-            using R = typename T::value_type;
-
-            std::vector<std::pair<T, T>> pairs;
-            for (const ComplexRotationRow& row : K_COMPLEX_ROWS)
-                pairs.emplace_back(make<T>(row.f.real(), row.f.imag()),
-                                   make<T>(row.g.real(), row.g.imag()));
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            const ComplexRotationRow& row = K_COMPLEX_ROWS[GetParam().axis.index];
+            with_complex_element(GetParam().type, [&](auto element)
             {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(engine_name(layout, mode));
-                    this->start(layout, mode);
-                    const auto rotations = this->rotate(pairs);
+                using T = typename decltype(element)::type;
+                using R = typename T::value_type;
 
-                    for (std::size_t i = 0; i < rotations.size(); ++i)
-                    {
-                        const ComplexRotationRow& row = K_COMPLEX_ROWS[i];
-                        SCOPED_TRACE(::testing::Message() << "f " << row.f << ", g " << row.g);
+                const T f = make<T>(row.f.real(), row.f.imag());
+                const T g = make<T>(row.g.real(), row.g.imag());
+                const auto rotations = rotate<T>({{f, g}});
 
-                        const T f = pairs[i].first;
-                        const T g = pairs[i].second;
-                        const R tolerance = K_TABLE_TOLERANCE<R> * (std::abs(f) + std::abs(g));
-                        EXPECT_LE(std::abs(rotations[i].a - make<T>(row.r.real(), row.r.imag())),
-                                  tolerance);
-                        EXPECT_LE(std::abs(rotations[i].c - static_cast<R>(row.c)),
-                                  K_TABLE_TOLERANCE<R>);
-                        EXPECT_LE(std::abs(rotations[i].s - make<T>(row.s.real(), row.s.imag())),
-                                  K_TABLE_TOLERANCE<R>);
-                        EXPECT_EQ(0, std::memcmp(&rotations[i].b, &g, sizeof(T)));
-                    }
-                }
-            }
+                expect_table<R>(rotations[0].a, row.r, "r");
+                expect_table<R>(std::complex<R>(rotations[0].c, R(0)),
+                                std::complex<double>(row.c, 0.0), "c");
+                expect_table<R>(rotations[0].s, row.s, "s");
+                EXPECT_EQ(0, std::memcmp(&rotations[0].b, &g, sizeof(T)));
+            });
         }
 
-        /**
-         * @brief Tests that the two kernels give rotations within K_MODE_ULPS of each other.
-         */
-        TYPED_TEST(Medium_Rotg, BothModesAgree)
-        {
-            using T = TypeParam;
-            const std::vector<std::pair<T, T>> pairs = draw_pairs<T>(K_RANDOM_PAIRS);
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotgComplexTable,
+            ::testing::ValuesIn(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES,
+                                        table_rows(std::size(K_COMPLEX_ROWS)))),
+            row_name<TableRow>);
 
-            for (const Core::Layout layout : K_LAYOUTS)
+        /** @brief Tests that the two kernels give rotations within the agreement bound of each other. */
+        TEST_P(Medium_RotgModes, BothModesAgree)
+        {
+            with_element(GetParam().type, [&](auto element)
             {
-                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
-                this->start(layout, ExecutionMode::ForceReference);
-                const auto reference = this->rotate(pairs);
-                this->start(layout, ExecutionMode::ForceSYCL);
-                const auto device = this->rotate(pairs);
+                using T = typename decltype(element)::type;
+
+                const std::vector<std::pair<T, T>> pairs = draw_pairs<T>(K_RANDOM_PAIRS);
+
+                start(GetParam().layout, ExecutionMode::ForceReference);
+                const auto reference = rotate<T>(pairs);
+                start(GetParam().layout, ExecutionMode::ForceSYCL);
+                const auto device = rotate<T>(pairs);
 
                 ASSERT_EQ(device.size(), reference.size());
                 for (std::size_t i = 0; i < device.size(); ++i)
                 {
                     SCOPED_TRACE(::testing::Message() << "pair " << i);
-                    expect_within_ulps(device[i].a, reference[i].a, "r");
-                    expect_within_ulps(device[i].c, reference[i].c, "c");
-                    expect_within_ulps(device[i].s, reference[i].s, "s");
+                    expect_agreement(device[i].a, reference[i].a, "r");
+                    expect_agreement(device[i].c, reference[i].c, "c");
+                    expect_agreement(device[i].s, reference[i].s, "s");
 
                     if constexpr (Core::is_complex_v<T>)
                         EXPECT_EQ(0, std::memcmp(&device[i].b, &pairs[i].second, sizeof(T)));
                     else
-                        expect_within_ulps(device[i].b, reference[i].b, "z");
+                        expect_agreement(device[i].b, reference[i].b, "z");
                 }
-            }
+            });
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotgModes, ::testing::ValuesIn(plain_rows(K_ALL_TYPES, K_DEVICE_MODE)),
+            row_name<NoAxis>);
 
         /**
-         * @brief Tests that the reference kernel forms a HALF rotation in FLOAT32 and rounds
-         *        each result once.
+         * @brief Tests that the reference kernel forms a HALF rotation in FLOAT32: the squares of
+         *        300 and 400 overflow HALF, yet r is 500 and each result is rounded to HALF once.
          */
-        TEST_F(Medium_RotgHalf, AHalfRotationIsComputedInFloat)
+        TEST_P(Medium_RotgHalf, AHalfRotationIsComputedInFloat)
         {
-            std::vector<std::pair<sycl::half, sycl::half>> pairs =
-                draw_pairs<sycl::half>(K_RANDOM_HALF_PAIRS);
-            pairs.emplace_back(make<sycl::half>(3.0), make<sycl::half>(4.0));
+            // c = 0.6, s = 0.8 and z = 1 / c are formed in FLOAT32 and rounded to HALF once.
+            constexpr float K_EXPECTED_R = 500.0f;
+            constexpr float K_EXPECTED_C = 0.60009765625f;
+            constexpr float K_EXPECTED_S = 0.7998046875f;
+            constexpr float K_EXPECTED_Z = 1.6669921875f;
 
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceReference));
-                start(layout, ExecutionMode::ForceReference);
-                const std::vector<Rotation> rotations = rotate(pairs);
+            const auto rotations = rotate<sycl::half>(
+                {{make<sycl::half>(K_LARGE_A), make<sycl::half>(K_LARGE_B)}});
 
-                for (std::size_t i = 0; i < rotations.size(); ++i)
-                {
-                    SCOPED_TRACE(::testing::Message() << "pair " << i);
-                    const Kernels::GivensRotation<float> in_float =
-                        Kernels::givens_rotation<StdRoot>(static_cast<float>(pairs[i].first),
-                                                          static_cast<float>(pairs[i].second));
-
-                    EXPECT_EQ(static_cast<float>(rotations[i].a),
-                              static_cast<float>(sycl::half(in_float.r)));
-                    EXPECT_EQ(static_cast<float>(rotations[i].b),
-                              static_cast<float>(sycl::half(in_float.z)));
-                    EXPECT_EQ(static_cast<float>(rotations[i].c),
-                              static_cast<float>(sycl::half(in_float.c)));
-                    EXPECT_EQ(static_cast<float>(rotations[i].s),
-                              static_cast<float>(sycl::half(in_float.s)));
-                }
-            }
+            EXPECT_EQ(static_cast<float>(rotations[0].a), K_EXPECTED_R);
+            EXPECT_EQ(static_cast<float>(rotations[0].b), K_EXPECTED_Z);
+            EXPECT_EQ(static_cast<float>(rotations[0].c), K_EXPECTED_C);
+            EXPECT_EQ(static_cast<float>(rotations[0].s), K_EXPECTED_S);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_RotgHalf,
+            ::testing::ValuesIn(plain_rows({Core::DataType::Half}, K_REFERENCE_MODE)),
+            row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS

@@ -216,6 +216,30 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Calls body with the Element of a real data type.
+         * @param type HALF, FLOAT32 or FLOAT64.
+         * @param body Callable taking an Element.
+         */
+        template<typename Body>
+        void with_real_element(Core::DataType type, Body&& body)
+        {
+            switch (type)
+            {
+                case Core::DataType::Half:
+                    body(Element<sycl::half>{});
+                    break;
+                case Core::DataType::Float32:
+                    body(Element<float>{});
+                    break;
+                case Core::DataType::Float64:
+                    body(Element<double>{});
+                    break;
+                default:
+                    FAIL() << "this case takes a real element type";
+            }
+        }
+
+        /**
          * @brief Calls body with the Element of a complex data type.
          * @param type Complex64 selects the double pair; any other type selects the float pair.
          * @param body Callable taking an Element.
