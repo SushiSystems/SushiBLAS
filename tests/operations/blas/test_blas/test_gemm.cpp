@@ -866,12 +866,6 @@ namespace SushiBLAS
         /** @brief Holds the direct calls to the kernels of the SYCL GEMM. */
         class Medium_GEMMKernelTest : public BlasEngineStart
         {
-            protected:
-                /** @brief Returns row-major strides for an operand of leading dimension ld. */
-                [[nodiscard]] static Kernels::OperandAccess row_major(int64_t ld)
-                {
-                    return Kernels::operand_access(Layout::RowMajor, Transpose::NoTrans, ld);
-                }
         };
 
         TEST_F(Medium_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
@@ -911,13 +905,12 @@ namespace SushiBLAS
                 host_product<float>(Layout::RowMajor, c, download_as<float>(A), download_as<float>(B),
                                     zeros);
 
-            auto& q = TestEnvironment::queue();
-            Kernels::SYCL::Detail::gemm_no_local<float>(
-                q, Device::profile_for(q), c.m, c.n, c.k,
-                static_cast<float>(c.alpha), static_cast<const float*>(A.data()), row_major(c.k), 0,
-                static_cast<const float*>(B.data()), row_major(c.n), 0,
-                0.0f, static_cast<float*>(C.data()), row_major(c.n), 0,
-                1, {}, Kernels::GemmIdentityEpilogue{}).wait();
+            Kernels::SYCL::gemm<float>(
+                TestEnvironment::queue(), Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans,
+                c.m, c.n, c.k, static_cast<float>(c.alpha), static_cast<const float*>(A.data()),
+                c.k, 0, static_cast<const float*>(B.data()), c.n, 0,
+                0.0f, static_cast<float*>(C.data()), c.n, 0,
+                1, {}, Kernels::GemmIdentityEpilogue{}, Kernels::GemmStrategy::no_local()).wait();
 
             expect_close<float>(download_as<float>(C), truth.value, truth.magnitude, c);
         }
@@ -929,7 +922,7 @@ namespace SushiBLAS
         class Medium_GemmLocalTiledAgreement : public LocalTiledRow
         {
             protected:
-                /** @brief Runs gemm_local_tiled on a case and compares it with the reference. */
+                /** @brief Runs the tiled kernel on a case and compares it with the reference. */
                 template<typename T>
                 void expect_matches_reference(Layout layout, const GemmCase& c)
                 {
@@ -949,15 +942,13 @@ namespace SushiBLAS
                     const HostProduct<T> truth =
                         host_product<T>(layout, c, download_as<T>(A), download_as<T>(B), zeros);
 
-                    Kernels::SYCL::Detail::gemm_local_tiled<T>(
-                        TestEnvironment::queue(), c.m, c.n, c.k, element_of<T>(c.alpha),
-                        static_cast<const T*>(A.data()),
-                        Kernels::operand_access(layout, c.trans_a, s.lda), s.str_a,
-                        static_cast<const T*>(B.data()),
-                        Kernels::operand_access(layout, c.trans_b, s.ldb), s.str_b,
-                        T(0), static_cast<T*>(C.data()),
-                        Kernels::operand_access(layout, Transpose::NoTrans, s.ldc), s.str_c,
-                        c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+                    Kernels::SYCL::gemm<T>(
+                        TestEnvironment::queue(), layout, c.trans_a, c.trans_b, c.m, c.n, c.k,
+                        element_of<T>(c.alpha), static_cast<const T*>(A.data()), s.lda, s.str_a,
+                        static_cast<const T*>(B.data()), s.ldb, s.str_b,
+                        T(0), static_cast<T*>(C.data()), s.ldc, s.str_c,
+                        c.batch, {}, Kernels::GemmIdentityEpilogue{},
+                        Kernels::GemmStrategy::local_tiled()).wait();
 
                     expect_close<T>(download_as<T>(C), truth.value, truth.magnitude, c);
                 }
@@ -982,23 +973,22 @@ namespace SushiBLAS
         class Medium_GemmTileShapeBits : public LocalTiledRow
         {
             protected:
-                /** @brief Runs gemm_local_tiled with one shape on the operands and returns C. */
-                template<typename T, typename Shape>
-                [[nodiscard]] std::vector<T> local_tiled_with(Layout layout, const GemmCase& c,
+                /** @brief Runs the tiled kernel in the shape of a role on the operands and returns C. */
+                template<typename T>
+                [[nodiscard]] std::vector<T> local_tiled_with(Kernels::GemmTileRole role,
+                                                              Layout layout, const GemmCase& c,
                                                               const Tensor& A, const Tensor& B)
                 {
                     const CaseStorage s = storage_of(layout, c);
                     Tensor C = engine->create_tensor({c.batch * s.str_c}, sushiblas_dtype<T>());
 
-                    Kernels::SYCL::Detail::gemm_local_tiled<T, Shape>(
-                        TestEnvironment::queue(), c.m, c.n, c.k, T(1),
-                        static_cast<const T*>(A.data()),
-                        Kernels::operand_access(layout, c.trans_a, s.lda), s.str_a,
-                        static_cast<const T*>(B.data()),
-                        Kernels::operand_access(layout, c.trans_b, s.ldb), s.str_b,
-                        T(0), static_cast<T*>(C.data()),
-                        Kernels::operand_access(layout, Transpose::NoTrans, s.ldc), s.str_c,
-                        c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+                    Kernels::SYCL::gemm<T>(
+                        TestEnvironment::queue(), layout, c.trans_a, c.trans_b, c.m, c.n, c.k, T(1),
+                        static_cast<const T*>(A.data()), s.lda, s.str_a,
+                        static_cast<const T*>(B.data()), s.ldb, s.str_b,
+                        T(0), static_cast<T*>(C.data()), s.ldc, s.str_c,
+                        c.batch, {}, Kernels::GemmIdentityEpilogue{},
+                        Kernels::GemmStrategy::local_tiled(role)).wait();
                     return download_as<T>(C);
                 }
 
@@ -1006,7 +996,6 @@ namespace SushiBLAS
                 template<typename T>
                 void expect_every_shape_gives_balanced_bits(Layout layout, const GemmCase& c)
                 {
-                    using Balanced = Kernels::GemmTile<T, Kernels::GemmTileRole::Balanced>;
                     using Wide = Kernels::GemmTile<T, Kernels::GemmTileRole::Wide>;
                     using Compact = Kernels::GemmTile<T, Kernels::GemmTileRole::Compact>;
 
@@ -1022,16 +1011,16 @@ namespace SushiBLAS
                     fill_random<T>(B);
 
                     // One fused multiply-add per k, k rising, in every shape.
-                    const std::vector<T> want = local_tiled_with<T, Balanced>(layout, c, A, B);
+                    const std::vector<T> want = local_tiled_with<T>(Kernels::GemmTileRole::Balanced, layout, c, A, B);
                     const std::size_t bytes = want.size() * sizeof(T);
                     if (hosts_shape<Wide>(profile))
                     {
-                        const std::vector<T> wide = local_tiled_with<T, Wide>(layout, c, A, B);
+                        const std::vector<T> wide = local_tiled_with<T>(Kernels::GemmTileRole::Wide, layout, c, A, B);
                         EXPECT_EQ(std::memcmp(wide.data(), want.data(), bytes), 0) << "Wide";
                     }
                     if (hosts_shape<Compact>(profile))
                     {
-                        const std::vector<T> compact = local_tiled_with<T, Compact>(layout, c, A, B);
+                        const std::vector<T> compact = local_tiled_with<T>(Kernels::GemmTileRole::Compact, layout, c, A, B);
                         EXPECT_EQ(std::memcmp(compact.data(), want.data(), bytes), 0) << "Compact";
                     }
                 }

@@ -53,6 +53,7 @@
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_strategy.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_choice.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_log.hpp>
@@ -924,11 +925,11 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
-             * @brief Computes `C = Epilogue(alpha * X * Y + beta * C)` for operands read through
-             *        access bricks, with the kernel the profile selects.
+             * @brief Computes `C = Epilogue(alpha * X * Y + beta * C)` over access bricks, with the kernel selected.
              * @tparam AccessA Brick with `T at(const T*, int64_t, int64_t) const`; AccessB too.
              * @param beta Exactly zero skips reading C.
              * @param c Must not overlap a or b.
+             * @param strategy The kernel to run; the default leaves the choice to the profile.
              * @see modules/kernels/blas_seam_kernels/README.md
              */
             template<typename T, typename AccessA, typename AccessB,
@@ -939,11 +940,32 @@ namespace SushiBLAS
                             const T* b, AccessB b_access, int64_t str_b,
                             T beta, T* c, OperandAccess c_access, int64_t str_c,
                             int64_t batch_size, const std::vector<sycl::event>& deps,
-                            Epilogue epilogue = Epilogue{})
+                            Epilogue epilogue = Epilogue{},
+                            GemmStrategy strategy = GemmStrategy::automatic())
             {
                 using Balanced = GemmTile<T, GemmTileRole::Balanced>;
 
                 const Device::Profile& profile = Device::profile_for(queue);
+
+                if (strategy.kind == GemmStrategyKind::LocalTiled)
+                    return Detail::gemm_local_tiled_as<T>(
+                        strategy.role, queue, m, n, k,
+                        alpha, a, a_access, str_a,
+                        b, b_access, str_b,
+                        beta, c, c_access, str_c,
+                        batch_size, deps, epilogue);
+
+                if (strategy.kind == GemmStrategyKind::NoLocal)
+                {
+                    Device::note_kernel_variant(Device::KernelVariant::GemmNoLocal);
+
+                    return Detail::gemm_no_local<T>(
+                        queue, profile, m, n, k,
+                        alpha, a, a_access, str_a,
+                        b, b_access, str_b,
+                        beta, c, c_access, str_c,
+                        batch_size, deps, epilogue);
+                }
 
                 // HALF on two strided operands goes to the matrix units where they fit.
                 if constexpr (std::is_same<T, sycl::half>::value &&
@@ -1011,6 +1033,7 @@ namespace SushiBLAS
              * @tparam Epilogue Functor `T operator()(T value, int64_t row, int64_t col) const`, applied before a store.
              * @param beta Exactly zero skips reading C.
              * @param c Must not overlap A or B.
+             * @param strategy The kernel to run; the default leaves the choice to the profile.
              * @see modules/kernels/blas_seam_kernels/README.md
              */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
@@ -1021,7 +1044,8 @@ namespace SushiBLAS
                             const T* b, int64_t ldb, int64_t str_b,
                             T beta, T* c, int64_t ldc, int64_t str_c,
                             int64_t batch_size, const std::vector<sycl::event>& deps,
-                            Epilogue epilogue = Epilogue{})
+                            Epilogue epilogue = Epilogue{},
+                            GemmStrategy strategy = GemmStrategy::automatic())
             {
                 // C is never transposed in BLAS, so it only ever sees the layout.
                 return gemm_accessed<T>(queue, m, n, k,
@@ -1029,7 +1053,7 @@ namespace SushiBLAS
                                         b, operand_access(layout, transB, ldb), str_b,
                                         beta, c,
                                         operand_access(layout, Core::Transpose::NoTrans, ldc),
-                                        str_c, batch_size, deps, epilogue);
+                                        str_c, batch_size, deps, epilogue, strategy);
             }
 
         } // namespace SYCL

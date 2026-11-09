@@ -29,7 +29,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -46,38 +45,32 @@ namespace SushiBLAS
         /// @brief The vector length.
         constexpr int64_t K_LENGTH = 1000;
 
-        /// @brief Names a row after its flag.
-        static std::string flag_name(const ::testing::TestParamInfo<float>& info)
-        {
-            return info.param < 0.0f ? "Minus" + std::to_string(static_cast<int>(-info.param))
-                                     : "Plus" + std::to_string(static_cast<int>(info.param));
-        }
-
-        /// @brief Runs rotm on the host CPU queue, one flag at a time.
-        class Medium_SYCLRotm : public HostDeviceTest, public ::testing::WithParamInterface<float>
+        /** @brief Runs rotm on the host CPU queue. */
+        class Medium_SYCLRotm : public HostDeviceTest
         {
 
         };
 
-        /// @brief Tests that the SYCL rotm matches the reference under one flag.
-        TEST_P(Medium_SYCLRotm, MatchesTheReferenceUnderEveryFlag)
+        TEST_F(Medium_SYCLRotm, MatchesTheReferenceUnderEveryFlag)
         {
-            const std::vector<float> param{GetParam(), 2.0f, -1.0f, 3.0f, -2.0f};
-            std::vector<float> x = small_integers<float>(K_LENGTH, 1);
-            std::vector<float> y = small_integers<float>(K_LENGTH, 2);
-            SharedArray<float> device_x(queue(), x);
-            SharedArray<float> device_y(queue(), y);
-            const SharedArray<float> device_param(queue(), param);
+            for (const float flag : {-2.0f, -1.0f, 0.0f, 1.0f})
+            {
+                SCOPED_TRACE(flag);
+                const std::vector<float> param{flag, 2.0f, -1.0f, 3.0f, -2.0f};
+                std::vector<float> x = small_integers<float>(K_LENGTH, 1);
+                std::vector<float> y = small_integers<float>(K_LENGTH, 2);
+                SharedArray<float> device_x(queue(), x);
+                SharedArray<float> device_y(queue(), y);
+                const SharedArray<float> device_param(queue(), param);
 
-            Kernels::SYCL::rotm<float>(queue(), K_LENGTH / 2, device_x.get(), 2, device_y.get(),
-                                       2, device_param.get(), {}).wait();
-            Kernels::Reference::rotm<float>(K_LENGTH / 2, x.data(), 2, y.data(), 2, param.data());
+                Kernels::SYCL::rotm<float>(queue(), K_LENGTH / 2, device_x.get(), 2,
+                                           device_y.get(), 2, device_param.get(), {}).wait();
+                Kernels::Reference::rotm<float>(K_LENGTH / 2, x.data(), 2, y.data(), 2,
+                                                param.data());
 
-            EXPECT_EQ(device_x.values(), x);
-            EXPECT_EQ(device_y.values(), y);
+                EXPECT_EQ(device_x.values(), x);
+                EXPECT_EQ(device_y.values(), y);
+            }
         }
-
-        INSTANTIATE_TEST_SUITE_P(Flags, Medium_SYCLRotm,
-                                 ::testing::Values(-2.0f, -1.0f, 0.0f, 1.0f), flag_name);
     } // namespace Test
 } // namespace SushiBLAS

@@ -25,6 +25,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `level3/gemm_tile_shape.hpp` | `GemmTileShape`, the compile-time geometry of one tiled GEMM kernel, and `register_block_dim` |
 | `level3/gemm_tile_catalog.hpp` | `GemmTileRole`, the shapes the tiled GEMM is compiled for, and their sizes as plain values |
 | `level3/gemm_tile_table.hpp` | `GemmSizeClass`, `GemmTileEntry` and `K_GEMM_TILE_TABLE`, the measured choices |
+| `level3/gemm_strategy.hpp` | `GemmStrategy`, the request a caller passes to pick the SYCL GEMM kernel |
 | `level3/gemm_tile_choice.hpp` | `choose_gemm_tile`, the host rule that picks the shape of one product |
 | `level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
 | `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
@@ -282,6 +283,18 @@ local bytes. The host chooser reads these, so it never instantiates a kernel.
 
 One measured choice: on this architecture, for this dtype and size class, this role ran fastest.
 `benchmark_gemm_tiles` prints the lines. The table is empty: no device has been measured yet.
+
+## `level3/gemm_strategy.hpp`
+
+### `GemmStrategy`
+
+The last parameter of `gemm` and `gemm_accessed`. `GemmStrategy::automatic()`, the default, leaves
+the kernel to the device profile, so a call without it behaves as before. `no_local()` runs the
+kernel that reads its operands from global memory; `local_tiled(role)` runs the tiled kernel in the
+shape of a `GemmTileRole`, `Balanced` by default. Either request skips the joint-matrix kernel, the
+depth split and the tile chooser, and the tiled request needs a device that hosts its tile. A test
+that compares one kernel with the reference asks for it here and names no `Detail::` kernel. The
+forms of `gemm_accessed` that take scratch for a packed product do not take a strategy.
 
 ## `level3/gemm_tile_choice.hpp`
 

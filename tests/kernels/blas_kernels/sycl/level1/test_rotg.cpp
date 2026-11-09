@@ -27,7 +27,6 @@
  * @author Mustafa Garip
  */
 
-#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -40,48 +39,32 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief One input pair of rotg and the name of its row.
-        struct PairRow
-        {
-            const char* name;
-            double a;
-            double b;
-        };
-
-        /// @brief Names a row after its input pair.
-        static std::string pair_name(const ::testing::TestParamInfo<PairRow>& info)
-        {
-            return info.param.name;
-        }
-
-        /// @brief Runs rotg on the host CPU queue, one input pair at a time.
-        class Medium_SYCLRotg : public HostDeviceTest, public ::testing::WithParamInterface<PairRow>
+        /** @brief Runs rotg on the host CPU queue. */
+        class Medium_SYCLRotg : public HostDeviceTest
         {
 
         };
 
-        /// @brief Tests that the SYCL rotg matches the reference bit for bit.
-        TEST_P(Medium_SYCLRotg, MatchesTheReferenceBitForBit)
+        TEST_F(Medium_SYCLRotg, MatchesTheReferenceBitForBit)
         {
-            SharedArray<double> values(queue(), std::vector<double>{GetParam().a, GetParam().b, 0, 0});
-            double* v = values.get();
-            double a = GetParam().a;
-            double b = GetParam().b;
-            double c = 0.0;
-            double s = 0.0;
+            const std::vector<std::vector<double>> pairs{
+                {3.0, 4.0}, {-4.0, 3.0}, {0.0, 2.0}, {5.0, 0.0}, {1e-200, 3e-200}};
 
-            Kernels::SYCL::rotg(queue(), v, v + 1, v + 2, v + 3, {}).wait();
-            Kernels::Reference::rotg(&a, &b, &c, &s);
+            for (const std::vector<double>& pair : pairs)
+            {
+                SCOPED_TRACE(pair[0]);
+                SharedArray<double> values(queue(), std::vector<double>{pair[0], pair[1], 0, 0});
+                double* v = values.get();
+                Kernels::SYCL::rotg(queue(), v, v + 1, v + 2, v + 3, {}).wait();
 
-            EXPECT_EQ(values.values(), (std::vector<double>{a, b, c, s}));
+                double a = pair[0];
+                double b = pair[1];
+                double c = 0.0;
+                double s = 0.0;
+                Kernels::Reference::rotg(&a, &b, &c, &s);
+
+                EXPECT_EQ(values.values(), (std::vector<double>{a, b, c, s}));
+            }
         }
-
-        INSTANTIATE_TEST_SUITE_P(Pairs, Medium_SYCLRotg,
-                                 ::testing::Values(PairRow{"ThreeFour", 3.0, 4.0},
-                                                   PairRow{"MinusFourThree", -4.0, 3.0},
-                                                   PairRow{"ZeroFirst", 0.0, 2.0},
-                                                   PairRow{"ZeroSecond", 5.0, 0.0},
-                                                   PairRow{"Tiny", 1e-200, 3e-200}),
-                                 pair_name);
     } // namespace Test
 } // namespace SushiBLAS

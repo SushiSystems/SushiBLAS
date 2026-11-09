@@ -18,6 +18,7 @@ sushiblas_add_test_program(
     TESTS
         level3/test_channel_bias_epilogue.cpp
         level3/test_gemm_epilogue.cpp
+        level3/test_gemm_strategy.cpp
         level3/test_gemm_tile_catalog.cpp
         level3/test_gemm_tile_choice.cpp
         level3/test_gemm_tile_shape.cpp
