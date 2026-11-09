@@ -64,6 +64,14 @@ namespace SushiBLAS
 
             EXPECT_EQ(m.leading_dimension, int64_t{4});
             EXPECT_EQ(m.batch_count, int64_t{6});
+        }
+
+        TEST_F(Medium_MatrixOperand, TheBatchStrideIsTheMatrixSizeAndRefusesAWrongCount)
+        {
+            reinit_engine(Core::Layout::ColumnMajor);
+            const Dispatch::MatrixOperand m =
+                Dispatch::describe_matrix_operand(engine->create_tensor({2, 3, 4, 5}), "op", "a");
+
             EXPECT_EQ(Dispatch::batch_stride(m, 6, "op", "a"), int64_t{20});
             EXPECT_THROW((void)Dispatch::batch_stride(m, 4, "op", "a"), std::invalid_argument);
         }
@@ -80,7 +88,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Medium_MatrixOperand, TwoOperandsMustShareLayoutAndExtents)
+        TEST_F(Medium_MatrixOperand, TwoOperandsOfDifferentLayoutsAreRefused)
         {
             const Dispatch::MatrixOperand row =
                 Dispatch::describe_matrix_operand(engine->create_tensor({2, 2}), "op", "a");
@@ -90,9 +98,23 @@ namespace SushiBLAS
 
             EXPECT_THROW(Dispatch::require_same_layout(row, column, "op", "a", "b"),
                          std::invalid_argument);
+        }
+
+        TEST_F(Medium_MatrixOperand, AnExtentMismatchIsRefused)
+        {
             EXPECT_THROW(Dispatch::require_matrix_extent(3, 2, "rows", "op", "a"),
                          std::invalid_argument);
-            EXPECT_NO_THROW(Dispatch::require_unbatched(row, "op", "a"));
+        }
+
+        TEST_F(Medium_MatrixOperand, ARankTwoOperandIsUnbatchedAndABatchIsNot)
+        {
+            const Dispatch::MatrixOperand single =
+                Dispatch::describe_matrix_operand(engine->create_tensor({2, 2}), "op", "a");
+            const Dispatch::MatrixOperand batch =
+                Dispatch::describe_matrix_operand(engine->create_tensor({3, 2, 2}), "op", "b");
+
+            EXPECT_NO_THROW(Dispatch::require_unbatched(single, "op", "a"));
+            EXPECT_THROW(Dispatch::require_unbatched(batch, "op", "b"), std::invalid_argument);
         }
     } // namespace Test
 } // namespace SushiBLAS
