@@ -35,6 +35,7 @@
 #include <vector>
 #include <cstddef>
 #include <optional>
+#include <SushiBLAS/cost/cost.hpp>
 #include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/core/determinism.hpp>
@@ -69,6 +70,10 @@ namespace SushiBLAS
         std::vector<SushiRuntime::BufferRegion> reads;
         /// @brief The regions the task declared as written, in declaration order.
         std::vector<SushiRuntime::BufferRegion> writes;
+        /// @brief The cost the task stated: the table's cost for its operation and shape, with the bytes its operands declared.
+        Cost cost;
+        /// @brief The origin label the task carried; empty when the recorder had no scope open.
+        std::string origin;
     };
 
     /**

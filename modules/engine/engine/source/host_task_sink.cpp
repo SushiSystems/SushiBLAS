@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_cost.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 
@@ -68,11 +69,13 @@ namespace SushiBLAS
     HostTaskSink::~HostTaskSink() = default;
 
     void HostTaskSink::add_pair(const TaskDescription& description, const OperandSet& operands,
-                                ExecutionMode, const std::string&, PairBody body)
+                                ExecutionMode, const std::string& origin, PairBody body)
     {
         tasks_->kept.push_back(Tasks::Task{
             HostTaskRecord{description.name, description.operation, description.determinism,
-                           operands.read_regions(), operands.write_regions()},
+                           operands.read_regions(), operands.write_regions(),
+                           Internal::task_cost(description.operation, description.shape, operands),
+                           origin},
             std::move(body), operands.retained()});
     }
 
