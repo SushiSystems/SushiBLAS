@@ -29,6 +29,7 @@
 
 #include <complex>
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_tile_catalog.hpp>
 
@@ -72,11 +73,23 @@ namespace SushiBLAS
             EXPECT_EQ((GemmTile<std::complex<double>, GemmTileRole::Compact>::K_BLOCK_N), 16);
         }
 
-        TEST(Small_GemmTileCatalog, EveryRoleNameReadsBackToItsRole)
+        /** @brief Runs a catalog case once per tile role. */
+        class Small_GemmTileCatalogRoles : public ::testing::TestWithParam<Kernels::GemmTileRole>
         {
-            for (const Kernels::GemmTileRole role : Kernels::K_GEMM_TILE_ROLES)
-                EXPECT_EQ(Kernels::gemm_tile_role_from(Kernels::to_string(role)), role);
+
+        };
+
+        TEST_P(Small_GemmTileCatalogRoles, TheRoleNameReadsBackToItsRole)
+        {
+            EXPECT_EQ(Kernels::gemm_tile_role_from(Kernels::to_string(GetParam())), GetParam());
         }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmTileCatalogRoles,
+                                 ::testing::Values(Kernels::GemmTileRole::Balanced,
+                                                   Kernels::GemmTileRole::Wide,
+                                                   Kernels::GemmTileRole::Compact),
+                                 [](const ::testing::TestParamInfo<Kernels::GemmTileRole>& info)
+                                 { return std::string(Kernels::to_string(info.param)); });
 
         TEST(Small_GemmTileCatalog, ANameOutsideTheCatalogNamesNoRole)
         {
@@ -85,13 +98,35 @@ namespace SushiBLAS
             EXPECT_FALSE(Kernels::gemm_tile_role_from("balanced").has_value());
         }
 
-        TEST(Small_GemmTileCatalog, TraitsFollowTheRoleOrder)
+        /** @brief Reads the traits of the catalog at one position of the role order. */
+        class Small_GemmTileCatalogOrder : public ::testing::TestWithParam<std::size_t>
+        {
+
+        };
+
+        TEST_P(Small_GemmTileCatalogOrder, TheTraitsFollowTheRoleOrder)
         {
             const auto traits = Kernels::gemm_tile_traits<float>();
 
-            for (std::size_t i = 0; i < traits.size(); ++i)
-                EXPECT_EQ(traits[i].role, Kernels::K_GEMM_TILE_ROLES[i]);
+            EXPECT_EQ(traits[GetParam()].role, Kernels::K_GEMM_TILE_ROLES[GetParam()]);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmTileCatalogOrder,
+                                 ::testing::Values(std::size_t{0}, std::size_t{1}, std::size_t{2}),
+                                 [](const ::testing::TestParamInfo<std::size_t>& info)
+                                 { return "Position" + std::to_string(info.param); });
+
+        TEST(Small_GemmTileCatalog, TheTraitsHoldTheBlockOfWide)
+        {
+            const auto traits = Kernels::gemm_tile_traits<float>();
+
             EXPECT_EQ(traits[1].block_m, 128);
+        }
+
+        TEST(Small_GemmTileCatalog, TheTraitsHoldTheWorkGroupOfCompact)
+        {
+            const auto traits = Kernels::gemm_tile_traits<float>();
+
             EXPECT_EQ(traits[2].work_group_items, std::size_t{64});
         }
     } // namespace Test
