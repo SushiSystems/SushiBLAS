@@ -35,12 +35,12 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
 using namespace SushiRuntime::Literals;
@@ -55,16 +55,28 @@ namespace
 
     /// @brief A * B: {1*7+2*9+3*11, 1*8+2*10+3*12, 4*7+5*9+6*11, 4*8+5*10+6*12}.
     const std::vector<float> K_PRODUCT = {58.0f, 64.0f, 139.0f, 154.0f};
-
-    /// @brief Absolute tolerance: 16 FLOAT32 roundings of a value of order one,
-    /// for a product of small integers.
-    constexpr double K_TOLERANCE = absolute_tolerance<float>(16);
 } // namespace
 
 /// @brief Fixture for the ForceReference host-pointer guard tests.
 class Medium_ReferenceModeGuardTest : public SushiBLASTest
 {
     protected:
+        /** @brief Builds the device-only operands, or skips on a device without such USM. */
+        void SetUp() override
+        {
+            SushiBLASTest::SetUp();
+            device_a_ = make_device_a();
+            device_bias_ = make_device_tensor({2});
+            if (!device_a_ || !device_bias_)
+                GTEST_SKIP() << "This device offers no device-only USM.";
+        }
+
+        /// @brief The 2x3 operand A in device-only USM.
+        std::optional<Tensor> device_a_;
+
+        /// @brief A two-element bias in device-only USM.
+        std::optional<Tensor> device_bias_;
+
         /**
          * @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing without such USM.
          * @return Empty when the allocation fails or the pointer is not usm::alloc::device.
@@ -128,32 +140,25 @@ class Medium_ReferenceModeGuardTest : public SushiBLASTest
 
 TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue)
 {
-    std::optional<Tensor> bias = make_device_tensor({2});
-    if (!bias)
-        GTEST_SKIP() << "This device offers no device-only USM.";
+    const Tensor& bias = *device_bias_;
     const Tensor a = make_shared_a();
     const Tensor b = make_shared_b();
     Tensor c = engine->create_tensor({2, 2});
-    const Kernels::ChannelBiasEpilogue epilogue{bias->data(), 0, 1};
+    const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
     set_mode(ExecutionMode::ForceReference);
     EXPECT_THROW(Dispatch::execute_gemm(recorder(), a, b, c, Core::Transpose::NoTrans,
                                         Core::Transpose::NoTrans, 1.0, 0.0,
                                         "test.gemm_device_bias", "test.gemm_device_bias"_op,
-                                        Dispatch::gemm_epilogue(epilogue).reads(*bias)),
-                 std::invalid_argument);
+                                        Dispatch::gemm_epilogue(epilogue).reads(bias)),
+                 UnsupportedExecution);
 }
 
 TEST_F(Medium_ReferenceModeGuardTest, ForceSYCLGemmRunsOnADeviceOperand)
 {
-    std::optional<Tensor> a = make_device_a();
-    if (!a)
-        GTEST_SKIP() << "This device offers no device-only USM.";
     const Tensor b = make_shared_b();
 
-    const std::vector<float> result = run_gemm(ExecutionMode::ForceSYCL, *a, b);
+    const std::vector<float> result = run_gemm(ExecutionMode::ForceSYCL, *device_a_, b);
 
-    ASSERT_EQ(K_PRODUCT.size(), result.size());
-    for (std::size_t i = 0; i < K_PRODUCT.size(); ++i)
-        EXPECT_NEAR(K_PRODUCT[i], result[i], K_TOLERANCE) << "element " << i;
+    EXPECT_EQ(K_PRODUCT, result);
 }

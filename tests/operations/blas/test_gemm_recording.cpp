@@ -34,6 +34,7 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas/gemm_recording.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/engine_fixture/host_engine_test.hpp>
 #include <SushiBLAS/graph_probe/host_graph_probe.hpp>
 #include <SushiBLAS/tensor/host_block.hpp>
@@ -95,6 +96,33 @@ namespace SushiBLAS
                 << "The GEMM whose epilogue dereferences `bias` must depend on the op "
                    "that wrote it. An in-degree of 0 means the declaration made through "
                    "Dispatch::gemm_epilogue never reached the task's read set.";
+        }
+
+        TEST_F(Small_GemmSeamDependencies, AChannelBiasEpilogueReadIsOrderedBehindItsProducer)
+        {
+            HostGraphProbe probe;
+
+            // The in-degree counts the bias edge alone.
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
+            auto bias = engine->create_tensor({3}, DataType::Float32);
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
+
+            record(probe, A, B, C, "test.gemm_channel_bias_declared",
+                   "test.gemm_channel_bias_declared"_op,
+                   Dispatch::gemm_epilogue(Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
+                       .reads(bias));
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
+            EXPECT_EQ(1u, tasks[1].dependency_count)
+                << "The GEMM whose ChannelBiasEpilogue dereferences `bias` must depend on "
+                   "the op that wrote it. An in-degree of 0 means the declaration made "
+                   "through Dispatch::gemm_epilogue never reached the task's read set, and "
+                   "the GEMM is free to run against a bias that has not arrived.";
         }
 
         TEST_F(Small_GemmSeamDependencies, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)

@@ -258,7 +258,8 @@ transposed `row`/`col` is a wrong answer and not an out-of-range read. Everythin
 can reach and is where the epilogue is instantiated in the consumer's own translation unit.
 
 `bits_of` exists because the identity check is about the generated arithmetic being unchanged;
-see "Comparing floats by bit pattern".
+see "Comparing floats by bit pattern". The hand-computed expectations are small integers, so they
+are compared for equality.
 
 `ARowChannelBiasBroadcastsDownTheOtherAxis`: at `(1, 0)` the channel is the row, the NCHW
 orientation. The bias vector is the same as in the column test, so the two expectations differ
@@ -277,9 +278,11 @@ are chosen so every element of `A*B` is strictly positive. `x + 0.0f` is the ide
 float except -0.0f, which it turns into +0.0f, and that one case is the only way the test could
 fail for a reason that is not a defect.
 
-`TheEpiloguesAccessSetReachesTheTask`: the bias is written by a task recorded before the GEMM,
-so there is a real producer to be ordered behind. A and B have no producer, so the GEMM's
-in-degree counts the bias edge alone. See "Ordering is asserted on in-degree".
+`AChannelBiasEpilogueReadIsOrderedBehindItsProducer`, in `test_gemm_recording.cpp`: the bias is
+written by a task recorded before the GEMM, so there is a real producer to be ordered behind. A
+and B have no producer, so the GEMM's in-degree counts the bias edge alone. It reads the graph
+through `InMemoryGemmPort` on host tensors, so it is `Small_`. See "Ordering is asserted on
+in-degree".
 
 `TheGemmSeesTheProducedBiasValues` is the other half: the edge exists, and the values that
 cross it are the produced ones. On its own it proves nothing about ordering, because it can

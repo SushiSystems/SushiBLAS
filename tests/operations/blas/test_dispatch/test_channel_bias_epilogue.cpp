@@ -37,9 +37,7 @@
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
-#include <SushiBLAS/tensor_expectations/tolerance_bounds.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {
@@ -58,6 +56,20 @@ namespace SushiBLAS
                 uint32_t pattern = 0;
                 std::memcpy(&pattern, &value, sizeof(pattern));
                 return pattern;
+            }
+
+            /**
+             * @brief Expects two results to hold the same bits, element for element.
+             *
+             * A zero ChannelBiasEpilogue must produce the identity kernel's result to the bit. A
+             * difference means the fused store changed the arithmetic, so fusion is not free when
+             * unused.
+             */
+            void expect_same_bits(const std::vector<float>& plain, const std::vector<float>& fused)
+            {
+                ASSERT_EQ(plain.size(), fused.size());
+                for (std::size_t i = 0; i < fused.size(); ++i)
+                    EXPECT_EQ(bits_of(plain[i]), bits_of(fused[i])) << "Element " << i;
             }
         } // namespace
 
@@ -108,9 +120,9 @@ namespace SushiBLAS
             recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] + bias[row] = +1, -8, +3 across each row.
-            EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
+            expect_tensor_equal(C, std::vector<float>{2, 3, 4,
                                                       -4, -3, -2,
-                                                      8, 10, 12}), absolute_tolerance<float>(16));
+                                                      8, 10, 12});
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, TheSameEpilogueAppliesOnTheReferencePath)
@@ -131,9 +143,9 @@ namespace SushiBLAS
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
             recording->run().value();
 
-            EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
+            expect_tensor_equal(C, std::vector<float>{2, 3, 4,
                                                       -4, -3, -2,
-                                                      8, 10, 12}), absolute_tolerance<float>(16));
+                                                      8, 10, 12});
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, AZeroBiasIsTheIdentityEpilogue)
@@ -160,48 +172,7 @@ namespace SushiBLAS
                                    Kernels::GemmIdentityEpilogue{});
             recording->run().value();
 
-            const std::vector<float> fused_host = download(fused);
-            const std::vector<float> plain_host = download(plain);
-            ASSERT_EQ(plain_host.size(), fused_host.size());
-
-            for (std::size_t i = 0; i < fused_host.size(); ++i)
-            {
-                EXPECT_EQ(bits_of(plain_host[i]), bits_of(fused_host[i]))
-                    << "Element " << i << ": a zero ChannelBiasEpilogue must produce the "
-                       "identity kernel's result to the bit. A difference means the fused "
-                       "store changed the arithmetic, so fusion is not free when unused.";
-            }
-        }
-
-        TEST_F(Medium_ChannelBiasEpilogueTest, TheEpiloguesAccessSetReachesTheTask)
-        {
-            GraphProbe probe;
-
-            // The in-degree counts the bias edge alone. See tests/operations/blas/README.md.
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
-            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto bias = engine->create_tensor({3}, Core::DataType::Float32);
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Core::Transpose::NoTrans,
-                                   Core::Transpose::NoTrans, 1.0, 0.0,
-                                   "test.gemm_channel_bias_declared",
-                                   "test.gemm_channel_bias_declared"_op,
-                                   Dispatch::gemm_epilogue(
-                                       Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
-                                       .reads(bias));
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const auto tasks = probe.recorded_tasks();
-            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
-            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
-                << "The GEMM whose ChannelBiasEpilogue dereferences `bias` must depend on "
-                   "the op that wrote it. An in-degree of 0 means the declaration made "
-                   "through Dispatch::gemm_epilogue never reached the task's read set, and "
-                   "the GEMM is free to run against a bias that has not arrived.";
+            expect_same_bits(download(plain), download(fused));
         }
 
         TEST_F(Medium_ChannelBiasEpilogueTest, TheGemmSeesTheProducedBiasValues)
@@ -227,9 +198,9 @@ namespace SushiBLAS
             recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] + [1,4,9] down every row.
-            EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 6, 12,
+            expect_tensor_equal(C, std::vector<float>{2, 6, 12,
                                                       5, 9, 15,
-                                                      6, 11, 18}), absolute_tolerance<float>(16));
+                                                      6, 11, 18});
         }
     } // namespace Test
 } // namespace SushiBLAS
