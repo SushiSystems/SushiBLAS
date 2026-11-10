@@ -22,6 +22,9 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through; it names no SYCL type |
 | `pair_run.hpp` | `PairRun`, one run of a recorded body: its dispatcher, its dependencies and the event that ends its work |
 | `late_count_sink.hpp` | `LateCountSink`, the port a `TaskRecorder` adds a late-count kernel through |
+| `late_count_keeper.hpp` | `LateCount` and `LateCountKeeper`, the port a `TaskRecorder` borrows a late count through and keeps its owner in |
+| `host_late_count_keeper.hpp` | `HostLateCountKeeper`, the adapter that makes no runtime and counts the owners it keeps |
+| `host_graph_sink.hpp` | `HostGraphSink`, the adapter of both sink ports that admits every mode and keeps what each late-count node stated |
 | `graph_task_sink.hpp` | `GraphTaskSink`, the adapter of both sink ports that adds each task to a `SushiRuntime::Recorder` |
 | `host_task_sink.hpp` | `HostTaskSink`, the adapter that keeps bodies in record order and runs them on the host under `ForceReference` |
 | `mode_admission.hpp` | `ModeAdmission`, the port `Engine::set_mode` asks which modes the engine admits |
@@ -305,6 +308,8 @@ count a previous node writes, with no host form. `add_late_node(description, cos
 adds the node `record` adds. A `TaskRecorder` holds this port beside its `TaskSink`, or none:
 `record_late_pair` outside `ForceReference` throws `UnsupportedExecution` on a recorder that holds
 none.
+
+`HostGraphSink` also implements both ports with no runtime: it admits every mode, keeps pairs in a `HostTaskSink`, and keeps the name, cost and origin of each late-count node as a `HostLateNode` without calling its record, so a late-count recording is read in a test that makes no runtime. It pairs with `HostLateCountKeeper`, the host adapter of `LateCountKeeper` (`late_count_keeper.hpp`), the port `TaskRecorder` borrows a late count through; `LateCountHold` is its runtime adapter.
 
 `GraphTaskSink` implements both ports. It admits every mode and hands each body a dispatcher that
 holds the device's queue; `HostTaskSink` hands one that holds none. `add_pair` records a node with

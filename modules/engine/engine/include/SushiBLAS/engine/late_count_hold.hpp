@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <utility>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/late_count_keeper.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -42,16 +43,6 @@
 
 namespace SushiBLAS
 {
-    /** @brief Holds what one late-count task needs: the owner token and the count's words. */
-    struct LateCount
-    {
-        /// @brief The token the runtime watches; its deleter holds every storage of the task.
-        SushiRuntime::LivenessToken owner;
-
-        /// @brief The whole allocation of the count, borrowed as the runtime's word buffer.
-        SushiRuntime::Buffer<std::uint32_t> words;
-    };
-
     /**
      * @brief Keeps the storages of late-count tasks alive for as long as its owner keeps the
      *        recording that holds them.
@@ -60,7 +51,7 @@ namespace SushiBLAS
      * owner of the graph owns the hold; TaskRecorder only records into it. Thread-safe.
      * @see modules/engine/engine/README.md
      */
-    class LateCountHold final
+    class LateCountHold final : public LateCountKeeper
     {
         public:
             /**
@@ -88,7 +79,7 @@ namespace SushiBLAS
              * @pre count has storage.
              */
             [[nodiscard]] LateCount borrow(const OperandSet& operands,
-                                           const Tensor& count) const
+                                           const Tensor& count) const override
             {
                 Internal::StorageKeepAlive held = operands.retained();
                 held.retain(count.storage);
@@ -116,7 +107,7 @@ namespace SushiBLAS
             }
 
             /** @brief Keeps owner until release(). */
-            void keep(SushiRuntime::LivenessToken owner)
+            void keep(SushiRuntime::LivenessToken owner) override
             {
                 const std::lock_guard<std::mutex> lock(mutex_);
                 held_.push_back(std::move(owner));

@@ -51,6 +51,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/launch/submitted_events.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
+#include <SushiBLAS/engine/late_count_keeper.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -241,7 +242,7 @@ namespace SushiBLAS
              * @throws UnsupportedExecution when the sink does not admit the mode.
              */
             explicit TaskRecorder(TaskSink& sink, ScratchPool* scratch_pool = nullptr,
-                                  LateCountHold* late_counts = nullptr,
+                                  LateCountKeeper* late_counts = nullptr,
                                   ExecutionMode mode = ExecutionMode::ForceReference,
                                   LateCountSink* late_sink = nullptr)
                 : sink_(&sink), late_sink_(late_sink), scratch_pool_(scratch_pool),
@@ -477,7 +478,7 @@ namespace SushiBLAS
             ScratchPool* scratch_pool_;
 
             /// @brief The hold late-count tasks are kept in, owned by the owner of the graph; null on a sink with no graph.
-            LateCountHold* late_counts_;
+            LateCountKeeper* late_counts_;
 
             /// @brief The mode stamped on each task as it is recorded.
             ExecutionMode mode_;

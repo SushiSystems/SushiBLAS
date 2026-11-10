@@ -30,12 +30,15 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_engine_log_category.cpp` | Checks at compile time that the log category names its module and the SushiBLAS project; no test runner lists it |
 | `test_graph_task_sink.cpp` | Tests that GraphTaskSink adds one node to its recorder for each task |
 | `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out |
+| `test_host_graph_sink.cpp` | Tests that HostGraphSink admits every mode and keeps the name, cost and origin of a late-count node without calling its record |
+| `test_host_late_count_keeper.cpp` | Tests that HostLateCountKeeper lends an empty late count and counts the owners it keeps |
 | `test_task_cost.cpp` | Tests the access and the cost a recorded node states for an operation, a shape and its operands |
 | `test_task_sink.cpp` | Tests that the host and graph adapters of TaskSink keep the TaskSink contract |
 | `test_tensor_profile.cpp` | Tests that profile_of() gives a host tensor the host Profile and refuses a tensor with no storage |
 | `test_mode_admission.cpp` | Tests that both ModeAdmission adapters keep its contract |
 | `test_host_mode_admission.cpp` | Tests that the host adapter admits no mode that needs a SYCL queue |
 | `test_runtime_mode_admission.cpp` | Tests that the runtime adapter admits the modes that run the SYCL kernel |
+| `compile_late_count_keeper.cpp` | Checks at compile time that the runtime hold and the host keeper are adapters of LateCountKeeper; no test runner lists it |
 | `compile_pair_run.cpp` | Checks at compile time that a TaskSink body takes a PairRun; no test runner lists it |
 | `test_late_count_sink.cpp` | Tests the LateCountSink contract on the graph adapter: one node per late record, and a refused record names the task |
 | `test_runtime_scratch_source.cpp` | Tests what RuntimeScratchSource serves beyond the BlockSource contract |

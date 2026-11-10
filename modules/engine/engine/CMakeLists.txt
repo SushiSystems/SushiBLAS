@@ -38,6 +38,8 @@ sushiblas_add_test_program(
         test_task_cost.cpp
         test_graph_task_sink.cpp
         test_host_task_sink.cpp
+        test_host_graph_sink.cpp
+        test_host_late_count_keeper.cpp
         test_task_description.cpp
         test_tensor_profile.cpp
         test_mode_admission.cpp
@@ -62,4 +64,5 @@ sushiblas_add_test_program(
         test_task_sink.cpp
     COMPILE_CHECKS
         test_engine_log_category.cpp
+        compile_late_count_keeper.cpp
         compile_pair_run.cpp)

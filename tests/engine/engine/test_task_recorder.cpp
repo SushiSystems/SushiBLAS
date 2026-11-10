@@ -45,6 +45,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/host_graph_sink.hpp>
+#include <SushiBLAS/engine/host_late_count_keeper.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/engine_fixture/host_engine_test.hpp>
@@ -635,24 +637,30 @@ namespace SushiBLAS
             EXPECT_FALSE(only_record().cost.is_costed());
         }
 
-        /** @brief Tests that a late-count task, whose width is read at run time, states no cost. */
-        TEST_F(Medium_TaskRecorderCost, ALateCountTaskIsUncosted)
+        /** @brief Records a late-count task on a recorder over the host adapters of both sink ports, with no runtime. */
+        class Small_TaskRecorderLateCount : public HostEngineTest
         {
-            GraphProbe probe;
-            Tensor out = floats({4});
-            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
-                                                 SushiRuntime::Residency::Host);
-            count.data_as<std::int32_t>()[0] = 2;
+        };
+
+        /** @brief Tests that a late-count task, whose width is read at run time, states no cost and names the reason. */
+        TEST_F(Small_TaskRecorderLateCount, ALateCountTaskIsUncostedAsDataDependent)
+        {
+            HostGraphSink sink;
+            HostLateCountKeeper keeper;
+            TaskRecorder recorder(sink, nullptr, &keeper, ExecutionMode::Auto, &sink);
+            Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
+            const Tensor count = engine->create_tensor({1}, Core::DataType::Int32);
             OperandSet operands;
             operands.writes(out);
             TaskDescription description;
             description.operation = SushiRuntime::OperationID(SushiRuntime::OperationID::hash("math.ew.add", 11));
             description.shape = ElementwiseShape{4, Core::DataType::Float32};
 
-            probe.recorder().record_late_pair(description, operands, "test", count, 4, [] {},
-                                              [](std::size_t) {});
+            recorder.record_late_pair(description, operands, "test", count, 4, [] {},
+                                      [](std::size_t) {});
 
-            EXPECT_FALSE(first_task_of(probe).cost.has_value());
+            ASSERT_EQ(sink.late_nodes().size(), std::size_t{1});
+            EXPECT_EQ(sink.late_nodes().front().cost.reason, UncostedReason::DataDependent);
         }
 
         /** @brief Tests that a node keeps its cost when the plan is rebuilt after another record call. */
