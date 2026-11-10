@@ -7,13 +7,13 @@
 #
 # Single responsibility: build the test objects and the benchmark programs of one module from
 # its mirror under tests/<tier>/<module>/, link the test objects of each tier into one program,
-# and register its tests under their size. Every module goes through the same function, so every
+# and register its tests, in shards, under their size. Every module goes through the same function, so every
 # program is linked, labelled and placed the same way. A program repeats the device link of the
 # library it links, so one program per tier links that device code once instead of once per
 # module.
 #
 # A test's size is the prefix of its GoogleTest suite name: Small_, Medium_ or Large_. Each size
-# is registered by its own filter, with its label and its timeout. A suite with none of the three
+# is registered by its own filter, in shards of N cases, with its label and its timeout per case. A suite with none of the three
 # prefixes stops the configure. A program whose suites are all Small_ runs without the shared
 # runtime environment, so it starts no worker thread and opens no device; a tier program's main()
 # leaves the environment out when its filter selects only Small_ suites. A test listed as
@@ -110,45 +110,154 @@ function(sushiblas_check_test_sizes out_var target)
     set(${out_var} ${all_small} PARENT_SCOPE)
 endfunction()
 
-# Registers the tests of a GoogleTest program by size. Each name in QUARANTINED, a GoogleTest
-# `Suite.Case` name, is registered with the label `quarantined` too.
+# The cases one CTest test runs, per size. A process pays its start-up (the runtime, the device
+# discovery, the logger) once, so a case run alone is mostly start-up. A shard runs its share of a
+# program's cases in one process, and the share is sized to the cost of a case of its size. A
+# small case is a few milliseconds of work, so 300 of them are a few seconds and the run still
+# spreads over every core; a medium case reaches a device or a thread and takes up to 5 s, so 25
+# of them keep a shard well under a minute; a large case takes up to 120 s and runs alone.
+set(SB_SHARD_CASES_SMALL 300)
+set(SB_SHARD_CASES_MEDIUM 25)
+set(SB_SHARD_CASES_LARGE 1)
+
+# Where each shard writes its per-case GoogleTest XML; the time reader reads the folder, so the
+# per-case limits of the testing skill still apply to a case run inside a shard.
+set(SB_GTEST_RESULTS_DIR "${PROJECT_BINARY_DIR}/test_results/gtest")
+
+# Sets <out_var> to the cases per shard of the size with the given prefix.
+function(sushiblas_cases_per_shard out_var prefix)
+    string(TOUPPER "${prefix}" upper)
+    string(REGEX REPLACE "_$" "" upper "${upper}")
+    set(${out_var} ${SB_SHARD_CASES_${upper}} PARENT_SCOPE)
+endfunction()
+
+# Counts the cases of the given sources per size, and keeps the counts and the suites under
+# <key>. A TEST_P or TYPED_TEST counts once however many instances it gets, so a count is a floor.
+#
+#   sushiblas_record_cases(<key> <source>...)
+function(sushiblas_record_cases key)
+    foreach(size IN LISTS SB_TEST_SIZES)
+        string(REPLACE "|" ";" parts "${size}")
+        list(GET parts 0 prefix)
+        set(count_${prefix} 0)
+    endforeach()
+    set(suites "")
+    foreach(source IN LISTS ARGN)
+        file(READ "${source}" text)
+        string(REGEX MATCHALL "(TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)[ \t]*[(][ \t\r\n]*[A-Za-z0-9_]+"
+            declarations "${text}")
+        foreach(declaration IN LISTS declarations)
+            string(REGEX REPLACE "^[^(]*[(][ \t\r\n]*" "" suite "${declaration}")
+            list(APPEND suites "${suite}")
+            if(suite MATCHES "^(Small_|Medium_|Large_)")
+                math(EXPR count_${CMAKE_MATCH_1} "${count_${CMAKE_MATCH_1}} + 1")
+            endif()
+        endforeach()
+    endforeach()
+    foreach(size IN LISTS SB_TEST_SIZES)
+        string(REPLACE "|" ";" parts "${size}")
+        list(GET parts 0 prefix)
+        set_property(GLOBAL PROPERTY SB_CASES_${key}_${prefix} ${count_${prefix}})
+    endforeach()
+    set_property(GLOBAL PROPERTY SB_SUITES_${key} ${suites})
+endfunction()
+
+# Gives <key> the cases and suites recorded under each of the object keys that follow.
+#
+#   sushiblas_sum_cases(<key> <object key>...)
+function(sushiblas_sum_cases key)
+    set(suites "")
+    foreach(size IN LISTS SB_TEST_SIZES)
+        string(REPLACE "|" ";" parts "${size}")
+        list(GET parts 0 prefix)
+        set(total 0)
+        foreach(object IN LISTS ARGN)
+            get_property(count GLOBAL PROPERTY SB_CASES_${object}_${prefix})
+            math(EXPR total "${total} + ${count}")
+        endforeach()
+        set_property(GLOBAL PROPERTY SB_CASES_${key}_${prefix} ${total})
+    endforeach()
+    foreach(object IN LISTS ARGN)
+        get_property(object_suites GLOBAL PROPERTY SB_SUITES_${object})
+        list(APPEND suites ${object_suites})
+    endforeach()
+    set_property(GLOBAL PROPERTY SB_SUITES_${key} ${suites})
+endfunction()
+
+# Registers one CTest test that runs <target> with <filter>, as shard <index> of <shards>.
+# GoogleTest splits the filtered cases round-robin by GTEST_TOTAL_SHARDS and GTEST_SHARD_INDEX.
+# The test writes its per-case XML under SB_GTEST_RESULTS_DIR. The shuffle and its seed reach it
+# through GTEST_SHUFFLE and GTEST_RANDOM_SEED of the caller's environment, and a death test starts
+# its child outside the sharding, so both keep working inside a shard.
+function(sushiblas_add_shard_test target name filter labels timeout index shards)
+    add_test(NAME ${name}
+        COMMAND ${target} --gtest_filter=${filter}
+            --gtest_output=xml:${SB_GTEST_RESULTS_DIR}/${name}.xml
+        WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}")
+    set_tests_properties(${name} PROPERTIES
+        LABELS "${labels}"
+        TIMEOUT ${timeout}
+        ENVIRONMENT "GTEST_TOTAL_SHARDS=${shards};GTEST_SHARD_INDEX=${index}")
+endfunction()
+
+# Registers the cases of <target> of one size in shards, with the size's label and a timeout of
+# the case timeout times the cases of a shard. The quarantined cases of the size run apart in one
+# test that also carries `quarantined`, and a GoogleTest filter after '-' leaves them out of the
+# shards. <size> is one SB_TEST_SIZES entry; the names after it are the program's quarantined
+# `Suite.Case` names.
+function(sushiblas_register_size_shards target size)
+    string(REPLACE "|" ";" parts "${size}")
+    list(GET parts 0 prefix)
+    list(GET parts 1 label)
+    list(GET parts 2 case_timeout)
+    sushiblas_cases_per_shard(per_shard ${prefix})
+    get_property(cases GLOBAL PROPERTY SB_CASES_${target}_${prefix})
+
+    # An instantiated suite is named <prefix>/<suite>, so its pattern carries the slash.
+    set(quarantined "")
+    foreach(name IN LISTS ARGN)
+        if(name MATCHES "^${prefix}")
+            list(APPEND quarantined "${name}" "*/${name}")
+        endif()
+    endforeach()
+    set(filter "${prefix}*:*/${prefix}*")
+    if(quarantined)
+        list(LENGTH quarantined quarantined_entries)
+        math(EXPR quarantined_cases "${quarantined_entries} / 2")
+        list(JOIN quarantined ":" quarantined_filter)
+        string(APPEND filter "-${quarantined_filter}")
+        math(EXPR quarantined_timeout "${case_timeout} * ${quarantined_cases}")
+        sushiblas_add_shard_test(${target} ${target}.${label}_quarantined "${quarantined_filter}"
+            "${label};quarantined" ${quarantined_timeout} 0 1)
+        math(EXPR cases "${cases} - ${quarantined_cases}")
+    endif()
+    if(cases LESS 1)
+        return()
+    endif()
+
+    math(EXPR shards "(${cases} + ${per_shard} - 1) / ${per_shard}")
+    math(EXPR shard_cases "(${cases} + ${shards} - 1) / ${shards}")
+    math(EXPR timeout "${case_timeout} * ${shard_cases}")
+    math(EXPR last "${shards} - 1")
+    foreach(index RANGE ${last})
+        sushiblas_add_shard_test(${target} ${target}.${label}_shard_${index}of${shards}
+            "${filter}" "${label}" ${timeout} ${index} ${shards})
+    endforeach()
+endfunction()
+
+# Registers the tests of a GoogleTest program in shards, one block per size. The cases of the
+# program were recorded under its target name. Each name in QUARANTINED, a GoogleTest
+# `Suite.Case` name, runs apart with the label `quarantined` too.
 #
 #   sushiblas_register_sized_tests(<target> [QUARANTINED <Suite.Case>...])
 function(sushiblas_register_sized_tests target)
     cmake_parse_arguments(ARG "" "" "QUARANTINED" ${ARGN})
     foreach(size IN LISTS SB_TEST_SIZES)
-        string(REPLACE "|" ";" parts "${size}")
-        list(GET parts 0 prefix)
-        list(GET parts 1 label)
-        list(GET parts 2 timeout)
-
-        # A GoogleTest filter after '-' excludes, so the quarantined tests register apart.
-        set(quarantined "")
-        foreach(name IN LISTS ARG_QUARANTINED)
-            if(name MATCHES "^${prefix}")
-                list(APPEND quarantined "${name}")
-            endif()
-        endforeach()
-        list(JOIN quarantined ":" quarantined_filter)
-
-        set(filter "${prefix}*")
-        if(quarantined_filter)
-            string(APPEND filter "-${quarantined_filter}")
-            gtest_discover_tests(${target}
-                DISCOVERY_MODE PRE_TEST
-                WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
-                TEST_FILTER "${quarantined_filter}"
-                PROPERTIES LABELS "${label}\;quarantined" TIMEOUT ${timeout})
-        endif()
-        gtest_discover_tests(${target}
-            DISCOVERY_MODE PRE_TEST
-            WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
-            TEST_FILTER "${filter}"
-            PROPERTIES LABELS "${label}" TIMEOUT ${timeout})
+        sushiblas_register_size_shards(${target} "${size}" ${ARG_QUARANTINED})
     endforeach()
 endfunction()
 
-# Builds one GoogleTest program from the sources given and registers its tests by size. The
+# Builds one GoogleTest program from the sources given and registers its tests in shards by size. The
 # program gets the main() without the runtime when every suite is Small_.
 #
 #   sushiblas_add_sized_test_program(<target> [QUARANTINED <Suite.Case>...]
@@ -171,6 +280,7 @@ function(sushiblas_add_sized_test_program target)
     target_link_libraries(${target} PRIVATE GTest::gtest)
     sushiblas_configure_test_target(${target})
     sushiblas_apply_sycl(${target} DEVICE_SOURCES ${ARG_DEVICE_SOURCES} ${ARG_DEVICE_TEST_SOURCES})
+    sushiblas_record_cases(${target} ${ARG_TEST_SOURCES} ${ARG_DEVICE_TEST_SOURCES})
     sushiblas_register_sized_tests(${target} QUARANTINED ${ARG_QUARANTINED})
 endfunction()
 
@@ -186,13 +296,14 @@ function(sushiblas_add_test_objects target tier)
     target_link_libraries(${target} PRIVATE GTest::gtest)
     sushiblas_configure_test_target(${target})
     sushiblas_apply_sycl(${target} DEVICE_SOURCES ${ARG_DEVICE_TEST_SOURCES})
+    sushiblas_record_cases(${target} ${ARG_TEST_SOURCES} ${ARG_DEVICE_TEST_SOURCES})
     set_property(GLOBAL APPEND PROPERTY SB_TEST_TIERS ${tier})
     set_property(GLOBAL APPEND PROPERTY SB_TEST_OBJECTS_${tier} ${target})
     set_property(GLOBAL APPEND PROPERTY SB_TEST_QUARANTINED_${tier} ${ARG_QUARANTINED})
 endfunction()
 
 # Builds sushiblas_<tier>_tests from the test objects sushiblas_add_test_objects() recorded for
-# each tier, with the shared main(), and registers its tests by size. Called once, after every
+# each tier, with the shared main(), and registers its tests in shards by size. Called once, after every
 # module is read.
 function(sushiblas_add_tier_test_programs)
     get_property(tiers GLOBAL PROPERTY SB_TEST_TIERS)
@@ -205,6 +316,7 @@ function(sushiblas_add_tier_test_programs)
         target_link_libraries(${program} PRIVATE ${objects} GTest::gtest)
         sushiblas_configure_test_target(${program})
         sushiblas_apply_sycl(${program})
+        sushiblas_sum_cases(${program} ${objects})
         sushiblas_register_sized_tests(${program} QUARANTINED ${quarantined})
     endforeach()
 endfunction()

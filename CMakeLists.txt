@@ -127,12 +127,8 @@ endif()
 # GoogleTest and enable_testing() have to exist by the time the first module is read.
 option(SB_BUILD_TESTS "Build the tests of each module from its mirror under tests/ and register one program per tier" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_TESTS)
-    if(CMAKE_VERSION VERSION_LESS 3.22)
-        message(FATAL_ERROR "SB_BUILD_TESTS needs CMake 3.22 for gtest_discover_tests(TEST_FILTER).")
-    endif()
     enable_testing()
     find_package(GTest CONFIG REQUIRED)
-    include(GoogleTest)
 endif()
 # Declared before the modules for the same reason: a module adds its benchmark programs, and
 # the operations tier adds benchmark_harness, only when the switch is on.
