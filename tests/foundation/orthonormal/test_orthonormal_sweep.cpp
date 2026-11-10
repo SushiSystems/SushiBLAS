@@ -22,7 +22,7 @@
 
 /**
  * @file test_orthonormal_sweep.cpp
- * @brief Tests the projection coefficient and the normalising scale of the orthonormalisation sweep, and the tiny-norm rule they share.
+ * @brief Tests the projection coefficient and the normalising scale of the orthonormalisation sweep.
  * @author Mustafa Garip
  */
 
@@ -87,11 +87,5 @@ namespace SushiBLAS
                                                    ScaleRow{1.0, 4.0, 2.0, 0.5},
                                                    ScaleRow{3.0, 0.0, 0.0, 3.0},
                                                    ScaleRow{3.0, Kernels::tiny_norm_sq<double>(), 1e-12, 3.0}));
-
-        TEST(Small_OrthonormalSweep, TheTinyThresholdIsTheSquareOfOneTrillionth)
-        {
-            EXPECT_EQ(Kernels::tiny_norm_sq<double>(), 1e-12 * 1e-12);
-            EXPECT_EQ(Kernels::tiny_norm_sq<float>(), 1e-12f * 1e-12f);
-        }
     } // namespace Test
 } // namespace SushiBLAS

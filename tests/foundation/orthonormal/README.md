@@ -6,5 +6,5 @@ it. The sweep's behaviour is tested by `tests/kernels/random_kernels/reference/t
 
 | File | Tests |
 | --- | --- |
-| `test_orthonormal_sweep.cpp` | Tests the projection coefficient, the normalising scale and the tiny-norm rule they share, on the host |
+| `test_orthonormal_sweep.cpp` | Tests the projection coefficient and the normalising scale, on the host |
 | `compile_orthonormal_sweep.cpp` | Checks that the header stands alone and that the tiny-norm threshold has the element type |
