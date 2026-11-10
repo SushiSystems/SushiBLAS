@@ -9,7 +9,6 @@
 | RW-82 | P2 | open | Link the colour, theme and exit code page from `cli/README.md` | `cli/README.md` links the one page sushicore writes (C14) |  |  | 2026-10-19 |
 | RW-83 | P2 | open | State the default run target once | the default run target is written in one place (C18) |  |  | 2026-10-19 |
 | RW-84 | P2 | open | Let `sb test --package` report a locked DLL | a locked DLL beside the consumer ends in a console error, not a traceback |  |  | 2026-10-19 |
-| RW-157 | P2 | blocked | Run sb's appearance tests small on a SushiCore appearance-reader port | The malformed-config one-line decision and the unknown-theme warning are checked small, reading no file and no environment | external: SushiCore load_appearance reads TOML and the environment with no port | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-09 |
 
 ## Known issues
 
