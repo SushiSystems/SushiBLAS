@@ -151,7 +151,7 @@ namespace SushiBLAS
                                  row_name<StateRow>);
 
         /** @brief Tests that a sort with no plan still publishes its count, tiles and total. */
-        TEST(Small_GraphPrimitivesSortState, StateIsPublishedWithoutAPlan)
+        TEST(Small_GraphPrimitivesSortStatePublished, StateIsPublishedWithoutAPlan)
         {
             Words n_state(2, K_CANARY);
             Words total(1, K_CANARY);
@@ -192,7 +192,7 @@ namespace SushiBLAS
                                  row_name<BucketRow>);
 
         /** @brief Tests that an empty sort without a counts table clears the offset alone. */
-        TEST(Small_GraphPrimitivesSortEmptyBucket, NoCountsTableIsLeftAlone)
+        TEST(Small_GraphPrimitivesSortEmptyBucketCounts, NoCountsTableIsLeftAlone)
         {
             Words offsets(5, K_CANARY);
 

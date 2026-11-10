@@ -156,7 +156,7 @@ namespace SushiBLAS
             row_name<TopPassRow>);
 
         /** @brief Tests that the first level's top pass also writes the sum at offsets[n]. */
-        TEST(Small_GraphPrimitivesScanTopPass, FirstLevelPublishesTheSumAfterTheLastOffset)
+        TEST(Small_GraphPrimitivesScanTopPassSentinel, FirstLevelPublishesTheSumAfterTheLastOffset)
         {
             const Words counts{1u, 2u, 3u};
             Words offsets = filled(5, K_CANARY);
@@ -169,7 +169,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a top pass above level 0 writes no sentinel. */
-        TEST(Small_GraphPrimitivesScanTopPass, UpperLevelWritesNoSentinel)
+        TEST(Small_GraphPrimitivesScanTopPassSentinel, UpperLevelWritesNoSentinel)
         {
             const Words counts{1u, 2u, 3u};
             Words prefixes = filled(4, K_CANARY);

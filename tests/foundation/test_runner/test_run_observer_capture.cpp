@@ -100,7 +100,7 @@ namespace SushiBLAS
             EXPECT_TRUE(capture.records().empty());
         }
 
-        TEST(Medium_RunObserverCapture, ARunAfterTheCaptureIsGoneIsNotKept)
+        TEST(Medium_RunObserverCaptureGone, ARunAfterTheCaptureIsGoneIsNotKept)
         {
             SushiRuntime::Runtime& runtime = TestEnvironment::runtime();
             {
