@@ -34,7 +34,11 @@
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/host_scratch_source.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/engine_fixture/host_engine_test.hpp>
@@ -49,6 +53,47 @@ namespace SushiBLAS
 
         /// @brief The extent of every axis of a product that stays below every packing threshold.
         constexpr int64_t K_SMALL_EXTENT = 8;
+
+        /**
+         * @brief Admits every mode and keeps no task, so a recorder over it can be set to Auto
+         *        on the host and leases from a host scratch pool.
+         */
+        class AdmittingSink final : public TaskSink
+        {
+            public:
+                /** @brief Reports true for every mode. */
+                [[nodiscard]] bool admits(ExecutionMode) const noexcept override { return true; }
+
+                /** @brief Drops the task: the tests below record none. */
+                void add_pair(const TaskDescription&, const OperandSet&, ExecutionMode,
+                              const std::string&, PairBody) override
+                {
+                }
+        };
+
+        /** @brief Owns a host scratch pool and a recorder over it and an AdmittingSink. */
+        class ScratchRecorder final
+        {
+            public:
+                /** @brief Builds a recorder whose mode is Auto. */
+                ScratchRecorder() : pool_(source_), recorder_(sink_, &pool_)
+                {
+                    recorder_.set_mode(ExecutionMode::Auto);
+                }
+
+                /** @brief Returns the recorder. */
+                [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
+
+            private:
+                /// @brief Serves the pool's blocks from host memory.
+                HostScratchSource source_;
+                /// @brief Takes no task.
+                AdmittingSink sink_;
+                /// @brief The pool the recorder leases from.
+                ScratchPool pool_;
+                /// @brief The recorder under test.
+                TaskRecorder recorder_;
+        };
 
         /** @brief Leases packed-product scratch on host tensors for a profile the test builds. */
         class Small_PackedProductScratch : public HostEngineTest
@@ -111,8 +156,7 @@ namespace SushiBLAS
         TEST_F(Small_PackedProductScratch, TheLeaseHoldsThePlannedBytesAndIsDeclared)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
-            HostGraphProbe probe;
-            probe.recorder().set_mode(ExecutionMode::Auto);
+            ScratchRecorder probe;
             OperandSet operands;
 
             const ScratchBuffer scratch = Internal::allocate_packed_product_scratch(
@@ -126,8 +170,7 @@ namespace SushiBLAS
         TEST_F(Small_PackedProductScratch, NothingIsLeasedWhenTheProfileSelectsNoPlan)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
-            HostGraphProbe probe;
-            probe.recorder().set_mode(ExecutionMode::Auto);
+            ScratchRecorder probe;
             OperandSet operands;
 
             EXPECT_TRUE(Internal::allocate_packed_product_scratch(

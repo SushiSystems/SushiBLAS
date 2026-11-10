@@ -243,7 +243,8 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(row.name);
                 BlendOperands strided = well_formed();
-                (strided.*row.member).with_stride(0, 2);
+                // Stride 2 is the dense stride of the {2, 2} operands; stride 1 is no operand's.
+                (strided.*row.member).with_stride(0, 1);
                 BlendOperands column_major = well_formed();
                 (column_major.*row.member).column_major();
 

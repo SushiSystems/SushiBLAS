@@ -33,6 +33,7 @@
 #include <atomic>
 #include <string>
 #include <memory>
+#include <tuple>
 #include <thread>
 #include <vector>
 #include <cstddef>
@@ -965,8 +966,12 @@ namespace SushiBLAS
             struct PrimitiveRow
             {
                 const char* name; /**< The row name a failure shows. */
-                void (*record)(SushiRuntime::Runtime&,
-                               GraphPrimitives::RuntimePrimitiveRecorder&); /**< Records the primitive. */
+                /**
+                 * Records the primitive and returns the buffers it names: the graph refuses a plan
+                 * over a freed allocation, so the caller keeps them until it has read the plan.
+                 */
+                std::shared_ptr<void> (*record)(SushiRuntime::Runtime&,
+                                                GraphPrimitives::RuntimePrimitiveRecorder&);
             };
 
             /** @brief Returns one row per graph primitive. */
@@ -983,6 +988,9 @@ namespace SushiBLAS
                          GraphPrimitives::prefix_scan(port, counts, offsets, total,
                                                       SushiRuntime::LateCount::fixed(64))
                              .value();
+                         return std::shared_ptr<void>(std::make_shared<
+                             std::tuple<decltype(counts), decltype(offsets), decltype(total)>>(
+                             std::move(counts), std::move(offsets), std::move(total)));
                      }},
                     {"Reduce",
                      [](SushiRuntime::Runtime& runtime,
@@ -993,6 +1001,9 @@ namespace SushiBLAS
                          GraphPrimitives::reduce(port, values, sum, std::size_t{64},
                                                  GraphPrimitives::Sum<float>{})
                              .value();
+                         return std::shared_ptr<void>(
+                             std::make_shared<std::tuple<decltype(values), decltype(sum)>>(
+                                 std::move(values), std::move(sum)));
                      }}};
             }
         } // namespace
@@ -1011,7 +1022,7 @@ namespace SushiBLAS
             auto graph = runtime.graph();
             GraphPrimitives::RuntimePrimitiveRecorder port(graph.recorder());
 
-            GetParam().record(runtime, port);
+            const std::shared_ptr<void> buffers = GetParam().record(runtime, port);
 
             const SushiRuntime::Result<SushiRuntime::PlanView> plan = graph.plan();
             ASSERT_TRUE(plan);
