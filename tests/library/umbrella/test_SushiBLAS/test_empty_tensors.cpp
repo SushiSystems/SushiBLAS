@@ -159,13 +159,16 @@ namespace SushiBLAS
             expect_tensor_equal(out, {0.0f});
         }
 
-        /// @brief Records one reduction with an identity over an empty tensor and the identity it must write.
-        struct IdentityRow
+        namespace
         {
-            std::string name;
-            std::function<void(ReductionOps&, const Tensor& empty, Tensor& out)> record;
-            float identity;
-        };
+            /// @brief Records one reduction with an identity over an empty tensor and the identity it must write.
+            struct IdentityRow
+            {
+                std::string name;
+                std::function<void(ReductionOps&, const Tensor& empty, Tensor& out)> record;
+                float identity;
+            };
+        } // namespace
 
         /// @brief Runs the reductions that have an identity over an empty tensor.
         class Small_EmptyTensorIdentity : public Small_EmptyTensorTest, public ::testing::WithParamInterface<IdentityRow> {};

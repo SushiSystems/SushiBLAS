@@ -132,13 +132,16 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<double>{2, 3, 4}));
         }
 
-        /// @brief Holds the component and row counts of one blend the direct loop checks.
-        struct ShapeRow
+        namespace
         {
-                const char* name;
-                int64_t components; ///< 3 for a position, 4 for a homogeneous point.
-                int64_t rows;       ///< 3 for an implied last row, 4 for a full transform.
-        };
+            /// @brief Holds the component and row counts of one blend the direct loop checks.
+            struct ShapeRow
+            {
+                    const char* name;
+                    int64_t components; ///< 3 for a position, 4 for a homogeneous point.
+                    int64_t rows;       ///< 3 for an implied last row, 4 for a full transform.
+            };
+        } // namespace
 
         /// @brief Returns every combination of the two component counts and the two row counts.
         static std::vector<ShapeRow> shape_rows()

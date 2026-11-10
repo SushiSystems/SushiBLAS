@@ -89,12 +89,15 @@ namespace SushiBLAS
                                                    BlockRow{4, 1, 0, 4}, BlockRow{5, 3, 2, 17},
                                                    BlockRow{0, 1, 0, 0}));
 
-        /** @brief Holds the input extent and the scale of one axis. */
-        struct AxisRow
+        namespace
         {
-            int64_t in_extent;
-            int64_t scale;
-        };
+            /** @brief Holds the input extent and the scale of one axis. */
+            struct AxisRow
+            {
+                int64_t in_extent;
+                int64_t scale;
+            };
+        } // namespace
 
         /** @brief Checks that every output position of each block maps back to the block's input position. */
         static void expect_blocks_map_back(const AxisRow& axis)

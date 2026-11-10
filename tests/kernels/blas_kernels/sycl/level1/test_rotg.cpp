@@ -40,13 +40,16 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief One input pair of rotg and the name of its row.
-        struct PairRow
+        namespace
         {
-            const char* name;
-            double a;
-            double b;
-        };
+            /// @brief One input pair of rotg and the name of its row.
+            struct PairRow
+            {
+                const char* name;
+                double a;
+                double b;
+            };
+        } // namespace
 
         /// @brief Names a row after its input pair.
         static std::string pair_name(const ::testing::TestParamInfo<PairRow>& info)

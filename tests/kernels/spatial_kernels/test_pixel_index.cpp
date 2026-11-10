@@ -37,14 +37,17 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Holds the extents of one tensor. */
-        struct ShapeRow
+        namespace
         {
-            int64_t batch;
-            int64_t height;
-            int64_t width;
-            int64_t channels;
-        };
+            /** @brief Holds the extents of one tensor. */
+            struct ShapeRow
+            {
+                int64_t batch;
+                int64_t height;
+                int64_t width;
+                int64_t channels;
+            };
+        } // namespace
 
         /** @brief Returns the positions of a tensor in storage order, listed by nested loops. */
         static std::vector<Kernels::Indexing::PixelCoord> listed_positions(const ShapeRow& shape)

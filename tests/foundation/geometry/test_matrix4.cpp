@@ -51,13 +51,16 @@ namespace SushiBLAS
         /// @brief Elements a 4x4 matrix holds.
         constexpr std::size_t K_MATRIX4_ELEMENT_COUNT = 16;
 
-        /** @brief Holds two operands in storage order and the elements of their product. */
-        struct ProductRow
+        namespace
         {
-            std::array<double, K_MATRIX4_ELEMENT_COUNT> left;      /**< The left operand, column by column. */
-            std::array<double, K_MATRIX4_ELEMENT_COUNT> right;     /**< The right operand, column by column. */
-            std::array<double, K_MATRIX4_ELEMENT_COUNT> expected;  /**< The product, column by column. */
-        };
+            /** @brief Holds two operands in storage order and the elements of their product. */
+            struct ProductRow
+            {
+                std::array<double, K_MATRIX4_ELEMENT_COUNT> left;      /**< The left operand, column by column. */
+                std::array<double, K_MATRIX4_ELEMENT_COUNT> right;     /**< The right operand, column by column. */
+                std::array<double, K_MATRIX4_ELEMENT_COUNT> expected;  /**< The product, column by column. */
+            };
+        } // namespace
 
         /**
          * @brief The products of the order promise of mul.

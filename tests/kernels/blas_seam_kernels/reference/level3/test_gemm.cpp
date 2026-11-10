@@ -86,13 +86,16 @@ namespace SushiBLAS
             return c;
         }
 
-        /** @brief Holds one layout and the two transposes of a product. */
-        struct GemmCase
+        namespace
         {
-            Core::Layout layout; /**< The storage order of A, B and C. */
-            bool trans_a;        /**< Whether A is transposed. */
-            bool trans_b;        /**< Whether B is transposed. */
-        };
+            /** @brief Holds one layout and the two transposes of a product. */
+            struct GemmCase
+            {
+                Core::Layout layout; /**< The storage order of A, B and C. */
+                bool trans_a;        /**< Whether A is transposed. */
+                bool trans_b;        /**< Whether B is transposed. */
+            };
+        } // namespace
 
         /** @brief Returns both layouts crossed with the four transpose pairs. */
         static std::vector<GemmCase> gemm_cases()

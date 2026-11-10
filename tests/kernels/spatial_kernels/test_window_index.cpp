@@ -39,16 +39,19 @@ namespace SushiBLAS
     {
         namespace Indexing = Kernels::Indexing;
 
-        /** @brief Holds one axis of a window: the input extent, the window and its padding. */
-        struct AxisRow
+        namespace
         {
-            int64_t in_extent;
-            int64_t kernel;
-            int64_t stride;
-            int64_t dilation;
-            int64_t pad_before;
-            int64_t pad_after;
-        };
+            /** @brief Holds one axis of a window: the input extent, the window and its padding. */
+            struct AxisRow
+            {
+                int64_t in_extent;
+                int64_t kernel;
+                int64_t stride;
+                int64_t dilation;
+                int64_t pad_before;
+                int64_t pad_after;
+            };
+        } // namespace
 
         /** @brief Returns the output position whose window reads in_pos through tap, or -1, by searching every window. */
         static int64_t scattered_by_search(const AxisRow& axis, int64_t in_pos, int64_t tap,

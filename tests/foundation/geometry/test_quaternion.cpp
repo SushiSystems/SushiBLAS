@@ -69,13 +69,16 @@ namespace SushiBLAS
             QuaternionComponents expected;   /**< The hand quaternion. */
         };
 
-        /** @brief Holds two factors and their Hamilton product. */
-        struct ProductRow
+        namespace
         {
-            QuaternionComponents left;       /**< The left factor. */
-            QuaternionComponents right;      /**< The right factor. */
-            QuaternionComponents expected;   /**< The hand product. */
-        };
+            /** @brief Holds two factors and their Hamilton product. */
+            struct ProductRow
+            {
+                QuaternionComponents left;       /**< The left factor. */
+                QuaternionComponents right;      /**< The right factor. */
+                QuaternionComponents expected;   /**< The hand product. */
+            };
+        } // namespace
 
         /** @brief Holds a rotation, a vector and the rotated vector. */
         struct RotateRow

@@ -301,13 +301,16 @@ namespace SushiBLAS
             EXPECT_EQ(K_TENTH_AS_HALF, back[0]);
         }
 
-        /** @brief A source and a target dtype of the nine real pairs. */
-        struct PairRow
+        namespace
         {
-            std::string name;
-            Core::DataType from;
-            Core::DataType to;
-        };
+            /** @brief A source and a target dtype of the nine real pairs. */
+            struct PairRow
+            {
+                std::string name;
+                Core::DataType from;
+                Core::DataType to;
+            };
+        } // namespace
 
         /** @brief Names a row by its name. */
         std::string pair_row_name(const ::testing::TestParamInfo<PairRow>& info)

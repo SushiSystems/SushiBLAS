@@ -28,6 +28,7 @@
  */
 
 #include <vector>
+#include <algorithm>
 #include <numeric>
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -81,7 +82,7 @@ namespace SushiBLAS
             std::vector<int64_t> rows(static_cast<std::size_t>(row.n));
             std::iota(rows.begin(), rows.end(), int64_t{0});
             if (!row.ascending)
-                rows.assign(rows.rbegin(), rows.rend());
+                std::reverse(rows.begin(), rows.end());
             return rows;
         }
 

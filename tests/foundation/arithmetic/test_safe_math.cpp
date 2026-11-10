@@ -66,15 +66,18 @@ namespace SushiBLAS
             return info.param.name;
         }
 
-        /// @brief One real safe function, one input and the correctly rounded value.
-        struct RealRow
+        namespace
         {
-            const char* name;
-            double (*function)(double);
-            double input;
-            double expected;
-            double roundings;  ///< Multiples of K_RELATIVE allowed; zero demands the exact value.
-        };
+            /// @brief One real safe function, one input and the correctly rounded value.
+            struct RealRow
+            {
+                const char* name;
+                double (*function)(double);
+                double input;
+                double expected;
+                double roundings;  ///< Multiples of K_RELATIVE allowed; zero demands the exact value.
+            };
+        } // namespace
 
         /// @brief Returns the real rows; the literals come from the correctly rounded values.
         static std::vector<RealRow> real_rows()

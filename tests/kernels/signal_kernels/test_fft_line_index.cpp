@@ -38,12 +38,15 @@ namespace SushiBLAS
     {
         namespace Indexing = Kernels::Indexing;
 
-        /** @brief Holds @p lines contiguous lines of @p length complex elements. */
-        struct ContiguousRow
+        namespace
         {
-            std::size_t lines;
-            std::size_t length;
-        };
+            /** @brief Holds @p lines contiguous lines of @p length complex elements. */
+            struct ContiguousRow
+            {
+                std::size_t lines;
+                std::size_t length;
+            };
+        } // namespace
 
         /** @brief Checks that line l, element k of a contiguous layout sits at l * length + k. */
         static void expect_contiguous_offsets(const ContiguousRow& row)

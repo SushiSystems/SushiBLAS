@@ -73,13 +73,16 @@ namespace SushiBLAS
             {2.0, 0.5, -1.5, -3.0},
         }};
 
-        /// @brief Operands whose complex product is exact in float, with that product.
-        struct ProductRow
+        namespace
         {
-            OperandRow operands;
-            double product_real;
-            double product_imag;
-        };
+            /// @brief Operands whose complex product is exact in float, with that product.
+            struct ProductRow
+            {
+                OperandRow operands;
+                double product_real;
+                double product_imag;
+            };
+        } // namespace
 
         /// @brief Complex products worked out by hand; every step is exact in float.
         constexpr std::array<ProductRow, 5> K_PRODUCTS{{
@@ -107,14 +110,17 @@ namespace SushiBLAS
             {8.0, -0.125, 2.0, -1.0, 16.0},
         }};
 
-        /// @brief Two reals with their exact product and quotient.
-        struct RealRow
+        namespace
         {
-            double a;
-            double b;
-            double product;
-            double quotient;
-        };
+            /// @brief Two reals with their exact product and quotient.
+            struct RealRow
+            {
+                double a;
+                double b;
+                double product;
+                double quotient;
+            };
+        } // namespace
 
         /// @brief Real products and quotients worked out by hand.
         constexpr std::array<RealRow, 4> K_REALS{{

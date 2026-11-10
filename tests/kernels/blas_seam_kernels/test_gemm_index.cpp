@@ -175,13 +175,16 @@ namespace SushiBLAS
                                                    StageRow{7, {4, 8, 4, false}, 3, 4},
                                                    StageRow{2, {4, 8, 4, false}, 1, 0}));
 
-        /** @brief Holds one group_shape call and the shape its definition gives. */
-        struct ShapeRow
+        namespace
         {
-            std::size_t budget;
-            std::size_t rows;
-            std::size_t cols;
-        };
+            /** @brief Holds one group_shape call and the shape its definition gives. */
+            struct ShapeRow
+            {
+                std::size_t budget;
+                std::size_t rows;
+                std::size_t cols;
+            };
+        } // namespace
 
         class Small_GemmIndexShape : public ::testing::TestWithParam<ShapeRow>
         {

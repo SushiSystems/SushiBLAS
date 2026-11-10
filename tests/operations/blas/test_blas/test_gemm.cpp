@@ -62,21 +62,24 @@ namespace SushiBLAS
     {
         using namespace SushiRuntime::Literals;
 
-        /**
-         * @brief Names one product the kernels are run on: the forms of A and B, the extents, the
-         *        batch and the scalars. The layout and the element type come from the row.
-         */
-        struct GemmCase
+        namespace
         {
-            Core::Transpose trans_a; /**< How A is read. */
-            Core::Transpose trans_b; /**< How B is read. */
-            int64_t m;               /**< Rows of C. */
-            int64_t n;               /**< Columns of C. */
-            int64_t k;               /**< Depth of the product. */
-            int64_t batch;           /**< Products in the batch, stored back to back. */
-            double alpha;            /**< Scale of the product. */
-            double beta;             /**< Scale of the old C; exactly zero never reads it. */
-        };
+            /**
+             * @brief Names one product the kernels are run on: the forms of A and B, the extents, the
+             *        batch and the scalars. The layout and the element type come from the row.
+             */
+            struct GemmCase
+            {
+                Core::Transpose trans_a; /**< How A is read. */
+                Core::Transpose trans_b; /**< How B is read. */
+                int64_t m;               /**< Rows of C. */
+                int64_t n;               /**< Columns of C. */
+                int64_t k;               /**< Depth of the product. */
+                int64_t batch;           /**< Products in the batch, stored back to back. */
+                double alpha;            /**< Scale of the product. */
+                double beta;             /**< Scale of the old C; exactly zero never reads it. */
+            };
+        } // namespace
 
         /** @brief Returns the tail of a row named by the product it runs. */
         [[nodiscard]] inline std::string axis_name(const GemmCase& c)

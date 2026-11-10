@@ -291,15 +291,18 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief One span geometry, the device it is planned for and whether the tree is chosen. */
-        struct PlanRow
+        namespace
         {
-            const char* name;
-            Device::Profile device;
-            std::size_t segments;
-            std::size_t extent;
-            bool cooperative;
-        };
+            /** @brief One span geometry, the device it is planned for and whether the tree is chosen. */
+            struct PlanRow
+            {
+                const char* name;
+                Device::Profile device;
+                std::size_t segments;
+                std::size_t extent;
+                bool cooperative;
+            };
+        } // namespace
 
         /** @brief Returns the geometries of the plan: enough, few long, few short and empty spans. */
         static std::vector<PlanRow> plan_rows()

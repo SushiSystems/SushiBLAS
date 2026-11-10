@@ -67,13 +67,16 @@ namespace SushiBLAS
                                                    TileCountRow{33, 2}, TileCountRow{64, 2},
                                                    TileCountRow{65, 3}));
 
-        /** @brief Holds one tile_slot call. */
-        struct SlotRow
+        namespace
         {
-            int64_t row;
-            int64_t col;
-            int64_t expected;
-        };
+            /** @brief Holds one tile_slot call. */
+            struct SlotRow
+            {
+                int64_t row;
+                int64_t col;
+                int64_t expected;
+            };
+        } // namespace
 
         class Small_TransposeIndexSlot : public ::testing::TestWithParam<SlotRow>
         {
@@ -284,15 +287,18 @@ namespace SushiBLAS
                                                    ConvertRow{3, 11, 5, false},
                                                    ConvertRow{1, 5, 65, true}));
 
-        /** @brief Holds one transposes call: the span and the plan it must give, or none. */
-        struct PlanRow
+        namespace
         {
-            bool to_nchw;
-            int64_t fast;
-            int64_t slow;
-            int64_t in_slow;
-            int64_t out_fast;
-        };
+            /** @brief Holds one transposes call: the span and the plan it must give, or none. */
+            struct PlanRow
+            {
+                bool to_nchw;
+                int64_t fast;
+                int64_t slow;
+                int64_t in_slow;
+                int64_t out_fast;
+            };
+        } // namespace
 
         class Small_TransposeIndexPlans : public ::testing::TestWithParam<PlanRow>
         {

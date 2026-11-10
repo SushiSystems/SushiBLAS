@@ -542,13 +542,16 @@ namespace SushiBLAS
             EXPECT_EQ(std::vector<float>(sums.begin(), sums.end()), lane_order_sums());
         }
 
-        /** @brief One segment-axis count and one launch shape of the axis fold. */
-        struct AxisRow
+        namespace
         {
-            std::string name;
-            std::size_t groups;
-            std::size_t lanes;
-        };
+            /** @brief One segment-axis count and one launch shape of the axis fold. */
+            struct AxisRow
+            {
+                std::string name;
+                std::size_t groups;
+                std::size_t lanes;
+            };
+        } // namespace
 
         /** @brief Returns one and two segment axes in both launch shapes. */
         static std::vector<AxisRow> axis_rows()

@@ -88,12 +88,15 @@ namespace SushiBLAS
                                                    RotmRow{0.0, 58.0, 26.0},
                                                    RotmRow{1.0, 11.0, 62.0}));
 
-        /** @brief Holds one flag and whether it selects the identity. */
-        struct IdentityRow
+        namespace
         {
-            double flag;
-            bool identity;
-        };
+            /** @brief Holds one flag and whether it selects the identity. */
+            struct IdentityRow
+            {
+                double flag;
+                bool identity;
+            };
+        } // namespace
 
         class Small_RotmIndexIdentity : public ::testing::TestWithParam<IdentityRow>
         {

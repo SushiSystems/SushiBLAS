@@ -76,13 +76,16 @@ namespace SushiBLAS
                                                    ExtentRow{false, 1, 1, 1, 1},
                                                    ExtentRow{true, 2, 2, 2, 2}));
 
-        /** @brief Holds a layout, a transpose and whether a row of op(A) is then contiguous. */
-        struct ContiguousRow
+        namespace
         {
-            bool row_major;
-            bool transposed;
-            bool contiguous;
-        };
+            /** @brief Holds a layout, a transpose and whether a row of op(A) is then contiguous. */
+            struct ContiguousRow
+            {
+                bool row_major;
+                bool transposed;
+                bool contiguous;
+            };
+        } // namespace
 
         class Small_MatrixVectorIndexContiguous : public ::testing::TestWithParam<ContiguousRow>
         {

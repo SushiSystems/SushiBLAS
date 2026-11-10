@@ -116,13 +116,16 @@ namespace SushiBLAS
                                                    PointRow{2, 4, 2}, PointRow{3, 3, 4},
                                                    PointRow{5, 4, 1}, PointRow{9, 3, 3}));
 
-        /** @brief Holds one slot_live call. */
-        struct SlotRow
+        namespace
         {
-            int64_t slot;
-            int64_t transform_count;
-            bool expected;
-        };
+            /** @brief Holds one slot_live call. */
+            struct SlotRow
+            {
+                int64_t slot;
+                int64_t transform_count;
+                bool expected;
+            };
+        } // namespace
 
         class Small_BlendIndexSlots : public ::testing::TestWithParam<SlotRow>
         {
