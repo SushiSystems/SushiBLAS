@@ -107,11 +107,12 @@ class TestABuildLinksThePackages:
 
     def test_a_build_that_leaves_distributed_out_keeps_what_the_tree_has(self, built, source,
                                                                           checkout):
-        """A tree cached with the cluster module asks for the distributed runtime when the build does not say."""
+        """A configured tree cached with the cluster module keeps the distributed runtime when the build is silent."""
         runner, service = built
         tree = checkout / "build" / "default-release"
         tree.mkdir(parents=True)
         (tree / "CMakeCache.txt").write_text("SB_ENABLE_DISTRIBUTED:BOOL=ON\n")
+        (tree / "build.ninja").write_text("")
         assert service.build(BuildType.RELEASE) == 0
         assert source.requests[0].options == {"sushiruntime": ("--distributed",)}
 
