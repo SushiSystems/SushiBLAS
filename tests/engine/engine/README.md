@@ -26,7 +26,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, thread safety and seed determinism |
 | `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
-| `test_host_scratch_source.cpp` | Tests what HostScratchSource counts and the memory it serves |
+| `test_host_scratch_source.cpp` | Tests what HostScratchSource counts served and released, and the memory it serves |
 | `test_engine_log_category.cpp` | Checks at compile time that the log category names its module and the SushiBLAS project; no test runner lists it |
 | `test_graph_task_sink.cpp` | Tests that GraphTaskSink adds one node to its recorder for each task |
 | `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out |

@@ -36,7 +36,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `scratch_shelf.hpp` | The shelf of idle scratch blocks and the block it lends |
 | `scratch_block_source.hpp` | `ScratchBlockSource`, the port a `ScratchPool` takes its blocks from |
 | `runtime_scratch_source.hpp` | `RuntimeScratchSource`, the adapter that allocates device memory from a runtime |
-| `host_scratch_source.hpp` | `HostScratchSource`, the adapter that serves host memory and counts what it served |
+| `host_scratch_source.hpp` | `HostScratchSource`, the adapter that serves host memory and counts what it served and what was released |
 | `engine.hpp` | `Engine`, which owns what a process shares between graphs; a runtime constructor and a host constructor |
 | `rng_stream.hpp` | `RNGStream`, the seed and counter offset random operations draw from |
 | `blas.hpp` | `BLASOps`, the view that records every dense BLAS operation |
@@ -563,7 +563,7 @@ pool and its recorder hands it to operations through `TaskRecorder::scratch_pool
 `ScratchBlockSource` serves `serve(bytes, device_index)`, a `Storage` of at least `bytes`, and
 `device_count()`; it refuses zero bytes and a device past the last with `std::runtime_error`.
 `RuntimeScratchSource` serves `Residency::Device` storages of a runtime. `HostScratchSource` serves host
-storages for device 0 and counts them (`served_blocks()`, `served_bytes()`), so a pool runs in a test that
+storages for device 0 and counts them (`served_blocks()`, `served_bytes()`) and the ones released when their last `Storage` goes (`released_blocks()`, `live_blocks()`), so a pool runs in a test that
 makes no device. Both pass `BlockSourceContract` (`tests/engine/engine/test_scratch_block_source.cpp`),
 `Small_` on the host source and `Medium_` on the runtime source.
 

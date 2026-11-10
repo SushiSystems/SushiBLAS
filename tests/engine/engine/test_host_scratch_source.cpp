@@ -58,6 +58,20 @@ namespace SushiBLAS
             EXPECT_EQ(source.served_bytes(), 3 * K_STORAGE_ALIGNMENT);
         }
 
+        /** @brief Tests that a block is counted released when its last Storage is dropped, and not before. */
+        TEST(Small_HostScratchSource, ABlockIsReleasedWhenItsLastStorageIsDropped)
+        {
+            HostScratchSource source;
+            auto first = source.serve(1, 0);
+            const auto second = source.serve(1, 0);
+            ASSERT_EQ(source.live_blocks(), std::size_t{2});
+
+            first = SushiRuntime::sushi_ptr<Storage>();
+
+            EXPECT_EQ(source.released_blocks(), std::size_t{1});
+            EXPECT_EQ(source.live_blocks(), std::size_t{1});
+        }
+
         /** @brief Tests that a refused request is not counted. */
         TEST(Small_HostScratchSource, ARefusedRequestIsNotCounted)
         {

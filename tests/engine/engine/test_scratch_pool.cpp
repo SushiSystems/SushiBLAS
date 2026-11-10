@@ -31,8 +31,6 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
-#include <SushiBLAS/tensor/storage.hpp>
-#include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine/host_scratch_source.hpp>
 
 namespace SushiBLAS
@@ -60,18 +58,16 @@ namespace SushiBLAS
         {
             HostScratchSource pool_source;
             ScratchPool pool(pool_source);
-            SushiRuntime::sushi_ptr<Storage> storage;
             {
                 const ScratchBuffer buffer(pool, 512, 0);
-                storage = buffer.storage();
             }
             ASSERT_EQ(pool.idle_block_count(), std::size_t{1});
-            ASSERT_GT(storage->ref_count(), 1);
+            ASSERT_EQ(pool_source.live_blocks(), std::size_t{1});
 
             pool.trim();
 
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
-            EXPECT_EQ(storage->ref_count(), 1);
+            EXPECT_EQ(pool_source.live_blocks(), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

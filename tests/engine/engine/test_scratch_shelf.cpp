@@ -147,12 +147,12 @@ namespace SushiBLAS
         {
             SushiBLAS::Detail::ScratchBlock* block = shelf_->take(4097, 0);
             EXPECT_EQ(block->size_class, SushiBLAS::Detail::K_SCRATCH_UNPOOLED);
-            SushiRuntime::sushi_ptr<Storage> storage = block->storage;
+            ASSERT_EQ(source_.live_blocks(), std::size_t{1});
 
             shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{0});
-            EXPECT_EQ(storage->ref_count(), 1);
+            EXPECT_EQ(source_.live_blocks(), std::size_t{0});
         }
 
         TEST_F(Small_ScratchShelf, AFullClassFreesWhatItCannotKeep)
@@ -164,23 +164,22 @@ namespace SushiBLAS
             EXPECT_EQ(shelf_->idle_block_count(),
                       SushiBLAS::Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS);
             EXPECT_EQ(source_.served_blocks(), taken);
+            EXPECT_EQ(source_.live_blocks(), SushiBLAS::Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS);
         }
 
         TEST_F(Small_ScratchShelf, TrimFreesEveryIdleBlock)
         {
             SushiBLAS::Detail::ScratchBlock* narrow = shelf_->take(128, 0);
             SushiBLAS::Detail::ScratchBlock* wide = shelf_->take(4096, 0);
-            SushiRuntime::sushi_ptr<Storage> narrow_storage = narrow->storage;
-            SushiRuntime::sushi_ptr<Storage> wide_storage = wide->storage;
             shelf_->give_back(narrow);
             shelf_->give_back(wide);
             ASSERT_EQ(shelf_->idle_block_count(), std::size_t{2});
+            ASSERT_EQ(source_.live_blocks(), std::size_t{2});
 
             shelf_->trim();
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{0});
-            EXPECT_EQ(narrow_storage->ref_count(), 1);
-            EXPECT_EQ(wide_storage->ref_count(), 1);
+            EXPECT_EQ(source_.live_blocks(), std::size_t{0});
         }
 
         TEST_F(Small_ScratchShelf, AnUnknownDeviceIsRefusedBeforeAnyAllocation)
