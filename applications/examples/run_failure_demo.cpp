@@ -53,7 +53,7 @@ namespace
 
         recorder.record_pair(
             description, operands, "Example operation",
-            [](const auto&, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event
+            [](const auto&, const auto&) -> sycl::event
             {
                 throw std::runtime_error(K_FAILURE);
             });
