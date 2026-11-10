@@ -61,6 +61,7 @@ sushiblas_add_test_program(
         test_blas/test_level1_reference.cpp
         test_blas/test_level2_reference.cpp
         test_blas/test_reduction_half.cpp
+        test_blas/test_symm_refusals.cpp
         test_blas_task.cpp
         test_gemm_recording.cpp
         test_level1.cpp

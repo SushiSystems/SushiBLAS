@@ -23,7 +23,8 @@
 
 /**
  * @file test_symm.cpp
- * @brief Tests symm and hemm against hand-computed products, gemm on the full matrix and refusals.
+ * @brief Tests symm and hemm against hand-computed products, gemm on the full matrix and the
+ *        device-only operand refusal; the record-time refusals are in test_symm_refusals.cpp.
  * @author Mustafa Garip
  */
 
@@ -48,9 +49,8 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -85,18 +85,20 @@ namespace SushiBLAS
             /// @brief Imaginary part given to the stored diagonal of a Hermitian A.
             constexpr double K_DIAGONAL_IMAGINARY = 7.0;
 
-            /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSYCL,
-                                                 ExecutionMode::ForceReference};
+            /// @brief The two kernels every case runs on.
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceSYCL,
+                                                             ExecutionMode::ForceReference};
+
+            /// @brief The element types symm accepts that the helpers of this file instantiate.
+            const std::vector<Core::DataType> K_SYMM_TYPES = {
+                Core::DataType::Float32, Core::DataType::Float64, Core::DataType::Complex32,
+                Core::DataType::Complex64};
 
             /// @brief The two sides A can stand on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
+            const std::vector<Core::Side> K_SIDES = {Core::Side::Left, Core::Side::Right};
 
             /// @brief The two triangles A can be stored in.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
-
-            /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
+            const std::vector<Core::Uplo> K_TRIANGLES = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /** @brief Names the routine a shared case calls. */
             enum class Routine : std::uint8_t
@@ -105,10 +107,88 @@ namespace SushiBLAS
                 Hemm  /**< The Hermitian product. */
             };
 
-            /** @brief Returns the name of a mode for a failure message. */
-            [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
+            /** @brief Names the side and the triangle of one product. */
+            struct SideTriangle
             {
-                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
+                Core::Side side; /**< The side A stands on. */
+                Core::Uplo uplo; /**< The triangle A is stored in. */
+            };
+
+            /** @brief Returns the tail of a row named by a side and a triangle. */
+            [[nodiscard]] std::string axis_name(const SideTriangle& form)
+            {
+                return "_" + word(form.side) + "_" + word(form.uplo);
+            }
+
+            /** @brief Names the side of a batched product and whether A carries the batch axis. */
+            struct BatchForm
+            {
+                Core::Side side;  /**< The side A stands on. */
+                bool a_is_batched; /**< True when A has one matrix per product. */
+            };
+
+            /** @brief Returns the tail of a row named by a batched form. */
+            [[nodiscard]] std::string axis_name(const BatchForm& form)
+            {
+                return "_" + word(form.side) + (form.a_is_batched ? "_ABatched" : "_ARank2");
+            }
+
+            /** @brief Names an empty product by the extents of B and C and the side. */
+            struct EmptyForm
+            {
+                int64_t rows;    /**< Rows of B and C. */
+                int64_t cols;    /**< Columns of B and C. */
+                Core::Side side; /**< The side A stands on. */
+            };
+
+            /** @brief Returns the tail of a row named by an empty product. */
+            [[nodiscard]] std::string axis_name(const EmptyForm& form)
+            {
+                return "_" + std::to_string(form.rows) + "x" + std::to_string(form.cols) + "_" +
+                       word(form.side);
+            }
+
+            /** @brief Returns the rows of a suite that run in the row-major layout alone. */
+            template<typename Axis>
+            [[nodiscard]] std::vector<Row<Axis>> row_major(const std::vector<Row<Axis>>& rows)
+            {
+                std::vector<Row<Axis>> kept;
+                for (const Row<Axis>& row : rows)
+                    if (row.layout == Core::Layout::RowMajor)
+                        kept.push_back(row);
+                return kept;
+            }
+
+            /** @brief Returns the side and triangle pairs, side first. */
+            [[nodiscard]] std::vector<SideTriangle> side_triangles()
+            {
+                std::vector<SideTriangle> forms;
+                for (const Core::Side side : K_SIDES)
+                    for (const Core::Uplo uplo : K_TRIANGLES)
+                        forms.push_back({side, uplo});
+                return forms;
+            }
+
+            /** @brief Returns the batched forms: each side with A batched and with A of rank 2. */
+            [[nodiscard]] std::vector<BatchForm> batch_forms()
+            {
+                std::vector<BatchForm> forms;
+                for (const Core::Side side : K_SIDES)
+                    for (const bool a_is_batched : {true, false})
+                        forms.push_back({side, a_is_batched});
+                return forms;
+            }
+
+            /** @brief Returns the empty products: B and C of no row or of no column, each side. */
+            [[nodiscard]] std::vector<EmptyForm> empty_forms()
+            {
+                std::vector<EmptyForm> forms;
+                for (const Core::Side side : K_SIDES)
+                {
+                    forms.push_back({0, 3, side});
+                    forms.push_back({3, 0, side});
+                }
+                return forms;
             }
 
             /** @brief Returns the value that marks an element no kernel may read. */
@@ -294,295 +374,440 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Expects a routine to leave the bytes gemm leaves on the mirrored full matrix,
-             *        for each side, triangle and mode.
+             * @brief Expects a routine to leave the bytes gemm leaves on the mirrored full matrix.
+             * @param form The side and the triangle of the product.
              */
             template<typename T>
             void expect_product_equals_gemm(Engine& engine, RecordingFixture& recording,
-                                            Routine routine)
+                                            Routine routine, const SideTriangle& form)
             {
                 std::mt19937 generator(K_SEED);
-                for (const Core::Side side : K_SIDES)
+                const bool left = form.side == Core::Side::Left;
+                const int64_t order = left ? K_ROWS : K_COLS;
+                std::vector<T> a = random_elements<T>(generator, order * order);
+                const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
+                const std::vector<T> c = random_elements<T>(generator, K_ROWS * K_COLS);
+
+                if (routine == Routine::Hemm)
                 {
-                    for (const Core::Uplo uplo : K_TRIANGLES)
+                    for (int64_t d = 0; d < order; ++d)
                     {
-                        SCOPED_TRACE(std::string(Core::to_string(side)) + " " +
-                                     Core::to_string(uplo));
-
-                        const bool left = side == Core::Side::Left;
-                        const int64_t order = left ? K_ROWS : K_COLS;
-                        std::vector<T> a = random_elements<T>(generator, order * order);
-                        const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
-                        const std::vector<T> c = random_elements<T>(generator, K_ROWS * K_COLS);
-
-                        if (routine == Routine::Hemm)
-                        {
-                            for (int64_t d = 0; d < order; ++d)
-                            {
-                                T& diagonal = a[static_cast<std::size_t>(d * order + d)];
-                                diagonal = with_imaginary(diagonal, K_DIAGONAL_IMAGINARY);
-                            }
-                        }
-                        const std::vector<T> full = mirrored(a, order, uplo, routine);
-                        poison_unread_triangle(a, order, uplo);
-
-                        for (const ExecutionMode mode : K_MODES)
-                        {
-                            SCOPED_TRACE(mode_name(mode));
-                            engine.set_mode(mode);
-                            recording.recorder().set_mode(mode);
-
-                            const Tensor A = upload(engine, {order, order}, a);
-                            const Tensor S = upload(engine, {order, order}, full);
-                            const Tensor B = upload(engine, {K_ROWS, K_COLS}, b);
-                            Tensor from_routine = upload(engine, {K_ROWS, K_COLS}, c);
-                            Tensor from_gemm = upload(engine, {K_ROWS, K_COLS}, c);
-
-                            TaskRecorder& recorder = recording.recorder();
-                            record_product(recorder, routine, A, B, from_routine, side, uplo,
-                                           K_ALPHA, K_BETA);
-                            SushiBLAS::BLASOps(recorder).gemm(left ? S : B, left ? B : S,
-                                                              from_gemm, Core::Transpose::NoTrans,
-                                                              Core::Transpose::NoTrans,
-                                                              K_ALPHA, K_BETA);
-                            recording.run().value();
-
-                            expect_same_bytes(read_tensor<T>(from_routine),
-                                              read_tensor<T>(from_gemm));
-                        }
+                        T& diagonal = a[static_cast<std::size_t>(d * order + d)];
+                        diagonal = with_imaginary(diagonal, K_DIAGONAL_IMAGINARY);
                     }
                 }
+                const std::vector<T> full = mirrored(a, order, form.uplo, routine);
+                poison_unread_triangle(a, order, form.uplo);
+
+                const Tensor A = upload(engine, {order, order}, a);
+                const Tensor S = upload(engine, {order, order}, full);
+                const Tensor B = upload(engine, {K_ROWS, K_COLS}, b);
+                Tensor from_routine = upload(engine, {K_ROWS, K_COLS}, c);
+                Tensor from_gemm = upload(engine, {K_ROWS, K_COLS}, c);
+
+                TaskRecorder& recorder = recording.recorder();
+                record_product(recorder, routine, A, B, from_routine, form.side, form.uplo,
+                               K_ALPHA, K_BETA);
+                SushiBLAS::BLASOps(recorder).gemm(left ? S : B, left ? B : S, from_gemm,
+                                                  Core::Transpose::NoTrans,
+                                                  Core::Transpose::NoTrans, K_ALPHA, K_BETA);
+                recording.run().value();
+
+                expect_same_bytes(read_tensor<T>(from_routine), read_tensor<T>(from_gemm));
+            }
+
+            /**
+             * @brief Expects a batched symm to leave, for each matrix, the bytes the same call on
+             *        that matrix alone leaves.
+             */
+            template<typename T>
+            void expect_batch_matches_each_matrix(Engine& engine, RecordingFixture& recording,
+                                                  const BatchForm& form)
+            {
+                const int64_t matrix = K_BATCH_ROWS * K_BATCH_COLS;
+                const int64_t order =
+                    form.side == Core::Side::Left ? K_BATCH_ROWS : K_BATCH_COLS;
+                const std::vector<T> a = integer_elements<T>(0, K_BATCH * order * order);
+                const std::vector<T> b = integer_elements<T>(11, K_BATCH * matrix);
+                const std::vector<T> c = integer_elements<T>(23, K_BATCH * matrix);
+
+                const Tensor A = form.a_is_batched
+                    ? upload(engine, {K_BATCH, order, order}, a)
+                    : upload(engine, {order, order}, matrix_of(a, 0, order * order));
+                const Tensor B = upload(engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, b);
+                Tensor C = upload(engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, c);
+                SushiBLAS::BLASOps(recording.recorder()).symm(A, B, C, form.side,
+                                                              Core::Uplo::Upper, 2.0, -1.0);
+                recording.run().value();
+                const std::vector<T> batched = read_tensor<T>(C);
+
+                for (int64_t index = 0; index < K_BATCH; ++index)
+                {
+                    SCOPED_TRACE("matrix " + std::to_string(index));
+                    const Tensor one_a = upload(
+                        engine, {order, order},
+                        matrix_of(a, form.a_is_batched ? index : 0, order * order));
+                    const Tensor one_b = upload(engine, {K_BATCH_ROWS, K_BATCH_COLS},
+                                                matrix_of(b, index, matrix));
+                    Tensor one_c = upload(engine, {K_BATCH_ROWS, K_BATCH_COLS},
+                                          matrix_of(c, index, matrix));
+                    SushiBLAS::BLASOps(recording.recorder()).symm(one_a, one_b, one_c, form.side,
+                                                                  Core::Uplo::Upper, 2.0, -1.0);
+                    recording.run().value();
+
+                    expect_equal(matrix_of(batched, index, matrix), read_tensor<T>(one_c));
+                }
+            }
+
+            /**
+             * @brief Expects symm with a zero beta to give the same bytes over a poisoned C as
+             *        over a zeroed one, and no NaN.
+             */
+            template<typename T>
+            void expect_zero_beta_ignores_c(Engine& engine, RecordingFixture& recording,
+                                            Core::Side side)
+            {
+                std::mt19937 generator(K_SEED);
+                const int64_t order = side == Core::Side::Left ? K_ROWS : K_COLS;
+                const std::vector<T> a = random_elements<T>(generator, order * order);
+                const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
+                const std::size_t size = static_cast<std::size_t>(K_ROWS * K_COLS);
+
+                const Tensor A = upload(engine, {order, order}, a);
+                const Tensor B = upload(engine, {K_ROWS, K_COLS}, b);
+                Tensor over_poison = upload(engine, {K_ROWS, K_COLS},
+                                            std::vector<T>(size, poison<T>()));
+                Tensor over_zero = upload(engine, {K_ROWS, K_COLS}, std::vector<T>(size, T{}));
+
+                SushiBLAS::BLASOps ops(recording.recorder());
+                ops.symm(A, B, over_poison, side, Core::Uplo::Lower, K_ALPHA, 0.0);
+                ops.symm(A, B, over_zero, side, Core::Uplo::Lower, K_ALPHA, 0.0);
+                recording.run().value();
+
+                const std::vector<T> result = read_tensor<T>(over_poison);
+                for (std::size_t i = 0; i < result.size(); ++i)
+                    EXPECT_FALSE(is_nan(result[i])) << "index " << i;
+                expect_same_bytes(result, read_tensor<T>(over_zero));
             }
         } // namespace
 
-        /** @brief Runs symm over the real and complex element types. */
-        template<typename T>
-        class Medium_Symm : public SushiBLASTest
+        /** @brief Holds the suites that run one case per kernel, in the row-major layout. */
+        template<typename Axis>
+        using SymmCase = BlasRowCase<BlasEngineStart, Axis>;
+
+        /** @brief Runs the hand-computed symm products over the element types. */
+        class Medium_Symm : public SymmCase<NoAxis>
         {
 
         };
 
-        using SymmTypes = ::testing::Types<float, double, std::complex<float>,
-                                           std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_Symm, SymmTypes);
-
-        TYPED_TEST(Medium_Symm, LeftSideMatchesAHandComputedProduct)
+        TEST_P(Medium_Symm, LeftSideMatchesAHandComputedProduct)
         {
-            using T = TypeParam;
-            const double unread = std::numeric_limits<double>::quiet_NaN();
-            const std::vector<T> a = elements<T>({1, 2, 3,
-                                                  unread, 4, 5,
-                                                  unread, unread, 6});
-            const std::vector<T> b = elements<T>({1, 2, 3, 4, 5, 6});
-            const std::vector<T> ones = elements<T>({1, 1, 1, 1, 1, 1});
-
-            for (const ExecutionMode mode : K_MODES)
+            with_non_half_element(GetParam().type, [&](auto element)
             {
-                SCOPED_TRACE(mode_name(mode));
-                this->set_mode(mode);
+                using T = typename decltype(element)::type;
+                const double unread = std::numeric_limits<double>::quiet_NaN();
+                const std::vector<T> a = elements<T>({1, 2, 3,
+                                                      unread, 4, 5,
+                                                      unread, unread, 6});
+                const std::vector<T> b = elements<T>({1, 2, 3, 4, 5, 6});
+                const std::vector<T> ones = elements<T>({1, 1, 1, 1, 1, 1});
+
                 const Tensor A = upload(*this->engine, {3, 3}, a);
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, ones);
 
                 SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, Core::Side::Left,
-                                                       Core::Uplo::Upper, 2.0, -1.0);
+                                                          Core::Uplo::Upper, 2.0, -1.0);
                 this->recording->run().value();
 
                 // A * B is {22 28, 39 50, 48 62}; C is twice that minus one.
                 expect_equal(read_tensor<T>(C), elements<T>({43, 55, 77, 99, 95, 123}));
-            }
+            });
         }
 
-        TYPED_TEST(Medium_Symm, RightSideMatchesAHandComputedProduct)
+        TEST_P(Medium_Symm, RightSideMatchesAHandComputedProduct)
         {
-            using T = TypeParam;
-            const double unread = std::numeric_limits<double>::quiet_NaN();
-            const std::vector<T> a = elements<T>({1, unread,
-                                                  2, 3});
-            const std::vector<T> b = elements<T>({1, 2, 3, 4, 5, 6});
-
-            for (const ExecutionMode mode : K_MODES)
+            with_non_half_element(GetParam().type, [&](auto element)
             {
-                SCOPED_TRACE(mode_name(mode));
-                this->set_mode(mode);
+                using T = typename decltype(element)::type;
+                const double unread = std::numeric_limits<double>::quiet_NaN();
+                const std::vector<T> a = elements<T>({1, unread,
+                                                      2, 3});
+                const std::vector<T> b = elements<T>({1, 2, 3, 4, 5, 6});
+
                 const Tensor A = upload(*this->engine, {2, 2}, a);
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, std::vector<T>(6, poison<T>()));
 
                 SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, Core::Side::Right,
-                                                       Core::Uplo::Lower, 1.0, 0.0);
+                                                          Core::Uplo::Lower, 1.0, 0.0);
                 this->recording->run().value();
 
                 expect_equal(read_tensor<T>(C), elements<T>({5, 8, 11, 18, 17, 28}));
-            }
+            });
         }
 
-        TYPED_TEST(Medium_Symm, EqualsGemmOnTheFullMatrixToTheBit)
-        {
-            expect_product_equals_gemm<TypeParam>(*this->engine, *this->recording, Routine::Symm);
-        }
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Symm,
+            ::testing::ValuesIn(row_major(plain_rows(K_SYMM_TYPES, K_BOTH_MODES))),
+            row_name<NoAxis>);
 
-        TYPED_TEST(Medium_Symm, ABatchIsMultipliedMatrixByMatrix)
-        {
-            using T = TypeParam;
-            const int64_t matrix = K_BATCH_ROWS * K_BATCH_COLS;
-
-            for (const Core::Side side : K_SIDES)
-            {
-                const int64_t order = side == Core::Side::Left ? K_BATCH_ROWS : K_BATCH_COLS;
-                const std::vector<T> a = integer_elements<T>(0, K_BATCH * order * order);
-                const std::vector<T> b = integer_elements<T>(11, K_BATCH * matrix);
-                const std::vector<T> c = integer_elements<T>(23, K_BATCH * matrix);
-
-                for (const bool a_is_batched : {true, false})
-                {
-                    for (const ExecutionMode mode : K_MODES)
-                    {
-                        SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode) +
-                                     (a_is_batched ? ", A batched" : ", A of rank 2"));
-                        this->set_mode(mode);
-
-                        const Tensor A = a_is_batched
-                            ? upload(*this->engine, {K_BATCH, order, order}, a)
-                            : upload(*this->engine, {order, order},
-                                     matrix_of(a, 0, order * order));
-                        const Tensor B =
-                            upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, b);
-                        Tensor C =
-                            upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, c);
-                        SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, side, Core::Uplo::Upper,
-                                                               2.0, -1.0);
-                        this->recording->run().value();
-                        const std::vector<T> batched = read_tensor<T>(C);
-
-                        for (int64_t index = 0; index < K_BATCH; ++index)
-                        {
-                            SCOPED_TRACE("matrix " + std::to_string(index));
-                            const Tensor one_a = upload(
-                                *this->engine, {order, order},
-                                matrix_of(a, a_is_batched ? index : 0, order * order));
-                            const Tensor one_b = upload(*this->engine,
-                                                        {K_BATCH_ROWS, K_BATCH_COLS},
-                                                        matrix_of(b, index, matrix));
-                            Tensor one_c = upload(*this->engine, {K_BATCH_ROWS, K_BATCH_COLS},
-                                                  matrix_of(c, index, matrix));
-                            SushiBLAS::BLASOps(this->recorder()).symm(one_a, one_b, one_c, side,
-                                                                   Core::Uplo::Upper, 2.0, -1.0);
-                            this->recording->run().value();
-
-                            expect_equal(matrix_of(batched, index, matrix),
-                                         read_tensor<T>(one_c));
-                        }
-                    }
-                }
-            }
-        }
-
-        TYPED_TEST(Medium_Symm, AZeroBetaDoesNotReadC)
-        {
-            using T = TypeParam;
-            std::mt19937 generator(K_SEED);
-
-            for (const Core::Side side : K_SIDES)
-            {
-                const int64_t order = side == Core::Side::Left ? K_ROWS : K_COLS;
-                const std::vector<T> a = random_elements<T>(generator, order * order);
-                const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
-
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode));
-                    this->set_mode(mode);
-                    const Tensor A = upload(*this->engine, {order, order}, a);
-                    const Tensor B = upload(*this->engine, {K_ROWS, K_COLS}, b);
-                    Tensor C = upload(*this->engine, {K_ROWS, K_COLS},
-                                      std::vector<T>(static_cast<std::size_t>(K_ROWS * K_COLS),
-                                                     poison<T>()));
-
-                    SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, side, Core::Uplo::Lower,
-                                                           K_ALPHA, 0.0);
-                    this->recording->run().value();
-
-                    const std::vector<T> result = read_tensor<T>(C);
-                    for (std::size_t i = 0; i < result.size(); ++i)
-                        EXPECT_FALSE(is_nan(result[i])) << "index " << i;
-                }
-            }
-        }
-
-        TYPED_TEST(Medium_Symm, AnEmptyProductRecordsAndRuns)
-        {
-            const Core::DataType dtype = sushiblas_dtype<TypeParam>();
-            const int64_t shapes[][2] = {{0, 3}, {3, 0}};
-
-            for (const auto& shape : shapes)
-            {
-                const int64_t rows = shape[0];
-                const int64_t cols = shape[1];
-
-                for (const Core::Side side : K_SIDES)
-                {
-                    const int64_t order = side == Core::Side::Left ? rows : cols;
-
-                    for (const ExecutionMode mode : K_MODES)
-                    {
-                        SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode));
-                        this->set_mode(mode);
-                        const Tensor A = this->engine->create_tensor({order, order}, dtype);
-                        const Tensor B = this->engine->create_tensor({rows, cols}, dtype);
-                        Tensor C = this->engine->create_tensor({rows, cols}, dtype);
-
-                        EXPECT_NO_THROW(SushiBLAS::BLASOps(this->recorder()).symm(
-                            A, B, C, side, Core::Uplo::Upper));
-                        EXPECT_TRUE(this->recording->run().has_value());
-                    }
-                }
-            }
-        }
-
-        /** @brief Runs hemm over the complex element types. */
-        template<typename T>
-        class Medium_Hemm : public SushiBLASTest
+        /** @brief Runs symm against gemm on the mirrored matrix, per side and triangle. */
+        class Medium_SymmGemm : public SymmCase<SideTriangle>
         {
 
         };
 
-        using HemmTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_Hemm, HemmTypes);
-
-        TYPED_TEST(Medium_Hemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
+        TEST_P(Medium_SymmGemm, EqualsGemmOnTheFullMatrixToTheBit)
         {
-            expect_product_equals_gemm<TypeParam>(*this->engine, *this->recording, Routine::Hemm);
+            with_non_half_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_product_equals_gemm<T>(*this->engine, *this->recording, Routine::Symm,
+                                              GetParam().axis);
+            });
         }
 
-        TYPED_TEST(Medium_Hemm, MatchesAHandComputedProduct)
-        {
-            using T = TypeParam;
-            const std::vector<T> a = {T(2, 9), T(1, 1),
-                                      poison<T>(), T(3, 9)};
-            const std::vector<T> b = {T(1, 0), T(0, 1)};
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmGemm,
+            ::testing::ValuesIn(row_major(rows_of(K_SYMM_TYPES, K_BOTH_MODES, side_triangles()))),
+            row_name<SideTriangle>);
 
-            for (const ExecutionMode mode : K_MODES)
+        /** @brief Runs a batched symm against the same call on each matrix alone. */
+        class Medium_SymmBatch : public SymmCase<BatchForm>
+        {
+
+        };
+
+        TEST_P(Medium_SymmBatch, ABatchIsMultipliedMatrixByMatrix)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
             {
-                SCOPED_TRACE(mode_name(mode));
-                this->set_mode(mode);
+                using T = typename decltype(element)::type;
+                expect_batch_matches_each_matrix<T>(*this->engine, *this->recording,
+                                                    GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmBatch,
+            ::testing::ValuesIn(row_major(rows_of(K_SYMM_TYPES, K_BOTH_MODES, batch_forms()))),
+            row_name<BatchForm>);
+
+        /** @brief Runs symm with a zero beta over a poisoned C, per side. */
+        class Medium_SymmZeroBeta : public SymmCase<Core::Side>
+        {
+
+        };
+
+        TEST_P(Medium_SymmZeroBeta, AZeroBetaDoesNotReadC)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_zero_beta_ignores_c<T>(*this->engine, *this->recording,
+                                              GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmZeroBeta,
+            ::testing::ValuesIn(row_major(rows_of(K_SYMM_TYPES, K_BOTH_MODES, K_SIDES))),
+            row_name<Core::Side>);
+
+        /** @brief Runs symm on a product with no row or no column. */
+        class Medium_SymmEmpty : public SymmCase<EmptyForm>
+        {
+
+        };
+
+        TEST_P(Medium_SymmEmpty, AnEmptyProductRecordsAndRuns)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const EmptyForm& form = GetParam().axis;
+                const Core::DataType dtype = sushiblas_dtype<T>();
+                const int64_t order = form.side == Core::Side::Left ? form.rows : form.cols;
+
+                const Tensor A = this->engine->create_tensor({order, order}, dtype);
+                const Tensor B = this->engine->create_tensor({form.rows, form.cols}, dtype);
+                Tensor C = this->engine->create_tensor({form.rows, form.cols}, dtype);
+
+                EXPECT_NO_THROW(SushiBLAS::BLASOps(this->recorder()).symm(
+                    A, B, C, form.side, Core::Uplo::Upper));
+                EXPECT_TRUE(this->recording->run().has_value());
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmEmpty,
+            ::testing::ValuesIn(row_major(rows_of(K_SYMM_TYPES, K_BOTH_MODES, empty_forms()))),
+            row_name<EmptyForm>);
+
+        /** @brief Runs the hand-computed hemm product over the complex element types. */
+        class Medium_Hemm : public SymmCase<NoAxis>
+        {
+
+        };
+
+        TEST_P(Medium_Hemm, MatchesAHandComputedProduct)
+        {
+            with_complex_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const std::vector<T> a = {T(2, 9), T(1, 1),
+                                          poison<T>(), T(3, 9)};
+                const std::vector<T> b = {T(1, 0), T(0, 1)};
+
                 const Tensor A = upload(*this->engine, {2, 2}, a);
                 const Tensor B = upload(*this->engine, {2, 1}, b);
                 Tensor C = upload(*this->engine, {2, 1}, std::vector<T>(2, poison<T>()));
 
                 SushiBLAS::BLASOps(this->recorder()).hemm(A, B, C, Core::Side::Left,
-                                                       Core::Uplo::Upper, 1.0, 0.0);
+                                                          Core::Uplo::Upper, 1.0, 0.0);
                 this->recording->run().value();
 
                 // Row 0 is 2 * 1 + (1 + i) * i; row 1 is conj(1 + i) * 1 + 3 * i.
                 expect_equal(read_tensor<T>(C), std::vector<T>{T(1, 1), T(1, 2)});
-            }
+            });
         }
 
-        /** @brief Runs the cases of symm and hemm that are not typed over the element type. */
-        class Medium_SymmHemmEdges : public SushiBLASTest
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Hemm,
+            ::testing::ValuesIn(row_major(plain_rows(K_COMPLEX_TYPES, K_BOTH_MODES))),
+            row_name<NoAxis>);
+
+        /** @brief Runs hemm against gemm on the mirrored Hermitian matrix. */
+        class Medium_HemmGemm : public SymmCase<SideTriangle>
+        {
+
+        };
+
+        TEST_P(Medium_HemmGemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
+        {
+            with_complex_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_product_equals_gemm<T>(*this->engine, *this->recording, Routine::Hemm,
+                                              GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_HemmGemm,
+            ::testing::ValuesIn(row_major(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES,
+                                                  side_triangles()))),
+            row_name<SideTriangle>);
+
+        /** @brief Runs hemm on a real tensor, which forwards to symm. */
+        class Medium_SymmHemmForward : public SymmCase<NoAxis>
+        {
+
+        };
+
+        TEST_P(Medium_SymmHemmForward, HemmOnARealTensorIsSymm)
+        {
+            std::mt19937 generator(K_SEED);
+            const std::vector<float> a = random_elements<float>(generator, K_ROWS * K_ROWS);
+            const std::vector<float> b = random_elements<float>(generator, K_ROWS * K_COLS);
+            const std::vector<float> c = random_elements<float>(generator, K_ROWS * K_COLS);
+
+            const Tensor A = upload(*this->engine, {K_ROWS, K_ROWS}, a);
+            const Tensor B = upload(*this->engine, {K_ROWS, K_COLS}, b);
+            Tensor from_hemm = upload(*this->engine, {K_ROWS, K_COLS}, c);
+            Tensor from_symm = upload(*this->engine, {K_ROWS, K_COLS}, c);
+
+            record_product(this->recorder(), Routine::Hemm, A, B, from_hemm, Core::Side::Left,
+                           Core::Uplo::Upper, K_ALPHA, K_BETA);
+            record_product(this->recorder(), Routine::Symm, A, B, from_symm, Core::Side::Left,
+                           Core::Uplo::Upper, K_ALPHA, K_BETA);
+            this->recording->run().value();
+
+            expect_same_bytes(read_tensor<float>(from_hemm), read_tensor<float>(from_symm));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmHemmForward,
+            ::testing::ValuesIn(row_major(plain_rows({Core::DataType::Float32}, K_BOTH_MODES))),
+            row_name<NoAxis>);
+
+        /** @brief Runs the HALF row sums of symm; the fixture skips a device without fp16. */
+        class Medium_SymmHalf : public SymmCase<NoAxis>
+        {
+
+        };
+
+        TEST_P(Medium_SymmHalf, HalfSumsInFloat)
+        {
+            const double unread = std::numeric_limits<double>::quiet_NaN();
+            const std::vector<sycl::half> a = elements<sycl::half>({2048, 1, -2048,
+                                                                    unread, 0, 0,
+                                                                    unread, unread, 0});
+            const std::vector<sycl::half> ones = elements<sycl::half>({1, 1, 1});
+
+            const Tensor A = upload(*this->engine, {3, 3}, a);
+            const Tensor B = upload(*this->engine, {3, 1}, ones);
+            Tensor C = upload(*this->engine, {3, 1},
+                              std::vector<sycl::half>(3, poison<sycl::half>()));
+
+            SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, Core::Side::Left,
+                                                      Core::Uplo::Upper, 1.0, 0.0);
+            this->recording->run().value();
+
+            // Row 0 sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
+            const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
+            ASSERT_EQ(3u, result.size());
+            EXPECT_EQ(static_cast<float>(result[0]), 1.0f);
+            EXPECT_EQ(static_cast<float>(result[1]), 1.0f);
+            EXPECT_EQ(static_cast<float>(result[2]), -2048.0f);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_SymmHalf,
+            ::testing::ValuesIn(row_major(plain_rows({Core::DataType::Half}, K_BOTH_MODES))),
+            row_name<NoAxis>);
+
+        /**
+         * @brief Runs the ForceReference refusal of a device-only operand; it needs device-only
+         *        USM, so it cannot run on a host tensor (decision 75).
+         */
+        class Medium_SymmDeviceOnly : public BlasEngineStart
         {
             protected:
+                /** @brief Builds the device-only operand, or skips on a device without it. */
+                void SetUp() override
+                {
+                    BlasEngineStart::SetUp();
+                    this->start(Core::Layout::RowMajor, ExecutionMode::ForceReference);
+                    device_only_ = make_device_tensor({3, 3});
+                    if (!device_only_)
+                        GTEST_SKIP() << "This device offers no device-only USM.";
+                }
+
+                /**
+                 * @brief Returns the message of the UnsupportedExecution that record throws, or an
+                 *        empty string when it throws nothing else.
+                 */
+                template<typename Record>
+                [[nodiscard]] std::string refusal_message(Record&& record)
+                {
+                    try
+                    {
+                        record();
+                    }
+                    catch (const UnsupportedExecution& refusal)
+                    {
+                        return refusal.what();
+                    }
+                    return "";
+                }
+
+                /// @brief A FLOAT32 tensor in device-only USM.
+                std::optional<Tensor> device_only_;
+
+            private:
                 /**
                  * @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing without
                  *        such USM.
@@ -594,8 +819,7 @@ namespace SushiBLAS
                     {
                         Tensor tensor = engine->create_tensor(dims, Core::DataType::Float32,
                                                               SushiRuntime::Residency::Device);
-                        const sycl::context context =
-                            TestEnvironment::queue().get_context();
+                        const sycl::context context = TestEnvironment::queue().get_context();
                         if (sycl::get_pointer_type(tensor.data(), context) !=
                             sycl::usm::alloc::device)
                             return std::nullopt;
@@ -606,181 +830,20 @@ namespace SushiBLAS
                         return std::nullopt;
                     }
                 }
-
-                /**
-                 * @brief Expects record to throw std::invalid_argument and to add no task.
-                 * @param record Callable `(SushiBLAS::BLASOps&) -> TaskHandle`.
-                 */
-                template<typename Record>
-                void expect_refused(const char* what, Record&& record)
-                {
-                    SCOPED_TRACE(what);
-                    SushiBLAS::BLASOps ops(probe.recorder());
-                    EXPECT_THROW((void)record(ops), std::invalid_argument);
-                    EXPECT_EQ(0u, probe.take_recorded_count());
-                }
-
-                /// @brief The graph the refusal cases record on and read.
-                GraphProbe probe;
         };
 
-        TEST_F(Medium_SymmHemmEdges, HemmOnARealTensorIsSymm)
+        TEST_F(Medium_SymmDeviceOnly, ForceReferenceRefusesADeviceOnlyOperand)
         {
-            std::mt19937 generator(K_SEED);
-            const std::vector<float> a = random_elements<float>(generator, K_ROWS * K_ROWS);
-            const std::vector<float> b = random_elements<float>(generator, K_ROWS * K_COLS);
-            const std::vector<float> c = random_elements<float>(generator, K_ROWS * K_COLS);
-
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                set_mode(mode);
-                const Tensor A = upload(*engine, {K_ROWS, K_ROWS}, a);
-                const Tensor B = upload(*engine, {K_ROWS, K_COLS}, b);
-                Tensor from_hemm = upload(*engine, {K_ROWS, K_COLS}, c);
-                Tensor from_symm = upload(*engine, {K_ROWS, K_COLS}, c);
-
-                record_product(recorder(), Routine::Hemm, A, B, from_hemm, Core::Side::Left,
-                               Core::Uplo::Upper, K_ALPHA, K_BETA);
-                record_product(recorder(), Routine::Symm, A, B, from_symm, Core::Side::Left,
-                               Core::Uplo::Upper, K_ALPHA, K_BETA);
-                recording->run().value();
-
-                expect_same_bytes(read_tensor<float>(from_hemm), read_tensor<float>(from_symm));
-            }
-        }
-
-        TEST_F(Medium_SymmHemmEdges, HalfSumsInFloat)
-        {
-            const sycl::queue& queue = TestEnvironment::queue();
-            if (!queue.get_device().has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
-
-            const double unread = std::numeric_limits<double>::quiet_NaN();
-            const std::vector<sycl::half> a = elements<sycl::half>({2048, 1, -2048,
-                                                                    unread, 0, 0,
-                                                                    unread, unread, 0});
-            const std::vector<sycl::half> ones = elements<sycl::half>({1, 1, 1});
-
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                set_mode(mode);
-                const Tensor A = upload(*engine, {3, 3}, a);
-                const Tensor B = upload(*engine, {3, 1}, ones);
-                Tensor C = upload(*engine, {3, 1},
-                                  std::vector<sycl::half>(3, poison<sycl::half>()));
-
-                SushiBLAS::BLASOps(recorder()).symm(A, B, C, Core::Side::Left, Core::Uplo::Upper,
-                                                 1.0, 0.0);
-                recording->run().value();
-
-                // Row 0 sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
-                const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
-                ASSERT_EQ(3u, result.size());
-                EXPECT_EQ(static_cast<float>(result[0]), 1.0f);
-                EXPECT_EQ(static_cast<float>(result[1]), 1.0f);
-                EXPECT_EQ(static_cast<float>(result[2]), -2048.0f);
-            }
-        }
-
-        TEST_F(Medium_SymmHemmEdges, EveryRefusalIsAnInvalidArgument)
-        {
-            const Tensor A = engine->create_tensor({3, 3});
-            const Tensor B = engine->create_tensor({3, 2});
-            Tensor C = engine->create_tensor({3, 2});
-            const Tensor wide_B = engine->create_tensor({2, 3});
-            Tensor wide_C = engine->create_tensor({2, 3});
-            const Tensor A_of_order_4 = engine->create_tensor({4, 4});
-
-            expect_refused("side holding 0", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A, B, C, static_cast<Core::Side>(0), Core::Uplo::Upper);
-            });
-            expect_refused("uplo holding 0", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A, B, C, Core::Side::Left, static_cast<Core::Uplo>(0));
-            });
-            expect_refused("B of another dtype", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
-                return ops.symm(A, other, C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("C of another dtype", [&](SushiBLAS::BLASOps& ops)
-            {
-                Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
-                return ops.symm(A, B, other, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("a complex alpha on FLOAT32", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A, B, C, Core::Side::Left, Core::Uplo::Upper, K_COMPLEX_SCALAR);
-            });
-            expect_refused("a complex beta on FLOAT32", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A, B, C, Core::Side::Left, Core::Uplo::Upper, 1.0,
-                                K_COMPLEX_SCALAR);
-            });
-            expect_refused("a 3 x 4 A", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other = engine->create_tensor({3, 4});
-                return ops.symm(other, B, C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("A of order 4 with a 3-row C under LEFT", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A_of_order_4, B, C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("A of order 4 with a 3-column C under RIGHT",
-                           [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.symm(A_of_order_4, wide_B, wide_C, Core::Side::Right,
-                                Core::Uplo::Upper);
-            });
-            expect_refused("B of another shape than C", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other = engine->create_tensor({3, 3});
-                return ops.symm(A, other, C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("a column-major A with a row-major C", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other(A.storage, {3, 3}, Core::DataType::Float32, 0,
-                                   Core::Layout::ColumnMajor);
-                return ops.symm(other, B, C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("a batch of 3 against a batch of 4", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor batch_A = engine->create_tensor({3, 3, 3});
-                const Tensor batch_B = engine->create_tensor({4, 3, 2});
-                Tensor batch_C = engine->create_tensor({4, 3, 2});
-                return ops.symm(batch_A, batch_B, batch_C, Core::Side::Left, Core::Uplo::Upper);
-            });
-            expect_refused("an INT32 A", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor int_A = engine->create_tensor({3, 3}, Core::DataType::Int32);
-                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::Int32);
-                Tensor int_C = engine->create_tensor({3, 2}, Core::DataType::Int32);
-                return ops.symm(int_A, int_B, int_C, Core::Side::Left, Core::Uplo::Upper);
-            });
-        }
-
-        TEST_F(Medium_SymmHemmEdges, ForceReferenceRefusesADeviceOnlyOperand)
-        {
-            std::optional<Tensor> A = make_device_tensor({3, 3});
-            if (!A)
-                GTEST_SKIP() << "This device offers no device-only USM.";
             const Tensor B = engine->create_tensor({3, 2});
             Tensor C = engine->create_tensor({3, 2});
 
-            set_mode(ExecutionMode::ForceReference);
-            try
+            const std::string message = refusal_message([&]
             {
-                SushiBLAS::BLASOps(recorder()).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
-                FAIL() << "ForceReference must refuse a device-only operand.";
-            }
-            catch (const UnsupportedExecution& e)
-            {
-                const std::string message = e.what();
-                EXPECT_NE(message.find("blas.lvl3.symm"), std::string::npos) << message;
-            }
+                SushiBLAS::BLASOps(recorder()).symm(*device_only_, B, C, Core::Side::Left,
+                                                    Core::Uplo::Upper);
+            });
+
+            EXPECT_NE(message.find("blas.lvl3.symm"), std::string::npos) << message;
         }
     } // namespace Test
 } // namespace SushiBLAS

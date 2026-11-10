@@ -117,6 +117,12 @@ namespace SushiBLAS
             return "_" + word(uplo);
         }
 
+        /** @brief Returns the tail of a row named by a side. */
+        [[nodiscard]] inline std::string axis_name(Core::Side side)
+        {
+            return "_" + word(side);
+        }
+
         /** @brief Returns the tail of a row named by a form of op(A). */
         [[nodiscard]] inline std::string axis_name(Core::Transpose trans)
         {

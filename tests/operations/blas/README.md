@@ -38,7 +38,8 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_rotg.cpp` | Tests rotg against hand-computed rotations, across both kernels and inside a graph |
 | `test_blas/test_rotm.cpp` | Tests rotm on each flag, on strided and empty vectors, across kernels and after rotmg |
 | `test_blas/test_rotmg.cpp` | Tests rotmg on its four outcomes, on both rescalings and across both kernels |
-| `test_blas/test_symm.cpp` | Tests symm and hemm against hand-computed products, gemm on the full matrix and refusals |
+| `test_blas/test_symm.cpp` | Tests symm and hemm against hand-computed products, gemm on the full matrix and the device-only operand refusal |
+| `test_blas/test_symm_refusals.cpp` | Tests that symm refuses each of thirteen malformed calls with std::invalid_argument and records no task |
 | `test_blas/test_syr2k.cpp` | Tests syr2k and her2k against hand-computed updates, a host integer loop, a truth and refusals |
 | `test_blas/test_triangular_parallel.cpp` | Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
