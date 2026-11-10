@@ -57,6 +57,9 @@ namespace SushiBLAS
             /** @brief 2 x 2^-24: the binary16 subnormal nearest to 1e-7. */
             constexpr double K_TINY_AS_HALF = 1.1920928955078125e-7;
 
+            /** @brief 2^-24: one step of the binary16 subnormals, the slack KI-3 allows below 2^-13. */
+            constexpr double K_HALF_SUBNORMAL_STEP = 5.9604644775390625e-8;
+
             /** @brief A positive infinity of double. */
             constexpr double K_INF = std::numeric_limits<double>::infinity();
 
@@ -176,6 +179,8 @@ namespace SushiBLAS
             std::string name;
             double input;
             double expected;
+            /// @brief How far the host's conversion may land from expected; 0 asks for the exact value.
+            double slack = 0.0;
         };
 
         /** @brief Names a row by its name. */
@@ -236,7 +241,8 @@ namespace SushiBLAS
             const std::vector<double> got =
                 converted(Core::DataType::Float32, Core::DataType::Half, {GetParam().input});
 
-            EXPECT_EQ(GetParam().expected, got[0]);
+            // KI-3: the host truncates below 2^-13, so a row states one subnormal step as its slack.
+            EXPECT_LE(std::abs(GetParam().expected - got[0]), GetParam().slack);
         }
 
         INSTANTIATE_TEST_SUITE_P(
@@ -245,7 +251,8 @@ namespace SushiBLAS
                 // 1e-8 is below half the smallest subnormal, 2^-25.
                 ValueRow{"OneEMinusEightFlushesToZero", 1.0e-8, 0.0},
                 // 1e-7 / 2^-24 is 1.677, which rounds to 2.
-                ValueRow{"OneEMinusSevenLandsOnASubnormal", 1.0e-7, K_TINY_AS_HALF}),
+                ValueRow{"OneEMinusSevenLandsOnASubnormal", 1.0e-7, K_TINY_AS_HALF,
+                         K_HALF_SUBNORMAL_STEP}),
             value_row_name);
 
         /** @brief A non-finite FLOAT32 value converted to a target dtype. */

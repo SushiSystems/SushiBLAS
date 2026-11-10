@@ -491,6 +491,36 @@ namespace SushiBLAS
                         << "imaginary part of element " << i;
                 }
             }
+
+            /** @brief Holds the results of a band routine and of its dense sibling, with what bounds their gap. */
+            struct SiblingProducts
+            {
+                    std::vector<float> band;       /**< y after the band routine. */
+                    std::vector<float> dense;      /**< y after the dense routine. */
+                    std::vector<double> magnitude; /**< Per element: |alpha| * sum |a * x| + |beta| * |y|. */
+            };
+
+            /**
+             * @brief Expects the band and the dense result of every element to differ by at most
+             *        2 * (K_LARGE_ORDER + 2) * u * magnitude: two sums of K_LARGE_ORDER products
+             *        added in different orders, each with the scale by alpha and the add of beta * y.
+             */
+            void expect_siblings_agree(const SiblingProducts& products)
+            {
+                ASSERT_EQ(products.band.size(), products.dense.size());
+                ASSERT_EQ(products.band.size(), products.magnitude.size());
+                constexpr std::size_t K_ROUNDINGS = 2 * (static_cast<std::size_t>(K_LARGE_ORDER) + 2);
+
+                for (std::size_t i = 0; i < products.band.size(); ++i)
+                {
+                    const double bound = static_cast<double>(K_ROUNDINGS) *
+                                         unit_roundoff_of<float>() * products.magnitude[i];
+                    EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_error(
+                        static_cast<double>(products.band[i]),
+                        static_cast<double>(products.dense[i]), bound)))
+                        << "element " << i;
+                }
+            }
         } // namespace
 
         /**
@@ -627,12 +657,12 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Returns y of gbmv on a full band of order K_LARGE_ORDER, then y of gemv
-                 *        on the same matrix.
+                 * @brief Returns y of gbmv on a full band of order K_LARGE_ORDER, y of gemv on
+                 *        the same matrix, and the magnitude that bounds their gap.
                  */
-                template<typename T>
-                [[nodiscard]] std::array<std::vector<T>, 2> large_general_products()
+                [[nodiscard]] SiblingProducts large_general_products()
                 {
+                    using T = float;
                     const int64_t n = K_LARGE_ORDER;
                     const int64_t ld = 2 * n - 1;
                     std::mt19937 generator(K_SEED);
@@ -643,7 +673,8 @@ namespace SushiBLAS
                                 poison<T>()),
                         n, n, ld);
                     const Tensor full = dense_of<T>(n, n, dense);
-                    const Tensor x = vector_of<T>(random_elements<T>(generator, n));
+                    const std::vector<T> x_values = random_elements<T>(generator, n);
+                    const Tensor x = vector_of<T>(x_values);
                     const std::vector<T> y = random_elements<T>(generator, n);
                     Tensor from_band = vector_of<T>(y);
                     Tensor from_dense = vector_of<T>(y);
@@ -653,23 +684,26 @@ namespace SushiBLAS
                              K_BETA);
                     ops.gemv(full, x, from_dense, Core::Transpose::NoTrans, K_ALPHA, K_BETA);
                     this->recording->run().value();
-                    return {{read_tensor<T>(from_band), read_tensor<T>(from_dense)}};
+
+                    return {read_tensor<T>(from_band), read_tensor<T>(from_dense),
+                            product_magnitudes(dense, x_values, y, false)};
                 }
 
                 /**
-                 * @brief Returns y of sbmv on a full upper band of order K_LARGE_ORDER, then y of
-                 *        symv on the same matrix.
+                 * @brief Returns y of sbmv on a full upper band of order K_LARGE_ORDER, y of symv
+                 *        on the same matrix, and the magnitude that bounds their gap.
                  */
-                template<typename T>
-                [[nodiscard]] std::array<std::vector<T>, 2> large_symmetric_products()
+                [[nodiscard]] SiblingProducts large_symmetric_products()
                 {
+                    using T = float;
                     const int64_t n = K_LARGE_ORDER;
                     std::mt19937 generator(K_SEED);
                     const std::vector<T> dense = random_elements<T>(generator, n * n);
 
                     const Tensor band = triangle_band_of<T>(dense, n, Core::Uplo::Upper, n - 1);
                     const Tensor full = dense_of<T>(n, n, dense);
-                    const Tensor x = vector_of<T>(random_elements<T>(generator, n));
+                    const std::vector<T> x_values = random_elements<T>(generator, n);
+                    const Tensor x = vector_of<T>(x_values);
                     const std::vector<T> y = random_elements<T>(generator, n);
                     Tensor from_band = vector_of<T>(y);
                     Tensor from_dense = vector_of<T>(y);
@@ -678,7 +712,38 @@ namespace SushiBLAS
                     ops.sbmv(band, x, from_band, Core::Uplo::Upper, n - 1, K_ALPHA, K_BETA);
                     ops.symv(full, x, from_dense, Core::Uplo::Upper, K_ALPHA, K_BETA);
                     this->recording->run().value();
-                    return {{read_tensor<T>(from_band), read_tensor<T>(from_dense)}};
+
+                    return {read_tensor<T>(from_band), read_tensor<T>(from_dense),
+                            product_magnitudes(dense, x_values, y, true)};
+                }
+
+                /**
+                 * @brief Returns, per row, |alpha| * sum |a * x| + |beta| * |y| of a K_LARGE_ORDER product.
+                 * @param dense The matrix, row by row; only its upper triangle is read when symmetric.
+                 * @param symmetric Whether row r reads a(min(r, c), max(r, c)) for column c.
+                 */
+                [[nodiscard]] static std::vector<double>
+                product_magnitudes(const std::vector<float>& dense, const std::vector<float>& x,
+                                   const std::vector<float>& y, bool symmetric)
+                {
+                    const int64_t n = K_LARGE_ORDER;
+                    std::vector<double> magnitude(static_cast<std::size_t>(n));
+                    for (int64_t r = 0; r < n; ++r)
+                    {
+                        double products = 0.0;
+                        for (int64_t c = 0; c < n; ++c)
+                        {
+                            const int64_t row = symmetric ? std::min(r, c) : r;
+                            const int64_t column = symmetric ? std::max(r, c) : c;
+                            products += std::abs(
+                                static_cast<double>(dense[static_cast<std::size_t>(row * n + column)]) *
+                                static_cast<double>(x[static_cast<std::size_t>(c)]));
+                        }
+                        magnitude[static_cast<std::size_t>(r)] =
+                            std::abs(K_ALPHA) * products +
+                            std::abs(K_BETA) * std::abs(static_cast<double>(y[static_cast<std::size_t>(r)]));
+                    }
+                    return magnitude;
                 }
 
                 /**
@@ -1335,11 +1400,8 @@ namespace SushiBLAS
          */
         TEST_P(Medium_BlasBandLarge, AFullBandEqualsTheDenseSiblingLarge)
         {
-            const std::array<std::vector<float>, 2> general = large_general_products<float>();
-            expect_equal(general[0], general[1]);
-
-            const std::array<std::vector<float>, 2> symmetric = large_symmetric_products<float>();
-            expect_equal(symmetric[0], symmetric[1]);
+            expect_siblings_agree(large_general_products());
+            expect_siblings_agree(large_symmetric_products());
         }
 
         /** @brief Tests that gbmv and sbmv give the same bits when the device runs them twice. */
@@ -1353,11 +1415,11 @@ namespace SushiBLAS
                                    first.size() * sizeof(float)) == 0;
             };
 
-            const std::vector<float> general = large_general_products<float>()[0];
-            EXPECT_TRUE(same_bits(general, large_general_products<float>()[0])) << "gbmv";
+            const std::vector<float> general = large_general_products().band;
+            EXPECT_TRUE(same_bits(general, large_general_products().band)) << "gbmv";
 
-            const std::vector<float> symmetric = large_symmetric_products<float>()[0];
-            EXPECT_TRUE(same_bits(symmetric, large_symmetric_products<float>()[0])) << "sbmv";
+            const std::vector<float> symmetric = large_symmetric_products().band;
+            EXPECT_TRUE(same_bits(symmetric, large_symmetric_products().band)) << "sbmv";
         }
 
         INSTANTIATE_TEST_SUITE_P(

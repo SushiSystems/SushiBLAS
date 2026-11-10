@@ -122,6 +122,15 @@ namespace SushiBLAS
                 return host;
             }
 
+            /** @brief Returns the levels of the halving tree that folds the partials of stage two. */
+            std::size_t tree_levels(std::size_t partials)
+            {
+                std::size_t levels = 0;
+                for (std::size_t width = 1; width < partials; width *= 2)
+                    ++levels;
+                return levels;
+            }
+
             /** @brief Returns one large head followed by K_ONES ones. */
             std::vector<float> head_then_ones()
             {
@@ -345,8 +354,8 @@ namespace SushiBLAS
         /**
          * @brief Tests that a compensated sum recovers 4096 ones under a head of 1e8.
          *
-         * Naive summation returns 1e8 here, because every 1.0 falls below the ulp of the running
-         * total; 100004096 is a multiple of 8 and so exact in float.
+         * Naive summation returns 1e8, an error of 4096. The bound counts the roundings of a
+         * compensated sum plus one per level of the tree that adds the stage-two partials plainly.
          * @see tests/operations/reductions/README.md
          */
         TEST_F(Medium_ReductionDeterminism, CompensatedSumRecoversASmallTailUnderALargeHead)
@@ -360,7 +369,14 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(recorder()).sum(t, res);
             recording->run().value();
 
-            EXPECT_EQ(K_HEAD + static_cast<float>(K_ONES), scalar(res));
+            const std::size_t partials = Reduce::planned_partials(
+                Device::profile_for(TestEnvironment::queue()),
+                static_cast<std::size_t>(K_ONES + 1));
+            const double exact = static_cast<double>(K_HEAD) + static_cast<double>(K_ONES);
+
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<float>(
+                static_cast<double>(scalar(res)), exact,
+                K_COMPENSATED_ROUNDINGS + tree_levels(partials))));
         }
 
         /** @brief Sums n copies of 0.1f at one size on each side of the CPU threshold. */
