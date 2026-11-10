@@ -47,8 +47,8 @@ namespace SushiBLAS
             const T one = static_cast<T>(1.0f);
             const double unit = unit_roundoff<T>();
 
-            EXPECT_EQ(static_cast<float>(static_cast<T>(one + static_cast<T>(unit))), 1.0f);
-            EXPECT_GT(static_cast<float>(static_cast<T>(one + static_cast<T>(1.5 * unit))), 1.0f);
+            EXPECT_EQ(static_cast<double>(static_cast<T>(one + static_cast<T>(unit))), 1.0);
+            EXPECT_GT(static_cast<double>(static_cast<T>(one + static_cast<T>(1.5 * unit))), 1.0);
         }
 
         TEST(Small_BlasTruth, ASumOfNoTermsIsZero)

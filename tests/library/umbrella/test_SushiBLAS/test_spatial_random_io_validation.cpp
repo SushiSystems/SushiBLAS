@@ -81,6 +81,9 @@ namespace SushiBLAS
 
                 /** @brief The dimensions of the tensor the file is loaded into. */
                 std::vector<int64_t> dims;
+
+                /** @brief The status the load must give: the .sushi header names the shape, the raw form has none. */
+                IOStatus refusal;
             };
 
             /** @brief Names a shape row by its name. */
@@ -253,7 +256,13 @@ namespace SushiBLAS
             EXPECT_FALSE(std::ifstream(path).good()) << "the partial file must be removed";
         }
 
-        /// @brief Loads a saved 2 x 2 file into a tensor of another shape, one format and shape per row.
+        /**
+         * @brief Loads a saved 2 x 2 file into a tensor of another shape, one format and shape per row.
+         *
+         * A .sushi header holds the shape, so a rank or a dimension that differs is a ShapeMismatch.
+         * A raw file holds the 16 bytes alone and knows no rank: a tensor of 24 bytes finds the file
+         * short (Truncated), and a rank of the same 16 bytes would load, so it has no row.
+         */
         class Medium_LoadShape : public Medium_SpatialRandomIOValidationTest,
                                  public ::testing::WithParamInterface<ShapeRow> {};
 
@@ -271,15 +280,15 @@ namespace SushiBLAS
 
             const IOStatus loaded = GetParam().binary ? SushiBLAS::IO().load_bin(target, path)
                                                        : SushiBLAS::IO().load(target, path);
-            EXPECT_EQ(loaded, IOStatus::ShapeMismatch);
+            EXPECT_EQ(loaded, GetParam().refusal);
         }
 
         INSTANTIATE_TEST_SUITE_P(
             Formats, Medium_LoadShape,
-            ::testing::Values(ShapeRow{"SushiAnotherDimension", false, {2, 3}},
-                              ShapeRow{"SushiAnotherRank", false, {4}},
-                              ShapeRow{"BinAnotherDimension", true, {2, 3}},
-                              ShapeRow{"BinAnotherRank", true, {4}}),
+            ::testing::Values(
+                ShapeRow{"SushiAnotherDimension", false, {2, 3}, IOStatus::ShapeMismatch},
+                ShapeRow{"SushiAnotherRank", false, {4}, IOStatus::ShapeMismatch},
+                ShapeRow{"BinAnotherDimension", true, {2, 3}, IOStatus::Truncated}),
             shape_row_name);
     } // namespace Test
 } // namespace SushiBLAS
