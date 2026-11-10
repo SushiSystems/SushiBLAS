@@ -117,15 +117,15 @@ namespace SushiBLAS
         {
             SharedArray<float> by_reference(queue(), K_COUNT);
             SharedArray<float> by_sycl(queue(), K_COUNT);
-            const KernelPairDispatcher reference(ExecutionMode::ForceReference);
-            const KernelPairDispatcher sycl_path(ExecutionMode::ForceSYCL);
+            const KernelPairDispatcher reference(ExecutionMode::ForceReference, queue());
+            const KernelPairDispatcher sycl_path(ExecutionMode::ForceSYCL, queue());
             const std::vector<sycl::event> none;
 
-            Dispatch::RandomFill(reference, queue(), none)(static_cast<int64_t>(K_COUNT),
-                                                           by_reference.get(), PositionBlock{})
+            Dispatch::RandomFill(reference, none)(static_cast<int64_t>(K_COUNT),
+                                                  by_reference.get(), PositionBlock{})
                 .wait();
-            Dispatch::RandomFill(sycl_path, queue(), none)(static_cast<int64_t>(K_COUNT),
-                                                           by_sycl.get(), PositionBlock{})
+            Dispatch::RandomFill(sycl_path, none)(static_cast<int64_t>(K_COUNT),
+                                                  by_sycl.get(), PositionBlock{})
                 .wait();
 
             EXPECT_EQ(by_sycl.values(), by_reference.values());

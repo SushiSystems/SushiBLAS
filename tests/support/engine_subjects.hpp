@@ -80,7 +80,7 @@ namespace SushiBLAS
                 RuntimeEngineSubject()
                 {
                     engine_.set_mode(ExecutionMode::ForceReference);
-                    recording_.emplace(engine_);
+                    recording_.emplace(TestEnvironment::runtime(), engine_);
                 }
 
                 /** @brief Returns the engine under test. */
