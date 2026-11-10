@@ -52,11 +52,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
-#include <SushiBLAS/graph_probe/host_graph_probe.hpp>
-#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
-#include <SushiBLAS/tensor/host_block.hpp>
 #include "support/tolerance.hpp"
 #include "blas_rows.hpp"
+#include "gemm_seam_fixtures.hpp"
 
 namespace SushiBLAS
 {
@@ -118,48 +116,6 @@ namespace SushiBLAS
             {
                 const T biased = value + static_cast<T>(row_bias[row]) + static_cast<T>(col_bias[col]);
                 return biased > T(0) ? biased : T(0);
-            }
-        };
-
-        /** @brief A per-column bias add, the shape a fused Linear layer uses. */
-        struct BiasColumnEpilogue
-        {
-            /** @brief One value per column of C, broadcast down its rows. */
-            const float* bias;
-
-            /**
-             * @brief Adds the bias of the column to value.
-             * @return value + bias[col].
-             */
-            template<typename T>
-            [[nodiscard]] T operator()(T value, int64_t, int64_t col) const noexcept
-            {
-                return value + static_cast<T>(bias[col]);
-            }
-        };
-
-        /** @brief Adds a bias and also writes its result to an auxiliary buffer. */
-        struct BiasSpillEpilogue
-        {
-            /** @brief One value per column of C. */
-            const float* bias;
-
-            /** @brief Row-major spill buffer, the same extents as C. */
-            float* aux;
-
-            /** @brief Column count of C, so the epilogue can address aux. */
-            int64_t columns;
-
-            /**
-             * @brief Adds the bias, spills the result and returns it.
-             * @return value + bias[col].
-             */
-            template<typename T>
-            T operator()(T value, int64_t row, int64_t col) const
-            {
-                const T pre = value + static_cast<T>(bias[col]);
-                aux[row * columns + col] = static_cast<float>(pre);
-                return pre;
             }
         };
 
@@ -592,25 +548,6 @@ namespace SushiBLAS
                                                                      Transpose::Trans})),
             row_name<Core::Transpose>);
 
-        /** @brief Holds the operands and the hand-computed result of the fused seam tests. */
-        class GemmSeamData
-        {
-            protected:
-                /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
-                static std::vector<float> a_values() { return {1, 0, 0, 1, 1, 1}; }
-
-                /** @brief B = 2x3. */
-                static std::vector<float> b_values() { return {1, 2, 3, 4, 5, 6}; }
-
-                /** @brief Returns the hand-computed result of the fused call. */
-                static std::vector<float> expected()
-                {
-                    return {2, 0, 6,
-                            0, 0, 3,
-                            11, 4, 17};
-                }
-        };
-
         /** @brief Starts the device engine of the fused seam tests over their data. */
         class GemmSeamValues : public BlasEngineStart, protected GemmSeamData
         {
@@ -682,153 +619,6 @@ namespace SushiBLAS
             recording->run().value();
 
             expect_tensor_equal(via_seam, SushiBLAS::IO().to_vector<float>(via_api));
-        }
-
-        /** @brief Reads the dependencies the fused seam declares, on host tensors and no runtime. */
-        class Small_GemmSeamDependencies : public HostEngineTest, protected GemmSeamData
-        {
-
-        };
-
-        TEST_F(Small_GemmSeamDependencies, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
-        {
-            HostGraphProbe probe;
-
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, DataType::Float32);
-            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto bias = engine->create_tensor({3}, DataType::Float32);
-
-            // The in-degree counts the bias edge alone.
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                                   1.0, 0.0, "test.gemm_declared_bias",
-                                   "test.gemm_declared_bias"_op,
-                                   Dispatch::gemm_epilogue(
-                                       BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
-            EXPECT_EQ(1u, tasks[1].dependency_count)
-                << "The GEMM whose epilogue dereferences `bias` must depend on the op "
-                   "that wrote it. An in-degree of 0 means the declaration made through "
-                   "Dispatch::gemm_epilogue never reached the task's read set.";
-        }
-
-        TEST_F(Small_GemmSeamDependencies, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
-        {
-            HostGraphProbe probe;
-
-            // The same functor passed bare gets no edge.
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, DataType::Float32);
-            auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto bias = engine->create_tensor({3}, DataType::Float32);
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                                   1.0, 0.0, "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
-                                   BiasColumnEpilogue{bias.data_as<float>()});
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
-            EXPECT_EQ(0u, tasks[1].dependency_count)
-                << "A bare epilogue declares nothing, so the GEMM must be a root - "
-                   "unordered against the op writing the bias it reads. If this is 1, "
-                   "something is inferring the epilogue's operands, which this layer "
-                   "cannot do correctly and must not appear to do.";
-        }
-
-        TEST_F(Small_GemmSeamDependencies, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
-        {
-            HostGraphProbe probe;
-
-            // The declared read uses Tensor::region().
-            constexpr int64_t K_COLUMNS = 3;
-
-            auto storage = make_host_storage(static_cast<size_t>(2 * K_COLUMNS) * sizeof(float));
-
-            Tensor seed(storage, {K_COLUMNS}, DataType::Float32, 0);
-            Tensor bias(storage, {K_COLUMNS}, DataType::Float32, K_COLUMNS);
-
-            fill_tensor(seed, {1.0f, 2.0f, 3.0f});
-
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, DataType::Float32);
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                                   1.0, 0.0, "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
-                                   Dispatch::gemm_epilogue(
-                                       BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
-            EXPECT_EQ(1u, tasks[1].dependency_count)
-                << "The declared read must be described by Tensor::region() - keyed on "
-                   "the allocation base and narrowed to the view's byte interval. An "
-                   "in-degree of 0 means it was described by a bare pointer, which keys "
-                   "on a base nothing else in this graph shares.";
-        }
-
-        TEST_F(Small_GemmSeamDependencies, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
-        {
-            HostGraphProbe probe;
-
-            // Only a declared write orders the aux reader.
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, DataType::Float32);
-            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-            auto aux = engine->create_tensor({3, 3}, DataType::Float32);
-            auto consumer = engine->create_tensor({3, 3}, DataType::Float32);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                                   1.0, 0.0, "test.gemm_spill", "test.gemm_spill"_op,
-                                   Dispatch::gemm_epilogue(
-                                       BiasSpillEpilogue{bias.data_as<float>(),
-                                                         aux.data_as<float>(), 3})
-                                       .reads(bias)
-                                       .writes(aux));
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
-            EXPECT_EQ(1u, tasks[1].dependency_count)
-                << "The op reading the epilogue's spill buffer must depend on the GEMM "
-                   "that filled it. An in-degree of 0 means the declared write never "
-                   "reached the task's write set, and the spill buys nothing.";
-        }
-
-        TEST_F(Small_GemmSeamDependencies, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
-        {
-            HostGraphProbe probe;
-
-            // An undeclared aux write gets no edge.
-            auto A = create_initialized_tensor<float>({3, 2}, a_values());
-            auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, DataType::Float32);
-            auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-            auto aux = engine->create_tensor({3, 3}, DataType::Float32);
-            auto consumer = engine->create_tensor({3, 3}, DataType::Float32);
-
-            Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                                   1.0, 0.0, "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
-                                   BiasSpillEpilogue{bias.data_as<float>(), aux.data_as<float>(), 3});
-
-            SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
-
-            ASSERT_EQ(2u, probe.recorded_count());
-            const std::vector<RecordedTask> tasks = probe.recorded_tasks();
-            EXPECT_EQ(0u, tasks[1].dependency_count)
-                << "Nothing can see an undeclared write, so the reader must be a root.";
         }
 
         TEST_F(Medium_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)

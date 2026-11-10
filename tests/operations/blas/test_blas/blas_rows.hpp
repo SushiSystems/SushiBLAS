@@ -216,6 +216,36 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Calls body with the Element of FLOAT32, FLOAT64, COMPLEX32 or COMPLEX64.
+         *
+         * HALF is left out for a case whose helpers have no HALF instantiation, such as
+         * `random_elements`, which has no `uniform_real_distribution` for `sycl::half`.
+         * @param type One of the four types named above.
+         * @param body Callable taking an Element.
+         */
+        template<typename Body>
+        void with_non_half_element(Core::DataType type, Body&& body)
+        {
+            switch (type)
+            {
+                case Core::DataType::Float32:
+                    body(Element<float>{});
+                    break;
+                case Core::DataType::Float64:
+                    body(Element<double>{});
+                    break;
+                case Core::DataType::Complex32:
+                    body(Element<std::complex<float>>{});
+                    break;
+                case Core::DataType::Complex64:
+                    body(Element<std::complex<double>>{});
+                    break;
+                default:
+                    FAIL() << "this case takes FLOAT32, FLOAT64, COMPLEX32 or COMPLEX64";
+            }
+        }
+
+        /**
          * @brief Calls body with the Element of a real data type.
          * @param type HALF, FLOAT32 or FLOAT64.
          * @param body Callable taking an Element.

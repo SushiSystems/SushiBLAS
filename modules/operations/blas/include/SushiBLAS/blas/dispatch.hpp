@@ -37,18 +37,13 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/cost/cost_shape.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
-#include <SushiBLAS/blas/shape_check.hpp>
-#include <SushiBLAS/blas/packed_product_scratch.hpp>
+#include <SushiBLAS/blas/gemm_recording.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
-#include <SushiBLAS/operands/blas_metadata.hpp>
-#include <SushiBLAS/operands/argument_check.hpp>
-#include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
@@ -220,6 +215,100 @@ namespace SushiBLAS
         } // namespace Detail
 
         /**
+         * @brief Returns what a bare epilogue declares: nothing, and the flops it states.
+         * @see modules/operations/blas/README.md
+         */
+        template<typename Epilogue>
+        [[nodiscard]] inline GemmEpilogueAccess epilogue_access(const Epilogue& epilogue)
+        {
+            GemmEpilogueAccess access;
+            access.flops_per_element = Detail::EpilogueFlops<Epilogue>::value;
+            Detail::append_epilogue_access(epilogue, access.operands);
+            return access;
+        }
+
+        /**
+         * @brief Records a GEMM whose task runs the reference kernel or the SYCL kernel, with the
+         *        epilogue applied to each element of C.
+         * @tparam Dom The element types the task instantiates its kernels for.
+         * @tparam Epilogue The functor type; it enters the kernel closure, never its bundle.
+         * @see modules/operations/blas/README.md
+         */
+        template<Domain Dom, typename Epilogue>
+        class KernelGemmPort final : public GemmTaskPort
+        {
+            public:
+                /** @brief Holds the functor the kernels apply. */
+                explicit KernelGemmPort(Epilogue epilogue)
+                    : epilogue_(std::move(epilogue))
+                {
+
+                }
+
+                /** @brief Records gemm as one task over the reference and SYCL kernels. */
+                TaskHandle record(TaskRecorder& recorder, const PreparedGemm& gemm) override
+                {
+                    const Epilogue kernel_epilogue = epilogue_;
+                    const ScratchBuffer pack = gemm.pack;
+                    const int64_t m = gemm.geometry.m;
+                    const int64_t n = gemm.geometry.n;
+                    const int64_t k = gemm.geometry.k;
+                    const int64_t batch_size = gemm.geometry.batch_size;
+                    const int64_t str_a = gemm.geometry.stride_a;
+                    const int64_t str_b = gemm.geometry.stride_b;
+                    const int64_t str_c = gemm.geometry.stride_c;
+                    const int64_t lda = gemm.geometry.a.leading_dimension;
+                    const int64_t ldb = gemm.geometry.b.leading_dimension;
+                    const int64_t ldc = gemm.geometry.c.leading_dimension;
+                    const Core::Layout layout = gemm.layout;
+                    const Core::Transpose transA = gemm.trans_a;
+                    const Core::Transpose transB = gemm.trans_b;
+                    const BLASScalar alpha = gemm.alpha;
+                    const BLASScalar beta = gemm.beta;
+                    const void* read_A = gemm.read_a;
+                    const void* read_B = gemm.read_b;
+                    void* rw_C = gemm.write_c;
+
+                    return Internal::execute_blas_task<Dom>(recorder, gemm.description,
+                        gemm.operands, gemm.dtype,
+                        [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
+                            const std::vector<sycl::event>& deps) -> sycl::event
+                        {
+                            using T = decltype(scalar_type);
+
+                            auto pA = static_cast<const T*>(read_A);
+                            auto pB = static_cast<const T*>(read_B);
+                            auto pC = static_cast<T*>(rw_C);
+                            const T alpha_t = alpha.as<T>();
+                            const T beta_t = beta.as<T>();
+
+                            return dispatcher.run(deps,
+                                [=]
+                                {
+                                    Kernels::Reference::gemm<T>(layout, transA, transB, m, n, k,
+                                                                alpha_t, pA, lda, str_a, pB, ldb,
+                                                                str_b, beta_t, pC, ldc, str_c,
+                                                                batch_size, kernel_epilogue);
+                                },
+                                [=](sycl::queue& q2,
+                                    const std::vector<sycl::event>& deps2) -> sycl::event
+                                {
+                                    return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n,
+                                                                  k, alpha_t, pA, lda, str_a, pB,
+                                                                  ldb, str_b, beta_t, pC, ldc,
+                                                                  str_c, batch_size, pack.data(),
+                                                                  pack.bytes(), deps2,
+                                                                  kernel_epilogue);
+                                });
+                        });
+                }
+
+            private:
+                /// @brief The functor the kernels apply.
+                Epilogue epilogue_;
+        };
+
+        /**
          * @brief Records `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task.
          * @param C Must not overlap A or B.
          * @param epilogue Must be device-copyable, capture by value, and never allocate or throw.
@@ -234,89 +323,12 @@ namespace SushiBLAS
                                 const char* name, SushiRuntime::OperationID op_id,
                                 Epilogue epilogue)
         {
-            require_flag(transA, name, "transA");
-            require_flag(transB, name, "transB");
-            require_dtype(B, A.dtype, name, "B");
-            require_dtype(C, A.dtype, name, "C");
-            require_real_scalar(alpha, A.dtype, name, "alpha");
-            require_real_scalar(beta, A.dtype, name, "beta");
-
-            require_gemm_domain(Dom == Domain::Real, A, name);
-
-            require_operand_storage(A, name, "A");
-            require_operand_storage(B, name, "B");
-            require_operand_storage(C, name, "C");
-            const GemmGeometry geometry = check_gemm_shapes(A, B, C, transA, transB, name);
-            const MatrixOperand& a = geometry.a;
-            const MatrixOperand& b = geometry.b;
-            const MatrixOperand& c = geometry.c;
-            const int64_t m = geometry.m;
-            const int64_t n = geometry.n;
-            const int64_t k = geometry.k;
-            const int64_t batch_size = geometry.batch_size;
-            const int64_t str_a = geometry.stride_a;
-            const int64_t str_b = geometry.stride_b;
-            const int64_t str_c = geometry.stride_c;
-
-            // C is read unless beta is zero; see modules/operations/blas/README.md.
-            OperandSet operands;
-            operands.reads(A).reads(B);
-            if (beta.is_zero())
-                operands.writes(C);
-            else
-                operands.updates(C);
-            Detail::append_epilogue_access(epilogue, operands);
-
-            const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
-                recorder, C, m, n, k, batch_size, operands);
-
             // Only the functor enters the kernel closure, never the bundle and its operand set.
-            const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
+            KernelGemmPort<Dom, std::decay_t<decltype(Detail::epilogue_functor(epilogue))>> port(
+                Detail::epilogue_functor(epilogue));
 
-            const Internal::BLASMetadata metadata =
-                Internal::BLASMetadata(name, op_id)
-                    .scalar(alpha).scalar(beta)
-                    .flag(transA).flag(transB)
-                    .shape(GemmShape{m, n, k, batch_size, A.dtype,
-                                     Detail::EpilogueFlops<Epilogue>::value});
-
-            const int64_t lda = a.leading_dimension;
-            const int64_t ldb = b.leading_dimension;
-            const int64_t ldc = c.leading_dimension;
-            const Core::Layout layout = c.layout;
-            const void* read_A = A.data_or_null();
-            const void* read_B = B.data_or_null();
-            void* rw_C = C.data_or_null();
-
-            return Internal::execute_blas_task<Dom>(recorder, metadata.get(), operands, A.dtype,
-                [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                    const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    using T = decltype(scalar_type);
-
-                    auto pA = static_cast<const T*>(read_A);
-                    auto pB = static_cast<const T*>(read_B);
-                    auto pC = static_cast<T*>(rw_C);
-                    const T alpha_t = alpha.as<T>();
-                    const T beta_t = beta.as<T>();
-
-                    return dispatcher.run(deps,
-                        [=]
-                        {
-                            Kernels::Reference::gemm<T>(layout, transA, transB, m, n, k, alpha_t,
-                                                        pA, lda, str_a, pB, ldb, str_b,
-                                                        beta_t, pC, ldc, str_c, batch_size,
-                                                        kernel_epilogue);
-                        },
-                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
-                        {
-                            return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n, k,
-                                                          alpha_t, pA, lda, str_a, pB, ldb, str_b,
-                                                          beta_t, pC, ldc, str_c, batch_size,
-                                                          pack.data(), pack.bytes(),
-                                                          deps2, kernel_epilogue);
-                        });
-                });
+            return record_gemm(port, recorder, A, B, C, transA, transB, alpha, beta, name, op_id,
+                               Dom == Domain::Real, epilogue_access(epilogue));
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

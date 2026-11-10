@@ -22,6 +22,7 @@ so one view records all three levels.
 | `local_tile.hpp` | The local-memory demand of a tiled kernel and its record-time check |
 | `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
 | `dispatch.hpp` | The GEMM executor of the dispatch seam and the epilogue bundle it accepts |
+| `gemm_recording.hpp` | `GemmTaskPort`, the port that records a checked GEMM call, and `InMemoryGemmPort`, which records it with no kernel |
 | `sparse.hpp` | `SparseBLAS`, a placeholder class that declares no operation |
 
 `SparseBLAS` is not the sparse surface and no class derives from it. The sparse operations are
@@ -155,6 +156,17 @@ other one for everything else.
 This is what keeps "an epilogue that declares nothing behaves exactly as before" a property of the
 code rather than a claim about it: the overload adds nothing to the `OperandSet`, so the set holds
 A, B and C alone. The bundle overload merges the bundle's set into it.
+
+### `GemmTaskPort`, `InMemoryGemmPort`, `prepare_gemm`, `record_gemm`
+
+`execute_gemm` is two steps. `prepare_gemm` runs every record-time check, builds the access set
+(A, B, C and what the epilogue declared) and leases the packed-product panels; it names no kernel,
+so it is not a template. `GemmTaskPort::record` then records the prepared call as one task.
+`KernelGemmPort<Dom, Epilogue>`, in `dispatch.hpp`, is the port `execute_gemm` uses: its task runs
+the reference kernel or the SYCL kernel. `InMemoryGemmPort` records the same task with a body that
+submits nothing, so a test reads the dependencies, the description and the checks of a GEMM call
+with no kernel instantiated and no runtime. `record_gemm(port, ...)` is the step both share, and
+`epilogue_access(epilogue)` returns what a bare functor or a `GemmEpilogue` bundle declares.
 
 ### `execute_gemm`
 

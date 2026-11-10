@@ -42,6 +42,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_syr2k.cpp` | Tests syr2k and her2k against hand-computed updates, a host integer loop, a truth and refusals |
 | `test_blas/test_triangular_parallel.cpp` | Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
+| `test_gemm_recording.cpp` | Tests what a GEMM call records on the in-memory port: the dependencies for the operands its epilogue declares, and the refusals before any task |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings |
 | `test_dispatch/test_reference_mode_guard.cpp` | Tests that ForceReference refuses device-only USM and runs on host-reachable USM |
@@ -158,6 +159,8 @@ time as whatever writes the bias. Nothing throws and nothing is NaN; the run com
 value that had not arrived yet. `Dispatch::gemm_epilogue(...).reads(t)/.writes(t)` is how the
 caller hands that back. Every assertion in this group is on `dependency_count`; see "Ordering is
 asserted on in-degree".
+
+The five dependency tests are `Small_GemmSeamDependencies` in `test_gemm_recording.cpp`. They call `Dispatch::record_gemm` with `Dispatch::InMemoryGemmPort`, the adapter of `GemmTaskPort` that records the task without a kernel, so no SYCL kernel is instantiated in that file and it is listed under `TESTS`. The epilogues and the operand data are in `test_blas/gemm_seam_fixtures.hpp`.
 
 `BiasColumnEpilogue` is deliberately simpler than `BiasReLUEpilogue`. These tests are about
 what the task declares, not about what it computes, and a bias-only epilogue is the one the

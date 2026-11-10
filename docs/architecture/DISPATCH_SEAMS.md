@@ -120,20 +120,21 @@ struct BiasColumnEpilogue
         return value + static_cast<T>(bias[col]);
     }
 };
+```
 
-// ...
+Source: `tests/operations/blas/test_blas/gemm_seam_fixtures.hpp`
 
-Dispatch::execute_gemm(probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans,
-                       1.0, 0.0, "test.gemm_declared_bias",
-                       "test.gemm_declared_bias"_op,
+```cpp
+Dispatch::execute_gemm(recorder(), A, B, declared, Transpose::NoTrans,
+                       Transpose::NoTrans, 1.0, 0.0, "test.gemm_bias_declared",
+                       "test.gemm_bias_declared"_op,
                        Dispatch::gemm_epilogue(
                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-
 ```
 
 Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
-`probe.recorder()` is a `TaskRecorder&`. The product and the bias broadcast are one task. `tests/package/main.cpp` has
+`recorder()` is the `TaskRecorder&` of the test. The product and the bias broadcast are one task. `tests/package/main.cpp` has
 an epilogue that also clamps at zero, handed over as a bare functor.
 
 `Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and
