@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — 62 of 70 jobs done, 8 todo (see Not done as written); the one build and test run is left
+**Status:** Open — 68 of 70 jobs done, 2 todo (see Not done as written); the one build and test run is left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -28,10 +28,10 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M7 | the tests of `foundation/core` (9 files): 18 rewrite, 3 resize, 1 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M8 | the tests of `foundation/cost` (4 files): 5 rewrite, 7 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M9 | the tests of `foundation/geometry` (6 files): 15 rewrite, 1 resize, 3 split, 2 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M10 | the tests of `foundation/graph_primitives` (14 files): 82 rewrite, 10 resize, 7 split | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M10 | the tests of `foundation/graph_primitives` (14 files): 82 rewrite, 10 resize, 7 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M11 | the tests of `foundation/host_device` (3 files): 1 rewrite, 3 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M12 | the tests of `foundation/launch` (6 files): 14 rewrite, 14 resize, 1 split, 1 merge, 8 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M13 | the tests of `foundation/orthonormal` (1 file): 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M13 | the tests of `foundation/orthonormal` (1 file): 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M14 | the tests of `foundation/profile` (3 files): 2 rewrite, 3 resize, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M15 | the tests of `foundation/reduction` (2 files): 4 rewrite, 8 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M16 | the tests of `foundation/reference` (3 files): 4 rewrite, 10 resize, 1 split, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -42,8 +42,8 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M21 | the tests of `foundation/substitution` (1 file): 4 rewrite, 3 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M22 | the tests of `foundation/test_runner` (4 files): 6 rewrite, 1 resize, 1 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M23 | the tests of `foundation/typed_suite_naming` (1 file): 1 resize, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M24 | the tests of `kernels/blas_kernels` (56 files): 55 rewrite, 2 resize, 12 split, 1 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M25 | the tests of `kernels/blas_seam_kernels` (25 files): 62 rewrite, 14 resize, 4 split, 5 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M24 | the tests of `kernels/blas_kernels` (56 files): 55 rewrite, 2 resize, 12 split, 1 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
+| M25 | the tests of `kernels/blas_seam_kernels` (25 files): 62 rewrite, 14 resize, 4 split, 5 merge, 5 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M26 | the tests of `kernels/blend_kernels` (3 files): 4 rewrite, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M27 | the tests of `kernels/linalg_kernels` (7 files): 14 rewrite, 3 split, 1 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M28 | the tests of `kernels/packed_product_harness` (1 file): 1 rewrite, 1 resize, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -53,9 +53,9 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M32 | the tests of `kernels/spatial_kernels` (19 files): 6 rewrite, 6 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M33 | the tests of `library` (13 files): 63 rewrite, 26 resize, 8 split, 4 merge, 16 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M34 | the tests of `operations/benchmark_harness` (3 files): 4 rewrite, 8 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M36 | the tests of `operations/blend` (1 file): 11 rewrite, 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M38 | the tests of `operations/experimental` (3 files): 6 rewrite, 11 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M39 | the tests of `operations/index` (1 file): 3 rewrite, 2 resize, 3 split, 11 merge, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M40 | the tests of `operations/io` (5 files): 15 rewrite, 8 resize, 7 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -162,45 +162,21 @@ Resume note, 2026-11-10, M35 and S5 done (decisions 82 to 85): `test_dispatch/te
 ## Not done as written
 
 An audit of 2026-11-10 read each job's records in `REPORT.md` and its decisions against the tree.
-A record a recorded ruling replaced counts as applied. The three rulings that were open
-(decisions 74, 75 and 76: the HALF `with_element` switch, the `test_symm.cpp` refusals on
-`HostGraphProbe`, the five `GemmSeamDependencies` tests on `GemmTaskPort`) are decided and applied
-in the tree. A record that waits only on the final build is not listed. A backlog id of "none"
-means no entry exists yet; the orchestrator writes it.
+A record a recorded ruling replaced counts as applied. A backlog id of "none" means no entry exists
+yet; the orchestrator writes it. The first pass of the audit listed eight jobs; decisions 86 to 96
+applied the records of six (M10, M13, M24, M25, M35, M37), the late-count, seeded-executor, scratch and
+device-rule records of M4, and left these:
 
 - **M2.** The malformed-config row `test_cli.py::test_main_reports_a_malformed_config_file_as_one_line`
   stays medium, and `test_cli_settings.py::test_an_unknown_theme_settles_on_the_default_with_one_warning_naming_it`
-  is marked small and sets an environment variable. Decision 40. RW-157, blocked on a SushiCore port.
-- **M4.**
-  - `ALateCountTaskIsUncosted` stays `Medium_`; the record resizes it to small. Decision 50 rules it. Backlog: none.
-  - `ReseedRacingReservationsNeverPairsAForeignSeed` keeps a chance schedule in its medium form; the
-    seeded-executor form of the record is not built. Decision 47. Backlog: none.
-  - The scratch tests count `served_blocks()` and storage references in place of the process allocation
-    counter, "not the same observation". Decision 47. Backlog: none.
-  - `test_remote_task.cpp` builds a master and a worker runtime per trip; whether that fits the device
-    rule is the owner's. Decision 42. Backlog: none. (owner)
-  - `compile_ceilings.cpp` checks `BandwidthCeiling` and `CeilingsMethod` only; the `flops_per_second`,
-    `runs`, `smoke_only` and `compute` defaults have no compile-time check, because `std::string` and
-    `std::vector` are not literal types in this build. Decision 61. Backlog: none.
-- **M10.** Tests still build their own `SushiRuntime::Runtime` and the README documents it
-  (`test_prefix_scan.cpp`, `primitive_recorder_subjects.hpp`, README section "The runtime a test builds").
-  Decisions 18 and 39 leave it. RW-136.
-- **M13.** `Small_OrthonormalSweep.TheTinyNormIsTheSquareOfOneEMinusTwelve` is a delete record. The tree
-  holds `TheTinyThresholdIsTheSquareOfOneTrillionth`, the same constant pin under a new name. No ruling
-  replaces the record. Backlog: none.
-- **M24.** Seven adds are left (decision 60): `row_reduction_width` at the staged threshold, syrk with
-  beta zero and NaN in C, syrk scratch below the plan bytes, syrk on a device that cannot host the tile,
-  SYCL trsm with a non-unit pivot, the level 3 value check of `blas.hpp`, the nrm2 bound through the
-  typed tolerance. Backlog: none.
-- **M25.** `Small_GemmTileTable.NoTwoEntriesShareAKey` has no test; decision 43 says it cannot fail on the
-  shipped empty table, and the record says to rewrite it over an injected table. Decision 49 claims every
-  record applied. Backlog: none. (owner: the shape of an injectable table)
-- **M35.**
-  - `test_level1.cpp`, `test_level2.cpp` and `test_level3.cpp` are kept where the records delete or merge
-    them, since the merge targets do not exist. Decisions 44 and 80. Backlog: none.
-  - `GemmWithScalarsGivesExactValues` is kept and marked "Not decided" in decision 80. Backlog: none. (owner)
-- **M37.** The reference-path half of the ordered-sum serial equality stays in the medium rows, and
-  `HandWorkedSumIsExact` stays its own test; the records move and merge them. Decision 77. Backlog: none.
+  is marked small and sets an environment variable. Both decisions are made inside SushiCore 0.12.2, which
+  has no environment-reader port and no config-reader port; a port is a SushiCore change and a release
+  with the pin raised. Decisions 40 and 97. RW-157, blocked.
+- **M4.** `compile_ceilings.cpp` checks `BandwidthCeiling` and `CeilingsMethod` only: the
+  `flops_per_second`, `runs`, `smoke_only` and `compute` defaults have no compile-time check, because
+  `ComputeCeiling` and `DeviceCeilings` hold a `std::string` and a `std::vector`, which are not literal
+  types in C++17. Decisions 61 and 95. Backlog: none. The runtime per trip of `test_remote_task.cpp` is
+  ruled an exception to the device rule in decision 94 and waits for the owner's confirmation.
 
 The build and test run also has to confirm what no job could: the unconfirmed items of decisions 72, 80
 and 83, and the Risks section of `REPORT.md`.

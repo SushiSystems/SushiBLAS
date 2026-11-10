@@ -18,7 +18,9 @@ the way it is. [`tests/README.md`](../../README.md) holds the reasoning the test
 The suite runs each of its two round trips once, in `SetUpTestSuite()`, and the tests read the
 run that belongs to them. A trip builds a master runtime of its own and a worker runtime joined over an
 `InProcessFabric`, because `Cluster::attach()` changes the runtime it attaches to and the shared
-test runtime must stay a single machine. The master packs one tensor of each of the eight types,
+test runtime must stay a single machine. These two runtimes are the one place a test makes a
+runtime, by decision 94 of the test review: they are the machines under test, and a pair shared by
+both trips cannot serve, since the second trip needs a worker that advertises another layout. The master packs one tensor of each of the eight types,
 `record_remote()` sends the pack to the kernel registered under the layout's fingerprint, the
 kernel checks the fingerprint the task names, binds both views, copies the input into the output
 and transforms each segment, and the master scatters the output and compares it with the
