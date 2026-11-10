@@ -57,13 +57,14 @@ namespace SushiBLAS
 
         /**
          * @brief Returns op(A) * X on the left or X * op(A) on the right, all given row by row.
-         * @param a The order x order matrix whose triangle, with a unit diagonal, is op's input.
+         * @param a The order x order matrix whose triangle is op's input.
+         * @param unit_diagonal Whether the diagonal of the triangle is read as ones, or as stored.
          */
         static std::vector<double> times_op(const std::vector<double>& a, int64_t order,
                                             bool upper, bool transposed, bool left,
-                                            const std::vector<double>& x)
+                                            const std::vector<double>& x, bool unit_diagonal = true)
         {
-            const std::vector<double> t = triangle_of(a, order, upper, true);
+            const std::vector<double> t = triangle_of(a, order, upper, unit_diagonal);
             const auto op = [&](int64_t i, int64_t j)
             {
                 return transposed ? element(t, order, j, i) : element(t, order, i, j);
@@ -76,6 +77,14 @@ namespace SushiBLAS
                             left ? op(i, k) * element(x, K_COLUMNS, k, j)
                                  : element(x, K_COLUMNS, i, k) * op(k, j);
             return b;
+        }
+
+        /// @brief Returns the matrix with every diagonal entry set to pivot.
+        static std::vector<double> with_pivot(std::vector<double> matrix, int64_t order, double pivot)
+        {
+            for (int64_t i = 0; i < order; ++i)
+                matrix[static_cast<std::size_t>(i * order + i)] = pivot;
+            return matrix;
         }
 
         /// @brief Names a row after its block width, side, triangle and transpose.
@@ -157,6 +166,33 @@ namespace SushiBLAS
                                      K_COLUMNS, 2.0, a.data(), K_ROWS, b.data(), K_COLUMNS);
 
             EXPECT_EQ(device_b.values(), b);
+        }
+
+        /// @brief Runs trsm with a stored diagonal that is not one on the host CPU queue.
+        class Medium_SYCLTrsmNonUnit : public HostDeviceTest
+        {
+
+        };
+
+        /// @brief Tests that a non-unit trsm divides each step by its stored pivot, so a solution of small integers comes back whole.
+        TEST_F(Medium_SYCLTrsmNonUnit, EachStepDividesByItsPivot)
+        {
+            SharedArray<Kernels::Accumulator<double>> work(queue(),
+                                                           static_cast<std::size_t>(K_ROWS *
+                                                                                    K_COLUMNS));
+            const Kernels::SYCL::TriangularSolvePlan plan{8};
+            // Pivots of 2 divide exactly; B = A X with X of small integers, so the solve must return X.
+            const std::vector<double> a = with_pivot(unit_diagonal_matrix<double>(K_ROWS, 1), K_ROWS, 2.0);
+            const SharedArray<double> device_a(queue(), a);
+            const std::vector<double> x = small_integers<double>(K_ROWS * K_COLUMNS, 2);
+            SharedArray<double> device_b(queue(), times_op(a, K_ROWS, true, false, true, x, false));
+
+            Kernels::SYCL::trsm(queue(), plan, Core::Layout::RowMajor, Core::Side::Left,
+                                Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit,
+                                K_ROWS, K_COLUMNS, 1.0, device_a.get(), K_ROWS, 0, device_b.get(),
+                                K_COLUMNS, 0, 1, work.get(), {}).wait();
+
+            EXPECT_EQ(device_b.values(), x);
         }
     } // namespace Test
 } // namespace SushiBLAS

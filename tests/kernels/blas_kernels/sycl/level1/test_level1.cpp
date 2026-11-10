@@ -29,7 +29,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -38,6 +37,7 @@
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
+#include "support/tolerance.hpp"
 
 namespace SushiBLAS
 {
@@ -201,10 +201,9 @@ namespace SushiBLAS
             double expected = 0.0;
             Ref::nrm2<double>(K_LENGTH, x.data(), 1, &expected);
 
-            // A staged sum of K_LENGTH squares may differ from a serial one by K_LENGTH ulps.
-            const double bound =
-                expected * static_cast<double>(K_LENGTH) * std::numeric_limits<double>::epsilon();
-            EXPECT_NEAR(norm.get()[0], expected, bound);
+            // A staged sum of K_LENGTH squares rounds K_LENGTH times, so the norm is held to K_LENGTH * u * |norm|.
+            EXPECT_TRUE(TestSupport::is_within(TestSupport::measure_relative_error<double>(
+                norm.get()[0], expected, static_cast<std::size_t>(K_LENGTH))));
         }
 
         TEST_F(Medium_SYCLLevel1, AnEmptyVectorSumsToZero)

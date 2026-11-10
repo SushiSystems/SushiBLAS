@@ -148,6 +148,9 @@ namespace SushiBLAS
                                                    std::move(element), std::move(store));
                 }
             } // namespace Detail
+
+            /** @brief Names Detail::row_reduction_width, the work-group width a row reduction takes, to the tests that pin its threshold. */
+            using Detail::row_reduction_width;
         } // namespace SYCL
     } // namespace Kernels
 } // namespace SushiBLAS

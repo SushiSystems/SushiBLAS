@@ -40,7 +40,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/level2/test_gbmv.cpp` | Tests the SYCL gbmv against the reference gbmv on the host device |
 | `sycl/level2/test_gemv.cpp` | Tests the SYCL gemv against the reference gemv on the host device |
 | `sycl/level2/test_ger.cpp` | Tests the SYCL ger against the reference ger on the host device |
-| `sycl/level2/test_row_reduction.cpp` | Tests that gemv and trmv fold short rows, long rows and triangle rows to their sums, in a fixed order |
+| `sycl/level2/test_row_reduction.cpp` | Tests that gemv and trmv fold short rows, long rows and triangle rows to their sums, in a fixed order, and that a row takes a work-group from the staged threshold of 16384 columns |
 | `sycl/level2/test_sbmv.cpp` | Tests the SYCL sbmv against the reference sbmv on the host device |
 | `sycl/level2/test_spmv.cpp` | Tests the SYCL spmv against the reference spmv on the host device |
 | `sycl/level2/test_spr.cpp` | Tests the SYCL spr against the reference spr on the host device |
@@ -58,10 +58,11 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/level2/compile_triangular_product.cpp` | Checks at compile time that the SYCL triangular product exists for a packed access |
 | `sycl/level2/compile_vector_snapshot.cpp` | Checks at compile time that the SYCL VectorSnapshot functor can be copied to a device |
 | `sycl/level3/test_syr2k.cpp` | Tests the SYCL syr2k against the reference syr2k on the host device, batched included |
-| `sycl/level3/test_syrk.cpp` | Tests the tiled and the packed SYCL syrk against the reference syrk on the host device |
+| `sycl/level3/test_syrk.cpp` | Tests the tiled and the packed SYCL syrk against the reference syrk on the host device, a NaN in C under a beta of zero, a scratch below the packed plan, and the tile check |
 | `sycl/level3/test_triangular_plan.cpp` | Tests the block plan of a triangular solve on a CPU and a GPU profile, as rows, with no device |
 | `sycl/level3/test_triangular_system.cpp` | Tests the decoding of a TRSM call into the steps and vectors of one substitution |
-| `sycl/level3/test_trsm.cpp` | Tests the blocked SYCL trsm against the reference trsm on the host device |
+| `sycl/level3/test_trsm.cpp` | Tests the blocked SYCL trsm against the reference trsm on the host device, and a non-unit diagonal against the solution it was built from |
+| `test_blas.cpp` | Tests that the level 3 kernels reached through blas.hpp, the reference one and the SYCL one, give the hand value of a small update |
 | `compile_blas.cpp` | Checks at compile time that blas.hpp alone reaches a reference and a SYCL kernel of each BLAS level |
 | `compile_blas_kernels_log_category.cpp` | Checks at compile time that the log category names its module and project |
 | `test_blend_index.cpp` | Tests the beta blend of an updated value with its prior value, real and complex, against hand-derived values |

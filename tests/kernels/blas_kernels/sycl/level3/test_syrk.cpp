@@ -23,12 +23,14 @@
 
 /**
  * @file test_syrk.cpp
- * @brief Tests the tiled and the packed SYCL syrk against the reference syrk on the host device.
+ * @brief Tests the tiled and the packed SYCL syrk against the reference syrk on the host device, the beta zero and short scratch cases, and the tile check.
  * @author Mustafa Garip
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -40,6 +42,8 @@
 #include <SushiBLAS/blas_kernels/sycl/level3/syrk.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
+#include <SushiBLAS/blas_test_oracle/dense_oracle.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
 #include <SushiBLAS/host_device/shared_array.hpp>
 #include <SushiBLAS/small_integers/small_integers.hpp>
@@ -106,5 +110,111 @@ namespace SushiBLAS
                                  ::testing::Combine(::testing::Bool(), ::testing::Bool(),
                                                     ::testing::Bool(), ::testing::Bool()),
                                  row_name);
+
+        /// @brief Runs the tile check of the tiled syrk on a profile value, with no device.
+        class Small_SyrkTileCheck : public ::testing::Test
+        {
+            protected:
+                /** @brief Returns the profile of a device with the given local memory and the work-group size of 256. */
+                [[nodiscard]] static Device::Profile profile_with_local_memory(std::size_t bytes)
+                {
+                    Device::Profile profile;
+                    profile.local_mem_bytes = bytes;
+                    profile.max_work_group_size = 256;
+                    return profile;
+                }
+        };
+
+        // The tile of double stages (32 * 16 + 16 * 32) * 8 = 8192 B in 64-item work-groups.
+        TEST_F(Small_SyrkTileCheck, ADeviceWithTooLittleLocalMemoryIsRefusedWithARuntimeError)
+        {
+            EXPECT_THROW(Kernels::SYCL::require_syrk_tile<double>(profile_with_local_memory(8191)),
+                         std::runtime_error);
+        }
+
+        /// @brief Runs syrk on the host CPU queue with a C that holds NaN, one path at a time; false is the tiled path.
+        class Medium_SYCLSyrkBetaZero : public HostDeviceTest, public ::testing::WithParamInterface<bool>
+        {
+            protected:
+                /** @brief Skips a packed row when the profile of the host queue does not select the packed kernel. */
+                void SetUp() override
+                {
+                    HostDeviceTest::SetUp();
+                    if (IsSkipped())
+                        return;
+                    const Kernels::PackedProductPlan plan = Kernels::plan_packed_product<double>(
+                        Device::profile_for(queue()), K_ORDER, K_ORDER, K_DEPTH, 1);
+                    if (GetParam() && !plan.selected)
+                        GTEST_SKIP() << "the profile of the host queue does not select the packed kernel";
+                }
+        };
+
+        /// @brief Tests that a beta of zero overwrites the triangle without reading C, so a NaN in C never reaches the result.
+        TEST_P(Medium_SYCLSyrkBetaZero, ANanInCNeverReachesTheResult)
+        {
+            const bool packed_path = GetParam();
+            const std::vector<double> a = small_integers<double>(K_ORDER * K_DEPTH, 1);
+            const SharedArray<double> device_a(queue(), a);
+            SharedArray<std::byte> scratch(queue(), K_SCRATCH_BYTES);
+            SharedArray<double> device_c(queue(), std::vector<double>(K_ORDER * K_ORDER,
+                                                                       std::numeric_limits<double>::quiet_NaN()));
+            std::vector<double> c(K_ORDER * K_ORDER, 0.0);
+
+            Kernels::SYCL::syrk(queue(), Core::Layout::RowMajor, Core::Uplo::Upper,
+                                Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 2.0, device_a.get(),
+                                K_DEPTH, 0, 0.0, device_c.get(), K_ORDER, 0, 1,
+                                packed_path ? scratch.get() : nullptr,
+                                packed_path ? K_SCRATCH_BYTES : std::size_t{0}, {}).wait();
+            Kernels::Reference::syrk(Core::Layout::RowMajor, Core::Uplo::Upper,
+                                     Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 2.0, a.data(),
+                                     K_DEPTH, 0.0, c.data(), K_ORDER);
+
+            EXPECT_EQ(triangle_of(device_c.values(), K_ORDER, true, false),
+                      triangle_of(c, K_ORDER, true, false));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(Paths, Medium_SYCLSyrkBetaZero, ::testing::Bool());
+
+        /// @brief Runs syrk on the host CPU queue with a scratch one byte short of the packed plan.
+        class Medium_SYCLSyrkShortScratch : public HostDeviceTest
+        {
+            protected:
+                /** @brief Returns the packed plan of the update on the profile of the host queue. */
+                [[nodiscard]] static Kernels::PackedProductPlan plan()
+                {
+                    return Kernels::plan_packed_product<double>(Device::profile_for(queue()), K_ORDER,
+                                                                K_ORDER, K_DEPTH, 1);
+                }
+
+                /** @brief Skips the test when the profile of the host queue does not select the packed kernel. */
+                void SetUp() override
+                {
+                    HostDeviceTest::SetUp();
+                    if (IsSkipped())
+                        return;
+                    if (!plan().selected)
+                        GTEST_SKIP() << "the profile of the host queue does not select the packed kernel";
+                }
+        };
+
+        /// @brief Tests that a scratch below the bytes of the packed plan sends the call down the tiled path, which gives the reference result.
+        TEST_F(Medium_SYCLSyrkShortScratch, AScratchBelowThePlanTakesTheTiledPath)
+        {
+            const std::vector<double> a = small_integers<double>(K_ORDER * K_DEPTH, 1);
+            const SharedArray<double> device_a(queue(), a);
+            SharedArray<std::byte> scratch(queue(), plan().scratch_bytes);
+            std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
+            SharedArray<double> device_c(queue(), c);
+
+            Kernels::SYCL::syrk(queue(), Core::Layout::RowMajor, Core::Uplo::Upper,
+                                Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 2.0, device_a.get(),
+                                K_DEPTH, 0, -1.0, device_c.get(), K_ORDER, 0, 1, scratch.get(),
+                                plan().scratch_bytes - 1, {}).wait();
+            Kernels::Reference::syrk(Core::Layout::RowMajor, Core::Uplo::Upper,
+                                     Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 2.0, a.data(),
+                                     K_DEPTH, -1.0, c.data(), K_ORDER);
+
+            EXPECT_EQ(device_c.values(), c);
+        }
     } // namespace Test
 } // namespace SushiBLAS

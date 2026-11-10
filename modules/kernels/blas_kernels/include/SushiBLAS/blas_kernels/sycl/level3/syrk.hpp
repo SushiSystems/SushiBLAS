@@ -180,6 +180,24 @@ namespace SushiBLAS
             };
 
             /**
+             * @brief Throws unless the device of the given profile hosts the tile of the tiled SYRK.
+             * @tparam T The element type of the update.
+             * @throws std::runtime_error naming the local memory and the work-group size the tile
+             *         stages and what the device offers.
+             * @see kernels/README.md
+             */
+            template<typename T>
+            void require_syrk_tile(const Device::Profile& profile)
+            {
+                const Device::LocalTileDemand demand = SyrkTile::demand<T>();
+                SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
+                            "SYCL SYRK stages {} B of local memory in {}-item work-groups; the "
+                            "device offers {} B and {}.",
+                            demand.local_bytes, demand.work_group_items,
+                            profile.local_mem_bytes, profile.max_work_group_size);
+            }
+
+            /**
              * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C.
              * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
              * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
@@ -232,12 +250,7 @@ namespace SushiBLAS
                         Detail::SyrkStore<T, Conj, Scalar>(upper, alpha, beta, c_access));
                 }
 
-                const Device::LocalTileDemand demand = SyrkTile::demand<T>();
-                SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
-                            "SYCL SYRK stages {} B of local memory in {}-item work-groups; the "
-                            "device offers {} B and {}.",
-                            demand.local_bytes, demand.work_group_items,
-                            profile.local_mem_bytes, profile.max_work_group_size);
+                require_syrk_tile<T>(profile);
 
                 const int64_t n_tiles_m = Indexing::ceil_div(n, block_m);
                 const int64_t n_tiles_n = Indexing::ceil_div(n, block_n);

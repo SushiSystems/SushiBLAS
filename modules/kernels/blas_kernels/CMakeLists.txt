@@ -50,6 +50,7 @@ sushiblas_add_test_program(
         sycl/level3/test_triangular_plan.cpp
         sycl/level3/test_triangular_system.cpp
     DEVICE_TESTS
+        test_blas.cpp
         sycl/level1/test_level1.cpp
         sycl/level1/test_rotg.cpp
         sycl/level1/test_rotm.cpp

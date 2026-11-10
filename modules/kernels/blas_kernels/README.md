@@ -65,7 +65,7 @@ It depends on `core`, `support` and `blas_seam_kernels`. Its headers are include
 | `sycl/level2/trmv.hpp` | The SYCL kernel of TRMV: a snapshot of x, then one row product per element |
 | `sycl/level2/vector_snapshot.hpp` | The copy of a strided vector the in-place triangular products read |
 | `sycl/level3/syr2k.hpp` | The SYCL kernel of SYR2K and, under a conjugation policy, of HER2K |
-| `sycl/level3/syrk.hpp` | The SYCL kernels of SYRK and HERK, their tile geometry and their packed store |
+| `sycl/level3/syrk.hpp` | The SYCL kernels of SYRK and HERK, their tile geometry, the check that a device hosts the tile and their packed store |
 | `sycl/level3/triangular_plan.hpp` | TriangularSolvePlan, the diagonal block size of a triangular solve on a device |
 | `sycl/level3/triangular_system.hpp` | TriangularSystem, the one substitution every side and flag of TRSM decodes to |
 | `sycl/level3/trsm.hpp` | The SYCL kernel of TRSM: a blocked substitution with parallel updates |

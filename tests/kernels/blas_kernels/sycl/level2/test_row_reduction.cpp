@@ -23,7 +23,7 @@
 
 /**
  * @file test_row_reduction.cpp
- * @brief Tests that gemv and trmv fold short rows, long rows and triangle rows to their sums, in a fixed order.
+ * @brief Tests that gemv and trmv fold short rows, long rows and triangle rows to their sums, in a fixed order, and where a row starts to take a work-group.
  * @author Mustafa Garip
  */
 
@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/gemv.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/trmv.hpp>
 #include <SushiBLAS/host_device/host_device_test.hpp>
@@ -90,6 +91,50 @@ namespace SushiBLAS
                 return values;
             }
         } // namespace
+
+        namespace
+        {
+            /** @brief Holds a row length and the work-group width a CPU profile gives it. */
+            struct WidthRow
+            {
+                int64_t length;
+                std::size_t width;
+            };
+
+            /** @brief Returns a CPU profile of 4 compute units whose work-group target of 64 is a whole number of its sub-groups of 8. */
+            [[nodiscard]] Device::Profile staged_cpu()
+            {
+                Device::Profile p;
+                p.is_cpu = true;
+                p.max_work_group_size = 1024;
+                p.sub_group_size = 8;
+                p.compute_units = 4;
+                return p;
+            }
+
+            /** @brief Names a row after its length. */
+            std::string width_row_name(const ::testing::TestParamInfo<WidthRow>& info)
+            {
+                return "Length" + std::to_string(info.param.length);
+            }
+        } // namespace
+
+        /// @brief Runs the width decision of a row reduction on a CPU profile, one row length at a time.
+        class Small_RowReductionWidth : public ::testing::TestWithParam<WidthRow>
+        {
+
+        };
+
+        /// @brief Tests that a row one column short of the staged threshold of 16384 takes no group, and a row at or past it takes the group width of 64.
+        TEST_P(Small_RowReductionWidth, ARowTakesAGroupOnlyFromTheStagedThreshold)
+        {
+            EXPECT_EQ(Kernels::SYCL::row_reduction_width(staged_cpu(), GetParam().length), GetParam().width);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(Lengths, Small_RowReductionWidth,
+                                 ::testing::Values(WidthRow{16383, 0}, WidthRow{16384, 64},
+                                                   WidthRow{16385, 64}),
+                                 width_row_name);
 
         /// @brief Runs gemv, which folds each row of a long matrix by a group, on the host CPU queue, one row length at a time.
         class Medium_RowReductionOnDevice : public HostDeviceTest,
