@@ -19,7 +19,9 @@ public API takes `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`.
 functions here map one to the other: `true` is `Trans`, `Upper`, `Unit` and `Left`, and
 `layout_of` maps `true` to `RowMajor`. A test names the flag it means at the call site and keeps
 its parameter list. `layout_transpose_label` names the row of a layout and transpose pair, such as
-`RowMajorTrans`, for the name generator of a suite instantiated over both.
+`RowMajorTrans`, for the name generator of a suite instantiated over both. `layout_uplo_label` and
+`triangular_label` do the same for a layout and a triangle, and for the four flags of a triangular
+routine.
 
 ## blas_truth.hpp
 
