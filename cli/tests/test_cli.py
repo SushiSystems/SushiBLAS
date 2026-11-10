@@ -72,17 +72,6 @@ def _run_main(monkeypatch, capsys, *args: str) -> tuple[int, list[str]]:
     return exit_info.value.code, lines
 
 
-@pytest.mark.parametrize("command", ["config", "clean"])
-def test_main_reports_a_malformed_config_file_as_one_line(checkout, monkeypatch, capsys, command):
-    """A config.toml that is not TOML ends in exit 1 and one line naming the file."""
-    checkout("[tool\nbroken")
-    code, lines = _run_main(monkeypatch, capsys, command)
-    assert code == 1
-    assert len(lines) == 1, lines
-    assert "config.toml" in lines[0]
-    assert "Traceback" not in lines[0]
-
-
 def test_main_exits_zero_after_a_command_that_succeeds(checkout, monkeypatch, capsys):
     """A command that works leaves exit code 0 through main()."""
     checkout("")

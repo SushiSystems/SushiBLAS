@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 from sushicore.config import load_appearance
+from sushicore.environment_memory import MemoryEnvironment
+from sushicore.errors import ConfigError
+from sushicore.files_memory import MemoryFiles
 from typer.testing import CliRunner
 
 from sushiblas import cli
+from sushiblas.config import _MODULE, Config
 
 pytestmark = pytest.mark.small
 
@@ -51,10 +56,25 @@ def test_env_takes_the_short_form_of_all():
     assert "-a, --all" in result.output
 
 
-def test_an_unknown_theme_settles_on_the_default_with_one_warning_naming_it(monkeypatch):
+def test_an_unknown_theme_settles_on_the_default_with_one_warning_naming_it():
     """A theme sushicore does not know keeps the command running at the default, with one warning."""
-    monkeypatch.setenv("SUSHI_CLI_THEME", "no-such-theme")
-    spec = load_appearance([])
+    spec = load_appearance(
+        [],
+        environment=MemoryEnvironment({"SUSHI_CLI_THEME": "no-such-theme"}),
+        files=MemoryFiles(),
+    )
     assert spec.theme == "default"
     assert len(spec.warnings) == 1
     assert "Unknown CLI theme 'no-such-theme'" in spec.warnings[0]
+
+
+def test_a_malformed_config_file_is_refused_in_one_line_naming_the_file():
+    """A config.toml that is not TOML raises the error `sb` turns into exit 1 and one line."""
+    root = Path("/checkout")
+    files = MemoryFiles({root / "cli" / "config.toml": "[tool\nbroken"})
+    with pytest.raises(ConfigError) as refusal:
+        _MODULE.load(Config, root=root, environment=MemoryEnvironment(), files=files)
+    lines = str(refusal.value).splitlines()
+    assert len(lines) == 1, lines
+    assert "config.toml" in lines[0]
+    assert "Traceback" not in lines[0]
