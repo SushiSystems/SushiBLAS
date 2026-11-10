@@ -178,11 +178,16 @@ def find_foundation_includes(root: Path) -> Iterator[Violation]:
         yield from _include_matches(_source_lines(root / folder), K_FOUNDATION_FORBIDDEN_INCLUDE)
 
 
-def find_engine_header_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include from engine.hpp of a view, a seam or an experimental header."""
-    for violation in _include_matches(_file_lines(root / K_ENGINE_HEADER), K_ENGINE_COMPOSED_INCLUDE):
+def engine_header_includes_in(lines: Iterable[tuple[Path, int, str]]) -> Iterator[Violation]:
+    """Yields each include in the lines of engine.hpp of a view, a seam or an experimental header."""
+    for violation in _include_matches(lines, K_ENGINE_COMPOSED_INCLUDE):
         if violation.symbol not in K_ENGINE_BRICKS:
             yield violation
+
+
+def find_engine_header_includes(root: Path) -> Iterator[Violation]:
+    """Yields each include from engine.hpp of a view, a seam or an experimental header."""
+    yield from engine_header_includes_in(_file_lines(root / K_ENGINE_HEADER))
 
 
 def _engine_calls(lines: Iterable[tuple[Path, int, str]], allowed: frozenset[str]) -> Iterator[Violation]:
@@ -205,13 +210,21 @@ def _may_record(file: str) -> bool:
     return file in (K_RECORDER_HEADER, K_GRAPH_SINK_SOURCE) or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
 
 
-def find_graph_insertions(root: Path) -> Iterator[Violation]:
-    """Yields each call of a recording member of SushiRuntime::Recorder outside TaskRecorder and the graph primitives."""
-    for path, number, line in chain(_header_lines(root), _source_tree_lines(root)):
-        if K_LINE_COMMENT.match(line) or _may_record(_relative(path, root)):
+def graph_insertions_in(
+    lines: Iterable[tuple[Path, int, str]], relative: Callable[[Path], str]
+) -> Iterator[Violation]:
+    """Yields each recording call in the lines, except in a comment and in a file that may record."""
+    for path, number, line in lines:
+        if K_LINE_COMMENT.match(line) or _may_record(relative(path)):
             continue
         for call in K_GRAPH_INSERTION.findall(line):
             yield Violation(path, number, call)
+
+
+def find_graph_insertions(root: Path) -> Iterator[Violation]:
+    """Yields each call of a recording member of SushiRuntime::Recorder outside TaskRecorder and the graph primitives."""
+    lines = chain(_header_lines(root), _source_tree_lines(root))
+    yield from graph_insertions_in(lines, lambda path: _relative(path, root))
 
 
 @cache
@@ -225,6 +238,13 @@ def _known_for(repository: Repository, rule: str) -> dict[tuple[str, str], Known
     return {(entry.file, entry.symbol): entry for entry in repository.known if entry.rule == rule}
 
 
+def stale_known_keys(
+    known: Iterable[tuple[str, str]], seen: Iterable[tuple[str, str]]
+) -> list[tuple[str, str]]:
+    """Returns, in order, the known (file, symbol) keys that no violation matched."""
+    return sorted(set(known) - set(seen))
+
+
 def _screened_rule(rule: str, find: Callable[[Path], Iterator[Violation]]) -> Callable[[Repository], Iterator[Issue]]:
     """Returns a rule that reports violations missing from the known table and stale entries."""
     def apply(repository: Repository) -> Iterator[Issue]:
@@ -235,7 +255,7 @@ def _screened_rule(rule: str, find: Callable[[Path], Iterator[Violation]]) -> Ca
             seen.add(key)
             if key not in known:
                 yield Issue(violation.path, violation.line, f"layering violation: {violation.symbol}")
-        for key in sorted(set(known) - seen):
+        for key in stale_known_keys(known, seen):
             yield Issue(Path(__file__), 1, f"stale K_KNOWN_VIOLATIONS entry: {key[0]} {key[1]}")
     apply.__doc__ = find.__doc__
     return apply

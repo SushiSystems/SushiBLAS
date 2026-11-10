@@ -6,30 +6,50 @@
 
 from __future__ import annotations
 
-import pytest
 import sys
 import tempfile
-import unittest
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from layering.check_engine_seams import (  # noqa: E402
     K_CHECKER,
+    K_VIEW_ALLOWED_MEMBERS,
+    removed_engine_members_in,
     rule_removed_engine_members,
     rule_seam_engine_includes,
     rule_task_dependencies,
     rule_view_engine_calls,
+    seam_engine_includes_in,
 )
-from layering.check_tier_contents import KnownViolation, Repository  # noqa: E402
-
-pytestmark = pytest.mark.medium
-
+from layering.check_tier_contents import KnownViolation, Repository, _engine_calls  # noqa: E402
 
 K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine/engine.hpp>\n"
 K_TEST_ONLY_TIER = "if(SB_BUILD_TESTS)\n    add_subdirectory(engine_fixture)\nendif()\n"
 K_TEST_ONLY_MODULE = "sushiblas_add_module(\n    NAME engine_fixture\n    LAYER engine\n    INTERNAL)\n"
 K_FIXTURE = "modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/sushiblas_test.hpp"
+K_VIEW = "modules/operations/blas/include/SushiBLAS/blas/blas.hpp"
+K_SEAM = "modules/operations/blas/include/SushiBLAS/blas/dispatch.hpp"
+K_SOURCE = "modules/operations/blas/source/level1/dot.cpp"
+K_ENGINE = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
+K_COMMAND_GROUP = (
+    "return queue.submit([&](sycl::handler& h)\n"
+    "{\n"
+    "    {depends}h.parallel_for(range, body);\n"
+    "});\n"
+)
+K_FINDINGS = [
+    "layering violation: SushiBLAS/engine/engine.hpp",
+    "layering violation: create_tensor",
+    "layering violation: memcpy",
+]
+
+
+def _lines(path: str, text: str) -> list[tuple[Path, int, str]]:
+    """Returns the numbered lines of a text, each with the path it belongs to."""
+    return [(Path(path), number, line) for number, line in enumerate(text.splitlines(), 1)]
 
 
 def _repository(folder: str, files: dict[str, str], known: tuple[KnownViolation, ...] = ()) -> Repository:
@@ -42,210 +62,190 @@ def _repository(folder: str, files: dict[str, str], known: tuple[KnownViolation,
     return Repository(root, known)
 
 
-class RegistrationTest(unittest.TestCase):
+def _messages(rule, files: dict[str, str]) -> list[tuple[str, str]]:
+    """Returns the file name and message of each issue a rule reports on a repository of the files."""
+    with tempfile.TemporaryDirectory() as folder:
+        return [(issue.path.name, issue.message) for issue in rule(_repository(folder, files))]
+
+
+class TestRegistration:
     """Checks the rule table of the Engine seam checker."""
+
+    K_TEST_SIZE = "small"
 
     def test_is_registered(self) -> None:
         """Lists the four Engine seam rules."""
-        self.assertEqual(
-            list(K_CHECKER.rules),
-            ["rule_seam_engine_includes", "rule_view_engine_calls", "rule_task_dependencies",
-             "rule_removed_engine_members"],
-        )
+        assert list(K_CHECKER.rules) == [
+            "rule_seam_engine_includes", "rule_view_engine_calls", "rule_task_dependencies",
+            "rule_removed_engine_members",
+        ]
 
 
-class SeamEngineIncludesTest(unittest.TestCase):
+class TestSeamEngineIncludes:
     """Checks that only the view of an operation family, `<family>/<family>.hpp`, includes engine.hpp."""
+
+    K_TEST_SIZE = "small"
+
+    def _issues(self, headers: dict[str, str], sources: dict[str, str]) -> list[str]:
+        """Returns the paths of the includes reported for the given headers and sources, with the blas view exempt."""
+        header_lines = [entry for path, text in headers.items() for entry in _lines(path, text)]
+        source_lines = [entry for path, text in sources.items() for entry in _lines(path, text)]
+        exempt = frozenset({K_VIEW, K_ENGINE})
+        found = seam_engine_includes_in(header_lines, source_lines, exempt, lambda path: path.as_posix())
+        return [violation.path.as_posix() for violation in found]
 
     def test_accepts_the_view_of_a_family(self) -> None:
         """Reports nothing for a view header that includes engine.hpp."""
-        files = {
-            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": K_ENGINE_HEADER_INCLUDE,
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_seam_engine_includes(_repository(folder, files))), [])
+        assert self._issues({K_VIEW: K_ENGINE_HEADER_INCLUDE}, {}) == []
 
-    def test_reports_a_seam_and_an_operation_source(self) -> None:
-        """Reports a dispatch seam and an operation source that include engine.hpp."""
-        files = {
-            "modules/operations/blas/include/SushiBLAS/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
-            "modules/operations/blas/source/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_seam_engine_includes(_repository(folder, files)))
-            self.assertEqual([issue.path.name for issue in issues], ["dispatch.hpp", "dot.cpp"])
+    def test_reports_a_seam_header(self) -> None:
+        """Reports a dispatch seam that includes engine.hpp."""
+        assert self._issues({K_SEAM: K_ENGINE_HEADER_INCLUDE}, {}) == [K_SEAM]
+
+    def test_reports_an_operation_source(self) -> None:
+        """Reports an operation source that includes engine.hpp."""
+        assert self._issues({}, {K_SOURCE: K_ENGINE_HEADER_INCLUDE}) == [K_SOURCE]
 
 
-class ViewEngineCallsTest(unittest.TestCase):
+class TestViewEngineCalls:
     """Checks which Engine members a public header calls."""
+
+    K_TEST_SIZE = "small"
 
     def test_accepts_rng(self) -> None:
         """Reports nothing for the one member a header may read."""
-        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(recorder, engine.rng())\n"}
-        with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_view_engine_calls(_repository(folder, files))), [])
+        lines = _lines("random.hpp", "RandomOps(recorder, engine.rng())\n")
+        assert list(_engine_calls(lines, K_VIEW_ALLOWED_MEMBERS)) == []
 
-    def test_reports_another_member_and_skips_engine_hpp(self) -> None:
-        """Reports execute in a seam and nothing in engine.hpp itself."""
+    def test_reports_another_member(self) -> None:
+        """Reports execute in a seam header."""
+        lines = _lines("task.hpp", "engine.execute();\n")
+        assert [violation.symbol for violation in _engine_calls(lines, K_VIEW_ALLOWED_MEMBERS)] == ["execute"]
+
+
+class TestViewEngineCallsInEngineHeader:
+    """Checks that the view rule does not scan engine.hpp itself."""
+
+    K_TEST_SIZE = "medium"
+
+    def test_skips_engine_hpp(self) -> None:
+        """Reports the seam header and nothing in engine.hpp."""
         files = {
             "modules/engine/engine/include/SushiBLAS/engine/task.hpp": "engine.execute();\n",
-            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": "engine.execute();\n",
+            K_ENGINE: "engine.execute();\n",
         }
-        with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_view_engine_calls(_repository(folder, files)))
-            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
-                             [("task.hpp", "layering violation: execute")])
+        assert _messages(rule_view_engine_calls, files) == [("task.hpp", "layering violation: execute")]
 
 
-class RemovedEngineMembersTest(unittest.TestCase):
+class TestRemovedEngineMembers:
     """Checks that no removed Engine member and no family constructor over Engine& comes back."""
 
-    def test_accepts_the_engine_without_a_graph_and_a_recorder_constructor(self) -> None:
-        """Reports nothing for an engine that keeps its bricks and a family built over a recorder."""
-        files = {
-            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
-                "/** @brief Returns the pool; no recorder() exists. */\n"
-                "ScratchPool& scratch_pool() noexcept;\n"
-                "Engine(const Engine&) = delete;\n"
-            ),
-            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": "explicit BLASOps(TaskRecorder& recorder);\n",
-            "modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp": (
-                "explicit RecordingFixture(Engine& engine);\n"
-            ),
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_removed_engine_members(_repository(folder, files))), [])
+    K_TEST_SIZE = "small"
 
-    def test_reports_a_planted_execute_and_a_planted_family_constructor(self) -> None:
-        """Reports Engine::execute() declared in engine.hpp and an XOps(Engine&) constructor."""
-        files = {
-            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
-                "[[nodiscard]] SushiRuntime::Result<void> execute();\n"
-            ),
-            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": "explicit BLASOps(Engine& engine) noexcept;\n",
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_removed_engine_members(_repository(folder, files)))
-            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
-                             [("engine.hpp", "layering violation: execute"),
-                              ("blas.hpp", "layering violation: BLASOps(Engine&)")])
+    def _symbols(self, engine: str, header: str) -> list[str]:
+        """Returns the symbol of each violation in the given engine.hpp and family header text."""
+        found = removed_engine_members_in(_lines("engine.hpp", engine), _lines("blas.hpp", header))
+        return [violation.symbol for violation in found]
+
+    def test_accepts_the_engine_without_a_graph(self) -> None:
+        """Reports nothing for an engine with a comment naming recorder() and a deleted copy constructor."""
+        engine = (
+            "/** @brief Returns the pool; no recorder() exists. */\n"
+            "ScratchPool& scratch_pool() noexcept;\n"
+            "Engine(const Engine&) = delete;\n"
+        )
+        assert self._symbols(engine, "") == []
+
+    def test_accepts_a_family_built_over_a_recorder(self) -> None:
+        """Reports nothing for a family constructor over a TaskRecorder or a fixture over an Engine."""
+        header = "explicit BLASOps(TaskRecorder& recorder);\nexplicit RecordingFixture(Engine& engine);\n"
+        assert self._symbols("", header) == []
+
+    def test_reports_a_planted_execute(self) -> None:
+        """Reports Engine::execute() declared in engine.hpp."""
+        assert self._symbols("[[nodiscard]] SushiRuntime::Result<void> execute();\n", "") == ["execute"]
+
+    def test_reports_a_planted_family_constructor(self) -> None:
+        """Reports an XOps(Engine&) constructor."""
+        assert self._symbols("", "explicit BLASOps(Engine& engine) noexcept;\n") == ["BLASOps(Engine&)"]
 
     def test_reports_each_other_removed_member(self) -> None:
         """Reports discard_recorded, recorder, the graph member and RecordedGraph in engine.hpp."""
+        engine = "void discard_recorded();\nTaskRecorder& recorder() noexcept;\nRecordedGraph graph_;\n"
+        assert self._symbols(engine, "") == ["discard_recorded", "TaskRecorder", "recorder", "RecordedGraph", "graph_"]
+
+
+class TestRemovedEngineMembersOfARepository:
+    """Checks the rule over a folder: it reads engine.hpp and the family headers."""
+
+    K_TEST_SIZE = "medium"
+
+    def test_reports_both_kinds_in_one_repository(self) -> None:
+        """Reports execute in engine.hpp, then the family constructor."""
         files = {
-            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
-                "void discard_recorded();\n"
-                "TaskRecorder& recorder() noexcept;\n"
-                "RecordedGraph graph_;\n"
-            ),
+            K_ENGINE: "[[nodiscard]] SushiRuntime::Result<void> execute();\n",
+            K_VIEW: "explicit BLASOps(Engine& engine) noexcept;\n",
         }
-        with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_removed_engine_members(_repository(folder, files)))
-            self.assertEqual([issue.message for issue in issues],
-                             ["layering violation: discard_recorded",
-                              "layering violation: TaskRecorder",
-                              "layering violation: recorder",
-                              "layering violation: RecordedGraph",
-                              "layering violation: graph_"])
+        assert _messages(rule_removed_engine_members, files) == [
+            ("engine.hpp", "layering violation: execute"),
+            ("blas.hpp", "layering violation: BLASOps(Engine&)"),
+        ]
 
 
-class TaskDependenciesTest(unittest.TestCase):
+class TestTaskDependencies:
     """Checks that a device task body orders its work behind the events it is given."""
 
-    def test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies(self) -> None:
-        """Reports nothing for a command group with depends_on and a fill that passes deps."""
+    K_TEST_SIZE = "medium"
+
+    def _file(self, depends: str) -> dict[str, str]:
+        """Returns a device header whose command group holds the given depends_on line."""
+        text = K_COMMAND_GROUP.replace("{depends}", depends)
+        return {"modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/add.hpp": text}
+
+    @pytest.mark.parametrize("depends", [
+        pytest.param("h.depends_on(deps);\n    ", id="deps"),
+        pytest.param("h.depends_on(staged);\n    ", id="a-second-stage"),
+    ])
+    def test_accepts_a_command_group_that_names_its_dependencies(self, depends: str) -> None:
+        """Reports nothing for a submit with depends_on."""
+        assert _messages(rule_task_dependencies, self._file(depends)) == []
+
+    def test_reports_a_command_group_without_depends_on(self) -> None:
+        """Reports a submit without depends_on."""
+        assert _messages(rule_task_dependencies, self._file("")) == [("add.hpp", "layering violation: submit")]
+
+    def test_accepts_a_shortcut_that_passes_deps(self) -> None:
+        """Reports nothing for a fill that passes deps."""
+        files = {"modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size, deps);\n"}
+        assert _messages(rule_task_dependencies, files) == []
+
+    def test_reports_a_shortcut_that_drops_deps(self) -> None:
+        """Reports a fill without deps."""
+        files = {"modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size);\n"}
+        assert _messages(rule_task_dependencies, files) == [("constant.cpp", "layering violation: fill")]
+
+
+class TestTestOnlyModule:
+    """Checks that an INTERNAL module added only under a test or benchmark switch is exempt from the three rules."""
+
+    K_TEST_SIZE = "medium"
+
+    K_RULES = (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies)
+
+    @pytest.mark.parametrize("switch, flags, expected", [
+        pytest.param("SB_BUILD_TESTS", K_TEST_ONLY_MODULE, [], id="tests"),
+        pytest.param("SB_BUILD_BENCHMARKS", K_TEST_ONLY_MODULE, [], id="benchmarks"),
+        pytest.param("SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS", K_TEST_ONLY_MODULE, [], id="tests-or-benchmarks"),
+        pytest.param("SB_BUILD_TESTS", K_TEST_ONLY_MODULE.replace("    INTERNAL", ""), K_FINDINGS, id="not-internal"),
+    ])
+    def test_exempts_only_an_internal_module(self, switch: str, flags: str, expected: list[str]) -> None:
+        """Reports nothing for an INTERNAL module under the switch and one finding per rule otherwise."""
         files = {
-            "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/add.hpp": (
-                "return queue.submit([&](sycl::handler& h)\n"
-                "{\n"
-                "    h.depends_on(deps);\n"
-                "    h.parallel_for(range, body);\n"
-                "});\n"
-            ),
-            "modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size, deps);\n",
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
-
-    def test_reports_a_command_group_and_a_shortcut_that_drop_them(self) -> None:
-        """Reports a command group without depends_on and a fill without deps."""
-        files = {
-            "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/add.hpp": (
-                "return queue.submit([&](sycl::handler& h)\n"
-                "{\n"
-                "    h.parallel_for(range, body);\n"
-                "});\n"
-            ),
-            "modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size);\n",
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_task_dependencies(_repository(folder, files)))
-            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
-                             [("add.hpp", "layering violation: submit"),
-                              ("constant.cpp", "layering violation: fill")])
-
-    def test_accepts_a_second_stage_that_waits_on_the_first(self) -> None:
-        """Reports nothing for a command group that depends on an earlier stage's event."""
-        files = {
-            "modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp": (
-                "return queue.submit([&](sycl::handler& h)\n"
-                "{\n"
-                "    h.depends_on(staged);\n"
-                "    h.single_task(fold);\n"
-                "});\n"
-            ),
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
-
-
-class TestOnlyModuleTest(unittest.TestCase):
-    """Checks that an INTERNAL module added only under SB_BUILD_TESTS is exempt from the three rules."""
-
-    def _files(self, module_flags: str) -> dict[str, str]:
-        """Returns a test-only fixture header that breaks all three rules, under the given module flags."""
-        return {
-            "modules/engine/CMakeLists.txt": K_TEST_ONLY_TIER,
-            "modules/engine/engine_fixture/CMakeLists.txt": module_flags,
+            "modules/engine/CMakeLists.txt": K_TEST_ONLY_TIER.replace("SB_BUILD_TESTS", switch),
+            "modules/engine/engine_fixture/CMakeLists.txt": flags,
             K_FIXTURE: K_ENGINE_HEADER_INCLUDE + "engine->create_tensor({});\nq.memcpy(a, b, n).wait();\n",
         }
-
-    def test_exempts_a_test_only_module(self) -> None:
-        """Reports nothing for a header of an INTERNAL module the tier adds under SB_BUILD_TESTS."""
         with tempfile.TemporaryDirectory() as folder:
-            repository = _repository(folder, self._files(K_TEST_ONLY_MODULE))
-            for rule in (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies):
-                self.assertEqual(list(rule(repository)), [])
-
-    def test_exempts_a_benchmark_only_module(self) -> None:
-        """Reports nothing for a header of an INTERNAL module the tier adds under SB_BUILD_BENCHMARKS."""
-        with tempfile.TemporaryDirectory() as folder:
-            files = self._files(K_TEST_ONLY_MODULE)
-            files["modules/engine/CMakeLists.txt"] = K_TEST_ONLY_TIER.replace("SB_BUILD_TESTS", "SB_BUILD_BENCHMARKS")
             repository = _repository(folder, files)
-            for rule in (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies):
-                self.assertEqual(list(rule(repository)), [])
-
-    def test_exempts_a_module_built_for_tests_or_benchmarks(self) -> None:
-        """Reports nothing for an INTERNAL module the tier adds under SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS."""
-        with tempfile.TemporaryDirectory() as folder:
-            files = self._files(K_TEST_ONLY_MODULE)
-            files["modules/engine/CMakeLists.txt"] = K_TEST_ONLY_TIER.replace(
-                "SB_BUILD_TESTS", "SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS")
-            repository = _repository(folder, files)
-            for rule in (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies):
-                self.assertEqual(list(rule(repository)), [])
-
-    def test_checks_a_module_that_is_not_internal(self) -> None:
-        """Reports all three findings when the module under the switch is not INTERNAL."""
-        with tempfile.TemporaryDirectory() as folder:
-            repository = _repository(folder, self._files(K_TEST_ONLY_MODULE.replace("    INTERNAL", "")))
-            messages = [issue.message for rule in (rule_seam_engine_includes, rule_view_engine_calls,
-                                                   rule_task_dependencies) for issue in rule(repository)]
-            self.assertEqual(messages, ["layering violation: SushiBLAS/engine/engine.hpp",
-                                        "layering violation: create_tensor",
-                                        "layering violation: memcpy"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+            messages = [issue.message for rule in self.K_RULES for issue in rule(repository)]
+        assert messages == expected

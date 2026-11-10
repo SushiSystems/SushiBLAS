@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from functools import cache
 from itertools import chain, groupby
 from pathlib import Path
@@ -100,15 +100,26 @@ def _view_headers(root: Path) -> frozenset[str]:
     return frozenset(views)
 
 
+def seam_engine_includes_in(
+    headers: Iterable[tuple[Path, int, str]],
+    sources: Iterable[tuple[Path, int, str]],
+    exempt: frozenset[str],
+    relative: Callable[[Path], str],
+) -> Iterator[Violation]:
+    """Yields each include of engine.hpp in the sources and in the headers outside the exempt paths."""
+    kept = (entry for entry in headers if relative(entry[0]) not in exempt)
+    yield from _include_matches(kept, K_ENGINE_INCLUDE)
+    yield from _include_matches(sources, K_ENGINE_INCLUDE)
+
+
 def find_seam_engine_includes(root: Path) -> Iterator[Violation]:
     """Yields each include of engine.hpp from an operation source or a header that is not a view."""
-    exempt = _view_headers(root) | {K_ENGINE_HEADER, K_UMBRELLA_HEADER}
-    headers = (
-        entry for entry in _library_lines(root, _header_lines(root))
-        if _relative(entry[0], root) not in exempt
+    yield from seam_engine_includes_in(
+        _library_lines(root, _header_lines(root)),
+        _operation_source_lines(root),
+        _view_headers(root) | {K_ENGINE_HEADER, K_UMBRELLA_HEADER},
+        lambda path: _relative(path, root),
     )
-    yield from _include_matches(headers, K_ENGINE_INCLUDE)
-    yield from _include_matches(_operation_source_lines(root), K_ENGINE_INCLUDE)
 
 
 def find_view_engine_calls(root: Path) -> Iterator[Violation]:
@@ -120,16 +131,25 @@ def find_view_engine_calls(root: Path) -> Iterator[Violation]:
     yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
 
 
-def find_removed_engine_members(root: Path) -> Iterator[Violation]:
-    """Yields each removed Engine member named in engine.hpp and each family constructor over Engine&."""
-    for path, number, line in _file_lines(root / K_ENGINE_HEADER):
+def removed_engine_members_in(
+    engine_lines: Iterable[tuple[Path, int, str]], header_lines: Iterable[tuple[Path, int, str]]
+) -> Iterator[Violation]:
+    """Yields each removed Engine member in the lines of engine.hpp and each family constructor over Engine& in the headers."""
+    for path, number, line in engine_lines:
         if not K_LINE_COMMENT.match(line):
             for member in K_REMOVED_ENGINE_MEMBER.findall(line):
                 yield Violation(path, number, member)
-    for path, number, line in _library_lines(root, _header_lines(root)):
+    for path, number, line in header_lines:
         if not K_LINE_COMMENT.match(line):
             for family in K_FAMILY_ENGINE_CONSTRUCTOR.findall(line):
                 yield Violation(path, number, f"{family}(Engine&)")
+
+
+def find_removed_engine_members(root: Path) -> Iterator[Violation]:
+    """Yields each removed Engine member named in engine.hpp and each family constructor over Engine&."""
+    yield from removed_engine_members_in(
+        _file_lines(root / K_ENGINE_HEADER), _library_lines(root, _header_lines(root))
+    )
 
 
 def _call_text(lines: list[str], index: int, column: int) -> str:

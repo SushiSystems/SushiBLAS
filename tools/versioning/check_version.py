@@ -127,17 +127,22 @@ K_CHANGELOG_COPIES = (
 )
 
 
-def read_source_version(root: Path) -> tuple[Version | None, int]:
-    """Returns the version project() states and its line, or None and line 1 without one."""
-    source = root / K_SOURCE_FILE
-    if not source.is_file():
-        return None, 1
-    text = K_SOURCE_COMMENT.sub("", source.read_text(encoding="utf-8", errors="replace"))
+def read_source_version_text(source_text: str) -> tuple[Version | None, int]:
+    """Returns the version project() states in the text of the root CMakeLists.txt and its line, or None and line 1."""
+    text = K_SOURCE_COMMENT.sub("", source_text)
     match = K_SOURCE_VERSION.search(text)
     if match is None:
         return None, 1
     version = Version(int(match.group(1)), int(match.group(2)), int(match.group(3)))
     return version, text.count("\n", 0, match.start(1)) + 1
+
+
+def read_source_version(root: Path) -> tuple[Version | None, int]:
+    """Returns the version project() states and its line, or None and line 1 without one."""
+    source = root / K_SOURCE_FILE
+    if not source.is_file():
+        return None, 1
+    return read_source_version_text(source.read_text(encoding="utf-8", errors="replace"))
 
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
@@ -154,10 +159,9 @@ def rule_source_version(repository: Repository) -> Iterator[Issue]:
         yield Issue(source, 1, "no project(<Name> VERSION x.y.z); it is the source of truth")
 
 
-def _stated_values(path: Path, copy: Copy) -> Iterator[tuple[int, str]]:
-    """Yields the line and value of each place a file states one copy."""
+def stated_values_in(text: str, copy: Copy) -> Iterator[tuple[int, str]]:
+    """Yields the line and value of each place the text of a file states one copy."""
     section: str | None = None
-    text = path.read_text(encoding="utf-8", errors="replace")
     for number, line in enumerate(text.splitlines(), start=1):
         header = K_SECTION_HEADER.match(line)
         if header:
@@ -168,11 +172,13 @@ def _stated_values(path: Path, copy: Copy) -> Iterator[tuple[int, str]]:
             yield number, match.group(1)
 
 
-def _copy_issues(path: Path, copy: Copy, repository: Repository, required: bool) -> Iterator[Issue]:
-    """Yields an issue for each stated value that disagrees, or for a required value not stated."""
+def copy_issues_in(
+    path: Path, text: str, copy: Copy, repository: Repository, required: bool
+) -> Iterator[Issue]:
+    """Yields an issue for each value the text states that disagrees, or for a required value not stated."""
     expected = copy.expected(repository.version)
     source = f"{K_SOURCE_FILE}:{repository.source_line}"
-    stated = list(_stated_values(path, copy))
+    stated = list(stated_values_in(text, copy))
     if required and not stated:
         yield Issue(path, 1, f"states no {copy.name}; {source} expects {expected}")
     for number, value in stated:
@@ -180,20 +186,28 @@ def _copy_issues(path: Path, copy: Copy, repository: Repository, required: bool)
             yield Issue(path, number, f"{copy.name} is '{value}', {source} expects {expected}")
 
 
+def file_copy_issues_in(
+    path: Path, text: str | None, copies: tuple[Copy, ...], repository: Repository, required: bool
+) -> Iterator[Issue]:
+    """Yields the issues of one file's copies, given its text, or None when the file is absent."""
+    if repository.version is None:
+        return
+    if text is None:
+        if required:
+            yield Issue(path, 1, f"file is missing; it must state {repository.version.dotted}")
+        return
+    for copy in copies:
+        yield from copy_issues_in(path, text, copy, repository, required)
+
+
 def _copy_rule(
     file: str, copies: tuple[Copy, ...], required: bool
 ) -> Callable[[Repository], Iterator[Issue]]:
     """Returns a rule that checks one file's copies, and its presence when the file is required."""
     def apply(repository: Repository) -> Iterator[Issue]:
-        if repository.version is None:
-            return
         path = repository.root / file
-        if not path.is_file():
-            if required:
-                yield Issue(path, 1, f"file is missing; it must state {repository.version.dotted}")
-            return
-        for copy in copies:
-            yield from _copy_issues(path, copy, repository, required)
+        text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else None
+        yield from file_copy_issues_in(path, text, copies, repository, required)
     apply.__doc__ = f"Yields an issue for each version {file} states that disagrees with project()."
     return apply
 
