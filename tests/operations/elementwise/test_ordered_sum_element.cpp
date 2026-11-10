@@ -23,7 +23,8 @@
 
 /**
  * @file test_ordered_sum_element.cpp
- * @brief Tests the ordered_sum element functor: the type of its weights and the bits it writes.
+ * @brief Tests the ordered_sum element functor on the host: the bits it writes for each row of
+ *        ordered_sum_rows.hpp and for a weight rounded once to float.
  * @author Mustafa Garip
  */
 
@@ -32,6 +33,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/elementwise/ordered_sum_element.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/ordered_sum_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -58,7 +61,43 @@ namespace SushiBLAS
             {
                 return "Row" + std::to_string(info.index);
             }
+
+            /// @brief Runs the host form of the kernel over every element of the row and checks the
+            ///        bytes of the result against the row's expected sum.
+            template<typename Row>
+            void expect_host_form_gives_the_expected_sum()
+            {
+                using T = typename Row::Type;
+                using Weight = Dispatch::OrderedSumWeightOf<T>;
+                const std::vector<std::vector<T>> inputs = Row::inputs();
+                std::vector<const T*> firsts;
+                for (const std::vector<T>& input : inputs)
+                    firsts.push_back(input.data());
+                std::vector<Weight> weights;
+                for (const double weight : Row::weights())
+                    weights.push_back(static_cast<Weight>(weight));
+
+                std::vector<T> got(OrderedSumRows::K_ELEMENTS);
+                for (std::size_t i = 0; i < got.size(); ++i)
+                    got[i] = Dispatch::ordered_sum_at<T>(firsts.data(), weights.data(), firsts.size(), i);
+
+                EXPECT_TRUE(OrderedSumRows::same_bits(Row::expected(), got));
+            }
         } // namespace
+
+        /// @brief Runs the host form of the kernel over one row: an element type with its inputs,
+        ///        weights and expected sum.
+        template<typename Row>
+        class Small_OrderedSumElementRows : public ::testing::Test {};
+
+        TYPED_TEST_SUITE(Small_OrderedSumElementRows, OrderedSumRows::AllRows, DefaultTypeNames);
+
+        /// @brief Tests that the host form gives the bits of the row's expected sum: the serial
+        ///        sum for a drawn row, the hand-worked 14 (5 for an integer type) for the hand row.
+        TYPED_TEST(Small_OrderedSumElementRows, TheHostFormGivesTheExpectedSumBitForBit)
+        {
+            expect_host_form_gives_the_expected_sum<TypeParam>();
+        }
 
         /// @brief Runs the host form of the kernel on one element of two inputs.
         class Small_OrderedSumElementWeight : public ::testing::TestWithParam<WeightRow> {};

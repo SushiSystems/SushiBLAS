@@ -134,7 +134,9 @@ the operation tests share, and `hand_built_operand.hpp` the operand values the `
 build without a queue. `refusal_naming.hpp` holds the expectation that a refusal names a word,
 `sparse_test_sweeps.hpp` the index-base, transposition and triangle sweeps the sparse operation tests
 run a check over, and `sparse_conj_case.hpp` the hand-worked case that tells a conjugate transpose
-from a transpose on the 4 x 5 sample.
+from a transpose on the 4 x 5 sample. `ordered_sum_rows.hpp` holds the rows of the ordered_sum value tests (the
+inputs, weights and expected sum of each element type and input count), which the host test of the
+element functor and the device test of the operation both run.
 
 ## Shared reasoning
 

@@ -23,20 +23,17 @@
 
 /**
  * @file test_ordered_sum.cpp
- * @brief Tests ElementwiseOps::ordered_sum against a serial sum of the same order and type, bit for
- *        bit, and its refusals.
+ * @brief Tests ElementwiseOps::ordered_sum on the device against the rows of ordered_sum_rows.hpp,
+ *        bit for bit, and its refusals.
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <complex>
 #include <limits>
 #include <stdexcept>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -45,6 +42,7 @@
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include "support/ordered_sum_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -52,198 +50,11 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief Rows of every tensor; the 3 x 347 shape holds 1041 elements, a multiple of no
-            ///        work-group size.
-            constexpr int64_t K_ROWS = 3;
-
-            /// @brief Columns of every tensor; 347 is prime.
-            constexpr int64_t K_COLUMNS = 347;
-
-            /// @brief The element count of every tensor.
-            constexpr std::size_t K_ELEMENTS = static_cast<std::size_t>(K_ROWS * K_COLUMNS);
-
-            /// @brief Weights that no float type holds exactly, so each product rounds.
-            constexpr std::array<double, 5> K_WEIGHTS = {0.37, -1.9, 2.5, 0.011, -0.73};
-
-            /// @brief Seed of the value generator; every run draws the same values.
-            constexpr std::uint64_t K_SEED = 0x5EEDu;
-
-            /// @brief Advances a linear congruential generator and returns its high bits.
-            std::uint64_t next_random(std::uint64_t& state)
-            {
-                state = state * 6364136223846793005ull + 1442695040888963407ull;
-                return state >> 11;
-            }
-
-            /// @brief Draws a value of about 100 in magnitude with two decimal digits.
-            double next_real(std::uint64_t& state)
-            {
-                return static_cast<double>(static_cast<std::int64_t>(next_random(state) % 20001u) -
-                                           10000) /
-                       97.0;
-            }
-
-            /**
-             * @brief Draws K_ELEMENTS values of T from the generator.
-             * @tparam T One of the seven element types.
-             */
-            template<typename T>
-            std::vector<T> draw_values(std::uint64_t& state)
-            {
-                std::vector<T> values(K_ELEMENTS);
-                for (T& value : values)
-                {
-                    if constexpr (std::is_integral_v<T>)
-                        value = static_cast<T>(next_random(state) << 20);
-                    else if constexpr (std::is_same_v<T, std::complex<float>> ||
-                                       std::is_same_v<T, std::complex<double>>)
-                    {
-                        const double real = next_real(state);
-                        const double imaginary = next_real(state);
-                        value = T(static_cast<typename T::value_type>(real),
-                                  static_cast<typename T::value_type>(imaginary));
-                    }
-                    else
-                        value = static_cast<T>(next_real(state));
-                }
-                return values;
-            }
-
-            /**
-             * @brief Sums the inputs element by element in index order, in the accumulation type
-             *        the operation names.
-             * @tparam T One of the seven element types.
-             */
-            template <typename T>
-            std::vector<T> serial_sum(const std::vector<std::vector<T>>& inputs,
-                                      const std::vector<double>& weights)
-            {
-                // Contraction is off so a multiply and an add round apart, as in the operation.
-                #pragma clang fp contract(off)
-                std::vector<T> sums(K_ELEMENTS);
-                for (std::size_t i = 0; i < K_ELEMENTS; ++i)
-                {
-                    if constexpr (std::is_integral_v<T>)
-                    {
-                        using Unsigned = std::make_unsigned_t<T>;
-                        Unsigned sum = 0;
-                        for (const std::vector<T>& input : inputs)
-                            sum = static_cast<Unsigned>(sum + static_cast<Unsigned>(input[i]));
-                        sums[i] = static_cast<T>(sum);
-                    }
-                    else if constexpr (std::is_same_v<T, std::complex<float>> ||
-                                       std::is_same_v<T, std::complex<double>>)
-                    {
-                        using Real = typename T::value_type;
-                        Real real_sum = 0;
-                        Real imaginary_sum = 0;
-                        for (std::size_t k = 0; k < inputs.size(); ++k)
-                        {
-                            real_sum += static_cast<Real>(weights[k]) * inputs[k][i].real();
-                            imaginary_sum += static_cast<Real>(weights[k]) * inputs[k][i].imag();
-                        }
-                        sums[i] = T(real_sum, imaginary_sum);
-                    }
-                    else
-                    {
-                        using Accumulation =
-                            std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
-                        Accumulation sum = 0;
-                        for (std::size_t k = 0; k < inputs.size(); ++k)
-                            sum += static_cast<Accumulation>(weights[k]) *
-                                   static_cast<Accumulation>(inputs[k][i]);
-                        sums[i] = static_cast<T>(sum);
-                    }
-                }
-                return sums;
-            }
-
-            /// @brief Returns whether two equally long vectors hold the same bytes.
-            template<typename T>
-            bool same_bits(const std::vector<T>& a, const std::vector<T>& b)
-            {
-                return a.size() == b.size() &&
-                       std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0;
-            }
-
-            /// @brief Returns value as T, with a zero imaginary part for a complex T.
-            template<typename T>
-            T make_value(double value)
-            {
-                if constexpr (std::is_same_v<T, std::complex<float>> ||
-                              std::is_same_v<T, std::complex<double>>)
-                    return T(static_cast<typename T::value_type>(value), 0);
-                else
-                    return static_cast<T>(value);
-            }
-
-            /// @brief The weights a case with n inputs uses: K_WEIGHTS repeated to n entries, or all 1
-            ///        for an integer type.
-            template<typename T>
-            std::vector<double> weights_for(std::size_t n)
-            {
-                std::vector<double> weights(n, 1.0);
-                if constexpr (!std::is_integral_v<T>)
-                {
-                    for (std::size_t k = 0; k < n; ++k)
-                        weights[k] = K_WEIGHTS[k % K_WEIGHTS.size()];
-                }
-                return weights;
-            }
-
-            /// @brief The weights of the hand-worked case: 2 and 3, or 1 and 1 for an integer type.
-            template<typename T>
-            std::vector<double> hand_weights()
-            {
-                if constexpr (std::is_integral_v<T>)
-                    return {1.0, 1.0};
-                else
-                    return {2.0, 3.0};
-            }
-
-            /// @brief The sum of the hand-worked inputs 1 and 4: 2 * 1 + 3 * 4 = 14, or 1 + 4 = 5.
-            template<typename T>
-            T hand_total()
-            {
-                if constexpr (std::is_integral_v<T>)
-                    return make_value<T>(5.0);
-                else
-                    return make_value<T>(14.0);
-            }
-
-            /**
-             * @brief Names an element type and an input count, one row of the serial-sum table.
-             * @tparam Element One of the seven element types.
-             * @tparam Inputs How many inputs the sum takes.
-             */
-            template<typename Element, std::size_t Inputs>
-            struct SerialCase
-            {
-                /// @brief The element type.
-                using Type = Element;
-
-                /// @brief The number of inputs.
-                static constexpr std::size_t K_INPUTS = Inputs;
-            };
-
-            /// @brief The input counts of the table: one, two, five and the limit.
-            template<typename Element>
-            using SerialCounts =
-                ::testing::Types<SerialCase<Element, 1>, SerialCase<Element, 2>,
-                                 SerialCase<Element, 5>,
-                                 SerialCase<Element, ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS>>;
-
-            /// @brief Joins two type lists.
-            template<typename First, typename Second>
-            struct Joined;
-
-            /// @brief Joins two type lists.
-            template<typename... A, typename... B>
-            struct Joined<::testing::Types<A...>, ::testing::Types<B...>>
-            {
-                /// @brief The joined list.
-                using type = ::testing::Types<A..., B...>;
-            };
+            using OrderedSumRows::K_COLUMNS;
+            using OrderedSumRows::K_ELEMENTS;
+            using OrderedSumRows::K_ROWS;
+            using OrderedSumRows::make_value;
+            using OrderedSumRows::same_bits;
         } // namespace
 
         /**
@@ -275,35 +86,11 @@ namespace SushiBLAS
                     this->recording->run().value();
                     return read_tensor<T>(out);
                 }
-
-                /// @brief Checks that both paths equal the serial sum bit for bit for n inputs.
-                void expect_serial_equality(std::size_t n)
-                {
-                    std::uint64_t state = K_SEED + n;
-                    std::vector<std::vector<T>> host;
-                    for (std::size_t k = 0; k < n; ++k)
-                        host.push_back(draw_values<T>(state));
-
-                    const std::vector<double> weights = weights_for<T>(n);
-                    const std::vector<T> expected = serial_sum<T>(host, weights);
-                    const std::vector<Tensor> inputs = upload(host);
-
-                    EXPECT_TRUE(same_bits(expected,
-                                          run_sum(ExecutionMode::ForceReference, inputs, weights)))
-                        << "the reference path differs from the serial sum for n = " << n;
-                    EXPECT_TRUE(
-                        same_bits(expected, run_sum(ExecutionMode::ForceSYCL, inputs, weights)))
-                        << "the SYCL path differs from the serial sum for n = " << n;
-                }
         };
 
-        /// @brief Runs one row of the serial-sum table: an element type and an input count.
-        template<typename Case>
-        class Medium_OrderedSumSerialTest : public OrderedSumFixture<typename Case::Type> {};
-
-        /// @brief Runs the cases that hold for each of the seven element types.
-        template<typename T>
-        class Medium_OrderedSumTest : public OrderedSumFixture<T> {};
+        /// @brief Runs one row of the table: an element type with its inputs, weights and sum.
+        template<typename Row>
+        class Medium_OrderedSumRows : public OrderedSumFixture<typename Row::Type> {};
 
         /// @brief Runs the cases of the real and complex types, which take any weight.
         template<typename T>
@@ -313,10 +100,6 @@ namespace SushiBLAS
         template<typename T>
         class Medium_OrderedSumIntegerTest : public OrderedSumFixture<T> {};
 
-        /// @brief The seven element types under test.
-        using OrderedSumTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
-                                                 std::complex<double>, int32_t, int64_t>;
-
         /// @brief The real and complex element types.
         using WeightedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                std::complex<double>>;
@@ -324,37 +107,19 @@ namespace SushiBLAS
         /// @brief The integer element types.
         using IntegerTypes = ::testing::Types<int32_t, int64_t>;
 
-        /// @brief Every element type at every input count of the table.
-        using SerialRows = typename Joined<
-            typename Joined<
-                typename Joined<SerialCounts<sycl::half>, SerialCounts<float>>::type,
-                typename Joined<SerialCounts<double>, SerialCounts<std::complex<float>>>::type>::type,
-            typename Joined<
-                typename Joined<SerialCounts<std::complex<double>>, SerialCounts<int32_t>>::type,
-                SerialCounts<int64_t>>::type>::type;
-
-        TYPED_TEST_SUITE(Medium_OrderedSumSerialTest, SerialRows, DefaultTypeNames);
-        TYPED_TEST_SUITE(Medium_OrderedSumTest, OrderedSumTypes, DefaultTypeNames);
+        TYPED_TEST_SUITE(Medium_OrderedSumRows, OrderedSumRows::AllRows, DefaultTypeNames);
         TYPED_TEST_SUITE(Medium_OrderedSumWeightedTest, WeightedTypes, DefaultTypeNames);
         TYPED_TEST_SUITE(Medium_OrderedSumIntegerTest, IntegerTypes, DefaultTypeNames);
 
-        /// @brief Tests that a sum of the row's input count equals the serial sum on both paths.
-        TYPED_TEST(Medium_OrderedSumSerialTest, ASumEqualsTheSerialSumBitForBit)
+        /// @brief Tests that the SYCL path writes the bits of the row's expected sum: the serial
+        ///        sum for a drawn row, the hand-worked 14 (5 for an integer type) for the hand row.
+        TYPED_TEST(Medium_OrderedSumRows, TheSYCLPathWritesTheExpectedSumBitForBit)
         {
-            this->expect_serial_equality(TypeParam::K_INPUTS);
-        }
+            const std::vector<Tensor> inputs = this->upload(TypeParam::inputs());
 
-        /// @brief Tests the hand-worked values 2 * 1 + 3 * 4 = 14, and 1 + 4 = 5 for an integer type.
-        TYPED_TEST(Medium_OrderedSumTest, HandWorkedSumIsExact)
-        {
-            using T = TypeParam;
-            const std::vector<T> first(K_ELEMENTS, make_value<T>(1.0));
-            const std::vector<T> second(K_ELEMENTS, make_value<T>(4.0));
-            const std::vector<Tensor> inputs = this->upload({first, second});
-
-            const std::vector<T> got =
-                this->run_sum(ExecutionMode::ForceSYCL, inputs, hand_weights<T>());
-            EXPECT_TRUE(same_bits(std::vector<T>(K_ELEMENTS, hand_total<T>()), got));
+            EXPECT_TRUE(same_bits(
+                TypeParam::expected(),
+                this->run_sum(ExecutionMode::ForceSYCL, inputs, TypeParam::weights())));
         }
 
         /// @brief Tests that a weight of 2 on one input of 3 gives 6.

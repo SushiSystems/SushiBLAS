@@ -32,7 +32,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_elementwise/test_min.cpp` | Tests ElementwiseOps::min against fixed expected values |
 | `test_elementwise/test_mul.cpp` | Tests ElementwiseOps::mul against fixed expected values |
 | `test_elementwise/test_neg.cpp` | Tests ElementwiseOps::neg against fixed expected values |
-| `test_elementwise/test_ordered_sum.cpp` | Tests ElementwiseOps::ordered_sum against a serial sum of the same order and type, bit for bit, and its refusals |
+| `test_elementwise/test_ordered_sum.cpp` | Tests ElementwiseOps::ordered_sum on the device against the rows of `support/ordered_sum_rows.hpp`, bit for bit, and its refusals |
 | `test_elementwise/test_pow.cpp` | Tests ElementwiseOps::pow against fixed expected values |
 | `test_elementwise/test_reciprocal.cpp` | Tests ElementwiseOps::reciprocal against fixed expected values |
 | `test_elementwise/test_remainder.cpp` | Tests ElementwiseOps::remainder against fixed expected values |
@@ -44,7 +44,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_elementwise/test_sub.cpp` | Tests ElementwiseOps::sub against fixed expected values |
 | `test_elementwise/test_tan.cpp` | Tests ElementwiseOps::tan against fixed expected values |
 | `test_scalar_math.cpp` | Tests the host calls of the scalar functions elementwise applies to one element, the clamp bounds included |
-| `test_ordered_sum_element.cpp` | Tests the bits the ordered_sum kernel writes when a weight is rounded to float once on the host |
+| `test_ordered_sum_element.cpp` | Tests the bits the ordered_sum functor writes on the host for each row of `support/ordered_sum_rows.hpp`, and when a weight is rounded to float once |
 | `test_wrapping_math.cpp` | Tests that integer arithmetic wraps modulo its width and floating arithmetic is plain |
 
 ## test_elementwise/test_convert.cpp
