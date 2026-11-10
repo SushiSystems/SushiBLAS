@@ -53,14 +53,14 @@ the benchmark section of `tests/README.md` describes them.
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings, and the packed GEMM seam against the reference path |
 | `test_dispatch/test_reference_mode_guard.cpp` | Tests that ForceReference refuses device-only USM and runs on host-reachable USM |
-| `test_level1.cpp` | Tests that the Level 1 facet of BLASOps records copy, scal and swap with exact results |
-| `test_level2.cpp` | Tests that the Level 2 facet of BLASOps records gemv and ger with exact results |
-| `test_level3.cpp` | Tests that the Level 3 facet of BLASOps records gemm with exact results |
 | `test_local_tile.cpp` | Tests the local tile demand per dtype and the record-time check that a device hosts it |
 | `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand, including the dtype a device lacks |
 | `test_packed_product_scratch.cpp` | Tests that the packed product leases the scratch its plan names, and none without a plan or below the packing thresholds |
 | `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand, including the dtype a device lacks |
 | `test_shape_check.cpp` | Tests that the shape checks of gemm, syrk, trsm, trsv, dot and scal refuse what the routines refuse, on tensors with no storage |
+| `compile_level1.cpp` | Checks at compile time that BLASOps exposes the Level 1 facet and that only the facade builds it; the build compiles it and no test runner lists it |
+| `compile_level2.cpp` | Checks at compile time that BLASOps exposes the Level 2 facet and that only the facade builds it; the build compiles it and no test runner lists it |
+| `compile_level3.cpp` | Checks at compile time that BLASOps exposes the Level 3 facet and that only the facade builds it; the build compiles it and no test runner lists it |
 | `compile_sparse.cpp` | Checks at compile time that SparseBLAS is built from a recorder and only from one; the build compiles it and no test runner lists it |
 
 ## test_blas/test_gemm.cpp

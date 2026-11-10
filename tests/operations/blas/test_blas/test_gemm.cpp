@@ -543,6 +543,26 @@ namespace SushiBLAS
             expect_tensor_equal(C, stored_values({4, 5, 10, 11}, 2, 2, layout, false));
         }
 
+        TEST_P(Medium_GemmHandComputed, AlphaScalesTheProductAndBetaTheOldC)
+        {
+            // The product [[4,5],[10,11]] of the test above, with alpha 2 and beta -1 on a C of ones: [[7,9],[19,21]].
+            const bool a_stored_transposed = GetParam().axis == Transpose::Trans;
+            const Layout layout = GetParam().layout;
+            auto A = a_stored_transposed
+                         ? create_initialized_tensor<float>(
+                               {3, 2}, stored_values({1, 2, 3, 4, 5, 6}, 2, 3, layout, true))
+                         : create_initialized_tensor<float>(
+                               {2, 3}, stored_values({1, 2, 3, 4, 5, 6}, 2, 3, layout, false));
+            auto B = create_initialized_tensor<float>(
+                {3, 2}, stored_values({1, 0, 0, 1, 1, 1}, 3, 2, layout, false));
+            auto C = create_initialized_tensor<float>({2, 2}, stored_values({1, 1, 1, 1}, 2, 2, layout, false));
+
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, C, GetParam().axis, Transpose::NoTrans, 2.0, -1.0);
+            recording->run().value();
+
+            expect_tensor_equal(C, stored_values({7, 9, 19, 21}, 2, 2, layout, false));
+        }
+
         INSTANTIATE_TEST_SUITE_P(
             , Medium_GemmHandComputed,
             ::testing::ValuesIn(rows_of({DataType::Float32},

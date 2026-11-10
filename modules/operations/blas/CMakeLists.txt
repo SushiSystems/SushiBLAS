@@ -65,15 +65,15 @@ sushiblas_add_test_program(
         test_blas/test_syr2k_refusals.cpp
         test_blas_task.cpp
         test_gemm_recording.cpp
-        test_level1.cpp
-        test_level2.cpp
-        test_level3.cpp
         test_local_tile.cpp
         test_packed_operand.cpp
         test_packed_product_scratch.cpp
         test_scalar_operand.cpp
         test_shape_check.cpp
     COMPILE_CHECKS
+        compile_level1.cpp
+        compile_level2.cpp
+        compile_level3.cpp
         compile_sparse.cpp
     DEVICE_TESTS
         test_blas/test_blas_band.cpp

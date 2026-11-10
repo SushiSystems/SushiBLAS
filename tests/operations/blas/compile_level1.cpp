@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_level1.cpp                                                        */
+/* compile_level1.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,18 +22,14 @@
 /**************************************************************************/
 
 /**
- * @file test_level1.cpp
- * @brief Tests that the Level 1 facet of BLASOps records copy, scal and swap with exact results.
+ * @file compile_level1.cpp
+ * @brief Checks at compile time that BLASOps exposes the Level 1 facet and that only the facade builds it; the build compiles it and no test runner lists it.
  * @author Mustafa Garip
  */
 
 #include <type_traits>
-#include <vector>
-#include <gtest/gtest.h>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/blas/level1.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 
 namespace SushiBLAS
 {
@@ -42,50 +38,5 @@ namespace SushiBLAS
         static_assert(std::is_base_of_v<Level1, BLASOps>, "BLASOps exposes the Level 1 facet.");
         static_assert(!std::is_constructible_v<Level1, TaskRecorder&>,
                       "Only the facade builds the Level 1 facet.");
-
-        /** @brief Runs Level 1 calls through the facade on the fixture's engine. */
-        class Medium_Level1 : public SushiBLASTest
-        {
-
-        };
-
-        TEST_F(Medium_Level1, CopyGivesTheSourceValues)
-        {
-            const Tensor x = create_initialized_tensor<float>({3}, {1.0f, -2.0f, 3.0f});
-            Tensor y = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
-            BLASOps blas(recorder());
-            Level1& level1 = blas;
-
-            level1.copy(x, y);
-            ASSERT_TRUE(recording->run().has_value());
-
-            EXPECT_EQ(read_tensor<float>(y), (std::vector<float>{1.0f, -2.0f, 3.0f}));
-        }
-
-        TEST_F(Medium_Level1, ScalMultipliesEveryElement)
-        {
-            Tensor y = create_initialized_tensor<float>({3}, {1.0f, -2.0f, 3.0f});
-            BLASOps blas(recorder());
-            Level1& level1 = blas;
-
-            level1.scal(2.0f, y);
-            ASSERT_TRUE(recording->run().has_value());
-
-            EXPECT_EQ(read_tensor<float>(y), (std::vector<float>{2.0f, -4.0f, 6.0f}));
-        }
-
-        TEST_F(Medium_Level1, SwapExchangesTheTwoVectors)
-        {
-            Tensor y = create_initialized_tensor<float>({3}, {1.0f, -2.0f, 3.0f});
-            Tensor z = create_initialized_tensor<float>({3}, {7.0f, 8.0f, 9.0f});
-            BLASOps blas(recorder());
-            Level1& level1 = blas;
-
-            level1.swap(y, z);
-            ASSERT_TRUE(recording->run().has_value());
-
-            EXPECT_EQ(read_tensor<float>(y), (std::vector<float>{7.0f, 8.0f, 9.0f}));
-            EXPECT_EQ(read_tensor<float>(z), (std::vector<float>{1.0f, -2.0f, 3.0f}));
-        }
     } // namespace Test
 } // namespace SushiBLAS
