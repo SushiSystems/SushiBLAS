@@ -41,7 +41,8 @@ compiles the application's sources into the program.
 ## Sizes are labels
 
 What a test needs to run is its size, and the size is its one CTest label. CI chooses its stages
-by size, and CTest stops a test that outlives the timeout of its size.
+by size, and CTest stops a test that outlives the timeout of its size, which is the size's
+timeout per case times the cases of the shard.
 
 | Size | The test may use | Timeout |
 | --- | --- | --- |
@@ -60,11 +61,33 @@ A test's size is the prefix of its GoogleTest suite name: `Small_`, `Medium_` or
 prefixes as three filters, each with its label and timeout, and a suite with none of them stops
 the configure with its name.
 
+### Shards
+
+A case run in a process of its own pays the process and runtime start-up. The cmake file
+registers the cases of a program in shards instead: per program and per size, N CTest tests
+named `<program>.<size>_shard_<i>of<N>`, each running the program with
+`--gtest_filter=<prefix>*:*/<prefix>*` (without the quarantined cases), `GTEST_TOTAL_SHARDS=N`
+and `GTEST_SHARD_INDEX=i`. GoogleTest splits the filtered cases between the shards, so every
+case runs in exactly one. N is the case count of the size divided by the cases one shard
+holds, rounded up and at least 1: `SB_SHARD_CASES_SMALL` (300), `_MEDIUM` (25) and `_LARGE`
+(1), each with its reason in `cmake/SushiBLASTests.cmake`. The count comes from the `TEST`,
+`TEST_F`, `TEST_P`, `TYPED_TEST` and `TYPED_TEST_P` declarations in the program's sources, so a
+parametrised suite counts once and N is a floor. The cases of a size that the program
+quarantines run in one test of their own, `<program>.<size>_quarantined`, which carries
+`quarantined` beside the size. A single case runs through
+`sb run <program> -- --gtest_filter=<Suite.Case>`.
+
+Each shard writes its cases to `test_results/gtest/<shard>.xml` in the build tree.
+`tools/testing/test_budget.py --cases <folder>` reads those files, so the per-case limits apply
+to a case in a shard; the shard's own CTest entry has no size and counts nowhere.
+`GTEST_SHUFFLE` and `GTEST_RANDOM_SEED` of the calling environment reach every shard, and a
+death test's child process runs outside the sharding.
+
 Each module's tests build into an object library, `sushiblas_<module>_test_objects`, and each
 tier links the object libraries of its modules into one program, `sushiblas_<tier>_tests`: a
 program repeats the device link of the library, so one program per tier pays it once. The tier
 program's `main` creates the shared runtime unless `--gtest_filter` selects only `Small_` suites,
-so a `Small_` test, which CTest runs alone, opens no device and starts no worker thread. An
+so a `Small_` shard opens no device and starts no worker thread. An
 application keeps a program of its own, `sushiblas_<name>_tests`; one whose suites are all
 `Small_` is linked with `modules/foundation/test_runner/source/small_test_main.cpp`, which
 creates no runtime. A suite whose tests reach the runtime, a queue, a tensor or a file is

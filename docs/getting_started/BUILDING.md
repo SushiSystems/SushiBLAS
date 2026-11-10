@@ -5,7 +5,7 @@ What the build needs, how to install the toolchain and the CLI, and how to build
 ## Requirements
 
 - A SYCL 2020 compiler: the intel-llvm `clang++ -fsycl` that `sb setup` or SushiStack provisions. SushiBLAS selects no toolchain of its own; it builds with the one in the workspace `dependencies/` tree or under `~/.sushisystems`.
-- CMake 3.20 or newer, and 3.22 for the test suite's `gtest_discover_tests`.
+- CMake 3.20 or newer.
 - GoogleTest for the test suite.
 - The SushiRuntime, SushiLog and SushiProfiler packages, which `sb build` builds or reuses at the versions `cli/sushistack.deps.toml` pins ([section 8 of the architecture](../architecture/RUNTIME_DEPENDENCY.md)).
 - C++17 or later. The library is built at C++17; a C++20 consumer is supported.

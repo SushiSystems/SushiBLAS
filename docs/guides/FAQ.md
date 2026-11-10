@@ -31,7 +31,7 @@ own. [The integration guide's stability section](INTEGRATION.md#stability) state
 [The build page's requirements](../getting_started/BUILDING.md#requirements) list five things:
 
 - A SYCL 2020 compiler: the intel-llvm `clang++ -fsycl` that `sb setup` or SushiStack provisions.
-- CMake 3.20 or newer, and 3.22 for the test suite.
+- CMake 3.20 or newer.
 - GoogleTest for the test suite.
 - A SushiRuntime checkout or installed package.
 - C++17 or later. The library is built at C++17; a C++20 consumer is supported.
