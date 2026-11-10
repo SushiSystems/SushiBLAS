@@ -93,7 +93,10 @@ sushiblas_add_test_program(
         test_blas/test_rotmg.cpp
         test_blas/test_symm.cpp
         test_blas/test_syr2k.cpp
-        test_blas/test_triangular_parallel.cpp
+        test_blas/test_triangular_half.cpp
+        test_blas/test_triangular_product.cpp
+        test_blas/test_triangular_solve.cpp
+        test_blas/test_triangular_vector_solve.cpp
         test_dispatch/test_channel_bias_epilogue.cpp
         test_dispatch/test_packed_product.cpp
         test_dispatch/test_reference_mode_guard.cpp

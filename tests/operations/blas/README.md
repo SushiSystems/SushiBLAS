@@ -42,7 +42,11 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_symm_refusals.cpp` | Tests that symm refuses each of thirteen malformed calls with std::invalid_argument and records no task |
 | `test_blas/test_syr2k.cpp` | Tests syr2k and her2k against hand-computed updates, a host integer loop and a rounding bound |
 | `test_blas/test_syr2k_refusals.cpp` | Tests that syr2k and her2k refuse each of fifteen malformed calls with std::invalid_argument and record no task |
-| `test_blas/test_triangular_parallel.cpp` | Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
+| `test_blas/triangular_support.hpp` | Declares a host triangular system, its draws, the fixture that runs the triangular kernels and the public calls on it, and the row of the triangular suites |
+| `test_blas/test_triangular_solve.cpp` | Tests the blocked TRSM kernel and the public TRSV and TRSM against exact integer systems, a residual bound and each other |
+| `test_blas/test_triangular_product.cpp` | Tests the parallel TRMV kernel and the public TRMV against exact integer products, a double-precision truth and each other |
+| `test_blas/test_triangular_vector_solve.cpp` | Tests the blocked packed and band triangular solves, TPSV and TBSV, against exact integer systems and each other |
+| `test_blas/test_triangular_half.cpp` | Tests that the blocked HALF TPSV and the HALF TRMV carry their sums in FLOAT32 |
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
 | `test_gemm_recording.cpp` | Tests what a GEMM call records on the in-memory port: the dependencies for the operands its epilogue declares, and the refusals before any task |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_triangular_parallel.cpp                                           */
+/* triangular_support.hpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -22,11 +22,12 @@
 /**************************************************************************/
 
 /**
- * @file test_triangular_parallel.cpp
- * @brief Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel
- *        against exact integer systems, a double-precision truth and each other.
+ * @file triangular_support.hpp
+ * @brief Declares a host triangular system, its draws, the fixture and the row of the suites.
  * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <cmath>
@@ -57,108 +58,108 @@
 #include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        namespace
+        namespace TriangularSupport
         {
             /// @brief Holds the seed every case of this file draws its operands from.
-            constexpr std::uint32_t K_SEED = 20261007u;
+            inline constexpr std::uint32_t K_SEED = 20261007u;
 
             /// @brief Holds the order of the small systems: ten blocks of 7 with a short last one.
-            constexpr int64_t K_ORDER = 67;
+            inline constexpr int64_t K_ORDER = 67;
 
             /// @brief Holds the right-hand-side vectors of the small systems.
-            constexpr int64_t K_VECTORS = 5;
+            inline constexpr int64_t K_VECTORS = 5;
 
             /// @brief Holds the block widths compared with one block of the whole order.
-            constexpr int64_t K_BLOCK_WIDTHS[] = {1, 2, 7, 64, 1000};
+            inline constexpr int64_t K_BLOCK_WIDTHS[] = {1, 2, 7, 64, 1000};
 
             /// @brief Holds the block widths the exact systems are solved at.
-            constexpr int64_t K_EXACT_WIDTHS[] = {1, 7, K_ORDER};
+            inline constexpr int64_t K_EXACT_WIDTHS[] = {1, 7, K_ORDER};
 
             /// @brief Holds the block width of the batched and the gated solve: 19 launches.
-            constexpr int64_t K_NARROW_WIDTH = 7;
+            inline constexpr int64_t K_NARROW_WIDTH = 7;
 
             /// @brief Holds the matrices of one batched solve.
-            constexpr int64_t K_BATCH = 3;
+            inline constexpr int64_t K_BATCH = 3;
 
             /// @brief Holds the order at which a device of several compute units blocks a solve.
-            constexpr int64_t K_LARGE_ORDER = 1100;
+            inline constexpr int64_t K_LARGE_ORDER = 1100;
 
             /// @brief Holds the right-hand-side vectors of the large exact TRSM.
-            constexpr int64_t K_LARGE_VECTORS = 3;
+            inline constexpr int64_t K_LARGE_VECTORS = 3;
 
             /// @brief Holds the order of the systems whose residual is bounded.
-            constexpr int64_t K_RESIDUAL_ORDER = 300;
+            inline constexpr int64_t K_RESIDUAL_ORDER = 300;
 
             /// @brief Holds the right-hand-side vectors of the systems whose residual is bounded.
-            constexpr int64_t K_RESIDUAL_VECTORS = 4;
+            inline constexpr int64_t K_RESIDUAL_VECTORS = 4;
 
             /// @brief Holds the extent of the empty systems' other axis.
-            constexpr int64_t K_EMPTY_EXTENT = 3;
+            inline constexpr int64_t K_EMPTY_EXTENT = 3;
 
             /// @brief Holds the orders of the exact TRMV cases.
-            constexpr int64_t K_PRODUCT_ORDERS[] = {1, 2, 70};
+            inline constexpr int64_t K_PRODUCT_ORDERS[] = {1, 2, 70};
 
             /// @brief Holds the increments of x in the exact TRMV cases.
-            constexpr int64_t K_INCREMENTS[] = {1, 3};
+            inline constexpr int64_t K_INCREMENTS[] = {1, 3};
 
             /// @brief Holds the order of the TRMV measured against the truth.
-            constexpr int64_t K_PRODUCT_BOUND_ORDER = 1500;
+            inline constexpr int64_t K_PRODUCT_BOUND_ORDER = 1500;
 
             /// @brief Holds the order of the TRMV whose snapshot fits a pooled block.
-            constexpr int64_t K_POOLED_ORDER = 64;
+            inline constexpr int64_t K_POOLED_ORDER = 64;
 
             /// @brief Holds the work-group width the TRMV kernel is called with directly.
-            constexpr std::size_t K_GROUP_WIDTH = 8;
+            inline constexpr std::size_t K_GROUP_WIDTH = 8;
 
             /// @brief Holds the two row shapes of the TRMV kernel: per work-item and per group.
-            constexpr std::size_t K_GROUP_WIDTHS[] = {0, K_GROUP_WIDTH};
+            inline constexpr std::size_t K_GROUP_WIDTHS[] = {0, K_GROUP_WIDTH};
 
             /// @brief Holds the scale of the right-hand side in the rounded cases.
-            constexpr double K_ROUNDED_ALPHA = 1.5;
+            inline constexpr double K_ROUNDED_ALPHA = 1.5;
 
             /// @brief Holds the scale of the right-hand side in the exact cases.
-            constexpr double K_EXACT_ALPHA = 2.0;
+            inline constexpr double K_EXACT_ALPHA = 2.0;
 
             /**
              * @brief Holds the value written between the elements of a strided x and into B
              *        where a solve must write nothing.
              */
-            constexpr double K_SENTINEL = 77.0;
+            inline constexpr double K_SENTINEL = 77.0;
 
             /// @brief Holds the fractions a draw can take on each side of zero: 2^20.
-            constexpr double K_FRACTION_STEPS = 1048576.0;
+            inline constexpr double K_FRACTION_STEPS = 1048576.0;
 
             /// @brief Holds the roundings a row product makes whatever its length.
-            constexpr std::size_t K_FIXED_ROUNDINGS = 6;
+            inline constexpr std::size_t K_FIXED_ROUNDINGS = 6;
 
             /// @brief Holds the roundings a substitution step makes whatever its length.
-            constexpr std::size_t K_STEP_ROUNDINGS = 6;
+            inline constexpr std::size_t K_STEP_ROUNDINGS = 6;
 
             /// @brief Holds the roundings counted for a compensated sum of any length.
-            constexpr std::size_t K_COMPENSATED_ROUNDINGS = 2;
+            inline constexpr std::size_t K_COMPENSATED_ROUNDINGS = 2;
 
             /// @brief Holds the order of the HALF system of test_blas_half_accumulation.cpp.
-            constexpr int64_t K_HALF_ORDER = 64;
+            inline constexpr int64_t K_HALF_ORDER = 64;
 
             /// @brief Holds the block widths the HALF system is solved at.
-            constexpr int64_t K_HALF_WIDTHS[] = {8, K_HALF_ORDER};
+            inline constexpr int64_t K_HALF_WIDTHS[] = {8, K_HALF_ORDER};
 
             /// @brief Holds the off-diagonals of the small band systems: none, a few, every one.
-            constexpr int64_t K_BAND_WIDTHS[] = {0, 3, K_ORDER - 1};
+            inline constexpr int64_t K_BAND_WIDTHS[] = {0, 3, K_ORDER - 1};
 
             /// @brief Holds the off-diagonals at which a device of several units blocks a band.
-            constexpr int64_t K_LARGE_BAND = 400;
+            inline constexpr int64_t K_LARGE_BAND = 400;
 
             /// @brief Holds the two modes a public call is run in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+            inline constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
                                                  ExecutionMode::ForceSYCL};
 
             /** @brief Holds a queued event that stays incomplete until the gate is opened. */
@@ -212,7 +213,7 @@ namespace SushiBLAS
             };
 
             /** @brief Returns whether every command behind an event has finished. */
-            [[nodiscard]] bool is_complete(const sycl::event& event)
+            [[nodiscard]] inline bool is_complete(const sycl::event& event)
             {
                 return event.get_info<sycl::info::event::command_execution_status>() ==
                        sycl::info::event_command_status::complete;
@@ -229,7 +230,7 @@ namespace SushiBLAS
             };
 
             /** @brief Returns the flags of a call as one line of a failure message. */
-            [[nodiscard]] std::string describe(const TriangularFlags& flags)
+            [[nodiscard]] inline std::string describe(const TriangularFlags& flags)
             {
                 return std::string(flags.layout == Core::Layout::RowMajor ? "ROW_MAJOR"
                                                                            : "COLUMN_MAJOR") +
@@ -240,15 +241,14 @@ namespace SushiBLAS
             /**
              * @brief Returns every flag combination over the given sides: both layouts, both
              *        triangles, both diagonals, and each op the element type tells apart.
-             * @tparam T The element type; CONJ_TRANS is listed for a complex one only.
+             * @param is_complex Whether CONJ_TRANS is listed, which only a complex type tells apart.
              */
-            template<typename T>
-            [[nodiscard]] std::vector<TriangularFlags> flags_over(
-                std::initializer_list<Core::Side> sides)
+            [[nodiscard]] inline std::vector<TriangularFlags> flags_over(
+                bool is_complex, std::initializer_list<Core::Side> sides)
             {
                 std::vector<Core::Transpose> transposes = {Core::Transpose::NoTrans,
                                                            Core::Transpose::Trans};
-                if (Core::is_complex_v<T>)
+                if (is_complex)
                     transposes.push_back(Core::Transpose::ConjTrans);
 
                 std::vector<TriangularFlags> all;
@@ -433,7 +433,7 @@ namespace SushiBLAS
             }
 
             /** @brief Returns whether a triangular call reads element (r, c) of A. */
-            [[nodiscard]] bool is_read(const TriangularFlags& flags, int64_t r, int64_t c) noexcept
+            [[nodiscard]] inline bool is_read(const TriangularFlags& flags, int64_t r, int64_t c) noexcept
             {
                 if (r == c)
                     return flags.diag != Core::Diag::Unit;
@@ -701,7 +701,7 @@ namespace SushiBLAS
             };
 
             /** @brief Returns the queue every kernel of this file is launched on. */
-            [[nodiscard]] sycl::queue& test_queue()
+            [[nodiscard]] inline sycl::queue& test_queue()
             {
                 return TestEnvironment::queue();
             }
@@ -740,7 +740,7 @@ namespace SushiBLAS
             }
 
             /** @brief Returns a dense view of a buffer's elements as dims in a layout. */
-            [[nodiscard]] Tensor matrix_view(const Tensor& buffer,
+            [[nodiscard]] inline Tensor matrix_view(const Tensor& buffer,
                                              std::initializer_list<int64_t> dims,
                                              Core::Layout layout)
             {
@@ -748,7 +748,7 @@ namespace SushiBLAS
             }
 
             /** @brief Returns a rank-1 view of every increment-th element of a buffer. */
-            [[nodiscard]] Tensor strided_view(const Tensor& buffer, int64_t length,
+            [[nodiscard]] inline Tensor strided_view(const Tensor& buffer, int64_t length,
                                               int64_t increment)
             {
                 const int64_t dims[] = {length};
@@ -780,10 +780,8 @@ namespace SushiBLAS
 
             /**
              * @brief Runs the triangular kernels and the public calls on host-described systems.
-             * @tparam T The element type.
              */
-            template<typename T>
-            class TriangularParallelFixture : public SushiBLASTest
+            class TriangularFixture : public SushiBLASTest
             {
                 protected:
                     /**
@@ -791,6 +789,7 @@ namespace SushiBLAS
                      * @param shape Gives the flags and the extents of one matrix of the batch.
                      * @param str_a Elements from one A to the next; 0 shares one A.
                      */
+                    template<typename T>
                     [[nodiscard]] sycl::event submit_solve(const HostSolve<T>& shape, Tensor& A,
                                                            int64_t str_a, Tensor& B,
                                                            int64_t batch_size, T alpha,
@@ -811,6 +810,7 @@ namespace SushiBLAS
                      * @param a One dense A, or batch_size of them when str_a is not 0.
                      * @param b The whole device B, which may hold more elements than the batch.
                      */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> run_solve_kernel(const HostSolve<T>& shape,
                                                                   const std::vector<T>& a,
                                                                   int64_t str_a,
@@ -826,6 +826,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns X of one system, solved by the SYCL kernel at one width. */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_with_kernel(const HostSolve<T>& system,
                                                                    const std::vector<T>& b, T alpha,
                                                                    int64_t width)
@@ -835,6 +836,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns X of one system, solved by Level3::trsm in a mode. */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_through_view(const HostSolve<T>& system,
                                                                     const std::vector<T>& b,
                                                                     double alpha,
@@ -858,6 +860,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns x of a one-vector system, solved by Level2::trsv in mode. */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_vector_through_view(
                         const HostSolve<T>& system, const std::vector<T>& b, ExecutionMode mode)
                     {
@@ -879,6 +882,7 @@ namespace SushiBLAS
                      * @brief Returns the whole buffer of x after Level2::trmv ran in a mode.
                      * @param spaced_x The elements of x, increment apart.
                      */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> multiply_through_view(
                         const HostSolve<T>& system, const std::vector<T>& spaced_x,
                         int64_t increment, ExecutionMode mode)
@@ -903,6 +907,7 @@ namespace SushiBLAS
                      *        row shape.
                      * @param group_width 0 for one work-item per row, else the work-group width.
                      */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> multiply_with_kernel(
                         const HostSolve<T>& system, const std::vector<T>& spaced_x,
                         int64_t increment, std::size_t group_width)
@@ -928,6 +933,7 @@ namespace SushiBLAS
                      * @brief Submits the SYCL TPSV kernel on device operands at one block width.
                      * @param AP The packed storage of system's triangle.
                      */
+                    template<typename T>
                     [[nodiscard]] sycl::event submit_packed_solve(
                         const HostSolve<T>& system, Tensor& AP, Tensor& x, int64_t increment,
                         int64_t width, const std::vector<sycl::event>& deps)
@@ -944,6 +950,7 @@ namespace SushiBLAS
                      * @param full The matrix system was built from.
                      * @param spaced_b The right-hand side, increment apart.
                      */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_packed_with_kernel(
                         const HostSolve<T>& system, const std::vector<T>& full,
                         const std::vector<T>& spaced_b, int64_t increment, int64_t width)
@@ -960,6 +967,7 @@ namespace SushiBLAS
                      * @param full The matrix system was built from, zero beyond k off-diagonals.
                      * @param spaced_b The right-hand side, increment apart.
                      */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_band_with_kernel(
                         const HostSolve<T>& system, int64_t k, const std::vector<T>& full,
                         const std::vector<T>& spaced_b, int64_t increment, int64_t width)
@@ -979,6 +987,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns x of a packed system, solved by Level2::tpsv in ForceSYCL. */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_packed_through_view(
                         const HostSolve<T>& system, const std::vector<T>& full,
                         const std::vector<T>& b)
@@ -999,6 +1008,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns x of a band system, solved by Level2::tbsv in ForceSYCL. */
+                    template<typename T>
                     [[nodiscard]] std::vector<T> solve_band_through_view(
                         const HostSolve<T>& system, int64_t k, const std::vector<T>& full,
                         const std::vector<T>& b)
@@ -1021,6 +1031,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Returns the unit roundoff of the type the kernel of mode sums in. */
+                    template<typename T>
                     [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                     {
                         return mode == ExecutionMode::ForceReference
@@ -1032,6 +1043,7 @@ namespace SushiBLAS
                      * @brief Returns the roundings the kernel of mode makes on a sum of len terms.
                      * @param fixed The roundings counted whatever the length.
                      */
+                    template<typename T>
                     [[nodiscard]] static std::size_t roundings(ExecutionMode mode, int64_t len,
                                                                std::size_t fixed) noexcept
                     {
@@ -1046,12 +1058,13 @@ namespace SushiBLAS
                      *        the rounding bound of the step's accumulation.
                      * @param x The solution a kernel of mode wrote over b.
                      */
+                    template<typename T>
                     void expect_residual_within_bound(const HostSolve<T>& system,
                                                       const std::vector<T>& b, double alpha,
                                                       const std::vector<T>& x, ExecutionMode mode)
                     {
                         ASSERT_EQ(x.size(), b.size());
-                        const double unit = summing_unit(mode);
+                        const double unit = summing_unit<T>(mode);
 
                         for (int64_t v = 0; v < system.vectors(); ++v)
                         {
@@ -1074,7 +1087,7 @@ namespace SushiBLAS
 
                                 const TruthValue residual = sum.value();
                                 const double bound =
-                                    rounding_bound(roundings(mode, len, K_STEP_ROUNDINGS), unit,
+                                    rounding_bound(roundings<T>(mode, len, K_STEP_ROUNDINGS), unit,
                                                    residual.magnitude) +
                                     2.0 * unit_roundoff<T>() * residual.magnitude;
                                 ASSERT_LE(std::fabs(residual.value), bound)
@@ -1088,13 +1101,14 @@ namespace SushiBLAS
                      *        bound of the truth.
                      * @param actual The product a kernel of mode wrote over x.
                      */
+                    template<typename T>
                     void expect_product_within_bound(const HostSolve<T>& system,
                                                      const std::vector<T>& x,
                                                      const std::vector<T>& actual,
                                                      ExecutionMode mode)
                     {
                         ASSERT_EQ(actual.size(), x.size());
-                        const double unit = summing_unit(mode);
+                        const double unit = summing_unit<T>(mode);
 
                         for (int64_t s = 0; s < system.order(); ++s)
                         {
@@ -1112,7 +1126,7 @@ namespace SushiBLAS
 
                             const TruthValue truth = sum.value();
                             const double bound =
-                                rounding_bound(roundings(mode, len, K_FIXED_ROUNDINGS), unit,
+                                rounding_bound(roundings<T>(mode, len, K_FIXED_ROUNDINGS), unit,
                                                truth.magnitude) +
                                 unit_roundoff<T>() * std::fabs(truth.value);
                             ASSERT_NEAR(static_cast<double>(actual[system.unknown(s, 0)]),
@@ -1123,7 +1137,7 @@ namespace SushiBLAS
             };
 
             /** @brief Returns the flags of a row-major, left-side, non-unit call. */
-            [[nodiscard]] TriangularFlags plain_flags(Core::Uplo uplo,
+            [[nodiscard]] inline TriangularFlags plain_flags(Core::Uplo uplo,
                                                       Core::Transpose trans) noexcept
             {
                 TriangularFlags flags;
@@ -1131,775 +1145,171 @@ namespace SushiBLAS
                 flags.trans = trans;
                 return flags;
             }
-        } // namespace
-
-        /** @brief Runs the triangular kernels on every element type but HALF. */
-        template<typename T>
-        class Medium_TriangularParallel : public TriangularParallelFixture<T>
-        {
-
-        };
-
-        /// @brief Element types the triangular kernels are tested on.
-        using TriangularTypes =
-            ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_TriangularParallel, TriangularTypes);
-
-        /** @brief Runs the cases measured against a double-precision truth, on the real types. */
-        template<typename T>
-        class Medium_TriangularParallelReal : public TriangularParallelFixture<T>
-        {
-
-        };
-
-        /// @brief Element types a double-precision truth exists for.
-        using TriangularRealTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Medium_TriangularParallelReal, TriangularRealTypes);
-
-        /**
-         * @brief Tests that a solve leaves the same bytes at every block width.
-         */
-        TYPED_TEST(Medium_TriangularParallel, EveryBlockWidthGivesTheSameBits)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T alpha = element_of<T>(K_ROUNDED_ALPHA);
-
-            for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
+            /** @brief Returns the values of a constant array as a vector, for a row builder. */
+            template<std::size_t N>
+            [[nodiscard]] std::vector<int64_t> values_of(const int64_t (&values)[N])
             {
-                SCOPED_TRACE(describe(flags));
-                const HostSolve<T> system(flags, K_ORDER, K_VECTORS,
-                                          dominant_matrix<T>(K_ORDER, draws));
-                const std::vector<T> b = fraction_values<T>(system.elements(), draws);
-                const std::vector<T> whole = this->solve_with_kernel(system, b, alpha, K_ORDER);
-
-                for (const int64_t width : K_BLOCK_WIDTHS)
-                {
-                    SCOPED_TRACE(::testing::Message() << "block width " << width);
-                    expect_same_bits(this->solve_with_kernel(system, b, alpha, width), whole);
-                }
+                return std::vector<int64_t>(values, values + N);
             }
-        }
 
-        /**
-         * @brief Tests that a blocked solve of an integer system returns its solution with no
-         *        error, as the reference kernel does.
-         */
-        TYPED_TEST(Medium_TriangularParallel, ABlockedSolveIsExactOnIntegerSystems)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T alpha = element_of<T>(K_EXACT_ALPHA);
-
-            for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
+            /**
+             * @brief Holds the matrices of one batched solve: the host description of each, the
+             *        stored A of the batch and the right-hand sides.
+             * @tparam T The element type.
+             */
+            template<typename T>
+            struct SolveBatch
             {
-                SCOPED_TRACE(describe(flags));
-                const HostSolve<T> system(flags, K_ORDER, K_VECTORS,
-                                          exact_matrix<T>(K_ORDER, draws));
-                const std::vector<T> solution =
-                    integer_values<T>(system.elements(), -3, 3, draws);
-                const std::vector<T> b = system.product(solution);
-                const std::vector<T> expected = scaled(solution, alpha);
+                std::vector<HostSolve<T>> systems; /**< The systems, one per matrix. */
+                std::vector<T> a;                  /**< The stored A of the batch. */
+                std::vector<T> b;                  /**< The right-hand sides of the batch. */
+            };
 
-                for (const int64_t width : K_EXACT_WIDTHS)
-                {
-                    SCOPED_TRACE(::testing::Message() << "block width " << width);
-                    expect_equal_values(this->solve_with_kernel(system, b, alpha, width),
-                                        expected);
-                }
-
-                SCOPED_TRACE("ForceReference");
-                expect_equal_values(this->solve_through_view(system, b, K_EXACT_ALPHA,
-                                                             ExecutionMode::ForceReference),
-                                    expected);
-            }
-        }
-
-        /**
-         * @brief Tests that a batch solved in blocks equals each of its matrices solved alone.
-         */
-        TYPED_TEST(Medium_TriangularParallel, ABatchIsSolvedMatrixByMatrix)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T alpha = element_of<T>(K_ROUNDED_ALPHA);
-            const std::size_t matrix_elements = static_cast<std::size_t>(K_ORDER * K_ORDER);
-
-            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
+            /**
+             * @brief Returns a batch of K_BATCH systems of order K_ORDER.
+             * @param shares_a Whether every matrix uses the A of the first.
+             */
+            template<typename T>
+            [[nodiscard]] SolveBatch<T> make_batch(const TriangularFlags& flags, bool shares_a,
+                                                   Draws& draws)
             {
-                for (const bool shares_a : {false, true})
+                SolveBatch<T> batch;
+                std::vector<T> full;
+                for (int64_t k = 0; k < K_BATCH; ++k)
                 {
-                    TriangularFlags flags;
-                    flags.side = side;
-                    SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(shares_a ? "A of rank 2" : "A batched");
-
-                    std::vector<HostSolve<T>> systems;
-                    std::vector<T> a;
-                    std::vector<T> b;
-                    std::vector<T> full;
-                    for (int64_t k = 0; k < K_BATCH; ++k)
+                    if (k == 0 || !shares_a)
                     {
-                        if (k == 0 || !shares_a)
-                        {
-                            full = dominant_matrix<T>(K_ORDER, draws);
-                            const std::vector<T> stored =
-                                HostSolve<T>(flags, K_ORDER, K_VECTORS, full).stored_matrix();
-                            a.insert(a.end(), stored.begin(), stored.end());
-                        }
-                        systems.emplace_back(flags, K_ORDER, K_VECTORS, full);
-
-                        const std::vector<T> rhs =
-                            fraction_values<T>(systems.back().elements(), draws);
-                        b.insert(b.end(), rhs.begin(), rhs.end());
+                        full = dominant_matrix<T>(K_ORDER, draws);
+                        const std::vector<T> stored =
+                            HostSolve<T>(flags, K_ORDER, K_VECTORS, full).stored_matrix();
+                        batch.a.insert(batch.a.end(), stored.begin(), stored.end());
                     }
+                    batch.systems.emplace_back(flags, K_ORDER, K_VECTORS, full);
 
-                    const std::vector<T> solved = this->run_solve_kernel(
-                        systems.front(), a, shares_a ? 0 : static_cast<int64_t>(matrix_elements),
-                        b, K_BATCH, alpha, K_NARROW_WIDTH);
-                    ASSERT_EQ(solved.size(), b.size());
-
-                    const std::size_t per_matrix = systems.front().elements();
-                    for (std::size_t k = 0; k < systems.size(); ++k)
-                    {
-                        SCOPED_TRACE(::testing::Message() << "matrix " << k);
-                        const std::vector<T> alone = this->solve_with_kernel(
-                            systems[k], slice_of(b, k * per_matrix, (k + 1) * per_matrix), alpha,
-                            K_ORDER);
-                        expect_same_bits(
-                            slice_of(solved, k * per_matrix, (k + 1) * per_matrix), alone);
-                    }
+                    const std::vector<T> rhs =
+                        fraction_values<T>(batch.systems.back().elements(), draws);
+                    batch.b.insert(batch.b.end(), rhs.begin(), rhs.end());
                 }
+                return batch;
             }
-        }
 
-        /**
-         * @brief Tests that every launch of a blocked solve stays behind the events it is given.
-         */
-        TYPED_TEST(Medium_TriangularParallel, ABlockedSolveWaitsForItsDependencies)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T alpha = element_of<T>(K_EXACT_ALPHA);
+            /** @brief Holds the element types of the triangular suites: every one but HALF. */
+            inline const std::vector<Core::DataType> K_TRIANGULAR_TYPES = {
+                Core::DataType::Float32, Core::DataType::Float64, Core::DataType::Complex32,
+                Core::DataType::Complex64};
 
-            const HostSolve<T> system(TriangularFlags{}, K_ORDER, K_VECTORS,
-                                      exact_matrix<T>(K_ORDER, draws));
-            const std::vector<T> solution = integer_values<T>(system.elements(), -3, 3, draws);
+            /** @brief Holds the element types a double-precision truth exists for. */
+            inline const std::vector<Core::DataType> K_TRIANGULAR_REAL_TYPES = {
+                Core::DataType::Float32, Core::DataType::Float64};
 
-            Tensor A = device_buffer<T>(*this->engine, system.stored_matrix());
-            Tensor B = device_buffer<T>(*this->engine, system.product(solution));
+            using Test::axis_name;
 
-            DependencyGate gate(test_queue());
-            sycl::event done = this->submit_solve(system, A, 0, B, 1, alpha, K_NARROW_WIDTH,
-                                                  std::vector<sycl::event>{gate.event()});
-
-            EXPECT_FALSE(is_complete(done))
-                << "The solve's last event completed while its dependency was still running.";
-
-            gate.open();
-            done.wait_and_throw();
-            expect_equal_values(read_buffer<T>(B), scaled(solution, alpha));
-        }
-
-        /**
-         * @brief Tests that a solve without steps, or without vectors, finishes and writes nothing.
-         */
-        TYPED_TEST(Medium_TriangularParallel, AnEmptySystemReturnsAnEvent)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T alpha = element_of<T>(K_EXACT_ALPHA);
-            const std::vector<T> untouched(static_cast<std::size_t>(K_EMPTY_EXTENT),
-                                           element_of<T>(K_SENTINEL));
-
-            const HostSolve<T> no_steps(TriangularFlags{}, 0, K_EMPTY_EXTENT, {});
-            expect_same_bits(this->run_solve_kernel(no_steps, {}, 0, untouched, 1, alpha, 1),
-                             untouched);
-
-            const HostSolve<T> no_vectors(TriangularFlags{}, K_EMPTY_EXTENT, 0,
-                                          exact_matrix<T>(K_EMPTY_EXTENT, draws));
-            expect_same_bits(this->run_solve_kernel(no_vectors, no_vectors.stored_matrix(), 0,
-                                                    untouched, 1, alpha, 1),
-                             untouched);
-        }
-
-        /**
-         * @brief Tests that TRMV of small integers equals the host product in both modes and
-         *        in both row shapes of the SYCL kernel.
-         */
-        TYPED_TEST(Medium_TriangularParallel, TrmvIsExactOnSmallIntegers)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T gap = element_of<T>(K_SENTINEL);
-
-            for (const int64_t order : K_PRODUCT_ORDERS)
+            /** @brief Returns the tail of a row named by a set of flags. */
+            [[nodiscard]] inline std::string axis_name(const TriangularFlags& flags)
             {
-                for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
-                {
-                    const std::size_t elements = static_cast<std::size_t>(order * order);
-                    const HostSolve<T> system(flags, order, 1,
-                                              integer_values<T>(elements, -3, 3, draws));
-                    const std::vector<T> x =
-                        integer_values<T>(static_cast<std::size_t>(order), -3, 3, draws);
-                    const std::vector<T> product = system.product(x);
-
-                    for (const int64_t increment : K_INCREMENTS)
-                    {
-                        SCOPED_TRACE(describe(flags));
-                        SCOPED_TRACE(::testing::Message() << "order " << order << ", increment "
-                                                          << increment);
-
-                        const std::vector<T> input = spaced(x, increment, gap);
-                        const std::vector<T> expected = spaced(product, increment, gap);
-
-                        for (const ExecutionMode mode : K_MODES)
-                            expect_equal_values(
-                                this->multiply_through_view(system, input, increment, mode),
-                                expected);
-
-                        for (const std::size_t group_width : K_GROUP_WIDTHS)
-                            expect_equal_values(
-                                this->multiply_with_kernel(system, input, increment, group_width),
-                                expected);
-                    }
-                }
+                return "_" + word(flags.layout) + "_" + word(flags.side) + "_" + word(flags.uplo) +
+                       "_" + word(flags.trans) + "_" + word(flags.diag);
             }
-        }
 
-        /**
-         * @brief Tests that two runs of one TRMV on the SYCL kernel leave the same bytes.
-         */
-        TYPED_TEST(Medium_TriangularParallel, TrmvRepeatsToTheBit)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const std::size_t order = static_cast<std::size_t>(K_PRODUCT_BOUND_ORDER);
-
-            const HostSolve<T> system(TriangularFlags{}, K_PRODUCT_BOUND_ORDER, 1,
-                                      fraction_values<T>(order * order, draws));
-            const std::vector<T> x = fraction_values<T>(order, draws);
-
-            const std::vector<T> first =
-                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSYCL);
-            const std::vector<T> second =
-                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSYCL);
-            expect_same_bits(first, second);
-        }
-
-        /**
-         * @brief Tests that the snapshot of a TRMV returns to the pool and is lent again.
-         */
-        TYPED_TEST(Medium_TriangularParallel, TrmvReturnsItsSnapshotToThePool)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const std::size_t order = static_cast<std::size_t>(K_POOLED_ORDER);
-
-            const HostSolve<T> system(TriangularFlags{}, K_POOLED_ORDER, 1,
-                                      fraction_values<T>(order * order, draws));
-            Tensor a_buffer = device_buffer<T>(*this->engine, system.stored_matrix());
-            Tensor x = device_buffer<T>(*this->engine, fraction_values<T>(order, draws));
-            Tensor A = matrix_view(a_buffer, {K_POOLED_ORDER, K_POOLED_ORDER},
-                                   Core::Layout::RowMajor);
-
-            ScratchPool& pool = this->engine->scratch_pool();
-            this->set_mode(ExecutionMode::ForceSYCL);
-            const std::size_t outstanding_before =
-                TestEnvironment::live_allocation_count() - pool.idle_block_count();
-
-            SushiBLAS::BLASOps(this->recorder()).trmv(A, x, Core::Uplo::Lower);
-            this->recording->run().value();
-
-            EXPECT_EQ(outstanding_before,
-                      TestEnvironment::live_allocation_count() - pool.idle_block_count())
-                << "Every allocation the product made must be idle in the pool or freed.";
-
-            const std::size_t live_after_first = TestEnvironment::live_allocation_count();
-            const std::size_t idle_after_first = pool.idle_block_count();
-
-            SushiBLAS::BLASOps(this->recorder()).trmv(A, x, Core::Uplo::Lower);
-            this->recording->run().value();
-
-            EXPECT_EQ(live_after_first, TestEnvironment::live_allocation_count());
-            EXPECT_EQ(idle_after_first, pool.idle_block_count());
-        }
-
-        /**
-         * @brief Tests that both launches of TRMV stay behind the events the kernel is given.
-         */
-        TYPED_TEST(Medium_TriangularParallel, TrmvWaitsForItsDependencies)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const std::size_t order = static_cast<std::size_t>(K_ORDER);
-
-            const HostSolve<T> system(TriangularFlags{}, K_ORDER, 1,
-                                      integer_values<T>(order * order, -3, 3, draws));
-            const std::vector<T> x = integer_values<T>(order, -3, 3, draws);
-
-            Tensor A = device_buffer<T>(*this->engine, system.stored_matrix());
-            Tensor device_x = device_buffer<T>(*this->engine, x);
-            Tensor work =
-                device_buffer<T>(*this->engine, std::vector<T>(order, element_of<T>(0.0)));
-
-            const TriangularFlags& flags = system.flags();
-            DependencyGate gate(test_queue());
-            sycl::event done = Kernels::SYCL::trmv<T>(
-                test_queue(), flags.layout, flags.uplo, flags.trans, flags.diag, system.order(),
-                pointer_of<const T>(A), system.lda(), pointer_of<T>(device_x), 1,
-                pointer_of<T>(work), std::vector<sycl::event>{gate.event()});
-
-            EXPECT_FALSE(is_complete(done))
-                << "The product's last event completed while its dependency was still running.";
-
-            gate.open();
-            done.wait_and_throw();
-            expect_equal_values(read_buffer<T>(device_x), system.product(x));
-        }
-
-        /**
-         * @brief Tests that a packed and a band solve leave the same bytes at every block width.
-         */
-        TYPED_TEST(Medium_TriangularParallel, AVectorSolveGivesTheSameBitsAtEveryBlockWidth)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-
-            for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
+            /** @brief Holds the flags of a call and the block width it is solved at. */
+            struct FlagsWidth
             {
-                SCOPED_TRACE(describe(flags));
-                const std::vector<T> full = dominant_matrix<T>(K_ORDER, draws);
-                const std::vector<T> b =
-                    fraction_values<T>(static_cast<std::size_t>(K_ORDER), draws);
+                TriangularFlags flags; /**< The flags of the call. */
+                int64_t width;         /**< The block width of the solve. */
+            };
 
-                const HostSolve<T> packed(flags, K_ORDER, 1, full);
-                const std::vector<T> whole =
-                    this->solve_packed_with_kernel(packed, full, b, 1, K_ORDER);
-                for (const int64_t width : K_BLOCK_WIDTHS)
-                {
-                    SCOPED_TRACE(::testing::Message() << "packed, block width " << width);
-                    expect_same_bits(this->solve_packed_with_kernel(packed, full, b, 1, width),
-                                     whole);
-                }
-
-                for (const int64_t k : K_BAND_WIDTHS)
-                {
-                    const std::vector<T> narrow = banded(full, K_ORDER, k);
-                    const HostSolve<T> band(flags, K_ORDER, 1, narrow);
-                    const std::vector<T> whole_band =
-                        this->solve_band_with_kernel(band, k, narrow, b, 1, K_ORDER);
-                    for (const int64_t width : K_BLOCK_WIDTHS)
-                    {
-                        SCOPED_TRACE(::testing::Message() << "band of " << k << ", block width "
-                                                          << width);
-                        expect_same_bits(
-                            this->solve_band_with_kernel(band, k, narrow, b, 1, width),
-                            whole_band);
-                    }
-                }
-            }
-        }
-
-        /**
-         * @brief Tests that a blocked packed and a blocked band solve return the solution of an
-         *        integer system with no error and write nothing between the elements of x.
-         */
-        TYPED_TEST(Medium_TriangularParallel, ABlockedVectorSolveIsExactOnIntegerSystems)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const T gap = element_of<T>(K_SENTINEL);
-
-            for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
+            /** @brief Returns the tail of a row named by flags and a block width. */
+            [[nodiscard]] inline std::string axis_name(const FlagsWidth& axis)
             {
-                const std::vector<T> full = exact_matrix<T>(K_ORDER, draws);
-                const std::vector<T> solution =
-                    integer_values<T>(static_cast<std::size_t>(K_ORDER), -3, 3, draws);
-
-                for (const int64_t increment : K_INCREMENTS)
-                {
-                    SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(::testing::Message() << "increment " << increment);
-                    const std::vector<T> expected = spaced(solution, increment, gap);
-
-                    const HostSolve<T> packed(flags, K_ORDER, 1, full);
-                    const std::vector<T> packed_b =
-                        spaced(packed.product(solution), increment, gap);
-                    for (const int64_t width : K_EXACT_WIDTHS)
-                    {
-                        SCOPED_TRACE(::testing::Message() << "packed, block width " << width);
-                        expect_equal_values(
-                            this->solve_packed_with_kernel(packed, full, packed_b, increment,
-                                                           width),
-                            expected);
-                    }
-
-                    for (const int64_t k : K_BAND_WIDTHS)
-                    {
-                        const std::vector<T> narrow = banded(full, K_ORDER, k);
-                        const HostSolve<T> band(flags, K_ORDER, 1, narrow);
-                        const std::vector<T> band_b =
-                            spaced(band.product(solution), increment, gap);
-                        for (const int64_t width : K_EXACT_WIDTHS)
-                        {
-                            SCOPED_TRACE(::testing::Message() << "band of " << k
-                                                              << ", block width " << width);
-                            expect_equal_values(
-                                this->solve_band_with_kernel(band, k, narrow, band_b, increment,
-                                                             width),
-                                expected);
-                        }
-                    }
-                }
+                return axis_name(axis.flags) + "_w" + std::to_string(axis.width);
             }
-        }
 
-        /**
-         * @brief Tests that every launch of a blocked packed solve stays behind the events it is
-         *        given.
-         */
-        TYPED_TEST(Medium_TriangularParallel, ABlockedVectorSolveWaitsForItsDependencies)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-
-            const std::vector<T> full = exact_matrix<T>(K_ORDER, draws);
-            const HostSolve<T> system(TriangularFlags{}, K_ORDER, 1, full);
-            const std::vector<T> solution =
-                integer_values<T>(static_cast<std::size_t>(K_ORDER), -3, 3, draws);
-
-            Tensor AP = device_buffer<T>(*this->engine,
-                                         packed_storage(system.flags(), K_ORDER, full));
-            Tensor x = device_buffer<T>(*this->engine, system.product(solution));
-
-            DependencyGate gate(test_queue());
-            sycl::event done = this->submit_packed_solve(
-                system, AP, x, 1, K_NARROW_WIDTH, std::vector<sycl::event>{gate.event()});
-
-            EXPECT_FALSE(is_complete(done))
-                << "The solve's last event completed while its dependency was still running.";
-
-            gate.open();
-            done.wait_and_throw();
-            expect_equal_values(read_buffer<T>(x), solution);
-        }
-
-        /**
-         * @brief Tests that a packed and a band solve of no rows finish.
-         */
-        TYPED_TEST(Medium_TriangularParallel, AnEmptyVectorSolveReturnsAnEvent)
-        {
-            using T = TypeParam;
-            const HostSolve<T> empty(TriangularFlags{}, 0, 1, {});
-
-            EXPECT_TRUE(this->solve_packed_with_kernel(empty, {}, {}, 1, 1).empty());
-            EXPECT_TRUE(this->solve_band_with_kernel(empty, 0, {}, {}, 1, 1).empty());
-        }
-
-        /**
-         * @brief Tests that the public TPSV and TBSV solve a large integer system with no error
-         *        on the path the device plans.
-         */
-        TYPED_TEST(Medium_TriangularParallelReal, ThePlannedVectorPathIsExactAtALargeOrder)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-
-            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
+            /**
+             * @brief Holds one row of a triangular suite: the element type and the one axis the
+             *        cases of the suite vary besides it.
+             * @tparam Axis NoAxis, or the type of the value that completes the row.
+             */
+            template<typename Axis>
+            struct TriangularRow
             {
-                const TriangularFlags flags = plain_flags(uplo, Core::Transpose::NoTrans);
-                SCOPED_TRACE(describe(flags));
+                Core::DataType type; /**< The element type of every operand. */
+                Axis axis;           /**< The value that completes the row. */
+            };
 
-                const std::vector<T> full = exact_matrix<T>(K_LARGE_ORDER, draws);
-                const std::vector<T> x =
-                    integer_values<T>(static_cast<std::size_t>(K_LARGE_ORDER), -3, 3, draws);
-
-                const HostSolve<T> packed(flags, K_LARGE_ORDER, 1, full);
-                expect_equal_values(
-                    this->solve_packed_through_view(packed, full, packed.product(x)), x);
-
-                const std::vector<T> narrow = banded(full, K_LARGE_ORDER, K_LARGE_BAND);
-                const HostSolve<T> band(flags, K_LARGE_ORDER, 1, narrow);
-                expect_equal_values(
-                    this->solve_band_through_view(band, K_LARGE_BAND, narrow, band.product(x)),
-                    x);
-            }
-        }
-
-        /**
-         * @brief Tests that the public TRSV and TRSM solve a large integer system with no error
-         *        on the path the device plans.
-         */
-        TYPED_TEST(Medium_TriangularParallelReal, ThePlannedPathIsExactAtALargeOrder)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-
-            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
+            /** @brief Returns every row over the given element types and axis values. */
+            template<typename Axis>
+            [[nodiscard]] std::vector<TriangularRow<Axis>> rows_over(
+                const std::vector<Core::DataType>& types, const std::vector<Axis>& axes)
             {
-                const TriangularFlags flags = plain_flags(uplo, Core::Transpose::NoTrans);
-                SCOPED_TRACE(describe(flags));
-
-                const HostSolve<T> single(flags, K_LARGE_ORDER, 1,
-                                          exact_matrix<T>(K_LARGE_ORDER, draws));
-                const std::vector<T> x = integer_values<T>(single.elements(), -3, 3, draws);
-                expect_equal_values(
-                    this->solve_vector_through_view(single, single.product(x),
-                                                    ExecutionMode::ForceSYCL),
-                    x);
-
-                const HostSolve<T> several(flags, K_LARGE_ORDER, K_LARGE_VECTORS,
-                                           exact_matrix<T>(K_LARGE_ORDER, draws));
-                const std::vector<T> solution =
-                    integer_values<T>(several.elements(), -3, 3, draws);
-                expect_equal_values(
-                    this->solve_through_view(several, several.product(solution), K_EXACT_ALPHA,
-                                             ExecutionMode::ForceSYCL),
-                    scaled(solution, element_of<T>(K_EXACT_ALPHA)));
+                std::vector<TriangularRow<Axis>> rows;
+                for (const Core::DataType type : types)
+                    for (const Axis& axis : axes)
+                        rows.push_back({type, axis});
+                return rows;
             }
-        }
 
-        /**
-         * @brief Tests that both kernels leave every step of a solve within its residual bound.
-         */
-        TYPED_TEST(Medium_TriangularParallelReal, TheResidualIsWithinItsBound)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-
-            for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
+            /** @brief Returns the rows of a suite that has no axis of its own. */
+            [[nodiscard]] inline std::vector<TriangularRow<NoAxis>> plain_rows_over(
+                const std::vector<Core::DataType>& types)
             {
-                const HostSolve<T> system(flags, K_RESIDUAL_ORDER, K_RESIDUAL_VECTORS,
-                                          dominant_matrix<T>(K_RESIDUAL_ORDER, draws));
-                const std::vector<T> b = fraction_values<T>(system.elements(), draws);
-
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                                   : "ForceReference");
-                    this->expect_residual_within_bound(
-                        system, b, K_ROUNDED_ALPHA,
-                        this->solve_through_view(system, b, K_ROUNDED_ALPHA, mode), mode);
-                }
+                return rows_over(types, std::vector<NoAxis>{NoAxis{}});
             }
-        }
 
-        /**
-         * @brief Tests that TRMV stays within its rounding bound of the truth in both modes and
-         *        in the work-group shape of the SYCL kernel.
-         */
-        TYPED_TEST(Medium_TriangularParallelReal, TrmvIsWithinItsBoundOfTheTruth)
-        {
-            using T = TypeParam;
-            Draws draws(K_SEED);
-            const std::size_t order = static_cast<std::size_t>(K_PRODUCT_BOUND_ORDER);
-
-            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
+            /** @brief Returns whether a data type is one of the two complex types. */
+            [[nodiscard]] inline bool is_complex_type(Core::DataType type) noexcept
             {
-                for (const Core::Transpose trans :
-                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
-                {
-                    const TriangularFlags flags = plain_flags(uplo, trans);
-                    SCOPED_TRACE(describe(flags));
-
-                    const HostSolve<T> system(flags, K_PRODUCT_BOUND_ORDER, 1,
-                                              fraction_values<T>(order * order, draws));
-                    const std::vector<T> x = fraction_values<T>(order, draws);
-
-                    for (const ExecutionMode mode : K_MODES)
-                        this->expect_product_within_bound(
-                            system, x, this->multiply_through_view(system, x, 1, mode), mode);
-
-                    this->expect_product_within_bound(
-                        system, x, this->multiply_with_kernel(system, x, 1, K_GROUP_WIDTH),
-                        ExecutionMode::ForceSYCL);
-                }
+                return type == Core::DataType::Complex32 || type == Core::DataType::Complex64;
             }
-        }
 
-        /**
-         * @brief Runs the triangular kernels on HALF operands, on a device that has fp16.
-         */
-        class Medium_TriangularParallelHalf : public SushiBLASTest
-        {
-            protected:
-                /** @brief Builds the engine and skips the case on a device without fp16. */
-                void SetUp() override
-                {
-                    SushiBLASTest::SetUp();
+            /** @brief Returns one row per element type and flag combination over the sides. */
+            [[nodiscard]] inline std::vector<TriangularRow<TriangularFlags>> flag_rows(
+                const std::vector<Core::DataType>& types, std::initializer_list<Core::Side> sides)
+            {
+                std::vector<TriangularRow<TriangularFlags>> rows;
+                for (const Core::DataType type : types)
+                    for (const TriangularFlags& flags : flags_over(is_complex_type(type), sides))
+                        rows.push_back({type, flags});
+                return rows;
+            }
 
-                    if (!test_queue().get_device().has(sycl::aspect::fp16))
-                        GTEST_SKIP() << "the device does not report the fp16 aspect";
-                }
+            /** @brief Returns one row per element type, flag combination and block width. */
+            [[nodiscard]] inline std::vector<TriangularRow<FlagsWidth>> width_rows(
+                const std::vector<Core::DataType>& types, std::initializer_list<Core::Side> sides,
+                const std::vector<int64_t>& widths)
+            {
+                std::vector<TriangularRow<FlagsWidth>> rows;
+                for (const TriangularRow<TriangularFlags>& row : flag_rows(types, sides))
+                    for (const int64_t width : widths)
+                        rows.push_back({row.type, FlagsWidth{row.axis, width}});
+                return rows;
+            }
 
-                /** @brief Returns the row-major unit-lower A of order K_HALF_ORDER, zero above. */
-                [[nodiscard]] static std::vector<sycl::half> unit_lower_values()
-                {
-                    const std::size_t order = static_cast<std::size_t>(K_HALF_ORDER);
-                    std::vector<sycl::half> values(order * order, sycl::half(0.0f));
-                    for (std::size_t i = 0; i < order; ++i)
+            /** @brief Returns the name of a row for GoogleTest: element type, then the axis. */
+            template<typename Axis>
+            [[nodiscard]] std::string triangular_row_name(
+                const ::testing::TestParamInfo<TriangularRow<Axis>>& info)
+            {
+                return Core::to_string(info.param.type) + axis_name(info.param.axis);
+            }
+
+            /**
+             * @brief Runs a case once per row: skips a device that lacks the element type of the
+             *        row, then gives the case the fixture of the triangular kernels.
+             * @tparam Axis NoAxis, or the type of the value that completes each row.
+             */
+            template<typename Axis>
+            class TriangularCase : public TriangularFixture,
+                                   public ::testing::WithParamInterface<TriangularRow<Axis>>
+            {
+                protected:
+                    /** @brief Builds the engine, or skips the row. */
+                    void SetUp() override
                     {
-                        for (std::size_t k = 0; k < i; ++k)
-                        {
-                            const int64_t step = static_cast<int64_t>((i * 7u + k * 13u) % 17u) - 8;
-                            values[i * order + k] = sycl::half(static_cast<float>(step) / 64.0f);
-                        }
-                        values[i * order + i] = sycl::half(1.0f);
+                        TriangularFixture::SetUp();
+                        if (!device_runs(this->GetParam().type))
+                            GTEST_SKIP() << "the device does not compute in this element type";
                     }
-                    return values;
-                }
-
-                /** @brief Returns count right-hand-side elements, each a multiple of 1/8. */
-                [[nodiscard]] static std::vector<sycl::half> right_hand_side_values(int64_t count)
-                {
-                    std::vector<sycl::half> values(static_cast<std::size_t>(count));
-                    for (std::size_t i = 0; i < values.size(); ++i)
-                    {
-                        const int64_t step = static_cast<int64_t>((i * 5u) % 23u) - 11;
-                        values[i] = sycl::half(static_cast<float>(step) / 8.0f);
-                    }
-                    return values;
-                }
-
-                /**
-                 * @brief Returns the host solution of the unit-lower system, summed and carried in
-                 *        float, subtracting in the order of the kernel's substitution.
-                 * @return Each solved element rounded once to HALF.
-                 */
-                [[nodiscard]] static std::vector<sycl::half> substitute_in_float(
-                    Core::Side side, int64_t rows, int64_t cols, const std::vector<sycl::half>& a,
-                    const std::vector<sycl::half>& b)
-                {
-                    std::vector<float> carried(b.size());
-                    std::vector<sycl::half> solution(b.size());
-
-                    const auto factor = [&a](int64_t r, int64_t c)
-                    {
-                        const int64_t index = r * K_HALF_ORDER + c;
-                        return static_cast<float>(a[static_cast<std::size_t>(index)]);
-                    };
-                    const auto at = [cols](int64_t r, int64_t c)
-                    {
-                        return static_cast<std::size_t>(r * cols + c);
-                    };
-
-                    if (side == Core::Side::Left)
-                    {
-                        for (int64_t j = 0; j < cols; ++j)
-                        {
-                            for (int64_t i = 0; i < rows; ++i)
-                            {
-                                float sum = static_cast<float>(b[at(i, j)]);
-                                for (int64_t k = 0; k < i; ++k)
-                                    sum -= factor(i, k) * carried[at(k, j)];
-                                carried[at(i, j)] = sum;
-                                solution[at(i, j)] = sycl::half(sum);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        for (int64_t i = 0; i < rows; ++i)
-                        {
-                            for (int64_t p = cols - 1; p >= 0; --p)
-                            {
-                                float sum = static_cast<float>(b[at(i, p)]);
-                                for (int64_t q = cols - 1; q > p; --q)
-                                    sum -= factor(q, p) * carried[at(i, q)];
-                                carried[at(i, p)] = sum;
-                                solution[at(i, p)] = sycl::half(sum);
-                            }
-                        }
-                    }
-                    return solution;
-                }
-
-                /** @brief Returns X of the unit-lower system, solved by the kernel at one width. */
-                [[nodiscard]] std::vector<sycl::half> solve_with_kernel(
-                    Core::Side side, int64_t rows, int64_t cols, const std::vector<sycl::half>& a,
-                    const std::vector<sycl::half>& b, int64_t width)
-                {
-                    Tensor A = device_buffer<sycl::half>(*engine, a);
-                    Tensor B = device_buffer<sycl::half>(*engine, b);
-                    Tensor work = device_buffer<float>(*engine, std::vector<float>(b.size(), 0.0f));
-
-                    Kernels::SYCL::trsm<sycl::half>(
-                        test_queue(), Kernels::SYCL::TriangularSolvePlan{width},
-                        Core::Layout::RowMajor, side, Core::Uplo::Lower, Core::Transpose::NoTrans,
-                        Core::Diag::Unit, rows, cols, sycl::half(1.0f),
-                        pointer_of<const sycl::half>(A), K_HALF_ORDER, 0,
-                        pointer_of<sycl::half>(B), cols, rows * cols, 1, pointer_of<float>(work),
-                        {})
-                        .wait_and_throw();
-                    return read_buffer<sycl::half>(B);
-                }
-        };
-
-        /**
-         * @brief Tests that a blocked HALF TPSV carries its solution in FLOAT32 at every width.
-         */
-        TEST_F(Medium_TriangularParallelHalf, ABlockedHalfVectorSolveCarriesTheSolutionInFloat)
-        {
-            TriangularFlags flags;
-            flags.diag = Core::Diag::Unit;
-
-            const std::vector<sycl::half> a = unit_lower_values();
-            const std::vector<sycl::half> b = right_hand_side_values(K_HALF_ORDER);
-            const std::vector<sycl::half> expected =
-                substitute_in_float(Core::Side::Left, K_HALF_ORDER, 1, a, b);
-
-            for (const int64_t width : K_HALF_WIDTHS)
-            {
-                SCOPED_TRACE(::testing::Message() << "block width " << width);
-                Tensor AP = device_buffer<sycl::half>(*engine,
-                                                      packed_storage(flags, K_HALF_ORDER, a));
-                Tensor x = device_buffer<sycl::half>(*engine, b);
-                Tensor work = device_buffer<float>(*engine, std::vector<float>(b.size(), 0.0f));
-
-                Kernels::SYCL::tpsv<sycl::half>(
-                    test_queue(), Kernels::SYCL::TriangularSolvePlan{width}, flags.layout,
-                    flags.uplo, flags.trans, flags.diag, K_HALF_ORDER,
-                    pointer_of<const sycl::half>(AP), pointer_of<sycl::half>(x), 1,
-                    pointer_of<float>(work), {})
-                    .wait_and_throw();
-                expect_same_bits(read_buffer<sycl::half>(x), expected);
-            }
-        }
-
-        /**
-         * @brief Tests that a HALF TRMV sums a row in FLOAT32, where a HALF sum loses the 1.
-         */
-        TEST_F(Medium_TriangularParallelHalf, HalfTrmvSumsInFloat)
-        {
-            const sycl::half nan(std::numeric_limits<float>::quiet_NaN());
-            const sycl::half one(1.0f);
-            const std::vector<sycl::half> a = {one, nan, nan,
-                                               one, one, nan,
-                                               sycl::half(2048.0f), one, sycl::half(-2048.0f)};
-
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
-                                                               : "ForceReference");
-                set_mode(mode);
-
-                Tensor a_buffer = device_buffer<sycl::half>(*engine, a);
-                Tensor x = device_buffer<sycl::half>(*engine,
-                                                     std::vector<sycl::half>(3, one));
-                Tensor A = matrix_view(a_buffer, {3, 3}, Core::Layout::RowMajor);
-
-                SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower);
-                recording->run().value();
-
-                const std::vector<sycl::half> product = read_buffer<sycl::half>(x);
-                ASSERT_EQ(std::size_t{3}, product.size());
-                EXPECT_EQ(1.0f, static_cast<float>(product[2]));
-            }
-        }
+            };
+        } // namespace TriangularSupport
     } // namespace Test
 } // namespace SushiBLAS
