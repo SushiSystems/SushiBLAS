@@ -32,12 +32,14 @@
 #include <functional>
 #include <set>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/test_runner/seeded_schedule.hpp>
 using namespace SushiBLAS::Test;
 
 namespace
@@ -50,6 +52,45 @@ namespace
 
     /// @brief Holds the element count of the normal fill.
     constexpr int64_t K_FILL_SIZE = 4096;
+
+    /// @brief Holds how many turns the reserver and the reseeder each take on a seeded schedule.
+    constexpr size_t K_SCHEDULED_TURNS = 50;
+
+    /// @brief Returns each position as its seed and its offset.
+    std::vector<std::pair<uint64_t, uint64_t>> as_pairs(const std::vector<SushiBLAS::RNGPosition>& positions)
+    {
+        std::vector<std::pair<uint64_t, uint64_t>> pairs;
+        for (const SushiBLAS::RNGPosition& position : positions)
+            pairs.emplace_back(position.seed, position.offset);
+        return pairs;
+    }
+
+    /**
+     * @brief Returns the positions the stream must hand out when its reservations and reseeds run in the given order.
+     * @param order The task of each step: 0 reserves one offset, 1 reseeds, to K_SEED + 1 first and then back and forth.
+     */
+    std::vector<std::pair<uint64_t, uint64_t>> expected_positions(const std::vector<size_t>& order)
+    {
+        std::vector<std::pair<uint64_t, uint64_t>> positions;
+        uint64_t seed = K_SEED;
+        uint64_t offset = 0;
+        size_t reseeds = 0;
+        for (const size_t task : order)
+        {
+            if (task == 0)
+            {
+                positions.emplace_back(seed, offset);
+                ++offset;
+            }
+            else
+            {
+                seed = (reseeds % 2 == 0) ? K_SEED + 1 : K_SEED;
+                offset = 0;
+                ++reseeds;
+            }
+        }
+        return positions;
+    }
 
     /// @brief Reserves K_RESERVATIONS_PER_THREAD single offsets from @p stream into @p out.
     void reserve_many(SushiBLAS::RNGStream& stream, std::vector<uint64_t>& out)
@@ -131,6 +172,31 @@ TEST(Small_RngStream, AReservationPairsTheSeedLiveAtItsTime)
     EXPECT_EQ(after.seed, K_SEED + 1);
     EXPECT_EQ(after.offset, 0u);
 }
+
+/// @brief Runs a reserver and a reseeder of one stream on a seeded schedule, one seed at a time.
+class Small_RngStreamSchedule : public ::testing::TestWithParam<uint64_t>
+{
+
+};
+
+TEST_P(Small_RngStreamSchedule, EveryReservationPairsTheSeedAndOffsetOfTheStateItFound)
+{
+    SushiBLAS::RNGStream stream;
+    stream.reseed(K_SEED);
+    std::vector<SushiBLAS::RNGPosition> positions;
+    SeededSchedule schedule(GetParam());
+    schedule.add_task(K_SCHEDULED_TURNS, [&stream, &positions](size_t)
+                      { positions.push_back(stream.reserve(1)); });
+    schedule.add_task(K_SCHEDULED_TURNS, [&stream](size_t turn)
+                      { stream.reseed(turn % 2 == 0 ? K_SEED + 1 : K_SEED); });
+
+    schedule.run();
+
+    EXPECT_EQ(as_pairs(positions), expected_positions(schedule.order()));
+}
+
+INSTANTIATE_TEST_SUITE_P(Seeds, Small_RngStreamSchedule,
+                         ::testing::Values(uint64_t{1}, uint64_t{2}, uint64_t{3}, uint64_t{4}));
 
 TEST(Medium_RngStreamThreads, ReseedRacingReservationsNeverPairsAForeignSeed)
 {

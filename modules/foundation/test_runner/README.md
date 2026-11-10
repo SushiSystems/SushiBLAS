@@ -11,6 +11,7 @@ It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `
 | `cpu_queue.hpp` | `Detail::make_cpu_queue(devices)`, the in-order queue on the first device of a list, or none |
 | `run_observer_capture.hpp` | `RunObserverCapture`, which keeps the dispatch records of the runs of a runtime |
 | `scoped_log_level.hpp` | `ScopedLogLevel`, which sets the level of SushiBLAS's records for one scope |
+| `seeded_schedule.hpp` | `SeededSchedule`, the single-threaded executor that interleaves the steps of several tasks in an order a seed fixes |
 | `captured_record_count.hpp` | `count_records`, which counts the captured records of one level that contain a text |
 
 `source/test_main.cpp` holds the `main` of each tier program and of an application program with a
