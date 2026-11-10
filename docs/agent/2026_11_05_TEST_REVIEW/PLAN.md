@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — T1 to T8 done; the M jobs next
+**Status:** Open — every job done; the one build and test run is left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -53,7 +53,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M32 | the tests of `kernels/spatial_kernels` (19 files): 6 rewrite, 6 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M33 | the tests of `library` (13 files): 63 rewrite, 26 resize, 8 split, 4 merge, 16 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M34 | the tests of `operations/benchmark_harness` (3 files): 4 rewrite, 8 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M35 | the tests of `operations/blas` (53 files): 327 rewrite, 41 resize, 4 split, 16 merge, 126 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M36 | the tests of `operations/blend` (1 file): 11 rewrite, 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M37 | the tests of `operations/elementwise` (38 files): 38 rewrite, 52 resize, 6 split, 7 merge, 7 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M38 | the tests of `operations/experimental` (3 files): 6 rewrite, 11 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -79,7 +79,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | S2 | RW-148: the npy and sushi header parsers over bytes, their refusals `Small_` | M40, H7 | done |
 | S3 | RW-147: the graph-primitive decisions as host functions, their tests `Small_` | M10, H7 | done |
 | S4 | RW-149: the index-ops recording and refusal tests `Small_` on a host seam | M39, H7 | done |
-| S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44, H7 | todo |
+| S5 | RW-152: the reduction refusals, dtype, empty-input and partial-plan rules as host functions, their tests `Small_` | M44, H7 | done |
 | S6 | RW-153: a `ScratchPool` block source port with an in-memory adapter, the lease tests `Small_` | M44 | done |
 
 M10, M39, M40, M43 and M44 were `todo` again: each left resize records at `Medium_` for a missing seam, which the owner's order of 2026-11-07 does not accept. The S job that builds the seam applies those records, and the M job turns `done` with it: S1 closes M43, S2 closes M40, S3 closes M10, S4 closes M39, S5 and S6 close M44.
@@ -156,3 +156,5 @@ Resume note, 2026-11-10, M49 done (decision 73): the seven `tools/tests` files a
 Resume note, 2026-11-10, M37 done (decision 77, renumbered from 64): every record of the 38 `operations/elementwise` files is applied, the elementwise value tests run `Small_` on the host engine, and `ArgmaxIsExactPastTheFloatMantissa` is `Small_ArgmaxIndex`. Not applied: the reference-path half of the ordered-sum serial equality stays in the medium rows, and `HandWorkedSumIsExact` stays its own test. Nothing was built or run; the one build and test run still comes last.
 
 Resume note, 2026-11-10, M35 after decisions 74 to 81: M35 stays `todo`. Done in this pass: the three owner rulings (74 the HALF switch as `with_non_half_element`, 75 the symm refusal rule, 76 the `GemmTaskPort` seam in `blas/gemm_recording.hpp` with `InMemoryGemmPort`), the renumbering of the M37 decision to 77, and the files `test_symm.cpp`, `test_syr2k.cpp` (each with a `Small_` refusals file), `test_level2.cpp`, `test_level3.cpp` (kept, decision 80), `test_local_tile.cpp`, `test_packed_product_scratch.cpp`, `test_dispatch/test_channel_bias_epilogue.cpp` and `test_dispatch/test_reference_mode_guard.cpp`. Left in M35, in order: `test_dispatch/test_packed_product.cpp` (the records: rows over transpose and layout, batch per layout, the zero-terms, zero-beta and empty-output tests without blocking and shape loops, the bound of `BlockingsAgreeToTheBitOnInexactData` from `parity_bound`, the GTEST_SKIP guards in the fixture, `ASmallProductKeepsTheUnpackedKernel` as a `Small_` test of `Kernels::plan_packed_product`, `TheSeamLeasesScratchWhenTheProfileSelectsThePackedKernel` now readable through `allocate_packed_product_scratch` with a profile), `test_blas/test_triangular_parallel.cpp` (1905 lines, not read), then the adds of the module. Not decided: `test_level3.cpp` keeps `GemmWithScalarsGivesExactValues` because its merge target is gone. Syntax check: scratchpad `m35/chk35.py`; nothing was built or run. S5 is not started.
+
+Resume note, 2026-11-10, M35 and S5 done (decisions 82 to 85): `test_dispatch/test_packed_product.cpp` is rows of `PackedCase<Axis>` (commit `20ba3ba7`), `test_blas/test_triangular_parallel.cpp` is split into `test_triangular_solve.cpp`, `test_triangular_product.cpp`, `test_triangular_vector_solve.cpp` and `test_triangular_half.cpp` over `triangular_support.hpp` (`6520d7c7`), and the six adds of `operations/blas` are applied (`aeff1ba5`; `describe_packed_operand` and `require_scalar_operand` gained `PlacedTensor` forms). S5's `test_reductions/test_refusals.cpp`, written for RW-152 and closed with it, was never listed in `modules/operations/reductions/CMakeLists.txt`; it is now under `TESTS`. Every job is `done`; what is left is the one build and test run, which has not happened for any job since the review began. Check there first: the row count of the four triangular files (about 2000), the order-1100 triangular cases against the medium limit, and `Medium_PackedGemm` and `Medium_PackedProduct` on a device that packs. Syntax check: scratchpad `m35/chk35.py` and `chkx.py`; nothing was built or run.
