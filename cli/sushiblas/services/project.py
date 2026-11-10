@@ -27,6 +27,7 @@ from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
 from sushicore.provision.sushi_packages import configure_arguments
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
+from sushicore.testing.program_runner import ProgramRunner
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
 
@@ -292,7 +293,8 @@ class ProjectService:
         module = ModuleTests(
             profile=PROFILE, project_root=lambda: root, console=lambda: self._console,
             build_tree=lambda: build_dir, run=self._runner.run,
-            run_ctest=lambda directory, **options: self._driver.ctest_run(cfg, directory, env, **options))
+            run_ctest=lambda directory, **options: self._driver.ctest_run(cfg, directory, env, **options),
+            run_program=ProgramRunner(build_dir, self._runner.run, env))
         return run_tests(module, select_labels(labels, every_size=every_size), name_filter=filter,
                          repeat=repeat, jobs=jobs, every_size=every_size, shuffle=shuffle, seed=seed)
 
