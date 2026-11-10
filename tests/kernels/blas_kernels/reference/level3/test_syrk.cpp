@@ -131,7 +131,7 @@ namespace SushiBLAS
         /// @brief Runs the batched syrk and checks one matrix of the batch, as a row of (matrix).
         class Small_ReferenceSyrkBatch : public ::testing::TestWithParam<int64_t> {};
 
-        /// @brief Tests that the batched syrk updates one matrix as a dense update would and leaves the rest.
+        /// @brief Tests that the batched syrk updates each matrix as a dense update of it would.
         TEST_P(Small_ReferenceSyrkBatch, TheBatchedFormUpdatesEachMatrixOfTheBatch)
         {
             const int64_t matrix = GetParam();
@@ -147,15 +147,13 @@ namespace SushiBLAS
             };
             const std::vector<double> updated =
                 rank_k(slice(a, matrix, panel), slice(c, matrix, square), false, 1.0, 1.0);
-            std::vector<double> expected = c;
-            std::copy(updated.begin(), updated.end(), expected.begin() + matrix * square);
             std::vector<double> batched = c;
 
             Kernels::Reference::syrk(Core::Layout::RowMajor, Core::Uplo::Lower,
                                      Core::Transpose::NoTrans, K_ORDER, K_DEPTH, 1.0, a.data(),
                                      K_DEPTH, panel, 1.0, batched.data(), K_ORDER, square, batch);
 
-            EXPECT_EQ(batched, expected);
+            EXPECT_EQ(slice(batched, matrix, square), updated);
         }
 
         INSTANTIATE_TEST_SUITE_P(Matrices, Small_ReferenceSyrkBatch, ::testing::Values(0, 1),
