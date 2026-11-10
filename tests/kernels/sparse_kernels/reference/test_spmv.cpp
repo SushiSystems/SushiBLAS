@@ -93,12 +93,12 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Runs the reference spmv one row at a time. */
-        class Small_ReferenceSpmv : public ::testing::TestWithParam<SpmvRow>
+        class Small_ReferenceCsrSpmv : public ::testing::TestWithParam<SpmvRow>
         {
 
         };
 
-        TEST_P(Small_ReferenceSpmv, MatchesADenseProduct)
+        TEST_P(Small_ReferenceCsrSpmv, MatchesADenseProduct)
         {
             const SpmvRow& row = GetParam();
             const IntegerCsr a = integer_csr(9, 7, 1, false);
@@ -121,7 +121,7 @@ namespace SushiBLAS
             EXPECT_EQ(gather(y_stored, row.inc), expected);
         }
 
-        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceSpmv, ::testing::ValuesIn(spmv_rows()),
+        INSTANTIATE_TEST_SUITE_P(, Small_ReferenceCsrSpmv, ::testing::ValuesIn(spmv_rows()),
                                  spmv_row_name);
     } // namespace Test
 } // namespace SushiBLAS
