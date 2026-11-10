@@ -111,7 +111,9 @@ namespace SushiBLAS
             /// @brief Names a row after its requested block and its order.
             std::string clamp_row_name(const ::testing::TestParamInfo<ClampRow>& info)
             {
-                return "Block" + std::to_string(info.param.block) + "Order" +
+                const int64_t block = info.param.block;
+                const std::string sign = block < 0 ? "Minus" : "";
+                return "Block" + sign + std::to_string(block < 0 ? -block : block) + "Order" +
                        std::to_string(info.param.order);
             }
 
