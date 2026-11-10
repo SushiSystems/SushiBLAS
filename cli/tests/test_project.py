@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -216,11 +217,16 @@ def test_test_selects_the_labels_and_leaves_quarantined_out_unless_named(
     assert _option(ctest, "-LE") == excluded
 
 
-@pytest.mark.parametrize(("jobs", "expected"), [(3, "3"), (None, None)])
-def test_test_hands_the_jobs_to_ctest(service, runner, jobs, expected):
-    """The number of tests run at once reaches ctest as given, and is absent when not given."""
-    service.test(jobs=jobs)
-    assert _option(runner.commands[0].argv, "--parallel") == expected
+def test_test_hands_the_jobs_to_ctest(service, runner):
+    """The number of tests run at once reaches ctest as given."""
+    service.test(jobs=3)
+    assert _option(runner.commands[0].argv, "--parallel") == "3"
+
+
+def test_test_chooses_the_jobs_between_one_and_the_cores_when_none_are_given(service, runner):
+    """With no job count sushicore picks one per core, lowered to fit memory, so ctest gets 1 to cores."""
+    service.test(jobs=None)
+    assert 1 <= int(_option(runner.commands[0].argv, "--parallel")) <= (os.cpu_count() or 1)
 
 
 def test_test_cli_runs_pytest_with_the_marker_expression(service, runner, checkout):
