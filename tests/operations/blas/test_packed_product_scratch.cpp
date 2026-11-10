@@ -47,6 +47,9 @@ namespace SushiBLAS
         /// @brief The extent of every axis of the product; large enough for a plan to be chosen.
         constexpr int64_t K_EXTENT = 512;
 
+        /// @brief The extent of every axis of a product that stays below every packing threshold.
+        constexpr int64_t K_SMALL_EXTENT = 8;
+
         /** @brief Leases packed-product scratch on host tensors for a profile the test builds. */
         class Small_PackedProductScratch : public HostEngineTest
         {
@@ -145,6 +148,21 @@ namespace SushiBLAS
                             K_EXTENT, 1, operands)
                             .is_empty());
             EXPECT_TRUE(operands.write_regions().empty());
+        }
+
+        TEST_F(Small_PackedProductScratch, AProductBelowThePackingThresholdsKeepsTheUnpackedKernel)
+        {
+            Device::Profile profile;
+            profile.is_cpu = true;
+            profile.compute_units = 4;
+
+            EXPECT_FALSE(Kernels::plan_packed_product<float>(profile, K_SMALL_EXTENT,
+                                                             K_SMALL_EXTENT, K_SMALL_EXTENT, 1)
+                             .selected);
+            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Float32, profile,
+                                                             K_SMALL_EXTENT, K_SMALL_EXTENT,
+                                                             K_SMALL_EXTENT, 1),
+                      std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS
