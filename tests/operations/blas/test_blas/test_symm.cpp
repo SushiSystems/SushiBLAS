@@ -148,17 +148,6 @@ namespace SushiBLAS
                        word(form.side);
             }
 
-            /** @brief Returns the rows of a suite that run in the row-major layout alone. */
-            template<typename Axis>
-            [[nodiscard]] std::vector<Row<Axis>> row_major(const std::vector<Row<Axis>>& rows)
-            {
-                std::vector<Row<Axis>> kept;
-                for (const Row<Axis>& row : rows)
-                    if (row.layout == Core::Layout::RowMajor)
-                        kept.push_back(row);
-                return kept;
-            }
-
             /** @brief Returns the side and triangle pairs, side first. */
             [[nodiscard]] std::vector<SideTriangle> side_triangles()
             {

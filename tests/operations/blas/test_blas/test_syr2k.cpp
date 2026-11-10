@@ -23,8 +23,8 @@
 
 /**
  * @file test_syr2k.cpp
- * @brief Tests syr2k and her2k against hand-computed updates, a host integer loop, a truth and
- *        refusals.
+ * @brief Tests syr2k and her2k against hand-computed updates, a host integer loop and a truth;
+ *        the record-time refusals are in test_syr2k_refusals.cpp.
  * @author Mustafa Garip
  */
 
@@ -45,19 +45,16 @@
 #include <SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/blas/local_tile.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
-#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
-#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include "blas_rows.hpp"
 
 namespace SushiBLAS
 {
@@ -116,35 +113,8 @@ namespace SushiBLAS
             /// @brief Marks an element of C outside the updated triangle in a hand-computed case.
             constexpr double K_UNTOUCHED = -77.0;
 
-            /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSYCL,
-                                                 ExecutionMode::ForceReference};
-
-            /// @brief The two layouts the exact cases run in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
-            /// @brief The two triangles of C an update can write.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
-
-            /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
-
-            /** @brief Returns the name of a mode for a failure message. */
-            [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
-            {
-                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
-            }
-
-            /** @brief Returns the names of a layout, a triangle and a transpose for a message. */
-            [[nodiscard]] std::string case_name(Core::Layout layout, Core::Uplo uplo,
-                                                Core::Transpose trans)
-            {
-                const char* const layout_name =
-                    layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR";
-                return std::string(layout_name) + " " + Core::to_string(uplo) + " " +
-                       Core::to_string(trans);
-            }
+            /// @brief The complex alpha of every her2k case.
+            constexpr Wide K_HER2K_ALPHA{1.0, 2.0};
 
             /** @brief Returns value in the type the host loop computes in. */
             template<typename T>
@@ -422,227 +392,74 @@ namespace SushiBLAS
                     bool is_open_ = false;
             };
 
-            /** @brief Returns whether the device of profile hosts the SYR2K tile of T. */
+            /** @brief Names the form of a rank-2k update by its transpose and its triangle. */
+            struct TransposeUplo
+            {
+                Core::Transpose trans; /**< How A and B are read. */
+                Core::Uplo uplo;       /**< The triangle of C the update writes. */
+            };
+
+            /** @brief Returns the tail of a row named by a transpose and a triangle. */
+            [[nodiscard]] std::string axis_name(const TransposeUplo& form)
+            {
+                return "_" + word(form.trans) + "_" + word(form.uplo);
+            }
+
+            /** @brief Names a batched update by whether A carries the batch axis and the triangle. */
+            struct BatchUplo
+            {
+                bool a_is_batched; /**< True when A has one matrix per update. */
+                Core::Uplo uplo;   /**< The triangle of C the update writes. */
+            };
+
+            /** @brief Returns the tail of a row named by a batched update. */
+            [[nodiscard]] std::string axis_name(const BatchUplo& form)
+            {
+                return std::string(form.a_is_batched ? "_ABatched_" : "_ARank2_") +
+                       word(form.uplo);
+            }
+
+            /** @brief The two modes every case runs in. */
+            const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceSYCL,
+                                                             ExecutionMode::ForceReference};
+
+            /** @brief The element types syr2k accepts that the helpers of this file build. */
+            const std::vector<Core::DataType> K_SYR2K_TYPES = {
+                Core::DataType::Float32, Core::DataType::Float64, Core::DataType::Complex32,
+                Core::DataType::Complex64};
+
+            /** @brief The two real types the rounding bound is measured on. */
+            const std::vector<Core::DataType> K_BOUND_TYPES = {Core::DataType::Float32,
+                                                               Core::DataType::Float64};
+
+            /** @brief The two triangles of C an update can write. */
+            const std::vector<Core::Uplo> K_TRIANGLES = {Core::Uplo::Upper, Core::Uplo::Lower};
+
+            /** @brief Returns every pair of one of the transposes with each triangle. */
+            [[nodiscard]] std::vector<TransposeUplo>
+            transpose_uplos(const std::vector<Core::Transpose>& transposes)
+            {
+                std::vector<TransposeUplo> forms;
+                for (const Core::Transpose trans : transposes)
+                    for (const Core::Uplo uplo : K_TRIANGLES)
+                        forms.push_back({trans, uplo});
+                return forms;
+            }
+
+            /** @brief Returns the batched forms: A batched or of rank 2, each triangle. */
+            [[nodiscard]] std::vector<BatchUplo> batch_uplos()
+            {
+                std::vector<BatchUplo> forms;
+                for (const bool a_is_batched : {true, false})
+                    for (const Core::Uplo uplo : K_TRIANGLES)
+                        forms.push_back({a_is_batched, uplo});
+                return forms;
+            }
+
+            /** @brief Measures a rank-2k update against a truth, for a real element type. */
             template<typename T>
-            [[nodiscard]] bool hosts_syr2k_tile(const Device::Profile& profile) noexcept
+            struct UpdateBound
             {
-                return Device::hosts_local_tile(profile, Kernels::SYCL::Syr2kTile::demand<T>());
-            }
-
-            /** @brief Returns whether the tile of T has the given geometry. */
-            template<typename T>
-            [[nodiscard]] constexpr bool tile_is(int64_t register_block, int64_t group_edge,
-                                                 std::size_t local_bytes) noexcept
-            {
-                using Tile = Kernels::SYCL::Detail::Syr2kTileConfig<T>;
-                return Tile::K_ITEM_ROWS == register_block && Tile::K_ITEM_COLS == register_block &&
-                       Tile::K_BLOCK_M == group_edge && Tile::K_BLOCK_N == group_edge &&
-                       Tile::local_mem_bytes() == local_bytes;
-            }
-        } // namespace
-
-        /** @brief Uploads host matrices and runs rank-2k updates on them in a chosen mode. */
-        class RankTwoUpdateTest : public SushiBLASTest
-        {
-            protected:
-                /** @brief Returns a tensor of dims that holds values. */
-                template<typename T>
-                [[nodiscard]] Tensor upload(std::initializer_list<int64_t> dims,
-                                            const std::vector<T>& values)
-                {
-                    Tensor tensor = engine->create_tensor(dims, sushiblas_dtype<T>());
-                    EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
-                    if (!values.empty())
-                        TestEnvironment::queue()
-                            .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
-                    return tensor;
-                }
-
-                /**
-                 * @brief Returns a tensor that holds matrix.
-                 * @pre The engine was built with the layout of matrix.
-                 */
-                template<typename T>
-                [[nodiscard]] Tensor upload(const HostMatrix<T>& matrix)
-                {
-                    Tensor tensor = upload({matrix.rows, matrix.cols}, matrix.values);
-                    EXPECT_EQ(tensor.layout, matrix.layout);
-                    return tensor;
-                }
-
-                /**
-                 * @brief Returns the elements of C after the update of a routine, run in mode.
-                 * @tparam Conj Kernels::Unconjugated for syr2k, Kernels::Conjugated for her2k.
-                 */
-                template<typename T, typename Conj>
-                [[nodiscard]] std::vector<T> run_update(ExecutionMode mode, const HostMatrix<T>& a,
-                                                        const HostMatrix<T>& b,
-                                                        const HostMatrix<T>& c, Core::Uplo uplo,
-                                                        Core::Transpose trans, Wide alpha,
-                                                        double beta)
-                {
-                    set_mode(mode);
-                    const Tensor A = upload(a);
-                    const Tensor B = upload(b);
-                    Tensor C = upload(c);
-                    SushiBLAS::BLASOps ops(recorder());
-                    record_update<Conj>(ops, A, B, C, uplo, trans, blas_scalar(alpha), beta);
-                    recording->run().value();
-                    return read_tensor<T>(C);
-                }
-
-                /**
-                 * @brief Expects both modes to equal the host loop exactly on integer operands,
-                 *        for both layouts, both triangles and each of transposes.
-                 */
-                template<typename T, typename Conj>
-                void expect_exact_on_integers(std::initializer_list<Core::Transpose> transposes,
-                                              Wide alpha)
-                {
-                    for (const Core::Layout layout : K_LAYOUTS)
-                    {
-                        reinit_engine(layout);
-                        for (const Core::Transpose trans : transposes)
-                        {
-                            const bool transposed = Core::is_transposed(trans);
-                            const int64_t rows = transposed ? K_INNER : K_ORDER;
-                            const int64_t cols = transposed ? K_ORDER : K_INNER;
-                            const auto a = integer_matrix<T>(K_SEED_A, rows, cols, layout);
-                            const auto b = integer_matrix<T>(K_SEED_B, rows, cols, layout);
-                            const auto c = integer_matrix<T>(K_SEED_C, K_ORDER, K_ORDER, layout);
-
-                            for (const Core::Uplo uplo : K_TRIANGLES)
-                            {
-                                const HostMatrix<T> expected = expected_update<T, Conj>(
-                                    a, b, c, uplo, trans, alpha, K_INTEGER_BETA);
-                                for (const ExecutionMode mode : K_MODES)
-                                {
-                                    SCOPED_TRACE(case_name(layout, uplo, trans) + " " +
-                                                 mode_name(mode));
-                                    expect_equal(run_update<T, Conj>(mode, a, b, c, uplo, trans,
-                                                                     alpha, K_INTEGER_BETA),
-                                                 expected.values);
-                                }
-                            }
-                        }
-                    }
-                }
-        };
-
-        /** @brief Runs syr2k over the real and complex element types. */
-        template<typename T>
-        class Medium_Syr2k : public RankTwoUpdateTest
-        {
-
-        };
-
-        using Syr2kTypes = ::testing::Types<float, double, std::complex<float>,
-                                            std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_Syr2k, Syr2kTypes);
-
-        TYPED_TEST(Medium_Syr2k, MatchesAHandComputedUpdate)
-        {
-            using T = TypeParam;
-            using Conj = Kernels::Unconjugated;
-
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                this->reinit_engine(layout);
-                const auto a = matrix_of<T>(2, 3, layout, {1, 2, 3, 4, 5, 6});
-                const auto b = matrix_of<T>(2, 3, layout, {1, 0, -1, 2, 1, 0});
-                const auto c = matrix_of<T>(2, 2, layout, {1, 10, 20, 1});
-
-                // A * B^T + B * A^T is {-4 2, 2 26}; twice that minus C is {-9 -6, -16 51}.
-                const auto upper = matrix_of<T>(2, 2, layout, {-9, -6, 20, 51});
-                const auto lower = matrix_of<T>(2, 2, layout, {-9, 10, -16, 51});
-
-                for (const Core::Transpose trans :
-                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
-                {
-                    // Under TRANS the stored operands are the 3 x 2 transposes.
-                    const auto stored_a = applied(a, trans);
-                    const auto stored_b = applied(b, trans);
-
-                    for (const ExecutionMode mode : K_MODES)
-                    {
-                        SCOPED_TRACE(case_name(layout, Core::Uplo::Upper, trans) + " " +
-                                     mode_name(mode));
-                        expect_equal(this->template run_update<T, Conj>(
-                                         mode, stored_a, stored_b, c, Core::Uplo::Upper, trans,
-                                         K_INTEGER_ALPHA, K_INTEGER_BETA),
-                                     upper.values);
-                        expect_equal(this->template run_update<T, Conj>(
-                                         mode, stored_a, stored_b, c, Core::Uplo::Lower, trans,
-                                         K_INTEGER_ALPHA, K_INTEGER_BETA),
-                                     lower.values);
-                    }
-                }
-            }
-        }
-
-        TYPED_TEST(Medium_Syr2k, IsExactOnSmallIntegers)
-        {
-            this->template expect_exact_on_integers<TypeParam, Kernels::Unconjugated>(
-                {Core::Transpose::NoTrans, Core::Transpose::Trans}, K_INTEGER_ALPHA);
-        }
-
-        TYPED_TEST(Medium_Syr2k, ABatchIsUpdatedMatrixByMatrix)
-        {
-            using T = TypeParam;
-            using Conj = Kernels::Unconjugated;
-            const Core::Layout layout = Core::Layout::RowMajor;
-            const int64_t n = K_BATCH_ORDER;
-            const int64_t k = K_BATCH_INNER;
-
-            std::vector<HostMatrix<T>> a;
-            std::vector<HostMatrix<T>> b;
-            std::vector<HostMatrix<T>> c;
-            for (int64_t index = 0; index < K_BATCH; ++index)
-            {
-                const std::size_t shift = static_cast<std::size_t>(index) * 5u;
-                a.push_back(integer_matrix<T>(K_SEED_A + shift, n, k, layout));
-                b.push_back(integer_matrix<T>(K_SEED_B + shift, n, k, layout));
-                c.push_back(integer_matrix<T>(K_SEED_C + shift, n, n, layout));
-            }
-
-            for (const bool a_is_batched : {true, false})
-            {
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    std::vector<HostMatrix<T>> expected;
-                    for (std::size_t index = 0; index < c.size(); ++index)
-                        expected.push_back(expected_update<T, Conj>(
-                            a[a_is_batched ? index : 0], b[index], c[index], uplo,
-                            Core::Transpose::NoTrans, K_INTEGER_ALPHA, K_INTEGER_BETA));
-
-                    for (const ExecutionMode mode : K_MODES)
-                    {
-                        SCOPED_TRACE(case_name(layout, uplo, Core::Transpose::NoTrans) + " " +
-                                     mode_name(mode) +
-                                     (a_is_batched ? ", A batched" : ", A of rank 2"));
-                        this->set_mode(mode);
-                        const Tensor A = a_is_batched
-                            ? this->upload({K_BATCH, n, k}, concatenated(a))
-                            : this->upload(a[0]);
-                        const Tensor B = this->upload({K_BATCH, n, k}, concatenated(b));
-                        Tensor C = this->upload({K_BATCH, n, n}, concatenated(c));
-
-                        SushiBLAS::BLASOps(this->recorder()).syr2k(A, B, C, uplo,
-                                                                Core::Transpose::NoTrans,
-                                                                K_INTEGER_ALPHA, K_INTEGER_BETA);
-                        this->recording->run().value();
-
-                        expect_equal(read_tensor<T>(C), concatenated(expected));
-                    }
-                }
-            }
-        }
-
-        /** @brief Measures syr2k against a truth, over the real element types that have one. */
-        template<typename T>
-        class Medium_Syr2kBound : public RankTwoUpdateTest
-        {
-            protected:
                 /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
                 [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                 {
@@ -678,95 +495,309 @@ namespace SushiBLAS
                     sum.add_product(K_ROUNDED_BETA, static_cast<double>(c.at(i, j)));
                     return sum.value();
                 }
+
+                /** @brief Expects every element of the updated triangle within its bound. */
+                static void expect_within_bound(ExecutionMode mode, const HostMatrix<T>& op_a,
+                                                const HostMatrix<T>& op_b, const HostMatrix<T>& c,
+                                                Core::Uplo uplo, const std::vector<T>& actual)
+                {
+                    const double unit = summing_unit(mode);
+                    const std::size_t count = roundings(mode, K_INNER);
+                    for (int64_t i = 0; i < K_ORDER; ++i)
+                    {
+                        for (int64_t j = 0; j < K_ORDER; ++j)
+                        {
+                            if (!is_updated(uplo, i, j))
+                                continue;
+
+                            const TruthValue truth = truth_element(op_a, op_b, c, i, j);
+                            const double bound = rounding_bound(count, unit, truth.magnitude) +
+                                                 unit_roundoff<T>() * std::fabs(truth.value);
+                            EXPECT_NEAR(static_cast<double>(actual[c.index(i, j)]), truth.value,
+                                        bound)
+                                << "(" << i << ", " << j << ")";
+                        }
+                    }
+                }
+            };
+        } // namespace
+
+        /** @brief Uploads host matrices and runs rank-2k updates on them in the mode of the row. */
+        class RankTwoUpdateTest : public BlasEngineStart
+        {
+            protected:
+                /** @brief Returns a tensor of dims that holds values. */
+                template<typename T>
+                [[nodiscard]] Tensor upload(std::initializer_list<int64_t> dims,
+                                            const std::vector<T>& values)
+                {
+                    Tensor tensor = engine->create_tensor(dims, sushiblas_dtype<T>());
+                    EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
+                    if (!values.empty())
+                        TestEnvironment::queue()
+                            .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
+                    return tensor;
+                }
+
+                /**
+                 * @brief Returns a tensor that holds matrix.
+                 * @pre The engine was built with the layout of matrix.
+                 */
+                template<typename T>
+                [[nodiscard]] Tensor upload(const HostMatrix<T>& matrix)
+                {
+                    Tensor tensor = upload({matrix.rows, matrix.cols}, matrix.values);
+                    EXPECT_EQ(tensor.layout, matrix.layout);
+                    return tensor;
+                }
+
+                /**
+                 * @brief Returns the elements of C after the update of a routine.
+                 * @tparam Conj Kernels::Unconjugated for syr2k, Kernels::Conjugated for her2k.
+                 */
+                template<typename T, typename Conj>
+                [[nodiscard]] std::vector<T> run_update(const HostMatrix<T>& a,
+                                                        const HostMatrix<T>& b,
+                                                        const HostMatrix<T>& c, Core::Uplo uplo,
+                                                        Core::Transpose trans, Wide alpha,
+                                                        double beta)
+                {
+                    const Tensor A = upload(a);
+                    const Tensor B = upload(b);
+                    Tensor C = upload(c);
+                    SushiBLAS::BLASOps ops(recorder());
+                    record_update<Conj>(ops, A, B, C, uplo, trans, blas_scalar(alpha), beta);
+                    recording->run().value();
+                    return read_tensor<T>(C);
+                }
+
+                /**
+                 * @brief Expects the update to equal the host loop exactly on integer operands.
+                 * @param layout The layout the engine of the row runs in.
+                 */
+                template<typename T, typename Conj>
+                void expect_exact_on_integers(Core::Layout layout, const TransposeUplo& form,
+                                              Wide alpha)
+                {
+                    const bool transposed = Core::is_transposed(form.trans);
+                    const int64_t rows = transposed ? K_INNER : K_ORDER;
+                    const int64_t cols = transposed ? K_ORDER : K_INNER;
+                    const auto a = integer_matrix<T>(K_SEED_A, rows, cols, layout);
+                    const auto b = integer_matrix<T>(K_SEED_B, rows, cols, layout);
+                    const auto c = integer_matrix<T>(K_SEED_C, K_ORDER, K_ORDER, layout);
+
+                    const HostMatrix<T> expected = expected_update<T, Conj>(
+                        a, b, c, form.uplo, form.trans, alpha, K_INTEGER_BETA);
+                    expect_equal(run_update<T, Conj>(a, b, c, form.uplo, form.trans, alpha,
+                                                     K_INTEGER_BETA),
+                                 expected.values);
+                }
+
+                /** @brief Expects a batched syr2k to equal the host loop on each matrix alone. */
+                template<typename T>
+                void expect_batch_updated_matrix_by_matrix(const BatchUplo& form)
+                {
+                    const Core::Layout layout = Core::Layout::RowMajor;
+                    const int64_t n = K_BATCH_ORDER;
+                    const int64_t k = K_BATCH_INNER;
+
+                    std::vector<HostMatrix<T>> a;
+                    std::vector<HostMatrix<T>> b;
+                    std::vector<HostMatrix<T>> c;
+                    for (int64_t index = 0; index < K_BATCH; ++index)
+                    {
+                        const std::size_t shift = static_cast<std::size_t>(index) * 5u;
+                        a.push_back(integer_matrix<T>(K_SEED_A + shift, n, k, layout));
+                        b.push_back(integer_matrix<T>(K_SEED_B + shift, n, k, layout));
+                        c.push_back(integer_matrix<T>(K_SEED_C + shift, n, n, layout));
+                    }
+
+                    std::vector<HostMatrix<T>> expected;
+                    for (std::size_t index = 0; index < c.size(); ++index)
+                        expected.push_back(expected_update<T, Kernels::Unconjugated>(
+                            a[form.a_is_batched ? index : 0], b[index], c[index], form.uplo,
+                            Core::Transpose::NoTrans, K_INTEGER_ALPHA, K_INTEGER_BETA));
+
+                    const Tensor A = form.a_is_batched
+                        ? upload({K_BATCH, n, k}, concatenated(a))
+                        : upload(a[0]);
+                    const Tensor B = upload({K_BATCH, n, k}, concatenated(b));
+                    Tensor C = upload({K_BATCH, n, n}, concatenated(c));
+
+                    SushiBLAS::BLASOps(recorder()).syr2k(A, B, C, form.uplo,
+                                                         Core::Transpose::NoTrans,
+                                                         K_INTEGER_ALPHA, K_INTEGER_BETA);
+                    recording->run().value();
+
+                    expect_equal(read_tensor<T>(C), concatenated(expected));
+                }
         };
 
-        using Syr2kBoundTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Medium_Syr2kBound, Syr2kBoundTypes);
+        /** @brief Runs a case once per row of a suite over the rank-2k fixture. */
+        template<typename Axis>
+        using UpdateCase = BlasRowCase<RankTwoUpdateTest, Axis>;
 
-        TYPED_TEST(Medium_Syr2kBound, IsWithinItsBoundOfTheTruth)
+        /** @brief Runs the hand-computed syr2k update over the element types and transposes. */
+        class Medium_Syr2k : public UpdateCase<Core::Transpose>
         {
-            using T = TypeParam;
-            std::mt19937 generator(K_SEED);
 
-            for (const Core::Transpose trans : {Core::Transpose::NoTrans, Core::Transpose::Trans})
+        };
+
+        TEST_P(Medium_Syr2k, MatchesAHandComputedUpdate)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
             {
-                const bool transposed = Core::is_transposed(trans);
+                using T = typename decltype(element)::type;
+                using Conj = Kernels::Unconjugated;
+                const Core::Layout layout = GetParam().layout;
+                const Core::Transpose trans = GetParam().axis;
+
+                const auto a = matrix_of<T>(2, 3, layout, {1, 2, 3, 4, 5, 6});
+                const auto b = matrix_of<T>(2, 3, layout, {1, 0, -1, 2, 1, 0});
+                const auto c = matrix_of<T>(2, 2, layout, {1, 10, 20, 1});
+
+                // A * B^T + B * A^T is {-4 2, 2 26}; twice that minus C is {-9 -6, -16 51}.
+                const auto upper = matrix_of<T>(2, 2, layout, {-9, -6, 20, 51});
+                const auto lower = matrix_of<T>(2, 2, layout, {-9, 10, -16, 51});
+
+                // Under TRANS the stored operands are the 3 x 2 transposes.
+                const auto stored_a = applied(a, trans);
+                const auto stored_b = applied(b, trans);
+
+                expect_equal(this->template run_update<T, Conj>(
+                                 stored_a, stored_b, c, Core::Uplo::Upper, trans,
+                                 K_INTEGER_ALPHA, K_INTEGER_BETA),
+                             upper.values);
+                expect_equal(this->template run_update<T, Conj>(
+                                 stored_a, stored_b, c, Core::Uplo::Lower, trans,
+                                 K_INTEGER_ALPHA, K_INTEGER_BETA),
+                             lower.values);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2k,
+            ::testing::ValuesIn(rows_of(K_SYR2K_TYPES, K_BOTH_MODES,
+                                        std::vector<Core::Transpose>{Core::Transpose::NoTrans,
+                                                                     Core::Transpose::Trans})),
+            row_name<Core::Transpose>);
+
+        /** @brief Runs syr2k against a host integer loop, per transpose and triangle. */
+        class Medium_Syr2kExact : public UpdateCase<TransposeUplo>
+        {
+
+        };
+
+        TEST_P(Medium_Syr2kExact, IsExactOnSmallIntegers)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                this->template expect_exact_on_integers<T, Kernels::Unconjugated>(
+                    GetParam().layout, GetParam().axis, K_INTEGER_ALPHA);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2kExact,
+            ::testing::ValuesIn(rows_of(K_SYR2K_TYPES, K_BOTH_MODES,
+                                        transpose_uplos({Core::Transpose::NoTrans,
+                                                         Core::Transpose::Trans}))),
+            row_name<TransposeUplo>);
+
+        /** @brief Runs a batched syr2k against the host loop on each matrix alone. */
+        class Medium_Syr2kBatch : public UpdateCase<BatchUplo>
+        {
+
+        };
+
+        TEST_P(Medium_Syr2kBatch, ABatchIsUpdatedMatrixByMatrix)
+        {
+            with_non_half_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                this->template expect_batch_updated_matrix_by_matrix<T>(GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2kBatch,
+            ::testing::ValuesIn(row_major(rows_of(K_SYR2K_TYPES, K_BOTH_MODES, batch_uplos()))),
+            row_name<BatchUplo>);
+
+        /** @brief Measures syr2k against a truth, over the real element types that have one. */
+        class Medium_Syr2kBound : public UpdateCase<TransposeUplo>
+        {
+
+        };
+
+        TEST_P(Medium_Syr2kBound, IsWithinItsBoundOfTheTruth)
+        {
+            with_single_or_double_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                const TransposeUplo& form = GetParam().axis;
+                std::mt19937 generator(K_SEED);
+
+                const bool transposed = Core::is_transposed(form.trans);
                 const auto a = random_matrix<T>(generator, transposed ? K_INNER : K_ORDER,
                                                 transposed ? K_ORDER : K_INNER);
                 const auto b = random_matrix<T>(generator, a.rows, a.cols);
                 const auto c = random_matrix<T>(generator, K_ORDER, K_ORDER);
-                const auto op_a = applied(a, trans);
-                const auto op_b = applied(b, trans);
 
-                for (const Core::Uplo uplo : K_TRIANGLES)
-                {
-                    for (const ExecutionMode mode : K_MODES)
-                    {
-                        SCOPED_TRACE(case_name(Core::Layout::RowMajor, uplo, trans) + " " +
-                                     mode_name(mode));
-                        const std::vector<T> actual =
-                            this->template run_update<T, Kernels::Unconjugated>(
-                                mode, a, b, c, uplo, trans, K_ROUNDED_ALPHA, K_ROUNDED_BETA);
-                        ASSERT_EQ(actual.size(), c.values.size());
+                const std::vector<T> actual =
+                    this->template run_update<T, Kernels::Unconjugated>(
+                        a, b, c, form.uplo, form.trans, K_ROUNDED_ALPHA, K_ROUNDED_BETA);
+                ASSERT_EQ(actual.size(), c.values.size());
 
-                        const double unit = this->summing_unit(mode);
-                        const std::size_t count = this->roundings(mode, K_INNER);
-                        for (int64_t i = 0; i < K_ORDER; ++i)
-                        {
-                            for (int64_t j = 0; j < K_ORDER; ++j)
-                            {
-                                if (!is_updated(uplo, i, j))
-                                    continue;
-
-                                const TruthValue truth =
-                                    this->truth_element(op_a, op_b, c, i, j);
-                                const double bound =
-                                    rounding_bound(count, unit, truth.magnitude) +
-                                    unit_roundoff<T>() * std::fabs(truth.value);
-                                EXPECT_NEAR(static_cast<double>(actual[c.index(i, j)]),
-                                            truth.value, bound)
-                                    << "(" << i << ", " << j << ")";
-                            }
-                        }
-                    }
-                }
-            }
+                UpdateBound<T>::expect_within_bound(GetParam().mode, applied(a, form.trans),
+                                                    applied(b, form.trans), c, form.uplo, actual);
+            });
         }
 
-        /** @brief Runs the cases of syr2k that fix their element type. */
-        class Medium_Syr2kFixedType : public RankTwoUpdateTest
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2kBound,
+            ::testing::ValuesIn(row_major(rows_of(K_BOUND_TYPES, K_BOTH_MODES,
+                                                  transpose_uplos({Core::Transpose::NoTrans,
+                                                                   Core::Transpose::Trans})))),
+            row_name<TransposeUplo>);
+
+        /** @brief Runs the HALF sums of syr2k; the fixture skips a device without fp16. */
+        class Medium_Syr2kHalf : public UpdateCase<NoAxis>
         {
 
         };
 
-        TEST_F(Medium_Syr2kFixedType, HalfSumsInFloat)
+        TEST_P(Medium_Syr2kHalf, HalfSumsInFloat)
         {
-            const sycl::queue& queue = TestEnvironment::queue();
-            if (!queue.get_device().has(sycl::aspect::fp16))
-                GTEST_SKIP() << "the device does not report the fp16 aspect";
-
             const std::vector<sycl::half> a = {sycl::half(2048.0f), sycl::half(1.0f),
                                                sycl::half(-2048.0f)};
             const std::vector<sycl::half> ones(3, sycl::half(1.0f));
 
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                set_mode(mode);
-                const Tensor A = upload({1, 3}, a);
-                const Tensor B = upload({1, 3}, ones);
-                Tensor C = upload({1, 1}, std::vector<sycl::half>(1, sycl::half(0.0f)));
+            const Tensor A = upload({1, 3}, a);
+            const Tensor B = upload({1, 3}, ones);
+            Tensor C = upload({1, 1}, std::vector<sycl::half>(1, sycl::half(0.0f)));
 
-                SushiBLAS::BLASOps(recorder()).syr2k(A, B, C, Core::Uplo::Upper,
-                                                  Core::Transpose::NoTrans, 1.0, 0.0);
-                recording->run().value();
+            SushiBLAS::BLASOps(recorder()).syr2k(A, B, C, Core::Uplo::Upper,
+                                                 Core::Transpose::NoTrans, 1.0, 0.0);
+            recording->run().value();
 
-                // Each product sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
-                const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
-                ASSERT_EQ(1u, result.size());
-                EXPECT_EQ(static_cast<float>(result[0]), 2.0f);
-            }
+            // Each product sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
+            const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
+            ASSERT_EQ(1u, result.size());
+            EXPECT_EQ(static_cast<float>(result[0]), 2.0f);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2kHalf,
+            ::testing::ValuesIn(row_major(plain_rows({Core::DataType::Half}, K_BOTH_MODES))),
+            row_name<NoAxis>);
+
+        /** @brief Runs the case that hands a kernel an event still pending on a host task. */
+        class Medium_Syr2kFixedType : public RankTwoUpdateTest
+        {
+
+        };
 
         TEST_F(Medium_Syr2kFixedType, WaitsForItsDependencies)
         {
@@ -795,46 +826,20 @@ namespace SushiBLAS
             expect_equal(read_tensor<float>(C), std::vector<float>{-9.0f, -6.0f, 20.0f, 51.0f});
         }
 
-        TEST_F(Medium_Syr2kFixedType, TheTileFitsTheTestDevice)
+        /** @brief Runs the hand-computed her2k update over the complex element types. */
+        class Medium_Her2k : public UpdateCase<NoAxis>
         {
-            static_assert(tile_is<sycl::half>(4, 32, 4096), "The HALF tile changed.");
-            static_assert(tile_is<float>(4, 32, 8192), "The FLOAT32 tile changed.");
-            static_assert(tile_is<double>(4, 32, 16384), "The FLOAT64 tile changed.");
-            static_assert(tile_is<std::complex<float>>(4, 32, 16384),
-                          "The COMPLEX32 tile changed.");
-            static_assert(tile_is<std::complex<double>>(2, 16, 16384),
-                          "The COMPLEX64 tile changed.");
 
-            const Device::Profile& profile =
-                Device::profile_for(TestEnvironment::queue());
-            EXPECT_TRUE(hosts_syr2k_tile<sycl::half>(profile));
-            EXPECT_TRUE(hosts_syr2k_tile<float>(profile));
-            EXPECT_TRUE(hosts_syr2k_tile<double>(profile));
-            EXPECT_TRUE(hosts_syr2k_tile<std::complex<float>>(profile));
-            EXPECT_TRUE(hosts_syr2k_tile<std::complex<double>>(profile));
-        }
-
-        /** @brief Runs her2k over the complex element types. */
-        template<typename T>
-        class Medium_Her2k : public RankTwoUpdateTest
-        {
-            protected:
-                /// @brief The complex alpha of every case of this suite.
-                static constexpr Wide K_ALPHA{1.0, 2.0};
         };
 
-        using Her2kTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Medium_Her2k, Her2kTypes);
-
-        TYPED_TEST(Medium_Her2k, MatchesAHandComputedUpdate)
+        TEST_P(Medium_Her2k, MatchesAHandComputedUpdate)
         {
-            using T = TypeParam;
-            const Wide alpha = this->K_ALPHA;
-            const Wide untouched(K_UNTOUCHED, K_UNTOUCHED);
-
-            for (const Core::Layout layout : K_LAYOUTS)
+            with_complex_element(GetParam().type, [&](auto element)
             {
-                this->reinit_engine(layout);
+                using T = typename decltype(element)::type;
+                const Core::Layout layout = GetParam().layout;
+                const Wide untouched(K_UNTOUCHED, K_UNTOUCHED);
+
                 const auto a = matrix_of<T>(2, 1, layout, {Wide(1, 1), Wide(2, 0)});
                 const auto b = matrix_of<T>(2, 1, layout, {Wide(0, 1), Wide(1, -1)});
                 const auto c = matrix_of<T>(2, 2, layout,
@@ -842,233 +847,151 @@ namespace SushiBLAS
                 const auto expected = matrix_of<T>(
                     2, 2, layout, {Wide(8, 0), Wide(6, 2), untouched, Wide(4, 0)});
 
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(case_name(layout, Core::Uplo::Upper, Core::Transpose::NoTrans) +
-                                 " " + mode_name(mode));
-                    const std::vector<T> actual =
-                        this->template run_update<T, Kernels::Conjugated>(
-                            mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans, alpha,
-                            2.0);
+                const std::vector<T> actual = this->template run_update<T, Kernels::Conjugated>(
+                    a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans, K_HER2K_ALPHA, 2.0);
 
-                    // C(0, 0) is 6 + 2 * (1 + 5i) with its imaginary part dropped.
-                    expect_equal(actual, expected.values);
-                    EXPECT_EQ(actual[expected.index(0, 0)].imag(), 0);
-                    EXPECT_EQ(actual[expected.index(1, 1)].imag(), 0);
-                }
-            }
+                // C(0, 0) is 6 + 2 * (1 + 5i) with its imaginary part dropped.
+                expect_equal(actual, expected.values);
+                EXPECT_EQ(actual[expected.index(0, 0)].imag(), 0);
+                EXPECT_EQ(actual[expected.index(1, 1)].imag(), 0);
+            });
         }
 
-        TYPED_TEST(Medium_Her2k, IsExactOnGaussianIntegers)
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Her2k, ::testing::ValuesIn(plain_rows(K_COMPLEX_TYPES, K_BOTH_MODES)),
+            row_name<NoAxis>);
+
+        /** @brief Runs her2k against a host integer loop, per transpose and triangle. */
+        class Medium_Her2kExact : public UpdateCase<TransposeUplo>
         {
-            this->template expect_exact_on_integers<TypeParam, Kernels::Conjugated>(
-                {Core::Transpose::NoTrans, Core::Transpose::ConjTrans}, this->K_ALPHA);
-        }
 
-        TYPED_TEST(Medium_Her2k, ConjTransEqualsNoTransOnTheConjugateTransposes)
-        {
-            using T = TypeParam;
-            using Conj = Kernels::Conjugated;
-            const Wide alpha = this->K_ALPHA;
-            const Core::Layout layout = Core::Layout::RowMajor;
-            const auto a = integer_matrix<T>(K_SEED_A, K_INNER, K_ORDER, layout);
-            const auto b = integer_matrix<T>(K_SEED_B, K_INNER, K_ORDER, layout);
-            const auto c = integer_matrix<T>(K_SEED_C, K_ORDER, K_ORDER, layout);
-            const auto a_h = applied(a, Core::Transpose::ConjTrans);
-            const auto b_h = applied(b, Core::Transpose::ConjTrans);
-
-            for (const Core::Uplo uplo : K_TRIANGLES)
-            {
-                for (const ExecutionMode mode : K_MODES)
-                {
-                    SCOPED_TRACE(std::string(Core::to_string(uplo)) + " " + mode_name(mode));
-                    expect_equal(this->template run_update<T, Conj>(
-                                     mode, a, b, c, uplo, Core::Transpose::ConjTrans, alpha,
-                                     K_INTEGER_BETA),
-                                 this->template run_update<T, Conj>(
-                                     mode, a_h, b_h, c, uplo, Core::Transpose::NoTrans, alpha,
-                                     K_INTEGER_BETA));
-                }
-            }
-        }
-
-        /** @brief Runs the cases of syr2k and her2k that are not typed over the element type. */
-        class Medium_Syr2kHer2kEdges : public RankTwoUpdateTest
-        {
-            protected:
-                /**
-                 * @brief Expects record to throw std::invalid_argument and to add no task.
-                 * @param record Callable `(SushiBLAS::BLASOps&) -> TaskHandle`.
-                 */
-                template<typename Record>
-                void expect_refused(const char* what, Record&& record)
-                {
-                    SCOPED_TRACE(what);
-                    SushiBLAS::BLASOps ops(probe.recorder());
-                    EXPECT_THROW((void)record(ops), std::invalid_argument);
-                    EXPECT_EQ(0u, probe.take_recorded_count());
-                }
-
-                /// @brief The graph the refusal cases record on and read.
-                GraphProbe probe;
         };
 
-        TEST_F(Medium_Syr2kHer2kEdges, Her2kOnARealTensorIsSyr2k)
+        TEST_P(Medium_Her2kExact, IsExactOnGaussianIntegers)
+        {
+            with_complex_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                this->template expect_exact_on_integers<T, Kernels::Conjugated>(
+                    GetParam().layout, GetParam().axis, K_HER2K_ALPHA);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Her2kExact,
+            ::testing::ValuesIn(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES,
+                                        transpose_uplos({Core::Transpose::NoTrans,
+                                                         Core::Transpose::ConjTrans}))),
+            row_name<TransposeUplo>);
+
+        /** @brief Runs her2k with ConjTrans against NoTrans on the conjugate transposes. */
+        class Medium_Her2kConjTrans : public UpdateCase<Core::Uplo>
+        {
+
+        };
+
+        TEST_P(Medium_Her2kConjTrans, ConjTransEqualsNoTransOnTheConjugateTransposes)
+        {
+            with_complex_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                using Conj = Kernels::Conjugated;
+                const Wide alpha = K_HER2K_ALPHA;
+                const Core::Layout layout = Core::Layout::RowMajor;
+                const Core::Uplo uplo = GetParam().axis;
+                const auto a = integer_matrix<T>(K_SEED_A, K_INNER, K_ORDER, layout);
+                const auto b = integer_matrix<T>(K_SEED_B, K_INNER, K_ORDER, layout);
+                const auto c = integer_matrix<T>(K_SEED_C, K_ORDER, K_ORDER, layout);
+                const auto a_h = applied(a, Core::Transpose::ConjTrans);
+                const auto b_h = applied(b, Core::Transpose::ConjTrans);
+
+                const std::vector<T> conj_trans = this->template run_update<T, Conj>(
+                    a, b, c, uplo, Core::Transpose::ConjTrans, alpha, K_INTEGER_BETA);
+                this->start(layout, GetParam().mode);
+                const std::vector<T> no_trans = this->template run_update<T, Conj>(
+                    a_h, b_h, c, uplo, Core::Transpose::NoTrans, alpha, K_INTEGER_BETA);
+
+                expect_equal(conj_trans, no_trans);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Her2kConjTrans,
+            ::testing::ValuesIn(row_major(rows_of(K_COMPLEX_TYPES, K_BOTH_MODES, K_TRIANGLES))),
+            row_name<Core::Uplo>);
+
+        /** @brief Runs the FLOAT32 cases of syr2k and her2k that forward or have no work. */
+        class Medium_Syr2kHer2kEdges : public UpdateCase<NoAxis>
+        {
+
+        };
+
+        TEST_P(Medium_Syr2kHer2kEdges, Her2kOnARealTensorIsSyr2k)
         {
             std::mt19937 generator(K_SEED);
             const auto a = random_matrix<float>(generator, K_ORDER, K_INNER);
             const auto b = random_matrix<float>(generator, K_ORDER, K_INNER);
             const auto c = random_matrix<float>(generator, K_ORDER, K_ORDER);
 
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                expect_same_bytes(
-                    run_update<float, Kernels::Conjugated>(
-                        mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans,
-                        K_ROUNDED_ALPHA, K_ROUNDED_BETA),
-                    run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans,
-                        K_ROUNDED_ALPHA, K_ROUNDED_BETA));
-            }
+            const std::vector<float> from_her2k = run_update<float, Kernels::Conjugated>(
+                a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans, K_ROUNDED_ALPHA,
+                K_ROUNDED_BETA);
+            start(GetParam().layout, GetParam().mode);
+            const std::vector<float> from_syr2k = run_update<float, Kernels::Unconjugated>(
+                a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans, K_ROUNDED_ALPHA,
+                K_ROUNDED_BETA);
+
+            expect_same_bytes(from_her2k, from_syr2k);
         }
 
-        TEST_F(Medium_Syr2kHer2kEdges, ConjTransOnARealTensorIsTrans)
+        TEST_P(Medium_Syr2kHer2kEdges, ConjTransOnARealTensorIsTrans)
         {
             std::mt19937 generator(K_SEED);
             const auto a = random_matrix<float>(generator, K_INNER, K_ORDER);
             const auto b = random_matrix<float>(generator, K_INNER, K_ORDER);
             const auto c = random_matrix<float>(generator, K_ORDER, K_ORDER);
 
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                expect_same_bytes(
-                    run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::Lower, Core::Transpose::ConjTrans,
-                        K_ROUNDED_ALPHA, K_ROUNDED_BETA),
-                    run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::Lower, Core::Transpose::Trans,
-                        K_ROUNDED_ALPHA, K_ROUNDED_BETA));
-            }
+            const std::vector<float> conj_trans = run_update<float, Kernels::Unconjugated>(
+                a, b, c, Core::Uplo::Lower, Core::Transpose::ConjTrans, K_ROUNDED_ALPHA,
+                K_ROUNDED_BETA);
+            start(GetParam().layout, GetParam().mode);
+            const std::vector<float> trans = run_update<float, Kernels::Unconjugated>(
+                a, b, c, Core::Uplo::Lower, Core::Transpose::Trans, K_ROUNDED_ALPHA,
+                K_ROUNDED_BETA);
+
+            expect_same_bytes(conj_trans, trans);
         }
 
-        TEST_F(Medium_Syr2kHer2kEdges, EveryRefusalIsAnInvalidArgument)
+        TEST_P(Medium_Syr2kHer2kEdges, AnUpdateOfNoRowsRecordsAndRuns)
         {
-            const Core::Uplo upper = Core::Uplo::Upper;
-            const Core::Transpose no_trans = Core::Transpose::NoTrans;
-            const Tensor A = engine->create_tensor({3, 2});
-            const Tensor B = engine->create_tensor({3, 2});
-            Tensor C = engine->create_tensor({3, 3});
-            const Tensor complex_A = engine->create_tensor({3, 2}, Core::DataType::Complex32);
-            const Tensor complex_B = engine->create_tensor({3, 2}, Core::DataType::Complex32);
-            Tensor complex_C = engine->create_tensor({3, 3}, Core::DataType::Complex32);
-            const Tensor tall = engine->create_tensor({4, 2});
+            const Tensor no_rows_A = engine->create_tensor({0, 2});
+            const Tensor no_rows_B = engine->create_tensor({0, 2});
+            Tensor no_rows_C = engine->create_tensor({0, 0});
 
-            expect_refused("uplo holding 0", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(A, B, C, static_cast<Core::Uplo>(0));
-            });
-            expect_refused("trans holding 0", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(A, B, C, upper, static_cast<Core::Transpose>(0));
-            });
-            expect_refused("syr2k with CONJ_TRANS on COMPLEX32", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(complex_A, complex_B, complex_C, upper,
-                                 Core::Transpose::ConjTrans);
-            });
-            expect_refused("her2k with TRANS on COMPLEX32", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.her2k(complex_A, complex_B, complex_C, upper, Core::Transpose::Trans);
-            });
-            expect_refused("B of another dtype", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
-                return ops.syr2k(A, other, C, upper);
-            });
-            expect_refused("C of another dtype", [&](SushiBLAS::BLASOps& ops)
-            {
-                Tensor other = engine->create_tensor({3, 3}, Core::DataType::Float64);
-                return ops.syr2k(A, B, other, upper);
-            });
-            expect_refused("a complex alpha on FLOAT32 through syr2k",
-                           [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(A, B, C, upper, no_trans, K_COMPLEX_SCALAR);
-            });
-            expect_refused("a complex alpha on FLOAT32 through her2k",
-                           [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.her2k(A, B, C, upper, no_trans, K_COMPLEX_SCALAR);
-            });
-            expect_refused("a 3 x 4 C", [&](SushiBLAS::BLASOps& ops)
-            {
-                Tensor other = engine->create_tensor({3, 4});
-                return ops.syr2k(A, B, other, upper);
-            });
-            expect_refused("op(A) with n + 1 rows", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(tall, B, C, upper);
-            });
-            expect_refused("op(B) with n + 1 rows", [&](SushiBLAS::BLASOps& ops)
-            {
-                return ops.syr2k(A, tall, C, upper);
-            });
-            expect_refused("op(B) with k + 1 columns", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other = engine->create_tensor({3, 3});
-                return ops.syr2k(A, other, C, upper);
-            });
-            expect_refused("a column-major A with a row-major C", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor other(A.storage, {3, 2}, Core::DataType::Float32, 0,
-                                   Core::Layout::ColumnMajor);
-                return ops.syr2k(other, B, C, upper);
-            });
-            expect_refused("a batch of 3 against a batch of 4", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor batch_A = engine->create_tensor({3, 3, 2});
-                const Tensor batch_B = engine->create_tensor({4, 3, 2});
-                Tensor batch_C = engine->create_tensor({4, 3, 3});
-                return ops.syr2k(batch_A, batch_B, batch_C, upper);
-            });
-            expect_refused("an INT32 A", [&](SushiBLAS::BLASOps& ops)
-            {
-                const Tensor int_A = engine->create_tensor({3, 2}, Core::DataType::Int32);
-                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::Int32);
-                Tensor int_C = engine->create_tensor({3, 3}, Core::DataType::Int32);
-                return ops.syr2k(int_A, int_B, int_C, upper);
-            });
+            SushiBLAS::BLASOps(recorder()).syr2k(no_rows_A, no_rows_B, no_rows_C,
+                                                 Core::Uplo::Upper);
+
+            EXPECT_TRUE(recording->run().has_value());
         }
 
-        TEST_F(Medium_Syr2kHer2kEdges, AnEmptyUpdateRecordsAndRuns)
+        TEST_P(Medium_Syr2kHer2kEdges, AnUpdateOfNoColumnsLeavesCUnchanged)
         {
             const HostMatrix<float> c =
                 integer_matrix<float>(K_SEED_C, 3, 3, Core::Layout::RowMajor);
+            const Tensor no_cols_A = engine->create_tensor({3, 0});
+            const Tensor no_cols_B = engine->create_tensor({3, 0});
+            Tensor C = upload(c);
 
-            for (const ExecutionMode mode : K_MODES)
-            {
-                SCOPED_TRACE(mode_name(mode));
-                set_mode(mode);
+            SushiBLAS::BLASOps(recorder()).syr2k(no_cols_A, no_cols_B, C, Core::Uplo::Lower,
+                                                 Core::Transpose::NoTrans, K_INTEGER_ALPHA, 1.0);
 
-                const Tensor no_rows_A = engine->create_tensor({0, 2});
-                const Tensor no_rows_B = engine->create_tensor({0, 2});
-                Tensor no_rows_C = engine->create_tensor({0, 0});
-                EXPECT_NO_THROW(SushiBLAS::BLASOps(recorder())
-                    .syr2k(no_rows_A, no_rows_B, no_rows_C,
-                                                                  Core::Uplo::Upper));
-                EXPECT_TRUE(recording->run().has_value());
-
-                const Tensor no_cols_A = engine->create_tensor({3, 0});
-                const Tensor no_cols_B = engine->create_tensor({3, 0});
-                Tensor C = upload(c);
-                EXPECT_NO_THROW(SushiBLAS::BLASOps(recorder()).syr2k(
-                    no_cols_A, no_cols_B, C, Core::Uplo::Lower, Core::Transpose::NoTrans,
-                    K_INTEGER_ALPHA, 1.0));
-                EXPECT_TRUE(recording->run().has_value());
-                expect_same_bytes(read_tensor<float>(C), c.values);
-            }
+            ASSERT_TRUE(recording->run().has_value());
+            expect_same_bytes(read_tensor<float>(C), c.values);
         }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_Syr2kHer2kEdges,
+            ::testing::ValuesIn(row_major(plain_rows({Core::DataType::Float32}, K_BOTH_MODES))),
+            row_name<NoAxis>);
     } // namespace Test
 } // namespace SushiBLAS

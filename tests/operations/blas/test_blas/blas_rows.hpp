@@ -176,6 +176,17 @@ namespace SushiBLAS
             return rows_of(types, modes, std::vector<NoAxis>{NoAxis{}});
         }
 
+        /** @brief Returns the rows of a suite that run in the row-major layout alone. */
+        template<typename Axis>
+        [[nodiscard]] std::vector<Row<Axis>> row_major(const std::vector<Row<Axis>>& rows)
+        {
+            std::vector<Row<Axis>> kept;
+            for (const Row<Axis>& row : rows)
+                if (row.layout == Core::Layout::RowMajor)
+                    kept.push_back(row);
+            return kept;
+        }
+
         /** @brief Returns the name of a row for GoogleTest: layout, kernel, type, axis. */
         template<typename Axis>
         [[nodiscard]] std::string row_name(const ::testing::TestParamInfo<Row<Axis>>& info)
@@ -218,6 +229,30 @@ namespace SushiBLAS
                     break;
                 default:
                     FAIL() << "a BLAS routine takes no such element type";
+            }
+        }
+
+        /**
+         * @brief Calls body with the Element of FLOAT32 or FLOAT64.
+         *
+         * For a case whose helpers draw from `std::uniform_real_distribution`, which a HALF or a
+         * complex element lacks.
+         * @param type FLOAT32 or FLOAT64.
+         * @param body Callable taking an Element.
+         */
+        template<typename Body>
+        void with_single_or_double_element(Core::DataType type, Body&& body)
+        {
+            switch (type)
+            {
+                case Core::DataType::Float32:
+                    body(Element<float>{});
+                    break;
+                case Core::DataType::Float64:
+                    body(Element<double>{});
+                    break;
+                default:
+                    FAIL() << "this case takes FLOAT32 or FLOAT64";
             }
         }
 
