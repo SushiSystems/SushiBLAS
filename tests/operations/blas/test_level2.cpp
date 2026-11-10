@@ -50,21 +50,31 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_Level2, GemvAndItsTransposeGiveExactValues)
+        TEST_F(Medium_Level2, GemvGivesTheProduct)
         {
             const Tensor a = create_initialized_tensor<double>({2, 3}, {1, 2, 3, 4, 5, 6});
             const Tensor x = create_initialized_tensor<double>({3}, {1, -1, 2});
-            const Tensor u = create_initialized_tensor<double>({2}, {1, 1});
             Tensor y = create_initialized_tensor<double>({2}, {0, 0});
-            Tensor w = create_initialized_tensor<double>({3}, {0, 0, 0});
             BLASOps blas(recorder());
             Level2& level2 = blas;
 
             level2.gemv(a, x, y);
-            level2.gemv(a, u, w, Core::Transpose::Trans);
             ASSERT_TRUE(recording->run().has_value());
 
             EXPECT_EQ(read_tensor<double>(y), (std::vector<double>{5, 11}));
+        }
+
+        TEST_F(Medium_Level2, GemvOfTheTransposeGivesTheProductWithTheTranspose)
+        {
+            const Tensor a = create_initialized_tensor<double>({2, 3}, {1, 2, 3, 4, 5, 6});
+            const Tensor u = create_initialized_tensor<double>({2}, {1, 1});
+            Tensor w = create_initialized_tensor<double>({3}, {0, 0, 0});
+            BLASOps blas(recorder());
+            Level2& level2 = blas;
+
+            level2.gemv(a, u, w, Core::Transpose::Trans);
+            ASSERT_TRUE(recording->run().has_value());
+
             EXPECT_EQ(read_tensor<double>(w), (std::vector<double>{5, 7, 9}));
         }
 

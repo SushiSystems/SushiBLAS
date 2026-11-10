@@ -37,8 +37,8 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/engine_fixture/host_engine_test.hpp>
+#include <SushiBLAS/graph_probe/host_graph_probe.hpp>
 
 namespace SushiBLAS
 {
@@ -47,51 +47,102 @@ namespace SushiBLAS
         /// @brief The extent of every axis of the product; large enough for a plan to be chosen.
         constexpr int64_t K_EXTENT = 512;
 
-        /** @brief Builds output matrices on the fixture's engine. */
-        class Medium_PackedProductScratch : public SushiBLASTest
+        /** @brief Leases packed-product scratch on host tensors for a profile the test builds. */
+        class Small_PackedProductScratch : public HostEngineTest
         {
+            protected:
+                /** @brief Returns a CPU profile whose blocking selects a product of K_EXTENT. */
+                [[nodiscard]] static Device::Profile selecting_profile()
+                {
+                    Device::Profile profile;
+                    profile.is_cpu = true;
+                    profile.compute_units = 4;
+                    profile.blocking.min_operand_bytes = 0;
+                    profile.blocking.min_register_blocks = 1;
+                    return profile;
+                }
 
+                /** @brief Returns a profile that never selects the packed kernel: not a CPU. */
+                [[nodiscard]] static Device::Profile unselecting_profile()
+                {
+                    Device::Profile profile = selecting_profile();
+                    profile.is_cpu = false;
+                    return profile;
+                }
+
+                /** @brief Returns the plan the selecting profile makes for the product. */
+                [[nodiscard]] static Kernels::PackedProductPlan selected_plan()
+                {
+                    return Kernels::plan_packed_product<float>(selecting_profile(), K_EXTENT,
+                                                               K_EXTENT, K_EXTENT, 1);
+                }
         };
 
-        TEST_F(Medium_PackedProductScratch, TheBytesAreThoseOfThePlanOrNone)
+        TEST_F(Small_PackedProductScratch, TheBytesAreThoseOfTheSelectedPlan)
         {
-            const Device::Profile& profile =
-                Device::profile_for(engine->create_tensor({1}).device());
-            const Kernels::PackedProductPlan plan =
-                Kernels::plan_packed_product<float>(profile, K_EXTENT, K_EXTENT, K_EXTENT, 1);
+            const Kernels::PackedProductPlan plan = selected_plan();
+            ASSERT_TRUE(plan.selected);
 
-            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Float32, profile,
-                                                             K_EXTENT, K_EXTENT, K_EXTENT, 1),
-                      plan.selected ? plan.scratch_bytes : std::size_t{0});
-            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Int32, profile,
-                                                             K_EXTENT, K_EXTENT, K_EXTENT, 1),
+            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Float32,
+                                                             selecting_profile(), K_EXTENT,
+                                                             K_EXTENT, K_EXTENT, 1),
+                      plan.scratch_bytes);
+        }
+
+        TEST_F(Small_PackedProductScratch, TheBytesAreNoneWhenTheProfileSelectsNoPlan)
+        {
+            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Float32,
+                                                             unselecting_profile(), K_EXTENT,
+                                                             K_EXTENT, K_EXTENT, 1),
                       std::size_t{0});
         }
 
-        TEST_F(Medium_PackedProductScratch, TheLeaseHoldsThePlannedBytesAndIsDeclared)
+        TEST_F(Small_PackedProductScratch, AnIntegerDtypeNeedsNoBytes)
+        {
+            EXPECT_EQ(Internal::packed_product_scratch_bytes(Core::DataType::Int32,
+                                                             selecting_profile(), K_EXTENT,
+                                                             K_EXTENT, K_EXTENT, 1),
+                      std::size_t{0});
+        }
+
+        TEST_F(Small_PackedProductScratch, TheLeaseHoldsThePlannedBytesAndIsDeclared)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
-            const std::size_t bytes = Internal::packed_product_scratch_bytes(
-                c.dtype, Device::profile_for(c.device()), K_EXTENT, K_EXTENT, K_EXTENT, 1);
-            GraphProbe probe;
+            HostGraphProbe probe;
+            probe.recorder().set_mode(ExecutionMode::Auto);
             OperandSet operands;
 
             const ScratchBuffer scratch = Internal::allocate_packed_product_scratch(
-                probe.recorder(), c, K_EXTENT, K_EXTENT, K_EXTENT, 1, operands);
+                probe.recorder(), c, selecting_profile(), K_EXTENT, K_EXTENT, K_EXTENT, 1,
+                operands);
 
-            EXPECT_EQ(scratch.bytes(), bytes);
-            const std::size_t declared = bytes == 0 ? 0 : 1;
-            EXPECT_EQ(operands.write_regions().size(), declared);
+            EXPECT_EQ(scratch.bytes(), selected_plan().scratch_bytes);
+            EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
         }
 
-        TEST_F(Medium_PackedProductScratch, TheReferencePathLeasesNothing)
+        TEST_F(Small_PackedProductScratch, NothingIsLeasedWhenTheProfileSelectsNoPlan)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
-            GraphProbe probe(ExecutionMode::ForceReference);
+            HostGraphProbe probe;
+            probe.recorder().set_mode(ExecutionMode::Auto);
             OperandSet operands;
 
-            EXPECT_TRUE(Internal::allocate_packed_product_scratch(probe.recorder(), c, K_EXTENT,
-                                                                  K_EXTENT, K_EXTENT, 1, operands)
+            EXPECT_TRUE(Internal::allocate_packed_product_scratch(
+                            probe.recorder(), c, unselecting_profile(), K_EXTENT, K_EXTENT,
+                            K_EXTENT, 1, operands)
+                            .is_empty());
+            EXPECT_TRUE(operands.write_regions().empty());
+        }
+
+        TEST_F(Small_PackedProductScratch, TheReferencePathLeasesNothing)
+        {
+            const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
+            HostGraphProbe probe;
+            OperandSet operands;
+
+            EXPECT_TRUE(Internal::allocate_packed_product_scratch(
+                            probe.recorder(), c, selecting_profile(), K_EXTENT, K_EXTENT,
+                            K_EXTENT, 1, operands)
                             .is_empty());
             EXPECT_TRUE(operands.write_regions().empty());
         }

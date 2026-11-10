@@ -85,6 +85,25 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Leases the panels an m x n product of k terms stages, for a device of profile.
+         * @return An empty buffer when the profile does not select the packed kernel, and
+         *         wherever allocate_blas_scratch returns one.
+         */
+        [[nodiscard]] inline ScratchBuffer
+        allocate_packed_product_scratch(TaskRecorder& recorder, const Tensor& C,
+                                        const Device::Profile& profile,
+                                        int64_t m, int64_t n, int64_t k, int64_t batch_size,
+                                        OperandSet& operands)
+        {
+            if (!C.storage)
+                return ScratchBuffer();
+
+            const std::size_t bytes = packed_product_scratch_bytes(C.dtype, profile, m, n, k,
+                                                                   batch_size);
+            return allocate_blas_scratch(recorder, C, bytes, operands);
+        }
+
+        /**
          * @brief Leases the panels an m x n product of k terms stages, on the device of C.
          * @return An empty buffer when the profile of that device does not select the packed
          *         kernel, and wherever allocate_blas_scratch returns one.
@@ -97,9 +116,8 @@ namespace SushiBLAS
             if (!C.storage)
                 return ScratchBuffer();
 
-            const std::size_t bytes = packed_product_scratch_bytes(
-                C.dtype, Dispatch::profile_of(C), m, n, k, batch_size);
-            return allocate_blas_scratch(recorder, C, bytes, operands);
+            return allocate_packed_product_scratch(recorder, C, Dispatch::profile_of(C), m, n, k,
+                                                   batch_size, operands);
         }
     } // namespace Internal
 } // namespace SushiBLAS

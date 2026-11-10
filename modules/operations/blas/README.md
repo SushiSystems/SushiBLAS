@@ -451,7 +451,9 @@ throws `std::runtime_error`.
 `ForceReference`, `require_local_tile` compares the local memory and the work-group size the
 tiled SYCL kernel stages for the dtype with the profile of the device of C, and throws
 `UnsupportedExecution` when the device cannot host them. `syrk` and `herk` ask only where the
-profile does not select the packed kernel.
+profile does not select the packed kernel. `require_local_tile` also takes the execution mode, the
+dtype and a `Device::Profile` value, and `tile_is_accepted` returns its decision as a `bool`, so
+the decision runs with no device.
 
 ## The record-time helpers
 
@@ -472,7 +474,7 @@ no storage, when the byte count is zero, and under `ForceReference`, where no SY
 the scratch. It reads the mode from the recorder, not from an engine. `allocate_level1_scratch`
 sizes the partials of a Level 1 reduction from `Reduce::planned_partials` and forwards;
 `asum`, `dot`, `iamax` and `nrm2` use it. `allocate_packed_product_scratch` sizes the panels of the
-packed CPU product from `Kernels::plan_packed_product` and forwards. `running_solution_bytes`
+packed CPU product from `Kernels::plan_packed_product` and forwards; one overload reads the profile from the device of C and one takes a `Device::Profile`, so the lease can be read with no device. `running_solution_bytes`
 gives the element size of the wide solution a triangular substitution carries, or 0 when the
 solution is carried in the dtype itself.
 

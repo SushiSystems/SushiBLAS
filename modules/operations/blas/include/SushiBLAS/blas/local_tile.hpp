@@ -74,6 +74,41 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns whether the SYCL kernel of a tile may run on a device of profile.
+         * @tparam Tile A type whose static `demand<T>()` returns a Device::LocalTileDemand.
+         * @return True under ForceReference, which never runs that kernel, and when the device
+         *         hosts the tile.
+         */
+        template<typename Tile>
+        [[nodiscard]] bool tile_is_accepted(ExecutionMode mode, Core::DataType dtype,
+                                            const Device::Profile& profile) noexcept
+        {
+            return mode == ExecutionMode::ForceReference ||
+                   Device::hosts_local_tile(profile, local_tile_demand<Tile>(dtype));
+        }
+
+        /**
+         * @brief Throws unless tile_is_accepted holds for the device of the given profile.
+         * @throws UnsupportedExecution naming the demand and what the device offers.
+         * @see modules/operations/blas/README.md
+         */
+        template<typename Tile>
+        void require_local_tile(ExecutionMode mode, Core::DataType dtype,
+                                const Device::Profile& profile, const char* op)
+        {
+            if (tile_is_accepted<Tile>(mode, dtype, profile))
+                return;
+
+            const Device::LocalTileDemand demand = local_tile_demand<Tile>(dtype);
+            Dispatch::Detail::throw_execution_error(
+                op,
+                "the SYCL kernel stages {} B of local memory in {}-item work-groups; the device "
+                "offers {} B and {}",
+                demand.local_bytes, demand.work_group_items, profile.local_mem_bytes,
+                profile.max_work_group_size);
+        }
+
+        /**
          * @brief Throws unless the device of C hosts the tile the SYCL kernel of op stages.
          * @tparam Tile A type whose static `demand<T>()` returns a Device::LocalTileDemand.
          * @throws UnsupportedExecution outside ForceReference, which never runs that kernel.
@@ -82,20 +117,10 @@ namespace SushiBLAS
         template<typename Tile>
         void require_local_tile(const TaskRecorder& recorder, const Tensor& C, const char* op)
         {
-            if (recorder.mode() == ExecutionMode::ForceReference || !C.storage)
+            if (!C.storage)
                 return;
 
-            const Device::LocalTileDemand demand = local_tile_demand<Tile>(C.dtype);
-            const Device::Profile& profile = Dispatch::profile_of(C);
-            if (Device::hosts_local_tile(profile, demand))
-                return;
-
-            Dispatch::Detail::throw_execution_error(
-                op,
-                "the SYCL kernel stages {} B of local memory in {}-item work-groups; the device "
-                "offers {} B and {}",
-                demand.local_bytes, demand.work_group_items, profile.local_mem_bytes,
-                profile.max_work_group_size);
+            require_local_tile<Tile>(recorder.mode(), C.dtype, Dispatch::profile_of(C), op);
         }
     } // namespace Internal
 } // namespace SushiBLAS

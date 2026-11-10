@@ -35,8 +35,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas/local_tile.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
-#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/core/errors.hpp>
 
 namespace SushiBLAS
 {
@@ -64,32 +63,65 @@ namespace SushiBLAS
             }
         };
 
-        /** @brief Builds the output matrices on the fixture's engine. */
-        class Medium_LocalTile : public SushiBLASTest
+        /** @brief Holds the demand of a tile per element type, which needs no device. */
+        class Small_LocalTileDemand : public ::testing::Test
         {
 
         };
 
-        TEST_F(Medium_LocalTile, TheDemandFollowsTheElementTypeAndIsZeroForIntegers)
+        TEST_F(Small_LocalTileDemand, TheSizedDemandFollowsTheElementType)
         {
             EXPECT_EQ(Internal::local_tile_demand<SmallTile>(Core::DataType::Float64).local_bytes,
                       16 * sizeof(double));
             EXPECT_EQ(
                 Internal::local_tile_demand<SmallTile>(Core::DataType::Complex32).local_bytes,
                 16 * sizeof(std::complex<float>));
+        }
+
+        TEST_F(Small_LocalTileDemand, TheDemandIsZeroForIntegers)
+        {
             EXPECT_EQ(Internal::local_tile_demand<SmallTile>(Core::DataType::Int32).local_bytes,
                       std::size_t{0});
         }
 
-        TEST_F(Medium_LocalTile, ATileTheDeviceCannotHostIsRefusedUnlessTheReferenceRuns)
+        /** @brief Holds the record-time decision on a profile value, with no device and no graph. */
+        class Small_LocalTileCheck : public ::testing::Test
         {
-            const Tensor c = engine->create_tensor({4, 4});
-            GraphProbe automatic;
-            GraphProbe reference(ExecutionMode::ForceReference);
+            protected:
+                /** @brief Returns the profile of a device with 64 KiB of local memory. */
+                [[nodiscard]] static Device::Profile profile_of_a_device()
+                {
+                    Device::Profile profile;
+                    profile.local_mem_bytes = std::size_t{64} * 1024;
+                    profile.max_work_group_size = 256;
+                    return profile;
+                }
+        };
 
-            EXPECT_NO_THROW(Internal::require_local_tile<SmallTile>(automatic.recorder(), c, "op"));
-            EXPECT_ANY_THROW(Internal::require_local_tile<HugeTile>(automatic.recorder(), c, "op"));
-            EXPECT_NO_THROW(Internal::require_local_tile<HugeTile>(reference.recorder(), c, "op"));
+        TEST_F(Small_LocalTileCheck, ATileTheDeviceHostsIsAccepted)
+        {
+            EXPECT_TRUE(Internal::tile_is_accepted<SmallTile>(
+                ExecutionMode::Auto, Core::DataType::Float32, profile_of_a_device()));
+        }
+
+        TEST_F(Small_LocalTileCheck, ATileTheDeviceCannotHostIsNotAccepted)
+        {
+            EXPECT_FALSE(Internal::tile_is_accepted<HugeTile>(
+                ExecutionMode::Auto, Core::DataType::Float32, profile_of_a_device()));
+        }
+
+        TEST_F(Small_LocalTileCheck, ATileTheDeviceCannotHostIsRefusedWithUnsupportedExecution)
+        {
+            EXPECT_THROW(Internal::require_local_tile<HugeTile>(
+                             ExecutionMode::Auto, Core::DataType::Float32, profile_of_a_device(),
+                             "op"),
+                         UnsupportedExecution);
+        }
+
+        TEST_F(Small_LocalTileCheck, ATileTheDeviceCannotHostIsAcceptedWhenTheReferenceRuns)
+        {
+            EXPECT_TRUE(Internal::tile_is_accepted<HugeTile>(
+                ExecutionMode::ForceReference, Core::DataType::Float32, profile_of_a_device()));
         }
     } // namespace Test
 } // namespace SushiBLAS
