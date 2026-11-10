@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-10 — cli: Required sushicore 0.12.2, which narrows a sharded test run by `--filter` and reruns a failed shard's cases.
 - 2026-11-10 — tests: Registered each test program's cases as CTest shards per size (RW-158, `7ed5b15d`).
 - 2026-11-07 — verification: Let the host sink report what each recorded task stated, so the index-ops recording and refusal tests run small (RW-149, `62dba19b`).
 - 2026-11-07 — general: Give the graph primitives a value-level seam so their capacity and refusal tests run small (RW-147, `e70bbcfc`).
