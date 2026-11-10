@@ -100,6 +100,7 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     blas_test_oracle    core
     packed_product_harness blas_seam_kernels
     test_runner         core
+    host_device         test_runner
     sparse_fixtures     core
     sparse_fixtures     arithmetic
     tensor_expectations tensor
