@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — 68 of 70 jobs done, 2 todo (see Not done as written); the one build and test run is left
+**Status:** Open — 69 of 70 jobs done and the build and test run pass (62 of 62 shards, 254 s wall, 2026-11-10); M2 waits on an environment and config reader port in SushiCore (RW-157)
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
