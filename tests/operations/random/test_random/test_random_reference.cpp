@@ -176,9 +176,9 @@ namespace SushiBLAS
 
             /// @brief Holds the wide and the tall matrix the two orthogonal paths are compared on, and one vector at a gain of 3.
             constexpr OrthogonalCase K_ORTHOGONAL_CASES[] = {
-                {"8 by 16", 8, 16, 1.0, {8, 16, 1, 16}},
-                {"16 by 8", 16, 8, 1.0, {8, 16, 8, 1}},
-                {"1 by 4 at gain 3", 1, 4, 3.0, {1, 4, 1, 4}},
+                {"Matrix_8_by_16", 8, 16, 1.0, {8, 16, 1, 16}},
+                {"Matrix_16_by_8", 16, 8, 1.0, {8, 16, 8, 1}},
+                {"Matrix_1_by_4_at_gain_3", 1, 4, 3.0, {1, 4, 1, 4}},
             };
 
             /** @brief Returns single for FLOAT32 and wide for FLOAT64. */

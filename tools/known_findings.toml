@@ -11,3 +11,129 @@ rule = "rule_weak_assertion_only"
 path = "tests/operations/experimental/test_dense_operand.cpp"
 count = 1
 backlog = "RW-133"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/engine/engine/test_engine/test_tensor_view.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_suite_fixture_mix"
+path = "tests/foundation/arithmetic/test_device_math.cpp"
+count = 2
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/foundation/test_runner/test_run_observer_capture.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/reference/level3/test_syr2k.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/reference/level3/test_syrk.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/reference/level3/test_trsm.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/sycl/level1/test_rotm.cpp"
+count = 2
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/sycl/level2/test_row_reduction.cpp"
+count = 2
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/sycl/level2/test_triangular_solve.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/sycl/level3/test_triangular_plan.cpp"
+count = 6
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_kernels/sycl/level3/test_trsm.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_seam_kernels/level3/test_packed_product_plan.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_seam_kernels/test_band_access.cpp"
+count = 3
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_seam_kernels/test_packed_access.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/kernels/blas_seam_kernels/test_symmetric_row.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/operations/blas/test_blas/test_level1_parallel_reductions.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/operations/blas/test_blas/test_level1_reference.cpp"
+count = 1
+backlog = "RW-159"
+
+[[finding]]
+checker = "testing/check_test_odr.py"
+rule = "rule_unsafe_name"
+path = "tests/operations/blas/test_blas/test_level2_sycl_parity.cpp"
+count = 1
+backlog = "RW-159"

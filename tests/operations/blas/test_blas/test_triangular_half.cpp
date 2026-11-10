@@ -172,7 +172,7 @@ namespace SushiBLAS
         INSTANTIATE_TEST_SUITE_P(, Medium_TriangularHalfWidth,
                                  ::testing::ValuesIn(values_of(K_HALF_WIDTHS)),
                                  [](const ::testing::TestParamInfo<int64_t>& info) {
-                                     return "w" + std::to_string(info.param);
+                                     return "w" + std::to_string(static_cast<std::size_t>(info.param));
                                  });
         INSTANTIATE_TEST_SUITE_P(, Medium_TriangularHalfMode,
                                  ::testing::Values(ExecutionMode::ForceReference,

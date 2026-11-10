@@ -21,6 +21,7 @@
 | RW-132 | P3 | open | Move static_assert-only Medium_ cases to Small_ | no Medium_ case holds only static_assert, such as Medium_ReferenceAccumulator and Medium_PackedAccess ones |  | `tests/foundation/reference/test_reference_accumulator.cpp` | 2026-11-02 |
 | RW-138 | P3 | open | Make PoissonAcceptsTheCap fail on a constant fill | The test in test_random_large_lambda.cpp checks the draws vary, so a constant fill fails it |  | `tests/operations/random/test_random/test_random_large_lambda.cpp` | 2026-11-06 |
 | RW-154 | P1 | open | Give SushiBLAS a host engine that runs the reference kernels with no device | HostEngineTest runs the operations' reference paths on host memory with no SYCL queue, and EngineContract passes small on it and medium on the runtime |  | `modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/host_engine_test.hpp` | 2026-11-07 |
+| RW-159 | P2 | open | Give every test a name and suite that check_test_odr accepts | check_test_odr.py prints nothing for this repository and its known findings are gone |  |  | 2026-11-11 |
 
 ## Known issues
 

@@ -118,13 +118,13 @@ namespace SushiBLAS
                 crowded.workers_per_compute_unit = 4;
 
                 return {
-                    {"smallest, one unit", smallest_blocking(), 1},
-                    {"smallest, five units", smallest_blocking(), 5},
-                    {"widest, one unit", widest_blocking(), 1},
-                    {"widest, seven units", widest_blocking(), 7},
-                    {"ragged, three units", ragged_blocking<T>(), 3},
-                    {"ragged, four workers per unit", crowded, 3},
-                    {"device default, two units", device_default, 2},
+                    {"smallest_one_unit", smallest_blocking(), 1},
+                    {"smallest_five_units", smallest_blocking(), 5},
+                    {"widest_one_unit", widest_blocking(), 1},
+                    {"widest_seven_units", widest_blocking(), 7},
+                    {"ragged_three_units", ragged_blocking<T>(), 3},
+                    {"ragged_four_workers_per_unit", crowded, 3},
+                    {"device_default_two_units", device_default, 2},
                 };
             }
 
