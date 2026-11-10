@@ -30,6 +30,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -69,10 +70,35 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief Tells whether no two entries of a table name the same architecture, dtype and size class.
+         * @tparam Table A container of GemmTileEntry with `size()` and `operator[]`.
+         * @param table The entries to compare.
+         * @return false when two entries share a key, so the table holds two answers for one product.
+         * @see modules/kernels/blas_seam_kernels/README.md
+         */
+        template<typename Table>
+        constexpr bool has_unique_keys(const Table& table)
+        {
+            for (std::size_t first = 0; first < table.size(); ++first)
+            {
+                for (std::size_t second = first + 1; second < table.size(); ++second)
+                {
+                    if (table[first].architecture == table[second].architecture &&
+                        table[first].dtype == table[second].dtype &&
+                        table[first].size_class == table[second].size_class)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        /**
          * @brief Holds every measured entry; `benchmark_gemm_tiles` prints the lines.
          * @see modules/kernels/blas_seam_kernels/README.md
          */
         inline constexpr std::array<GemmTileEntry, 0> K_GEMM_TILE_TABLE = {};
+
+        static_assert(has_unique_keys(K_GEMM_TILE_TABLE), "No two entries of the shipped table share a key.");
 
     } // namespace Kernels
 } // namespace SushiBLAS

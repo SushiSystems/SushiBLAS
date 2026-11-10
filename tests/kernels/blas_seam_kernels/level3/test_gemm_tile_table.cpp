@@ -23,12 +23,14 @@
 
 /**
  * @file test_gemm_tile_table.cpp
- * @brief Tests that the GEMM tile chooser matches a table entry only by a known architecture.
+ * @brief Tests that the GEMM tile chooser matches a table entry only by a known architecture, and the key rule of a table.
  * @author Mustafa Garip
  */
 
 #include <array>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -56,7 +58,82 @@ namespace SushiBLAS
                 p.sub_group_size = 16;
                 return p;
             }
+
+            /** @brief Holds a table to inject and whether its keys are all distinct. */
+            struct KeyRow
+            {
+                std::string name;
+                std::vector<Kernels::GemmTileEntry> table;
+                bool unique;
+            };
+
+            /** @brief Returns an entry of the given key whose role is the given one. */
+            [[nodiscard]] Kernels::GemmTileEntry entry(Device::Architecture architecture, Core::DataType dtype,
+                                                       Kernels::GemmSizeClass size_class,
+                                                       Kernels::GemmTileRole role)
+            {
+                return Kernels::GemmTileEntry{architecture, dtype, size_class, role};
+            }
+
+            /** @brief Names a row by its description. */
+            std::string key_row_name(const ::testing::TestParamInfo<KeyRow>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
+
+        /** @brief Runs the key rule over each injected table. */
+        class Small_GemmTileTableKeys : public ::testing::TestWithParam<KeyRow>
+        {
+        };
+
+        TEST_P(Small_GemmTileTableKeys, ATableHoldsOneAnswerPerKeyExactlyWhenNoTwoEntriesShareOne)
+        {
+            EXPECT_EQ(Kernels::has_unique_keys(GetParam().table), GetParam().unique);
+        }
+
+        // The key is the architecture, the dtype and the size class; the role is the answer and never part of it.
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_GemmTileTableKeys,
+            ::testing::Values(
+                KeyRow{"AnEmptyTable", {}, true},
+                KeyRow{"OneEntry",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact)},
+                       true},
+                KeyRow{"TheSameKeyTwice",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact)},
+                       false},
+                KeyRow{"TheSameKeyWithAnotherRole",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Balanced)},
+                       false},
+                KeyRow{"TheSameKeyAtTheEndOfThree",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Small, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float64,
+                              Kernels::GemmSizeClass::Small, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Small, Kernels::GemmTileRole::Balanced)},
+                       false},
+                KeyRow{"KeysThatDifferInTheSizeClass",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Small, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact)},
+                       true},
+                KeyRow{"KeysThatDifferInTheDtype",
+                       {entry(Device::Architecture::Unknown, Core::DataType::Float32,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact),
+                        entry(Device::Architecture::Unknown, Core::DataType::Float64,
+                              Kernels::GemmSizeClass::Large, Kernels::GemmTileRole::Compact)},
+                       true}),
+            key_row_name);
 
         TEST(Small_GemmTileTable, AnEntryNamingAnUnknownArchitectureNeverMatchesAnUnknownDevice)
         {

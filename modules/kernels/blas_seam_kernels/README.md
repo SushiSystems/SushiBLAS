@@ -24,7 +24,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `level3/channel_bias_epilogue.hpp` | `ChannelBiasEpilogue`, the per-channel bias add |
 | `level3/gemm_tile_shape.hpp` | `GemmTileShape`, the compile-time geometry of one tiled GEMM kernel, and `register_block_dim` |
 | `level3/gemm_tile_catalog.hpp` | `GemmTileRole`, the shapes the tiled GEMM is compiled for, and their sizes as plain values |
-| `level3/gemm_tile_table.hpp` | `GemmSizeClass`, `GemmTileEntry` and `K_GEMM_TILE_TABLE`, the measured choices |
+| `level3/gemm_tile_table.hpp` | `GemmSizeClass`, `GemmTileEntry`, `has_unique_keys` and `K_GEMM_TILE_TABLE`, the measured choices |
 | `level3/gemm_strategy.hpp` | `GemmStrategy`, the request a caller passes to pick the SYCL GEMM kernel |
 | `level3/gemm_tile_choice.hpp` | `choose_gemm_tile`, the host rule that picks the shape of one product |
 | `level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
@@ -289,6 +289,8 @@ local bytes. The host chooser reads these, so it never instantiates a kernel.
 
 One measured choice: on this architecture, for this dtype and size class, this role ran fastest.
 `benchmark_gemm_tiles` prints the lines. The table is empty: no device has been measured yet.
+`has_unique_keys(table)` tells whether no two entries share an architecture, dtype and size class; a
+`static_assert` holds the shipped table to it, and the tests run it over injected tables.
 
 ## `level3/gemm_strategy.hpp`
 
