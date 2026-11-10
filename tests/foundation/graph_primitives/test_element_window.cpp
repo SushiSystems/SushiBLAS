@@ -41,6 +41,7 @@
 #include <SushiRuntime/region/buffer_region.hpp>
 
 #include <SushiBLAS/graph_primitives/element_window.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -127,7 +128,7 @@ namespace SushiBLAS
         /** @brief Tests that a span narrows its buffer's key to its bytes and keeps the other keys. */
         TEST(Medium_GraphPrimitivesElementWindow, AccessOfNarrowsASpanToItsBytes)
         {
-            auto runtime = SushiRuntime::Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto buffer = runtime.buffer<std::uint32_t>(16).value();
             const SushiRuntime::BufferRegion whole = SushiRuntime::Reads(buffer).keys.front();
             const SushiRuntime::BufferRegion other{&buffer, 4, 8};
@@ -147,7 +148,7 @@ namespace SushiBLAS
         /** @brief Tests that the buffer behind a span stays watched as the buffer itself is. */
         TEST(Medium_GraphPrimitivesElementWindow, AccessOfKeepsTheSpansBufferWatched)
         {
-            auto runtime = SushiRuntime::Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto buffer = runtime.buffer<std::uint32_t>(16).value();
 
             const SushiRuntime::Writes writes = GraphPrimitives::Detail::access_of<

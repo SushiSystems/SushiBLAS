@@ -59,6 +59,7 @@
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 #include "device_sized_harness.hpp"
 #include "host_nodes.hpp"
 #include "plan_labels.hpp"
@@ -767,7 +768,7 @@ namespace SushiBLAS
             ASSERT_NE(unstable_order(keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).indices, reference.indices);
         }
 
@@ -776,7 +777,7 @@ namespace SushiBLAS
         {
             const std::vector<std::uint32_t> keys = duplicate_keys();
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).offsets,
                       host_counting_sort(keys, K_DUPLICATE_KEY_RANGE).offsets);
         }
@@ -786,7 +787,7 @@ namespace SushiBLAS
         {
             const std::vector<std::uint32_t> keys = duplicate_keys();
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             EXPECT_EQ(sort_once(runtime, keys, K_DUPLICATE_KEY_RANGE).counts,
                       host_counting_sort(keys, K_DUPLICATE_KEY_RANGE).counts);
         }
@@ -794,7 +795,7 @@ namespace SushiBLAS
         /** @brief Tests that the total holds the element count. */
         TEST(Medium_GraphPrimitivesCountingSort, TotalHoldsTheElementCount)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             EXPECT_EQ(sort_once(runtime, duplicate_keys(), K_DUPLICATE_KEY_RANGE).total,
                       K_DUPLICATE_COUNT);
         }
@@ -802,7 +803,7 @@ namespace SushiBLAS
         /** @brief Tests that the sort writes nothing past indices, offsets, counts or total. */
         TEST(Medium_GraphPrimitivesCountingSort, NothingIsWrittenPastTheOutputs)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             EXPECT_EQ(sort_once(runtime, duplicate_keys(), K_DUPLICATE_KEY_RANGE).past_end,
                       std::vector<std::uint32_t>(4, K_CANARY));
         }
@@ -816,7 +817,7 @@ namespace SushiBLAS
             ASSERT_NE(unstable_order(keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOutcome sorted = sort_once(runtime, keys, K_KEY_CAPACITY);
 
             EXPECT_EQ(sorted.indices, reference.indices);
@@ -833,7 +834,7 @@ namespace SushiBLAS
             const std::vector<std::uint32_t> keys = seeded_keys(K_COUNT, K_KEY_RANGE, 20260918);
             const HostReference reference = host_counting_sort(keys, K_KEY_RANGE);
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOutcome sorted = sort_once(runtime, keys, K_KEY_RANGE);
 
             EXPECT_EQ(sorted.indices, reference.indices);
@@ -846,7 +847,7 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_COUNT = 777;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOutcome sorted =
                 sort_once(runtime, std::vector<std::uint32_t>(K_COUNT, 2u), 4);
 
@@ -858,7 +859,7 @@ namespace SushiBLAS
         /** @brief Tests one element, the smallest input that runs every pass. */
         TEST(Medium_GraphPrimitivesCountingSort, OneElement)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto keys = runtime.buffer<std::uint32_t>(1).value();
             auto indices = runtime.buffer<std::uint32_t>(1).value();
             auto offsets = runtime.buffer<std::uint32_t>(9).value();
@@ -881,7 +882,7 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_KEY_RANGE = 16;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOutcome sorted = sort_once(runtime, {}, K_KEY_RANGE);
 
             EXPECT_EQ(sorted.total, 0u);
@@ -896,7 +897,7 @@ namespace SushiBLAS
             constexpr std::size_t K_KEY_RANGE = std::size_t{1} << 20;
             constexpr auto K_LARGEST = static_cast<std::uint32_t>(K_KEY_RANGE - 1);
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOutcome sorted =
                 sort_once(runtime, {K_LARGEST, 0, K_LARGEST, 1, 0}, K_KEY_RANGE);
 
@@ -938,7 +939,7 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 10;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 20;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOperands operands = operands_for(runtime, K_COUNT, K_KEY_CAPACITY, 0);
             auto graph = runtime.graph();
             const RunObserverCapture capture(runtime);
@@ -952,7 +953,7 @@ namespace SushiBLAS
         /** @brief Tests that each run of a late-bound sort sorts at the sizes it reads. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeSortsEveryRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             LateBoundSort sort(runtime, 2000, std::size_t{1} << 16);
             const RunSeries series = sort.run_each(changing_sizes());
 
@@ -964,7 +965,7 @@ namespace SushiBLAS
         /** @brief Tests that a count and a key range that change between runs keep one compile. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeKeepsOneCompile)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             LateBoundSort sort(runtime, 2000, std::size_t{1} << 16);
             static_cast<void>(sort.run_each(changing_sizes()));
 
@@ -986,7 +987,7 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 3000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 17;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             LateBoundSort sort(runtime, K_COUNT, K_KEY_CAPACITY);
             const RunSeries series = sort.run_each({LiveSize{K_COUNT, GetParam().key_range}});
 
@@ -1004,7 +1005,7 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 4;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const SortOperands operands = operands_for(runtime, K_COUNT, K_KEY_CAPACITY, 0);
             // One digit puts 0x0101 between 0 and 2; a second digit would put it last.
             load(operands.keys, {0x0101, 2, 0, 3});
@@ -1021,7 +1022,7 @@ namespace SushiBLAS
         /** @brief Tests that a DynamicGraph region records the sort as a Graph does. */
         TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordCountingSort)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const RegionSeries series = replay_regions(runtime);
 
             EXPECT_EQ(series.sort.indices, series.sort.expected_indices);
@@ -1031,7 +1032,7 @@ namespace SushiBLAS
         /** @brief Tests that a DynamicGraph region records the scan beside the sort. */
         TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordPrefixScan)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const RegionSeries series = replay_regions(runtime);
 
             EXPECT_EQ(series.scan_offsets, series.expected_scan_offsets);
@@ -1041,7 +1042,7 @@ namespace SushiBLAS
         /** @brief Tests that each run sorts the keys as they stand when it runs. */
         TEST(Medium_GraphPrimitivesCountingSort, EachRunSortsItsOwnKeys)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const RunSeries series = sort_each_step(runtime);
 
             EXPECT_EQ(series.indices, series.expected_indices);
@@ -1051,7 +1052,7 @@ namespace SushiBLAS
         /** @brief Tests that every node of one call shares one node_index on every step. */
         TEST(Medium_GraphPrimitivesCountingSort, SharesOneNodeIndexAcrossStepsAndPasses)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const CapturedSort captured = capture_sort(runtime, 4);
 
             EXPECT_EQ(captured.rules, 1u);
@@ -1066,7 +1067,7 @@ namespace SushiBLAS
             constexpr std::size_t K_EXPECTED_PASSES = K_NODES_PER_DIGIT + 3;
             constexpr std::size_t K_STEPS = 4;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const CapturedSort captured = capture_sort(runtime, K_STEPS);
 
             EXPECT_EQ(dispatches_per_invocation(captured.events),
@@ -1106,7 +1107,7 @@ namespace SushiBLAS
         /** @brief Tests that a live element count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto keys = runtime.buffer<std::uint32_t>(100).value();
             auto indices = runtime.buffer<std::uint32_t>(100).value();
             auto offsets = runtime.buffer<std::uint32_t>(17).value();
@@ -1122,7 +1123,7 @@ namespace SushiBLAS
         /** @brief Tests that a live key range above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesCountingSort, LateBoundKeyRangeAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto keys = runtime.buffer<std::uint32_t>(100).value();
             auto indices = runtime.buffer<std::uint32_t>(100).value();
             auto offsets = runtime.buffer<std::uint32_t>(17).value();
@@ -1169,7 +1170,7 @@ namespace SushiBLAS
         /** @brief Tests that a sort over windows writes what one over compact buffers writes. */
         TEST(Medium_GraphPrimitivesCountingSort, WindowMatchesACompactBufferExactly)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowRun run = sort_windowed_and_compact(runtime);
 
             EXPECT_EQ(run.windowed.indices, run.compact.indices);
@@ -1181,7 +1182,7 @@ namespace SushiBLAS
         /** @brief Tests that a sort over windows writes nothing just before or past each window. */
         TEST(Medium_GraphPrimitivesCountingSort, WindowLeavesTheElementsAroundItUntouched)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowRun run = sort_windowed_and_compact(runtime);
 
             EXPECT_EQ(run.around, std::vector<std::uint32_t>(8, K_CANARY));

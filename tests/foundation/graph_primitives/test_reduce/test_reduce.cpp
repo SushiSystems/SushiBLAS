@@ -54,6 +54,7 @@
 #include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 #include "../host_nodes.hpp"
 #include "../plan_labels.hpp"
@@ -416,7 +417,7 @@ namespace SushiBLAS
                 << "the input is not order-sensitive, so this test cannot detect a "
                    "schedule-dependent combination order";
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, host);
             auto out = buffer_holding(runtime, std::vector<float>{-1.0f});
 
@@ -434,7 +435,7 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 70000;
             constexpr int K_REPLAYS = 31;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, order_sensitive_input(K_COUNT));
             auto out = runtime.buffer<float>(1).value();
 
@@ -454,7 +455,7 @@ namespace SushiBLAS
             const std::vector<float> host = order_sensitive_input(K_COUNT);
 
             // With the rebalancer on, task migration reassigns tiles to workers during a run.
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             runtime.set_rebalancer_enabled(true);
             auto in = buffer_holding(runtime, host);
             auto out = runtime.buffer<float>(1).value();
@@ -482,7 +483,7 @@ namespace SushiBLAS
         {
             const std::vector<double> host = repeating_halves(GetParam());
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, host);
             auto out = buffer_holding(runtime, std::vector<double>{-1.0});
 
@@ -501,7 +502,7 @@ namespace SushiBLAS
         /** @brief Tests that a count of zero writes the identity without reading the input. */
         TEST(Medium_GraphPrimitivesReduce, ZeroCountWritesTheIdentity)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = runtime.buffer<double>(4).value();
             auto out = buffer_holding(runtime, std::vector<double>{123.0});
 
@@ -517,7 +518,7 @@ namespace SushiBLAS
         {
             const std::vector<int> host = scattered_integers(5000);
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, host);
             auto lowest = runtime.buffer<int>(1).value();
 
@@ -533,7 +534,7 @@ namespace SushiBLAS
         {
             const std::vector<int> host = scattered_integers(5000);
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, host);
             auto highest = runtime.buffer<int>(1).value();
 
@@ -549,7 +550,7 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_COUNT = 40000;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, std::vector<int>(K_COUNT, 1));
             auto total = buffer_holding(runtime, std::vector<int>{0});
             auto twice = buffer_holding(runtime, std::vector<int>{0});
@@ -580,7 +581,7 @@ namespace SushiBLAS
         {
             const std::size_t n = GetParam();
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, repeating_halves(K_LATE_CAPACITY));
             auto out_fixed = buffer_holding(runtime, std::vector<double>{-1.0});
             auto out_late = buffer_holding(runtime, std::vector<double>{-1.0});
@@ -608,7 +609,7 @@ namespace SushiBLAS
         /** @brief Tests that a live count changed between runs gives the sum at the new count. */
         TEST_P(Medium_GraphPrimitivesReduceChangingCount, LateBoundChangingCountGivesTheLiveSum)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, std::vector<double>(K_CHANGING_CAPACITY, 1.0));
             auto out = runtime.buffer<double>(1).value();
 
@@ -634,7 +635,7 @@ namespace SushiBLAS
         /** @brief Tests that a live count that changes between runs keeps one compile. */
         TEST(Medium_GraphPrimitivesReduce, LateBoundChangingCountKeepsOneCompile)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = buffer_holding(runtime, std::vector<double>(K_CHANGING_CAPACITY, 1.0));
             auto out = runtime.buffer<double>(1).value();
 
@@ -655,7 +656,7 @@ namespace SushiBLAS
         /** @brief Tests that a live count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesReduce, LateBoundAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto in = runtime.buffer<double>(100).value();
             auto out = runtime.buffer<double>(1).value();
 
@@ -673,7 +674,7 @@ namespace SushiBLAS
             using SushiRuntime::DeviceIndex;
             using SushiRuntime::Residency;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto values = buffer_holding(runtime, std::vector<double>(K_CAPACITY, 1.0));
             auto counter =
                 runtime.buffer<std::uint32_t>(1, DeviceIndex{0}, Residency::Host).value();
@@ -733,7 +734,7 @@ namespace SushiBLAS
         /** @brief Tests that a two-level chain totals every value of its input. */
         TEST(Medium_GraphPrimitivesReduce, TwoLevelChainTotalsEveryValue)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto values = buffer_holding(runtime, std::vector<float>(K_TWO_LEVEL_COUNT, 1.0f));
             auto total = runtime.buffer<float>(1).value();
 
@@ -772,7 +773,7 @@ namespace SushiBLAS
         {
             const std::vector<float> host = order_sensitive_input(K_WINDOW_COUNT);
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto wide_in = buffer_holding(
                 runtime, framed(host, K_WINDOW_INPUT_OFFSET, K_WINDOW_INPUT_TAIL, K_INPUT_CANARY));
             auto wide_out = runtime.buffer<float>(K_WINDOW_OUTPUT_SIZE).value();
@@ -792,7 +793,7 @@ namespace SushiBLAS
         /** @brief Tests that a reduce over a window writes no output element outside it. */
         TEST_P(Medium_GraphPrimitivesReduceWindow, WindowLeavesTheOutputAroundItUntouched)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto wide_in = buffer_holding(
                 runtime, framed(order_sensitive_input(K_WINDOW_COUNT), K_WINDOW_INPUT_OFFSET,
                                 K_WINDOW_INPUT_TAIL, K_INPUT_CANARY));

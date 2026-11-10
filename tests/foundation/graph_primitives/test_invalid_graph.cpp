@@ -34,6 +34,7 @@
 #include <SushiRuntime/core/error.hpp>
 #include <SushiRuntime/core/result.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -53,7 +54,7 @@ namespace SushiBLAS
         /** @brief Tests that a recorder that has recorded nothing reports no failure. */
         TEST(Medium_GraphPrimitivesInvalidGraph, AFreshRecorderHasNothingToReport)
         {
-            auto runtime = SushiRuntime::Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto graph = runtime.graph();
 
             EXPECT_TRUE(GraphPrimitives::Detail::recording_outcome(graph.recorder()).has_value());

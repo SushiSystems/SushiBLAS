@@ -52,6 +52,7 @@
 #include <SushiBLAS/test_runner/run_observer_capture.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 #include "device_sized_harness.hpp"
 #include "host_nodes.hpp"
 #include "plan_labels.hpp"
@@ -416,7 +417,7 @@ namespace SushiBLAS
                 public:
                     /** @brief Records the scan over K_LATE_CAPACITY counts of one. */
                     LateBoundScan()
-                        : runtime_(Runtime::create().value()),
+                        : runtime_(SushiBLAS::Test::TestEnvironment::runtime()),
                           buffers_(buffers_for(runtime_, K_LATE_CAPACITY)),
                           graph_(runtime_.graph())
                     {
@@ -454,7 +455,7 @@ namespace SushiBLAS
 
                 private:
                     /// @brief Holds the runtime the scan runs on.
-                    Runtime runtime_;
+                    Runtime& runtime_;
                     /// @brief Holds the operands of the scan.
                     ScanBuffers buffers_;
                     /// @brief Holds the live count the host provider returns.
@@ -474,7 +475,7 @@ namespace SushiBLAS
         TEST_P(Medium_GraphPrimitivesPrefixScanTileEdges, AgreesWithTheHostScanAtTileEdges)
         {
             const std::size_t n = GetParam();
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const ScanBuffers buffers =
                 scan_buffers(runtime, std::max<std::size_t>(n, 1), n + 2, 1);
             const std::vector<std::uint32_t> host = cycling_counts(n);
@@ -504,7 +505,7 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_COUNT = K_TILE + 1;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const ScanBuffers buffers = buffers_for(runtime, K_COUNT);
             copy_into(buffers.counts, ascending_counts(K_COUNT));
 
@@ -544,7 +545,7 @@ namespace SushiBLAS
                 step_counts(K_CAPACITY, 0), step_counts(K_CAPACITY, 1),
                 step_counts(K_CAPACITY, 2), step_counts(K_CAPACITY, 3)};
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const ScanBuffers buffers = buffers_for(runtime, K_CAPACITY);
             auto graph = runtime.graph();
             prefix_scan(graph.recorder(), buffers.counts, buffers.offsets, buffers.total,
@@ -568,7 +569,7 @@ namespace SushiBLAS
         /** @brief Tests that every node of one call shares one node_index on every step. */
         TEST(Medium_GraphPrimitivesPrefixScan, SharesOneNodeIndexAcrossStepsAndPasses)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
 
             EXPECT_EQ(node_indices_of(two_level_events(runtime, 4)).size(), 1u)
                 << "every pass of one prefix_scan() call must share one node_index";
@@ -577,7 +578,7 @@ namespace SushiBLAS
         /** @brief Tests that every step of a two-level scan runs all five passes. */
         TEST(Medium_GraphPrimitivesPrefixScan, EveryStepRunsEveryPass)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
 
             EXPECT_EQ(passes_per_invocation(two_level_events(runtime, 4)),
                       (std::map<std::uint32_t, std::size_t>{{0u, K_TWO_LEVEL_PASSES},
@@ -615,7 +616,7 @@ namespace SushiBLAS
         /** @brief Tests that a live count above its capacity fails the run. */
         TEST(Medium_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto counts = runtime.buffer<std::uint32_t>(100).value();
             auto offsets = runtime.buffer<std::uint32_t>(101).value();
             auto total = runtime.buffer<std::uint32_t>(1).value();
@@ -653,7 +654,7 @@ namespace SushiBLAS
         /** @brief Tests that a device count above capacity fails a chained run of a primitive. */
         TEST(Medium_GraphPrimitivesDeviceSized, DeviceCountOverCapacityFailsAChainedRun)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto counter = device_counter(runtime);
             const ScanBuffers buffers = buffers_for(runtime, K_DEVICE_CAPACITY);
 
@@ -669,7 +670,7 @@ namespace SushiBLAS
         {
             using namespace DeviceSized;
 
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto counter = device_counter(runtime);
             const ScanBuffers buffers = buffers_for(runtime, K_DEVICE_CAPACITY);
             auto failed = runtime.graph();
@@ -694,7 +695,7 @@ namespace SushiBLAS
         /** @brief Tests that a scan over windows equals one over compact buffers. */
         TEST_P(Medium_GraphPrimitivesPrefixScanWindow, WindowMatchesACompactBufferExactly)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowedScan scan = scan_window_and_compact(runtime, GetParam());
 
             EXPECT_EQ(scan.window_offsets, scan.compact_offsets);
@@ -704,7 +705,7 @@ namespace SushiBLAS
         /** @brief Tests that a windowed scan leaves the element before each output window. */
         TEST_P(Medium_GraphPrimitivesPrefixScanWindow, WindowLeavesTheElementBeforeItUntouched)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowedScan scan = scan_window_and_compact(runtime, GetParam());
 
             EXPECT_EQ(scan.offset_before_window, K_CANARY);

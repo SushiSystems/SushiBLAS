@@ -50,6 +50,7 @@
 #include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 #include "device_sized_harness.hpp"
 #include "host_nodes.hpp"
 #include "window_probe.hpp"
@@ -506,7 +507,7 @@ namespace SushiBLAS
         /** @brief Tests a segmented reduce over ragged segments, an empty one included. */
         TEST(Medium_GraphPrimitivesSegmentedReduce, FoldsRaggedSegmentsLeftToRight)
         {
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             RaggedSegments ragged(runtime);
 
             auto graph = runtime.graph();
@@ -531,7 +532,7 @@ namespace SushiBLAS
                LateBoundCountFoldsOnlyTheLiveSegments)
         {
             const std::size_t live = GetParam();
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             RaggedSegments ragged(runtime);
 
             std::size_t live_segments = K_RAGGED_SEGMENTS;
@@ -638,7 +639,7 @@ namespace SushiBLAS
         TEST_P(Medium_GraphPrimitivesSegmentedReduceWindow, WindowMatchesACompactBufferExactly)
         {
             constexpr std::size_t K_SEGMENTS = WindowedSegments::segments();
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowedSegments buffers(runtime);
 
             run_windowed_and_compact(runtime, buffers, GetParam());
@@ -653,7 +654,7 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_BEFORE = WindowedSegments::K_OUTPUT_OFFSET;
             constexpr std::size_t K_AFTER = WindowedSegments::K_TAIL;
-            auto runtime = Runtime::create().value();
+            SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             const WindowedSegments buffers(runtime);
 
             run_windowed_and_compact(runtime, buffers, GetParam());

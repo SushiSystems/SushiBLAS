@@ -45,13 +45,14 @@ runtime refusal keep `Medium_` and call the primitive through `runtime_port_call
 operands of a host row are `HostBuffer`s from `HostPrimitiveRecorder::buffer<T>()`, so a `Small_`
 row makes no runtime and submits no node to a device.
 
-## The runtime a test builds
+## The runtime a test uses
 
 A primitive records through a `SushiRuntime::Recorder`, which a `Graph` or a `Region`
-hands out. Each test builds its own `SushiRuntime::Runtime` with `Runtime::create()` and takes
-buffers and graphs from it, so a refusal one test provokes cannot reach another.
-The device-sized cases, which `device_sized_harness.hpp` runs, need two runtimes with different
-settings in one test, which the shared test runtime could not give.
+hands out. A test takes the runtime of the test program, `TestEnvironment::runtime()`, and takes
+buffers and graphs from it; each graph is the test's own, so a refusal one test provokes stays in
+its graph. No test builds a `SushiRuntime::Runtime`, except the scheduler half of
+`expect_chain_matches_scheduler` in `device_sized_harness.hpp`, which needs a second runtime with
+`force_scheduler` set, a setting the shared runtime does not have.
 
 Eight files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_reduce.cpp`,
 `test_radix_plan.cpp`, `test_reduce_close.cpp`, `test_scan_passes.cpp`,

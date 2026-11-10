@@ -43,6 +43,7 @@
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 #include <SushiRuntime/report/run_report.hpp>
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {
@@ -196,7 +197,7 @@ namespace SushiBLAS
             inline void
             expect_chain_matches_scheduler(const std::function<Recording(Runtime&)>& workload)
             {
-                auto chained_runtime = Runtime::create().value();
+                Runtime& chained_runtime = SushiBLAS::Test::TestEnvironment::runtime();
                 SushiRuntime::RuntimeConfig forced;
                 forced.force_scheduler = true;
                 auto scheduled_runtime = Runtime::create(forced).value();

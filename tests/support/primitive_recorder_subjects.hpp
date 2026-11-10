@@ -37,6 +37,7 @@
 #include <SushiRuntime/api/graph/graph.hpp>
 #include <SushiRuntime/api/runtime/runtime.hpp>
 #include <SushiRuntime/core/result.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 #include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
@@ -104,9 +105,9 @@ namespace SushiBLAS
         class RuntimePrimitiveSubject
         {
             public:
-                /** @brief Builds the output buffer and the graph on a runtime of its own. */
+                /** @brief Builds the output buffer and the graph on the runtime of the test program. */
                 RuntimePrimitiveSubject()
-                    : runtime_(SushiRuntime::Runtime::create().value()),
+                    : runtime_(SushiBLAS::Test::TestEnvironment::runtime()),
                       output_(runtime_.buffer<std::uint32_t>(K_SUBJECT_OUTPUT_WORDS).value()),
                       graph_(runtime_.graph()),
                       port_(graph_.recorder())
@@ -147,8 +148,8 @@ namespace SushiBLAS
                 void run() { graph_.run().value(); }
 
             private:
-                /// @brief Owns the output buffer and the graph.
-                SushiRuntime::Runtime runtime_;
+                /// @brief The runtime of the test program, which the output buffer and the graph come from.
+                SushiRuntime::Runtime& runtime_;
 
                 /// @brief The words the checks write into.
                 SushiRuntime::Buffer<std::uint32_t> output_;
