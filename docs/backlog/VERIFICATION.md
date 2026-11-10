@@ -22,7 +22,6 @@
 | RW-136 | P3 | open | Move the graph_primitives tests onto the program-wide runtime | Only the tests whose runtime settings differ build their own runtime; the README says so |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-138 | P3 | open | Make PoissonAcceptsTheCap fail on a constant fill | The test in test_random_large_lambda.cpp checks the draws vary, so a constant fill fails it |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-154 | P1 | open | Give SushiBLAS a host engine that runs the reference kernels with no device | HostEngineTest runs the operations' reference paths on host memory with no SYCL queue, and EngineContract passes small on it and medium on the runtime |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
-| RW-158 | P2 | open | Register each test program's cases as CTest shards per size | Each program runs its Small_, Medium_ and Large_ cases in GTEST_TOTAL_SHARDS shards that write XML to test_results/gtest |  | `cmake/SushiBLASTests.cmake` | 2026-11-10 |
 
 ## Known issues
 
