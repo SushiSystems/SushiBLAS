@@ -52,11 +52,14 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/tolerance.hpp"
 #include "blas_rows.hpp"
+#include "rotg_table.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
+        using namespace RotgTable;
+
         namespace
         {
             /// @brief Seed of every random draw in this file.
@@ -112,28 +115,6 @@ namespace SushiBLAS
             const std::vector<ExecutionMode> K_BOTH_MODES = {ExecutionMode::ForceReference,
                                                              ExecutionMode::ForceSYCL};
 
-            /** @brief Names how z of a real rotation is rebuilt from its other values. */
-            enum class RebuildValue : std::uint8_t
-            {
-                Zero,          /**< z is 0. */
-                One,           /**< z is 1. */
-                Sine,          /**< z is s. */
-                InverseCosine /**< z is 1 / c. */
-            };
-
-            /** @brief Holds one row of the real table of the design, section 10.2. */
-            struct RealRotationRow
-            {
-                double a;             /**< The first operand. */
-                double b;             /**< The second operand. */
-                double r;             /**< The expected r, which is exact. */
-                double c_numerator;   /**< The expected c is this over c_denominator. */
-                double c_denominator; /**< The divisor of the expected c. */
-                double s_numerator;   /**< The expected s is this over s_denominator. */
-                double s_denominator; /**< The divisor of the expected s. */
-                RebuildValue z;       /**< The expected z. */
-            };
-
             /** @brief Holds one row of the complex table of the design, section 10.2. */
             struct ComplexRotationRow
             {
@@ -143,16 +124,6 @@ namespace SushiBLAS
                 double c;               /**< The expected cosine. */
                 std::complex<double> s; /**< The expected sine. */
             };
-
-            /// @brief The real table of the design, section 10.2.
-            constexpr RealRotationRow K_REAL_ROWS[] = {
-                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::InverseCosine},
-                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::Sine},
-                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::Sine},
-                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::InverseCosine},
-                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero},
-                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::One},
-                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero}};
 
             /// @brief The complex table of the design, section 10.2.
             const ComplexRotationRow K_COMPLEX_ROWS[] = {
@@ -222,50 +193,6 @@ namespace SushiBLAS
                     pairs.emplace_back(first, second);
                 }
                 return pairs;
-            }
-
-            /** @brief Holds what one row of the real table expects, rounded to T once. */
-            struct Expected
-            {
-                double r; /**< The expected r. */
-                double z; /**< The expected z. */
-                double c; /**< The expected cosine. */
-                double s; /**< The expected sine. */
-            };
-
-            /** @brief Returns the expectation of a row, each quotient formed in the accumulation type of T. */
-            template<typename T>
-            [[nodiscard]] Expected expected_of(const RealRotationRow& row)
-            {
-                using Wide = Kernels::Accumulator<T>;
-                const auto stored = [](Wide value)
-                {
-                    return Detail::to_double(static_cast<T>(value));
-                };
-
-                const Wide c = static_cast<Wide>(row.c_numerator) /
-                               static_cast<Wide>(row.c_denominator);
-                const Wide s = static_cast<Wide>(row.s_numerator) /
-                               static_cast<Wide>(row.s_denominator);
-
-                Wide z = Wide(0);
-                switch (row.z)
-                {
-                    case RebuildValue::Zero:
-                        z = Wide(0);
-                        break;
-                    case RebuildValue::One:
-                        z = Wide(1);
-                        break;
-                    case RebuildValue::Sine:
-                        z = s;
-                        break;
-                    case RebuildValue::InverseCosine:
-                        z = Wide(1) / c;
-                        break;
-                }
-
-                return Expected{stored(static_cast<Wide>(row.r)), stored(z), stored(c), stored(s)};
             }
 
             /** @brief Holds the four scalar tensors of one call as read after the graph ran. */

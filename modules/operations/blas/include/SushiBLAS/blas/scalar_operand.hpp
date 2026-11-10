@@ -38,6 +38,24 @@ namespace SushiBLAS
     namespace Dispatch
     {
         /**
+         * @brief Throws unless a tensor is one stored element of the expected dtype, with the
+         *        facts of its storage given.
+         * @param operand_placed The tensor and what its storage says about its device.
+         * @throws As the overload that takes the tensor alone; the facts stand for its storage.
+         * @see modules/operations/blas/README.md
+         */
+        inline void require_scalar_operand(const PlacedTensor& operand_placed,
+                                           Core::DataType expected, const char* op,
+                                           const char* operand)
+        {
+            const Tensor& t = operand_placed.tensor;
+            require_storage(t, operand_placed.storage, op, operand);
+            require_dtype(t, expected, op, operand);
+            require_scalar(t, op, operand);
+            require_device_dtype(t, operand_placed.storage, op, operand);
+        }
+
+        /**
          * @brief Throws unless a tensor is one stored element of the expected dtype.
          * @throws std::invalid_argument on missing storage, another dtype or an element count
          *         other than one.
@@ -47,10 +65,7 @@ namespace SushiBLAS
         inline void require_scalar_operand(const Tensor& t, Core::DataType expected,
                                            const char* op, const char* operand)
         {
-            require_storage(t, op, operand);
-            require_dtype(t, expected, op, operand);
-            require_scalar(t, op, operand);
-            require_device_dtype(t, op, operand);
+            require_scalar_operand(placed(t), expected, op, operand);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

@@ -324,10 +324,12 @@ at least `kl + ku + 1` elements; a line is a column under `ColumnMajor` and a ro
 
 `describe_packed_operand` returns the order and the layout of a packed triangle. The tensor is
 rank 1 and unstrided and holds `n * (n + 1) / 2` elements for some `n`; `largest_packed_order`
-finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
+finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns. A form that takes a
+`PlacedTensor` reads what the device computes from the storage facts it holds, so a test builds the
+facts by hand and needs no runtime.
 
 `require_scalar_operand` checks a tensor that stands for one scalar, as the four operands of
-`rotg` do: storage, the expected dtype and exactly one element.
+`rotg` do: storage, the expected dtype and exactly one element. It has the same `PlacedTensor` form.
 
 ## `shape_check.hpp`
 

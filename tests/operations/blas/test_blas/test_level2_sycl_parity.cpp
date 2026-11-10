@@ -110,6 +110,7 @@ namespace SushiBLAS
         enum class ParityProduct
         {
             Gemv,      /**< y = alpha * A * x + beta * y for an m x n A. */
+            GemvTransposed, /**< y = alpha * A^T * x + beta * y for an m x n A: n sums of m terms. */
             SymvUpper, /**< The same for a symmetric A of order n, read from its upper triangle. */
             SymvLower  /**< The same, read from its lower triangle. */
         };
@@ -142,16 +143,30 @@ namespace SushiBLAS
             return rows;
         }
 
+        /** @brief Returns the word that names a product in a row name. */
+        [[nodiscard]] inline const char* product_name(ParityProduct product) noexcept
+        {
+            switch (product)
+            {
+                case ParityProduct::Gemv:
+                    return "Gemv";
+                case ParityProduct::GemvTransposed:
+                    return "GemvTransposed";
+                case ParityProduct::SymvUpper:
+                    return "SymvUpper";
+                case ParityProduct::SymvLower:
+                    break;
+            }
+            return "SymvLower";
+        }
+
         /** @brief Returns the name of a row: type, kernel, product and extent. */
         [[nodiscard]] inline std::string parity_row_name(
             const ::testing::TestParamInfo<ParityRow>& info)
         {
             const ParityShape& shape = info.param.shape;
-            const char* product = shape.product == ParityProduct::Gemv        ? "Gemv"
-                                  : shape.product == ParityProduct::SymvUpper ? "SymvUpper"
-                                                                              : "SymvLower";
             return std::string(Core::to_string(info.param.type)) + "_" + word(info.param.mode) + "_" +
-                   product +
+                   product_name(shape.product) +
                    "_" + std::to_string(shape.m) + "x" + std::to_string(shape.n);
         }
 
@@ -173,6 +188,7 @@ namespace SushiBLAS
         const std::vector<ParityShape> K_EXACT_SHAPES = {
             {ParityProduct::Gemv, K_LARGE_N, K_LARGE_N},
             {ParityProduct::Gemv, K_WIDE_ROWS, K_WIDE_COLS},
+            {ParityProduct::GemvTransposed, K_WIDE_COLS, K_WIDE_ROWS},
             {ParityProduct::SymvUpper, K_LARGE_N, K_LARGE_N},
             {ParityProduct::SymvLower, K_LARGE_N, K_LARGE_N}};
 
@@ -235,6 +251,21 @@ namespace SushiBLAS
                     return read_back<T>(y);
                 }
 
+                /** @brief Returns y = alpha * A^T * x + beta * y for an m x n A, computed in mode. */
+                template<typename T>
+                [[nodiscard]] std::vector<T> run_gemv_transposed(ExecutionMode mode, int64_t m,
+                                                                 int64_t n, const ParityData& data)
+                {
+                    set_mode(mode);
+                    Tensor A = filled<T>({m, n}, data, K_SEED_A);
+                    Tensor x = filled<T>({m}, data, K_SEED_X);
+                    Tensor y = filled<T>({n}, data, K_SEED_Y);
+                    SushiBLAS::BLASOps(recorder()).gemv(A, x, y, Core::Transpose::Trans,
+                                                     data.alpha, data.beta);
+                    recording->run().value();
+                    return read_back<T>(y);
+                }
+
                 /** @brief Returns y = alpha * A * x + beta * y for a symmetric A, run in mode. */
                 template<typename T>
                 [[nodiscard]] std::vector<T> run_symv(ExecutionMode mode, int64_t n, bool upper,
@@ -257,6 +288,8 @@ namespace SushiBLAS
                 {
                     if (shape.product == ParityProduct::Gemv)
                         return run_gemv<T>(mode, shape.m, shape.n, data);
+                    if (shape.product == ParityProduct::GemvTransposed)
+                        return run_gemv_transposed<T>(mode, shape.m, shape.n, data);
                     return run_symv<T>(mode, shape.n, shape.product == ParityProduct::SymvUpper, data);
                 }
 
@@ -276,6 +309,26 @@ namespace SushiBLAS
                                             element<T>(data, K_SEED_X + j));
                         sum.add_product(data.beta, element<T>(data, K_SEED_Y + i));
                         truth[i] = sum.value();
+                    }
+                    return truth;
+                }
+
+                /** @brief Returns the exact result of run_gemv_transposed on data. */
+                template<typename T>
+                [[nodiscard]] static std::vector<TruthValue> truth_gemv_transposed(
+                    int64_t m, int64_t n, const ParityData& data)
+                {
+                    const std::size_t terms = static_cast<std::size_t>(m);
+                    const std::size_t cols = static_cast<std::size_t>(n);
+                    std::vector<TruthValue> truth(cols);
+                    for (std::size_t j = 0; j < cols; ++j)
+                    {
+                        TruthSum sum;
+                        for (std::size_t i = 0; i < terms; ++i)
+                            sum.add_product(data.alpha * element<T>(data, K_SEED_A + i * cols + j),
+                                            element<T>(data, K_SEED_X + i));
+                        sum.add_product(data.beta, element<T>(data, K_SEED_Y + j));
+                        truth[j] = sum.value();
                     }
                     return truth;
                 }
@@ -310,6 +363,8 @@ namespace SushiBLAS
                 {
                     if (shape.product == ParityProduct::Gemv)
                         return truth_gemv<T>(shape.m, shape.n, data);
+                    if (shape.product == ParityProduct::GemvTransposed)
+                        return truth_gemv_transposed<T>(shape.m, shape.n, data);
                     return truth_symv<T>(shape.n, shape.product == ParityProduct::SymvUpper, data);
                 }
 
@@ -371,16 +426,6 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Calls body with the Element of FLOAT32 or FLOAT64, the two types the rows run on. */
-        template<typename Body>
-        void with_real_element(Core::DataType type, Body&& body)
-        {
-            if (type == Core::DataType::Float64)
-                body(Element<double>{});
-            else
-                body(Element<float>{});
-        }
-
         /** @brief Runs a case once per row, and skips a device that lacks the type of the row. */
         class Level2ParityRow : public Level2Parity, public ::testing::WithParamInterface<ParityRow>
         {
@@ -412,7 +457,7 @@ namespace SushiBLAS
         TEST_P(Medium_Level2ParityBound, TheKernelIsWithinItsBoundOfTheTruth)
         {
             const ParityRow& row = GetParam();
-            with_real_element(row.type, [&](auto element)
+            with_single_or_double_element(row.type, [&](auto element)
             {
                 using T = typename decltype(element)::type;
                 expect_within_bound<T>(run_product<T>(row.shape, row.mode, K_PATTERNED),
@@ -423,7 +468,7 @@ namespace SushiBLAS
         TEST_P(Medium_Level2ParityExact, TheKernelIsExactOnSmallIntegers)
         {
             const ParityRow& row = GetParam();
-            with_real_element(row.type, [&](auto element)
+            with_single_or_double_element(row.type, [&](auto element)
             {
                 using T = typename decltype(element)::type;
                 expect_exact<T>(run_product<T>(row.shape, row.mode, K_INTEGER_VALUED),
@@ -434,7 +479,7 @@ namespace SushiBLAS
         TEST_P(Medium_Level2ParityRepeat, TheKernelRepeatsToTheBit)
         {
             const ParityRow& row = GetParam();
-            with_real_element(row.type, [&](auto element)
+            with_single_or_double_element(row.type, [&](auto element)
             {
                 using T = typename decltype(element)::type;
                 const auto first = run_product<T>(row.shape, row.mode, K_PATTERNED);

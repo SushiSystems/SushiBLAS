@@ -35,6 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>
 #include "host_operands.hpp"
 
@@ -94,6 +95,57 @@ namespace SushiBLAS
             class Small_ScalarOperandDtype : public ::testing::TestWithParam<DtypeRow>
             {
             };
+
+            /** @brief Holds a dtype and what the device of its storage computes. */
+            struct DeviceRow
+            {
+                const char* name;  /**< Names the row. */
+                DataType dtype; /**< The dtype of the tensor. */
+                bool supports_fp64;   /**< Whether the device computes FLOAT64. */
+                bool supports_fp16;   /**< Whether the device computes HALF. */
+            };
+
+            /** @brief Returns the facts of host storage on a device with the given aspects. */
+            Dispatch::StorageFacts facts_of(const DeviceRow& row)
+            {
+                Dispatch::StorageFacts facts;
+                facts.present = true;
+                facts.supports_fp64 = row.supports_fp64;
+                facts.supports_fp16 = row.supports_fp16;
+                return facts;
+            }
+
+            /** @brief Returns the rows whose dtype the device lacks. */
+            std::vector<DeviceRow> refused_rows()
+            {
+                return {{"Float64WithoutFp64", DataType::Float64, false, true},
+                        {"Complex64WithoutFp64", DataType::Complex64, false, true},
+                        {"HalfWithoutFp16", DataType::Half, true, false}};
+            }
+
+            /** @brief Returns the rows whose dtype the device computes. */
+            std::vector<DeviceRow> offered_rows()
+            {
+                return {{"Float32WithNeitherAspect", DataType::Float32, false, false},
+                        {"Float64WithFp64", DataType::Float64, true, false},
+                        {"HalfWithFp16", DataType::Half, false, true}};
+            }
+
+            /** @brief Names a device row for GoogleTest. */
+            std::string device_row_name(const ::testing::TestParamInfo<DeviceRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Names the suite of the dtypes a device lacks. */
+            class Small_ScalarOperandDeviceRefuses : public ::testing::TestWithParam<DeviceRow>
+            {
+            };
+
+            /** @brief Names the suite of the dtypes a device computes. */
+            class Small_ScalarOperandDeviceOffers : public ::testing::TestWithParam<DeviceRow>
+            {
+            };
         } // namespace
 
         TEST_P(Small_ScalarOperandAccepts, OneElementOfAnyRankIsAccepted)
@@ -137,6 +189,31 @@ namespace SushiBLAS
             EXPECT_THROW(Dispatch::require_scalar_operand(t, GetParam().expected, "op", "alpha"),
                          std::invalid_argument);
         }
+
+        TEST_P(Small_ScalarOperandDeviceRefuses, ADtypeTheDeviceLacksIsRefusedWithUnsupportedExecution)
+        {
+            const Tensor t = host_matrix({1}, Core::Layout::RowMajor, GetParam().dtype);
+            const Dispatch::PlacedTensor placed{t, facts_of(GetParam())};
+
+            EXPECT_THROW(Dispatch::require_scalar_operand(placed, GetParam().dtype, "op", "alpha"),
+                         UnsupportedExecution);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ScalarOperandDeviceRefuses,
+                                 ::testing::ValuesIn(refused_rows()), device_row_name);
+
+        TEST_P(Small_ScalarOperandDeviceOffers, ADtypeTheDeviceComputesIsAccepted)
+        {
+            const Tensor t = host_matrix({1}, Core::Layout::RowMajor, GetParam().dtype);
+            const Dispatch::PlacedTensor placed{t, facts_of(GetParam())};
+            ASSERT_EQ(1, t.num_elements);
+
+            EXPECT_NO_THROW(
+                Dispatch::require_scalar_operand(placed, GetParam().dtype, "op", "alpha"));
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_ScalarOperandDeviceOffers,
+                                 ::testing::ValuesIn(offered_rows()), device_row_name);
 
         INSTANTIATE_TEST_SUITE_P(
             , Small_ScalarOperandDtype,

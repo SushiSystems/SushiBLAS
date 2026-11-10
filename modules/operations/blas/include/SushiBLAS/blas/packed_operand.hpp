@@ -71,17 +71,17 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Returns the geometry of a packed triangle operand.
-         * @throws std::invalid_argument on missing storage, a rank other than 1, a strided view,
-         *         or an element count that is not n * (n + 1) / 2 for any n.
-         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         * @brief Returns the geometry of a packed triangle operand whose storage facts are given.
+         * @param operand_placed The tensor and what its storage says about its device.
+         * @throws As the overload that takes the tensor alone; the facts stand for its storage.
          * @see modules/operations/blas/README.md
          */
-        [[nodiscard]] inline PackedOperand describe_packed_operand(const Tensor& t, const char* op,
-                                                                   const char* operand)
+        [[nodiscard]] inline PackedOperand describe_packed_operand(
+            const PlacedTensor& operand_placed, const char* op, const char* operand)
         {
-            require_storage(t, op, operand);
-            require_device_dtype(t, op, operand);
+            const Tensor& t = operand_placed.tensor;
+            require_storage(t, operand_placed.storage, op, operand);
+            require_device_dtype(t, operand_placed.storage, op, operand);
             require_rank(t, 1, op, operand);
             require_contiguous(t, op, operand);
 
@@ -97,6 +97,19 @@ namespace SushiBLAS
                                             t.num_elements, packed_elements(p.order), p.order,
                                             packed_elements(p.order + 1), p.order + 1);
             return p;
+        }
+
+        /**
+         * @brief Returns the geometry of a packed triangle operand.
+         * @throws std::invalid_argument on missing storage, a rank other than 1, a strided view,
+         *         or an element count that is not n * (n + 1) / 2 for any n.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         * @see modules/operations/blas/README.md
+         */
+        [[nodiscard]] inline PackedOperand describe_packed_operand(const Tensor& t, const char* op,
+                                                                   const char* operand)
+        {
+            return describe_packed_operand(placed(t), op, operand);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

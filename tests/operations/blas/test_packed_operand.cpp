@@ -33,6 +33,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/blas/packed_operand.hpp>
 #include "host_operands.hpp"
 
@@ -107,6 +108,57 @@ namespace SushiBLAS
             class Small_PackedOperandNoTriangle : public ::testing::TestWithParam<PackedCount>
             {
             };
+
+            /** @brief Holds a dtype and what the device of its storage computes. */
+            struct DeviceRow
+            {
+                const char* name;  /**< Names the row. */
+                Core::DataType dtype; /**< The dtype of the tensor. */
+                bool supports_fp64;   /**< Whether the device computes FLOAT64. */
+                bool supports_fp16;   /**< Whether the device computes HALF. */
+            };
+
+            /** @brief Returns the facts of host storage on a device with the given aspects. */
+            Dispatch::StorageFacts facts_of(const DeviceRow& row)
+            {
+                Dispatch::StorageFacts facts;
+                facts.present = true;
+                facts.supports_fp64 = row.supports_fp64;
+                facts.supports_fp16 = row.supports_fp16;
+                return facts;
+            }
+
+            /** @brief Returns the rows whose dtype the device lacks. */
+            std::vector<DeviceRow> refused_rows()
+            {
+                return {{"Float64WithoutFp64", Core::DataType::Float64, false, true},
+                        {"Complex64WithoutFp64", Core::DataType::Complex64, false, true},
+                        {"HalfWithoutFp16", Core::DataType::Half, true, false}};
+            }
+
+            /** @brief Returns the rows whose dtype the device computes. */
+            std::vector<DeviceRow> offered_rows()
+            {
+                return {{"Float32WithNeitherAspect", Core::DataType::Float32, false, false},
+                        {"Float64WithFp64", Core::DataType::Float64, true, false},
+                        {"HalfWithFp16", Core::DataType::Half, false, true}};
+            }
+
+            /** @brief Names a device row for GoogleTest. */
+            std::string device_row_name(const ::testing::TestParamInfo<DeviceRow>& info)
+            {
+                return info.param.name;
+            }
+
+            /** @brief Names the suite of the dtypes a device lacks. */
+            class Small_PackedOperandDeviceRefuses : public ::testing::TestWithParam<DeviceRow>
+            {
+            };
+
+            /** @brief Names the suite of the dtypes a device computes. */
+            class Small_PackedOperandDeviceOffers : public ::testing::TestWithParam<DeviceRow>
+            {
+            };
         } // namespace
 
         TEST_P(Small_PackedOperandLargestOrder, TheLargestOrderIsExactForASmallCount)
@@ -174,6 +226,29 @@ namespace SushiBLAS
         INSTANTIATE_TEST_SUITE_P(
             , Small_PackedOperandNoTriangle, ::testing::ValuesIn(non_triangle_counts()),
             [](const ::testing::TestParamInfo<PackedCount>& info) { return std::string(info.param.name); });
+
+        TEST_P(Small_PackedOperandDeviceRefuses, ADtypeTheDeviceLacksIsRefusedWithUnsupportedExecution)
+        {
+            const Tensor t = host_matrix({3}, Layout::RowMajor, GetParam().dtype);
+            const Dispatch::PlacedTensor placed{t, facts_of(GetParam())};
+
+            EXPECT_THROW((void)Dispatch::describe_packed_operand(placed, "op", "AP"),
+                         UnsupportedExecution);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedOperandDeviceRefuses,
+                                 ::testing::ValuesIn(refused_rows()), device_row_name);
+
+        TEST_P(Small_PackedOperandDeviceOffers, ADtypeTheDeviceComputesGivesItsOrder)
+        {
+            const Tensor t = host_matrix({3}, Layout::RowMajor, GetParam().dtype);
+            const Dispatch::PlacedTensor placed{t, facts_of(GetParam())};
+
+            EXPECT_EQ(2, Dispatch::describe_packed_operand(placed, "op", "AP").order);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_PackedOperandDeviceOffers,
+                                 ::testing::ValuesIn(offered_rows()), device_row_name);
 
         TEST(Small_PackedOperand, ARankTwoTensorOfATriangleCountIsRefused)
         {

@@ -28,11 +28,16 @@
  */
 
 #include <cmath>
+#include <string>
 #include <vector>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_kernels/reference/level1/level1.hpp>
+#include <SushiBLAS/blas_kernels/reference/level1/rotg.hpp>
 #include "support/tolerance.hpp"
+#include "rotg_table.hpp"
 
 namespace SushiBLAS
 {
@@ -71,5 +76,73 @@ namespace SushiBLAS
                     << "y[" << i << "]";
             }
         }
+
+        namespace
+        {
+            /**
+             * @brief Runs rows 2 to 7 of the real rotation table of the design on the reference
+             *        ROTG of one precision.
+             * @tparam T The precision of the rotation.
+             */
+            template<typename T>
+            class ReferenceRotgTable : public ::testing::TestWithParam<std::size_t>
+            {
+                protected:
+                    /** @brief Expects ROTG of the row to produce r, z, c and s of the table. */
+                    void expect_row_matches()
+                    {
+                        const RotgTable::RealRotationRow& row = RotgTable::K_REAL_ROWS[GetParam()];
+                        const RotgTable::Expected expected = RotgTable::expected_of<T>(row);
+
+                        T a = static_cast<T>(row.a);
+                        T b = static_cast<T>(row.b);
+                        T c = T(0);
+                        T s = T(0);
+                        Kernels::Reference::rotg<T>(&a, &b, &c, &s);
+
+                        EXPECT_EQ(static_cast<double>(a), expected.r);
+                        EXPECT_EQ(static_cast<double>(b), expected.z);
+                        EXPECT_EQ(static_cast<double>(c), expected.c);
+                        EXPECT_EQ(static_cast<double>(s), expected.s);
+                    }
+            };
+
+            /** @brief Names a row of the table by its number in the design, from 1. */
+            std::string table_row_name(const ::testing::TestParamInfo<std::size_t>& info)
+            {
+                return "row" + std::to_string(info.param + 1);
+            }
+        } // namespace
+
+        /** @brief Runs the table rows on the FLOAT32 reference ROTG. */
+        class Small_ReferenceRotgSingle : public ReferenceRotgTable<float>
+        {
+
+        };
+
+        /** @brief Runs the table rows on the FLOAT64 reference ROTG. */
+        class Small_ReferenceRotgDouble : public ReferenceRotgTable<double>
+        {
+
+        };
+
+        /** @brief Tests the FLOAT32 reference ROTG against a row of the design table. */
+        TEST_P(Small_ReferenceRotgSingle, TheRotationMatchesTheTableRow)
+        {
+            expect_row_matches();
+        }
+
+        /** @brief Tests the FLOAT64 reference ROTG against a row of the design table. */
+        TEST_P(Small_ReferenceRotgDouble, TheRotationMatchesTheTableRow)
+        {
+            expect_row_matches();
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ReferenceRotgSingle,
+            ::testing::Range<std::size_t>(1, std::size(RotgTable::K_REAL_ROWS)), table_row_name);
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_ReferenceRotgDouble,
+            ::testing::Range<std::size_t>(1, std::size(RotgTable::K_REAL_ROWS)), table_row_name);
     } // namespace Test
 } // namespace SushiBLAS

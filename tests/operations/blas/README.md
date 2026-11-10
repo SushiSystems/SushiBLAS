@@ -29,12 +29,13 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_gemm_reference.cpp` | Tests that the reference gemm reads a transpose as a flipped layout |
 | `test_blas/test_iamax.cpp` | Tests that iamax refuses a result tensor that cannot hold the INT64 index |
 | `test_blas/test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and the HALF device sum |
-| `test_blas/test_level1_reference.cpp` | Tests that the reference rot turns a pair by a cosine of 0.6 and a sine of 0.8 |
-| `test_blas/test_level2_reference.cpp` | Tests that a reference solve with a unit diagonal never reads the stored diagonal |
-| `test_blas/test_level2_sycl_parity.cpp` | Tests that the GEMV and SYMV kernels stay within their rounding bound of a double-precision truth, and that the SYCL kernels repeat to the bit |
+| `test_blas/test_level1_reference.cpp` | Tests that the reference rot turns a pair by a cosine of 0.6 and a sine of 0.8, and that the reference rotg gives the rows of the real rotation table |
+| `test_blas/test_level2_reference.cpp` | Tests that a reference TRSM and TRSV solve with a unit diagonal never read the stored diagonal |
+| `test_blas/test_level2_sycl_parity.cpp` | Tests that the GEMV, transposed GEMV and SYMV kernels stay within their rounding bound of a double-precision truth, are exact on small integers, and that the SYCL kernels repeat to the bit |
 | `test_blas/test_packed_symm.cpp` | Tests SYMM and HEMM on the packed product against the reference kernel |
 | `test_blas/test_packed_syrk.cpp` | Tests SYRK and HERK on the packed product against the reference kernel |
 | `test_blas/test_reduction_half.cpp` | Tests that the host fold of a HALF sum and mean accumulates wider than HALF |
+| `test_blas/rotg_table.hpp` | Declares the real rotation table of the design and the values a row expects |
 | `test_blas/test_rotg.cpp` | Tests rotg against hand-computed rotations, across both kernels and inside a graph |
 | `test_blas/test_rotm.cpp` | Tests rotm on each flag, on strided and empty vectors, across kernels and after rotmg |
 | `test_blas/test_rotmg.cpp` | Tests rotmg on its four outcomes, on both rescalings and across both kernels |
@@ -56,9 +57,9 @@ the benchmark section of `tests/README.md` describes them.
 | `test_level2.cpp` | Tests that the Level 2 facet of BLASOps records gemv and ger with exact results |
 | `test_level3.cpp` | Tests that the Level 3 facet of BLASOps records gemm with exact results |
 | `test_local_tile.cpp` | Tests the local tile demand per dtype and the record-time check that a device hosts it |
-| `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand |
+| `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand, including the dtype a device lacks |
 | `test_packed_product_scratch.cpp` | Tests that the packed product leases the scratch its plan names, and none without a plan or below the packing thresholds |
-| `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand |
+| `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand, including the dtype a device lacks |
 | `test_shape_check.cpp` | Tests that the shape checks of gemm, syrk, trsm, trsv, dot and scal refuse what the routines refuse, on tensors with no storage |
 | `compile_sparse.cpp` | Checks at compile time that SparseBLAS is built from a recorder and only from one; the build compiles it and no test runner lists it |
 

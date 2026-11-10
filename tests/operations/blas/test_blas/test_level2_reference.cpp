@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/blas_kernels/reference/level2/trsv.hpp>
 #include <SushiBLAS/blas_kernels/reference/level3/trsm.hpp>
 
 namespace SushiBLAS
@@ -80,6 +81,35 @@ namespace SushiBLAS
             {
                 return info.param.name;
             }
+
+            /** @brief Holds the triangle, the form of A and the right-hand side of one TRSV row. */
+            struct UnitVectorSolveRow
+            {
+                const char* name;       /**< The row name a failure shows. */
+                Core::Uplo uplo;        /**< The triangle of A that is read. */
+                Core::Transpose trans;  /**< The form of A the solve uses. */
+                std::vector<float> a;   /**< A, row-major, with the other triangle poisoned. */
+                std::vector<float> b;   /**< The right-hand side; the solution is [1, 1, 2]. */
+            };
+
+            /** @brief Returns the four rows of TRSV: each triangle in each form of A. */
+            std::vector<UnitVectorSolveRow> unit_vector_solve_rows()
+            {
+                return {{"UpperNoTranspose", Core::Uplo::Upper, Core::Transpose::NoTrans,
+                         upper_matrix(), {9.0f, 11.0f, 2.0f}},
+                        {"UpperTransposed", Core::Uplo::Upper, Core::Transpose::Trans,
+                         upper_matrix(), {1.0f, 3.0f, 10.0f}},
+                        {"LowerNoTranspose", Core::Uplo::Lower, Core::Transpose::NoTrans,
+                         lower_matrix(), {1.0f, 3.0f, 10.0f}},
+                        {"LowerTransposed", Core::Uplo::Lower, Core::Transpose::Trans,
+                         lower_matrix(), {9.0f, 11.0f, 2.0f}}};
+            }
+
+            /** @brief Returns the name of a TRSV row for GoogleTest. */
+            std::string vector_row_name(const ::testing::TestParamInfo<UnitVectorSolveRow>& info)
+            {
+                return info.param.name;
+            }
         } // namespace
 
         /** @brief Runs the unit-diagonal solve once per triangle and form of A. */
@@ -110,5 +140,35 @@ namespace SushiBLAS
 
         INSTANTIATE_TEST_SUITE_P(
             , Small_Level2ReferenceUnitSolve, ::testing::ValuesIn(unit_solve_rows()), row_name);
+
+        /** @brief Runs the unit-diagonal TRSV once per triangle and form of A. */
+        class Small_Level2ReferenceUnitVectorSolve
+            : public ::testing::TestWithParam<UnitVectorSolveRow>
+        {
+
+        };
+
+        /**
+         * @brief Tests that TRSV with a unit diagonal ignores the stored diagonal and the other
+         *        triangle, in each triangle and form of A.
+         *
+         * Every row solves a system of the form (I + N) x = b whose solution is [1, 1, 2], with N
+         * the strict triangle [[0,2,3],[0,0,5],[0,0,0]], used as given or transposed.
+         */
+        TEST_P(Small_Level2ReferenceUnitVectorSolve, TheStoredDiagonalIsNeverRead)
+        {
+            const UnitVectorSolveRow& row = GetParam();
+            const std::vector<float> want = {1.0f, 1.0f, 2.0f};
+            std::vector<float> x = row.b;
+
+            Kernels::Reference::trsv<float>(Core::Layout::RowMajor, row.uplo, row.trans,
+                                            Core::Diag::Unit, 3, row.a.data(), 3, x.data(), 1);
+
+            EXPECT_EQ(x, want);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Small_Level2ReferenceUnitVectorSolve, ::testing::ValuesIn(unit_vector_solve_rows()),
+            vector_row_name);
     } // namespace Test
 } // namespace SushiBLAS
