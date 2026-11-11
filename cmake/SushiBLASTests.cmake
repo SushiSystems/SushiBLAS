@@ -198,6 +198,11 @@ function(sushiblas_add_shard_test target name filter labels timeout index shards
         LABELS "${labels}"
         TIMEOUT ${timeout}
         ENVIRONMENT "GTEST_TOTAL_SHARDS=${shards};GTEST_SHARD_INDEX=${index}")
+    # A large shard runs on the real accelerator, of which the resource file CTest gets holds one
+    # slot each, so two large shards never share one.
+    if("large" IN_LIST labels)
+        set_tests_properties(${name} PROPERTIES RESOURCE_GROUPS "gpus:1")
+    endif()
 endfunction()
 
 # Registers the cases of <target> of one size in shards, with the size's label and a timeout of

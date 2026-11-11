@@ -1,0 +1,16 @@
+# budget_exemptions.toml
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
+# Licensed under the Apache License 2.0. See LICENSE.
+#
+# The tests over their time limit, each with the open backlog ID that brings it back within it.
+# One entry per test: "Suite.Case" = "RW-12". The time reader fails an entry whose test falls to half
+# its limit, so the list only shrinks.
+
+[exempt]
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/ColumnMajor_ForceSYCL_COMPLEX32_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/ColumnMajor_ForceSYCL_COMPLEX64_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/RowMajor_ForceSYCL_COMPLEX32_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/RowMajor_ForceSYCL_COMPLEX64_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/ColumnMajor_ForceSYCL_HALF_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"
+"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/RowMajor_ForceSYCL_HALF_NoTrans_NoTrans_130x131x4133_scaled" = "RW-160"

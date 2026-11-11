@@ -22,6 +22,7 @@
 | RW-138 | P3 | open | Make PoissonAcceptsTheCap fail on a constant fill | The test in test_random_large_lambda.cpp checks the draws vary, so a constant fill fails it |  | `tests/operations/random/test_random/test_random_large_lambda.cpp` | 2026-11-06 |
 | RW-154 | P1 | open | Give SushiBLAS a host engine that runs the reference kernels with no device | HostEngineTest runs the operations' reference paths on host memory with no SYCL queue, and EngineContract passes small on it and medium on the runtime |  | `modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/host_engine_test.hpp` | 2026-11-07 |
 | RW-159 | P2 | open | Give every test a name and suite that check_test_odr accepts | check_test_odr.py prints nothing for this repository and its known findings are gone |  |  | 2026-11-11 |
+| RW-160 | P2 | open | Bring the deep complex GEMM agreement rows back under the medium limit | The four COMPLEX 130x131x4133 GemmAgreement rows each run under 5 s alone and leave tests/budget_exemptions.toml |  | `tests/operations/blas/test_blas/test_gemm.cpp` | 2026-11-11 |
 
 ## Known issues
 

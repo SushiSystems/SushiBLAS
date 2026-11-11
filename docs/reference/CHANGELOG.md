@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-11 — tests: Moved the `ArgmaxIndex` mantissa case to medium and exempted the six deep complex and half GEMM agreement rows over the medium limit (RW-160).
+- 2026-11-11 — cli: Required sushicore 0.13, whose test command fails a run of a current tree that breaks a time limit, and told it whether the tree is current; the large shards each hold the one accelerator slot.
 - 2026-11-10 — cli: Required sushicore 0.12.3, and ran the unknown-theme row and the malformed-config row small over its in-memory environment and files (RW-157, `73b44fcd`).
 - 2026-11-10 — cli: Required sushicore 0.12.2, which narrows a sharded test run by `--filter` and reruns a failed shard's cases.
 - 2026-11-10 — tests: Registered each test program's cases as CTest shards per size (RW-158, `7ed5b15d`).

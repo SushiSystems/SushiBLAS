@@ -274,7 +274,7 @@ namespace SushiBLAS
          * @brief Tests that argmax is exact for an index past 2^24, on a sequence the host generates.
          * @see tests/library/umbrella/README.md
          */
-        TEST(Small_ArgmaxIndex, ArgmaxIsExactPastTheFloatMantissa)
+        TEST(Medium_ArgmaxIndex, ArgmaxIsExactPastTheFloatMantissa)
         {
             constexpr std::size_t K_COUNT = 16777218;
             constexpr std::int64_t K_PEAK = 16777217;

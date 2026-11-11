@@ -294,7 +294,8 @@ class ProjectService:
             profile=PROFILE, project_root=lambda: root, console=lambda: self._console,
             build_tree=lambda: build_dir, run=self._runner.run,
             run_ctest=lambda directory, **options: self._driver.ctest_run(cfg, directory, env, **options),
-            run_program=ProgramRunner(build_dir, self._runner.run, env))
+            run_program=ProgramRunner(build_dir, self._runner.run, env),
+            rebuilt=lambda directory: self._driver.tree_is_current(cfg, directory, env))
         return run_tests(module, select_labels(labels, every_size=every_size), name_filter=filter,
                          repeat=repeat, jobs=jobs, every_size=every_size, shuffle=shuffle, seed=seed)
 
