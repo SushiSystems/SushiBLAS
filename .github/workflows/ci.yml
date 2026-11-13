@@ -6,7 +6,7 @@ name: CI
 # gives the sizes.
 #
 # SushiBLAS builds against a SushiRuntime checkout beside it (cmake/Runtime.cmake), so the build
-# jobs check this repository out under sushiblas/ and SushiRuntime's main under sushiruntime/.
+# jobs check this repository out under sushiblas/ and SushiRuntime at its pinned tag under sushiruntime/.
 # On Linux the compiler is the oneAPI icpx that setup-oneapi installs; SB_CXX hands it to sb, and
 # icx takes the C slot. On Windows `sb setup` provisions the intel/llvm toolchain.
 on:
@@ -94,9 +94,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiblas
+      # SushiRuntime at the version cli/sushistack.deps.toml pins, as the sibling ../sushiruntime sb finds.
+      - name: python -c "...pinned SushiRuntime version..."
+        id: sushiruntime
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiruntime']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
+          ref: ${{ steps.sushiruntime.outputs.version }}
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
@@ -156,9 +163,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiblas
+      # SushiRuntime at the version cli/sushistack.deps.toml pins, as the sibling ../sushiruntime sb finds.
+      - name: python -c "...pinned SushiRuntime version..."
+        id: sushiruntime
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiruntime']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
+          ref: ${{ steps.sushiruntime.outputs.version }}
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
@@ -230,9 +244,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiblas
+      # SushiRuntime at the version cli/sushistack.deps.toml pins, as the sibling ../sushiruntime sb finds.
+      - name: python -c "...pinned SushiRuntime version..."
+        id: sushiruntime
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiruntime']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
+          ref: ${{ steps.sushiruntime.outputs.version }}
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
@@ -310,9 +331,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiblas
+      # SushiRuntime at the version cli/sushistack.deps.toml pins, as the sibling ../sushiruntime sb finds.
+      - name: python -c "...pinned SushiRuntime version..."
+        id: sushiruntime
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiruntime']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
+          ref: ${{ steps.sushiruntime.outputs.version }}
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
@@ -377,9 +405,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiblas
+      # SushiRuntime at the version cli/sushistack.deps.toml pins, as the sibling ../sushiruntime sb finds.
+      - name: python -c "...pinned SushiRuntime version..."
+        id: sushiruntime
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushisystems']['sushiruntime']['version'])")" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
+          ref: ${{ steps.sushiruntime.outputs.version }}
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
