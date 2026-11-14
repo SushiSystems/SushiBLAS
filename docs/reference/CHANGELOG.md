@@ -5,6 +5,10 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-13 — reference: Added no offset to the null input of an empty axis in `reduce_axis`, which UBSan reported in the sanitizer job (`serial_reduce.hpp`).
+- 2026-11-13 — ci: Installed each Sushi library CLI in its own pipx environment, checked SushiRuntime out at its pinned tag, fetched the full history for the checkers and printed the tests over their time limit on a failure (`ci.yml`).
+- 2026-11-13 — deps: Pinned SushiRuntime v0.5.2, which pins the same SushiLog as this repository, so `sb setup` no longer refuses two SushiLog pins (`sushistack.deps.toml`).
+- 2026-11-13 — tests: Put `axis_name` of the gemm rows beside `GemmCase`, so the row name template finds it by argument-dependent lookup (`test_gemm.cpp`).
 - 2026-11-11 — tests: Moved the `ArgmaxIndex` mantissa case to medium and exempted the six deep complex and half GEMM agreement rows over the medium limit (RW-160).
 - 2026-11-11 — cli: Required sushicore 0.13, whose test command fails a run of a current tree that breaks a time limit, and told it whether the tree is current; the large shards each hold the one accelerator slot.
 - 2026-11-10 — cli: Required sushicore 0.12.3, and ran the unknown-theme row and the malformed-config row small over its in-memory environment and files (RW-157, `73b44fcd`).
