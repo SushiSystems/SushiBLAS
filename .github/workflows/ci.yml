@@ -151,6 +151,10 @@ jobs:
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label small
       - name: sb test --label medium
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label medium
+      - name: Print the tests over their time limit
+        if: failure()
+        shell: bash
+        run: cat build/default-debug/Testing/over_limit.txt || echo "no over_limit.txt"
 
   windows:
     name: Windows (small, medium)
@@ -229,6 +233,10 @@ jobs:
         run: sb test --label small
       - name: sb test --label medium
         run: sb test --label medium
+      - name: Print the tests over their time limit
+        if: failure()
+        shell: bash
+        run: cat build/default-debug/Testing/over_limit.txt || echo "no over_limit.txt"
 
   sanitizers:
     name: ASan and UBSan (small)
