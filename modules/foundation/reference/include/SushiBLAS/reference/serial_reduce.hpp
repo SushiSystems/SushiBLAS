@@ -153,7 +153,10 @@ namespace SushiBLAS
             {
                 const std::size_t s2 = s / span.segments;
                 const std::size_t s1 = s % span.segments;
-                const T* base = in + s2 * span.segment_stride2 + s1 * span.segment_stride;
+                // An empty axis reads nothing, and its input may be null, which no offset may be added to.
+                const T* base = span.extent == 0
+                                    ? in
+                                    : in + s2 * span.segment_stride2 + s1 * span.segment_stride;
 
                 Fold<Accum, T> fold;
                 for (std::size_t k = 0; k < span.extent; ++k)

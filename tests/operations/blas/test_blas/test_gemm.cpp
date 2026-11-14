@@ -79,22 +79,22 @@ namespace SushiBLAS
                 double alpha;            /**< Scale of the product. */
                 double beta;             /**< Scale of the old C; exactly zero never reads it. */
             };
-        } // namespace
 
-        /** @brief Returns the tail of a row named by the product it runs. */
-        [[nodiscard]] inline std::string axis_name(const GemmCase& c)
-        {
-            std::string name = "_" + word(c.trans_a) + "_" + word(c.trans_b) + "_" +
-                               std::to_string(c.m) + "x" + std::to_string(c.n) + "x" +
-                               std::to_string(c.k);
-            if (c.batch > 1)
-                name += "_b" + std::to_string(c.batch);
-            if (c.alpha != 1.0)
-                name += "_scaled";
-            if (c.beta == 0.0)
-                name += "_beta0";
-            return name;
-        }
+            /** @brief Returns the tail of a row named by the product it runs. */
+            [[nodiscard]] inline std::string axis_name(const GemmCase& c)
+            {
+                std::string name = "_" + word(c.trans_a) + "_" + word(c.trans_b) + "_" +
+                                   std::to_string(c.m) + "x" + std::to_string(c.n) + "x" +
+                                   std::to_string(c.k);
+                if (c.batch > 1)
+                    name += "_b" + std::to_string(c.batch);
+                if (c.alpha != 1.0)
+                    name += "_scaled";
+                if (c.beta == 0.0)
+                    name += "_beta0";
+                return name;
+            }
+        } // namespace
 
         /**
          * @brief A deliberately non-trivial epilogue: two broadcasts and a clamp.
