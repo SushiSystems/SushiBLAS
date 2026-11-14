@@ -12,6 +12,7 @@
 | RW-28 | P2 | unmeasured | Run the group-per-row GEMV and SYMV paths | both paths have run on a device that chooses them; on the CPU only a 4 x 16384 GEMV reaches them and SYMV never does |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
 | RW-29 | P2 | unmeasured | Confirm the device memory alignment on a run | `Storage` is seen to receive 128-byte aligned memory on CUDA, and on Level Zero when a machine with it is at hand |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
 | RW-30 | P2 | unmeasured | Measure the weight gradient of `window_dot` | the cost of its two 64-bit divisions per term is measured |  | `docs/design/GPU_VALIDATION/README.md` | 2026-10-19 |
+| RW-162 | P1 | open | Pass the two medium tests that fail on the CI CPU device | ADeviceSizedLaunchStopsAtItsLiveWidth and ALevelOneLeaseIsThePlannedPartialsTimesThePartialBytes pass on the Linux CI job |  | `tests/support/primitive_recorder_contract.hpp` | 2026-11-14 |
 
 ## Known issues
 

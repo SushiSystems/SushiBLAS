@@ -13,6 +13,7 @@
 | RW-126 | P0 | decision | Choose how the pre-merge builds fit their time budget: raise the timeout or cut the build | The owner rules whether timeouts rise above the 20/45-minute budget or the build cost falls |  | `.github/workflows/ci.yml` | 2026-10-30 |
 | RW-127 | P1 | open | Make the nightly Benchmarks job finish sb bench inside its 120-minute timeout | The nightly Benchmarks job completes sb bench inside timeout-minutes and the nightly run is green |  | `.github/workflows/nightly.yml` | 2026-10-31 |
 | RW-133 | P2 | open | Clear the known findings of the shared checkers | tools/known_findings.toml holds no entry and tools/check_all.py is clean without it |  | `tools/check_all.py` | 2026-11-05 |
+| RW-161 | P1 | open | Print the test over its time limit in the sanitizer job and name it in the gate | A run that breaks a time limit names the test in every test job, and the sanitizer job passes its time gate |  | `.github/workflows/ci.yml` | 2026-11-14 |
 
 ## Known issues
 
@@ -20,3 +21,4 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | KI-26 | own | The build pins no SushiRuntime version | check out a runtime commit that carries them | RW-89 |  | 2026-10-19 |
 | KI-29 | own | The benchmark programs are not built on the module tree | build them locally with `sb build --benchmarks` | RW-85 |  | 2026-10-19 |
+| KI-31 | dependency | SushiCore: a time-limit rerun that writes no file crashes the budget reader (slow folder) | none |  | `.github/workflows/ci.yml` | 2026-11-14 |
