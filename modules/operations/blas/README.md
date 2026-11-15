@@ -110,11 +110,12 @@ Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
 It is one launch, and the task that writes `bias` is ordered before it.
 
-**Operands are named as tensors, never as regions.** A `BufferRegion` converts implicitly from a
-bare pointer, and a bare pointer widens to the whole allocation of whatever it points at, so two
-views of one arena become two unrelated resources, `overlaps` says false, and the tracker emits no
-edge at all. That is exactly the mistake that cost a training run in the reduction seam (see
-`<SushiBLAS/reductions/dispatch.hpp>`), and taking a `Tensor` makes it unspellable here:
+**Operands are named as tensors, never as regions.** A `BufferRegion` names an allocation by its
+`GlobalHandle` and does not convert from a pointer. A region built by hand would have to carry the
+handle and the byte interval of a view, and two views of one arena that disagree on either would
+become unrelated resources: `overlaps` says false and the tracker emits no edge at all. That is the
+mistake that cost a training run in the reduction seam (see `<SushiBLAS/reductions/dispatch.hpp>`),
+and taking a `Tensor` makes it unspellable here:
 the region comes from `Tensor::region`, once, inside the `OperandSet` a `GemmEpilogue` holds. A
 caller holding memory no `Tensor` describes needs a new overload rather than a way around this
 one.
@@ -173,11 +174,18 @@ with no kernel instantiated and no runtime. `record_gemm(port, ...)` is the step
 
 `KernelGemmPort::record` states a split on the task of a GEMM whose operands the host can reach, as
 `TaskDescription::split`. The axis is the longer side of C, the rows on a tie, and the extent is
-that side's length. The slice kernel runs the host reference kernel over the part's range of the
-axis: `slice_gemm` gives the part's extents and the element offsets of A, B and C for the layout and
-the transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix.
-The parts write disjoint elements of C, so the split states no combine. A GEMM with a device-only
-operand states no split, because its slice would dereference memory the host cannot read.
+that side's length. The slice runs the SYCL GEMM over the part's range of the axis, on the queue of
+the part's device, and waits for it, because the slice returns nothing the runtime could wait on.
+`slice_gemm` gives the part's extents and the element offsets of A, B and C for the layout and the
+transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix. The
+parts write disjoint elements of C, so the split states no combine.
+
+The slice reads A, B and C through `bound_gemm_operands`: the three pointers the runtime bound on the
+part's device, in that order, or the pointers the call recorded when the runtime bound none. The
+runtime binds none today, because the GEMM is recorded as a task body, and a task body has no
+pointer table, so the recorded pointers stand. That is why a GEMM with a device-only operand still
+states no split: its recorded pointer is valid on the device that owns it and nowhere else. The
+restriction ends when the GEMM is recorded in a form the runtime gives a pointer table.
 
 ### `execute_gemm`
 

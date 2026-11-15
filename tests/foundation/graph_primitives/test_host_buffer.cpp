@@ -83,14 +83,16 @@ namespace SushiBLAS
             EXPECT_TRUE(buffer.region().valid());
         }
 
-        /** @brief Tests that the region keys on the first element and spans the whole buffer. */
-        TEST(Small_GraphPrimitivesHostBuffer, TheRegionKeysOnTheDataAndSpansTheBuffer)
+        /** @brief Tests that the region names the buffer by a handle of its own and spans the whole buffer. */
+        TEST(Small_GraphPrimitivesHostBuffer, TheRegionNamesTheBufferByItsHandleAndSpansTheBuffer)
         {
             const GraphPrimitives::HostBuffer<std::uint32_t> buffer(K_COUNT);
+            const GraphPrimitives::HostBuffer<std::uint32_t> other(K_COUNT);
 
             const SushiRuntime::BufferRegion region = buffer.region();
 
-            EXPECT_EQ(region.base, static_cast<void*>(buffer.data()));
+            EXPECT_FALSE(region.base.is_null());
+            EXPECT_NE(region.base, other.region().base);
             EXPECT_EQ(region.offset, std::size_t{0});
             EXPECT_EQ(region.length, SushiRuntime::BufferRegion::K_WHOLE);
         }

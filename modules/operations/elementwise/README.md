@@ -65,10 +65,10 @@ written, so the dependency edges a caller gets are the same whatever the two dty
 the property that actually has to hold for a graph to be correct.
 
 **What it declares to the dependency tracker.** `src.region()` as a read and `dst.region()` as a
-write, taken from `Tensor::region` and never from a bare pointer. A `BufferRegion` converts
-implicitly from a pointer and a bare pointer widens to the *whole* allocation, so two views of one
-arena become two unrelated resources, `overlaps` answers false and the tracker emits no edge at all,
-not a wrong edge, none. That mistake has produced a silently wrong training loss in this stack twice
+write, taken from `Tensor::region` and never built by hand. A `BufferRegion` names an allocation by
+its `GlobalHandle` and does not convert from a pointer, so a hand-built region that disagrees with
+the view on the handle or the interval makes two views of one arena unrelated resources, `overlaps`
+answers false and the tracker emits no edge at all, not a wrong edge, none. That mistake has produced a silently wrong training loss in this stack twice
 (the `reductions/dispatch.hpp` section of this page records one of them), and it is exactly the
 arena-packed fp32/fp16 pair this op exists to serve.
 

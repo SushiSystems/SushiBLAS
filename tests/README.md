@@ -191,13 +191,13 @@ explains this at length.
 
 ### Views at a non-zero offset
 
-The ordering and storage tests put their operands partway into an arena. At offset zero a bare
-`data()` pointer and a real `region()` name the same resource, so an operation that declared the
-wrong one would still get its edge and the test would pass without proving anything. Partway
-into an arena they diverge: `data()` is `base + offset`, and a region built from it widens to
-the whole allocation of that address, which the tracker files under a resource the producer
-never touched. Two views of one arena then look like two unrelated resources and the tracker
-emits no edge at all. That cost SushiAI's first arena-packed training run.
+The ordering and storage tests put their operands partway into an arena. At offset zero the
+interval of a view starts at the allocation, so an operation that declared a wrong interval would
+still get its edge and the test would pass without proving anything. Partway into an arena the
+interval starts at `storage_offset`, and a region that names the wrong handle or the wrong bytes
+files under a resource the producer never touched. Two views of one arena then look like two
+unrelated resources and the tracker emits no edge at all. That cost SushiAI's first arena-packed
+training run.
 
 ## Benchmarks
 

@@ -54,6 +54,7 @@
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
+#include <SushiBLAS/graph_primitives/scratch_region.hpp>
 #include <SushiBLAS/graph_primitives/scan_passes.hpp>
 
 namespace SushiBLAS
@@ -136,6 +137,16 @@ namespace SushiBLAS
                     return SushiRuntime::make_error(std::move(down_block.error()));
                 down_scratch = *down_block;
             }
+            auto up_named = Detail::name_scratch(recorder, up_scratch, sweep_scratch_count,
+                                                 counts.device_index());
+            if (!up_named)
+                return SushiRuntime::make_error(std::move(up_named.error()));
+            auto down_named = Detail::name_scratch(recorder, down_scratch, sweep_scratch_count,
+                                                   counts.device_index());
+            if (!down_named)
+                return SushiRuntime::make_error(std::move(down_named.error()));
+            const Detail::ScratchRegion<std::uint32_t> up_region = *up_named;
+            const Detail::ScratchRegion<std::uint32_t> down_region = *down_named;
 
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t state_words = 2 * level_count;
@@ -144,7 +155,11 @@ namespace SushiBLAS
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
-            const BufferRegion state_region{state, 0, state_words * sizeof(std::uint32_t)};
+            auto state_named = Detail::name_scratch(recorder, state, state_words,
+                                                    counts.device_index());
+            if (!state_named)
+                return SushiRuntime::make_error(std::move(state_named.error()));
+            const BufferRegion state_region = state_named->whole();
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
@@ -157,12 +172,6 @@ namespace SushiBLAS
                 },
                 stamper.stage("resolve", std::size_t{1}));
 
-            const auto words = [](std::uint32_t* base, std::size_t offset, std::size_t count)
-            {
-                return BufferRegion{static_cast<void*>(base), offset * sizeof(std::uint32_t),
-                                    count * sizeof(std::uint32_t)};
-            };
-
             // The up-sweep folds every level but the top into scratch for the down-sweep.
             for (std::size_t i = 0; i + 1 < level_count; ++i)
             {
@@ -174,8 +183,8 @@ namespace SushiBLAS
 
                 const Reads reads = first
                     ? Detail::access_of<Reads>(counts_span, state_region)
-                    : Reads(words(up_scratch, level.in_offset, level.in_count), state_region);
-                const Writes writes(words(up_scratch, level.out_offset, level.out_count));
+                    : Reads(up_region.window(level.in_offset, level.in_count), state_region);
+                const Writes writes(up_region.window(level.out_offset, level.out_count));
 
                 recorder.kernel(
                     DeviceSized{level.out_count, state + level_count + i, state + i},
@@ -202,12 +211,12 @@ namespace SushiBLAS
                 {
                     const Reads reads = first
                         ? Detail::access_of<Reads>(counts_span, state_region)
-                        : Reads(words(up_scratch, level.in_offset, level.in_count),
+                        : Reads(up_region.window(level.in_offset, level.in_count),
                                 state_region);
                     const Writes writes = first
                         ? Detail::access_of<Writes>(offsets_span, total_span)
                         : Detail::access_of<Writes>(
-                              words(down_scratch, level.in_offset, level.in_count), total_span);
+                              down_region.window(level.in_offset, level.in_count), total_span);
 
                     // The top pass scans from zero and always runs, so total is published.
                     recorder.kernel(
@@ -226,15 +235,15 @@ namespace SushiBLAS
                 // The base of each tile is the exclusive prefix the level above wrote for it.
                 const std::uint32_t* tile_bases = down_scratch + level.out_offset;
                 const BufferRegion bases_region =
-                    words(down_scratch, level.out_offset, level.out_count);
+                    down_region.window(level.out_offset, level.out_count);
 
                 const Reads reads = first
                     ? Detail::access_of<Reads>(counts_span, bases_region, state_region)
-                    : Reads(words(up_scratch, level.in_offset, level.in_count), bases_region,
+                    : Reads(up_region.window(level.in_offset, level.in_count), bases_region,
                             state_region);
                 const Writes writes = first
                     ? Detail::access_of<Writes>(offsets_span)
-                    : Writes(words(down_scratch, level.in_offset, level.in_count));
+                    : Writes(down_region.window(level.in_offset, level.in_count));
 
                 recorder.kernel(
                     DeviceSized{level.out_count, state + level_count + i, state + i},

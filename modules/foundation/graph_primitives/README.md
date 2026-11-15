@@ -35,7 +35,8 @@ if (!report)
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>` and `<SushiRuntime/core/result.hpp>` |
 | `primitive_recorder.hpp` | `PrimitiveNodeKind`, `PrimitiveNodeRecord`, `K_IS_PRIMITIVE_RECORDER`; SushiRuntime's `Determinism`, `OperationID` and `BufferRegion` |
 | `runtime_primitive_recorder.hpp` | `primitive_recorder.hpp` and SushiRuntime's `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `LateCount`, `Buffer` and `Result` |
-| `host_buffer.hpp` | SushiRuntime's `DeviceIndex`, `Residency` and `BufferRegion` |
+| `host_buffer.hpp` | SushiRuntime's `DeviceIndex`, `Residency`, `GlobalHandle` and `BufferRegion` |
+| `scratch_region.hpp` | SushiRuntime's `DeviceIndex`, `BufferRegion` and `Result` |
 | `host_primitive_recorder.hpp` | `host_buffer.hpp`, `primitive_recorder.hpp` and SushiRuntime's `Access`, `DeviceSized`, `NodeOptions`, `LateCount` and `Result` |
 | `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
 | `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
@@ -73,7 +74,8 @@ place the tile size is written.
 | `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
 | `primitive_recorder.hpp` | `PrimitiveNodeKind`, `PrimitiveNodeRecord`, `K_IS_PRIMITIVE_RECORDER` |
 | `runtime_primitive_recorder.hpp` | `RuntimePrimitiveRecorder`: the adapter over a `SushiRuntime::Recorder` |
-| `host_buffer.hpp` | `HostBuffer`: the operand type of `HostPrimitiveRecorder`, host memory with no runtime |
+| `host_buffer.hpp` | `HostBuffer`: the operand type of `HostPrimitiveRecorder`, host memory with no runtime; `Detail::mint_host_handle` |
+| `scratch_region.hpp` | `Detail::ScratchRegion`, `Detail::name_scratch`: the windows of one scratch block, named by the handle the recorder gives it |
 | `host_primitive_recorder.hpp` | `HostPrimitiveRecorder`: the in-memory adapter that keeps a `PrimitiveNodeRecord` per node and runs the host forms |
 | `primitive_options.hpp` | `PrimitiveOptions`, `Detail::require_options` |
 | `node_stamper.hpp` | `Detail::NodeStamper` |
@@ -85,13 +87,15 @@ kernel body has to stay a device-copyable type, which a virtual call would erase
 declares `static constexpr bool K_PRIMITIVE_RECORDER = true` and provides what the primitives use
 and nothing more: a member template `Buffer<T>`, the operand type the primitives take; `rule()`,
 which returns a guard; `scratch<T>(count, device, residency)`;
+`borrowed_region(address, bytes, device)`, which names a scratch block as a `BufferRegion`;
 `resolve(counts, device, access, fill, options)`; `kernel(count, access, body, options)` and
 `kernel(DeviceSized, access, body, options)`; and `refusal()`.
 
 `RuntimePrimitiveRecorder` forwards each call to one `SushiRuntime::Recorder`; its `Buffer<T>` is
-`SushiRuntime::Buffer<T>`, which a `Runtime` allocates. `HostPrimitiveRecorder`'s `Buffer<T>` is
+`SushiRuntime::Buffer<T>`, which a `Runtime` allocates; its `borrowed_region` is the recorder's, so the
+handle of a scratch block is the runtime's `Borrowed` handle. `HostPrimitiveRecorder`'s `Buffer<T>` is
 `HostBuffer<T>`, which `HostPrimitiveRecorder::buffer<T>(count)` allocates with no runtime. It
-owns its scratch, keeps a `PrimitiveNodeRecord` of every call (kind, rule, name, class, width,
+owns its scratch, names each block by a handle of its own, keeps a `PrimitiveNodeRecord` of every call (kind, rule, name, class, width,
 capacity, late-count capacities, read and write regions), answers `nodes_touching(region)`, and
 `run()` executes the recorded host forms in record order. Both pass one `PrimitiveRecorderContract`
 suite, small on the host adapter and medium on the runtime adapter.
@@ -99,6 +103,21 @@ suite, small on the host adapter and medium on the runtime adapter.
 A `LateCount` carries a capacity, which the primitive plans for when it records, and the source
 of the live count, which the runtime resolves once per run: `LateCount::fixed`,
 `LateCount::from_host` or `LateCount::from_device`.
+
+## Regions of scratch and of host buffers
+
+A `BufferRegion` names a buffer by its `GlobalHandle`, so a primitive cannot key a scratch block by its
+address. `scratch<T>()` still returns the block as a pointer, because the node bodies capture it. The
+primitive then calls `Detail::name_scratch(recorder, block, count, device)`, which asks the recorder
+for the block's handle once through `borrowed_region()`, and cuts every window of the block out of
+that one handle with `ScratchRegion::window(offset, count)`. A null block or a count of zero names
+nothing and every window is an empty region, which overlaps nothing. `reduce`, `prefix_scan` and
+`counting_sort` name their scratch this way.
+
+`HostPrimitiveRecorder` and `HostBuffer` hold memory no runtime owns, so no runtime mints their
+handles. `Detail::mint_host_handle()` returns a handle for each, in universe 0 with the `HostOnly` and
+`Borrowed` flags and a slot that counts up from 1. These handles are test identities: no directory
+reads them and no runtime graph is given one.
 
 ## Errors
 

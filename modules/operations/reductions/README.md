@@ -193,11 +193,11 @@ the SYCL one, so `require_finalize_keeps_width` refuses it at compile time. Writ
 result once, on the store.
 
 At `operands.reads(t).writes(result);`: `Tensor::region()`,
-never the bare `data()` pointer. A region is keyed on the *allocation base* and narrowed to the
-view's byte interval; a bare pointer converts to the whole-buffer region of whatever it points at.
-For a tensor at offset zero those are the same thing, which is why this went unnoticed, but for two
-views inside one arena the bare pointers are two different bases, `BufferRegion::overlaps` returns
-false, and the tracker emits no edge at all. Not a wrong edge: none. A reduction then races the op
+never the bare `data()` pointer. A region is keyed on the *handle of the allocation* and narrowed to
+the view's byte interval. Before regions took a handle, a bare pointer converted to the whole-buffer
+region of whatever it pointed at. For a tensor at offset zero those were the same thing, which is
+why this went unnoticed, but for two views inside one arena the bare pointers were two different
+bases, `BufferRegion::overlaps` returned false, and the tracker emitted no edge at all. Not a wrong edge: none. A reduction then races the op
 that produced its input, and the result is a plausible wrong number with no error anywhere.
 SushiAI's first arena-packed training run lost exactly this way (a loss of -57 where ln 6 was
 expected).
@@ -427,9 +427,9 @@ accepted. Throws `UnsupportedExecution` as `execute_reduction` does.
 
 At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer, for exactly the reason spelled out under `execute_reduction`: a
-bare pointer widens to the whole-buffer region of whatever it points at, so two views inside one
-arena look like two different allocations, overlap() says false, and the tracker emits no edge at
-all. That cost a training run once already.
+region keyed on anything but the allocation's handle makes two views inside one arena look like two
+different allocations, overlap() says false, and the tracker emits no edge at all. That cost a
+training run once already.
 
 At `const Reduce::AxisPlan geometry =`: planned here, at execution time, from the device the task
 was actually routed to: the same reason Reduce::plan is asked inside the kernel launcher rather than

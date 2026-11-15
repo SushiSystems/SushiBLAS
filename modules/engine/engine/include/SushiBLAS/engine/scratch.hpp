@@ -127,12 +127,15 @@ namespace SushiBLAS
             [[nodiscard]] bool is_empty() const noexcept { return bytes_ == 0; }
 
             /**
-             * @brief Returns the region a task that writes the scratch declares.
-             * @pre is_empty() is false.
+             * @brief Returns the region a task that writes the scratch declares, named by the
+             *        handle of the leased block's storage.
+             * @return An empty region when the handle leases nothing.
              */
             [[nodiscard]] SushiRuntime::BufferRegion region() const noexcept
             {
-                return {data(), 0, bytes_};
+                if (block_ == nullptr)
+                    return {};
+                return {block_->storage->global_handle(), 0, bytes_};
             }
 
             /**

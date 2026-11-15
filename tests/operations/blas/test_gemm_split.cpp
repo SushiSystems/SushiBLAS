@@ -23,7 +23,7 @@
 
 /**
  * @file test_gemm_split.cpp
- * @brief Tests the axis, the sub-problem and the slice kernel of a GEMM split.
+ * @brief Tests the axis, the sub-problem, the offset epilogue and the slice of a GEMM split.
  * @author Mustafa Garip
  */
 
@@ -31,9 +31,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/blas/gemm_split.hpp>
-#include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include "gemm_split_cases.hpp"
 
 namespace SushiBLAS
 {
@@ -44,56 +46,10 @@ namespace SushiBLAS
         using Dispatch::GemmGeometry;
         using Dispatch::GemmSplitAxis;
 
-        namespace
-        {
-            /** @brief Adds the position of an element to its value, so a wrong offset shows. */
-            struct PositionEpilogue
-            {
-                /** @brief Returns value plus 100 per row and 1 per column. */
-                float operator()(float value, int64_t row, int64_t column) const noexcept
-                {
-                    return value + static_cast<float>(100 * row + column);
-                }
-            };
-
-            /** @brief Holds one product: its layout, its flags and its extents. */
-            struct SplitCase
-            {
-                Layout layout;      /**< The layout of A, B and C. */
-                Transpose trans_a;  /**< How A is read. */
-                Transpose trans_b;  /**< How B is read. */
-                int64_t m;          /**< Rows of C. */
-                int64_t n;          /**< Columns of C. */
-                int64_t k;          /**< The summed extent. */
-            };
-
-            /** @brief Returns the geometry of a contiguous, unbatched product. */
-            [[nodiscard]] GemmGeometry geometry_of(const SplitCase& test_case)
-            {
-                const bool row_major = test_case.layout == Layout::RowMajor;
-                const bool a_swapped = Core::is_transposed(test_case.trans_a);
-                const bool b_swapped = Core::is_transposed(test_case.trans_b);
-                GemmGeometry geometry;
-                geometry.m = test_case.m;
-                geometry.n = test_case.n;
-                geometry.k = test_case.k;
-                geometry.a.leading_dimension = row_major ? (a_swapped ? test_case.m : test_case.k)
-                                                         : (a_swapped ? test_case.k : test_case.m);
-                geometry.b.leading_dimension = row_major ? (b_swapped ? test_case.k : test_case.n)
-                                                         : (b_swapped ? test_case.n : test_case.k);
-                geometry.c.leading_dimension = row_major ? test_case.n : test_case.m;
-                return geometry;
-            }
-
-            /** @brief Returns count small integers that differ from one element to the next. */
-            [[nodiscard]] std::vector<float> values(std::size_t count, int seed)
-            {
-                std::vector<float> result(count);
-                for (std::size_t i = 0; i < count; ++i)
-                    result[i] = static_cast<float>((static_cast<int>(i) * 7 + seed) % 11 - 5);
-                return result;
-            }
-        } // namespace
+        using GemmSplitCases::PositionEpilogue;
+        using GemmSplitCases::SplitCase;
+        using GemmSplitCases::geometry_of;
+        using GemmSplitCases::values;
 
         TEST(Small_GemmSplitAxis, TheLongerSideOfCIsCut)
         {
@@ -191,25 +147,55 @@ namespace SushiBLAS
             EXPECT_EQ(epilogue(1.0f, 2, 4), 1.0f + static_cast<float>(100 * 5 + 9));
         }
 
-        /** @brief Runs a product whole and in parts and compares the two results. */
-        class Small_GemmSplitSlice : public ::testing::TestWithParam<SplitCase>
+        /** @brief Runs a product whole on the host and in parts on the queue, and compares the two. */
+        class Medium_GemmSplitSlice : public ::testing::TestWithParam<SplitCase>
         {
             protected:
+                /** @brief Where a part reads its operands from. */
+                enum class Operands
+                {
+                    Recorded, /**< The pointers the call recorded; the runtime bound none. */
+                    Bound     /**< The pointers the runtime bound; the call recorded null. */
+                };
+
+                /** @brief Returns the queue of the test environment. */
+                [[nodiscard]] static sycl::queue& queue()
+                {
+                    return TestEnvironment::queue();
+                }
+
                 /**
                  * @brief Returns the C that three consecutive parts of the declared split compute.
                  * @param test_case The product to compute.
                  * @param a The elements of A.
                  * @param b The elements of B.
+                 * @param source Whether the parts read the recorded or the bound pointers.
                  */
                 [[nodiscard]] static std::vector<float> in_parts(const SplitCase& test_case,
                                                                  const std::vector<float>& a,
-                                                                 const std::vector<float>& b)
+                                                                 const std::vector<float>& b,
+                                                                 Operands source)
                 {
-                    std::vector<float> c(static_cast<std::size_t>(test_case.m * test_case.n), 0.0f);
-                    const GemmGeometry geometry = geometry_of(test_case);
+                    sycl::queue& q = queue();
+                    const std::size_t c_count = static_cast<std::size_t>(test_case.m * test_case.n);
+                    float* device_a = sycl::malloc_shared<float>(a.size(), q);
+                    float* device_b = sycl::malloc_shared<float>(b.size(), q);
+                    float* device_c = sycl::malloc_shared<float>(c_count, q);
+                    q.memcpy(device_a, a.data(), a.size() * sizeof(float)).wait();
+                    q.memcpy(device_b, b.data(), b.size() * sizeof(float)).wait();
+                    q.memset(device_c, 0, c_count * sizeof(float)).wait();
+
+                    const bool bound = source == Operands::Bound;
                     const auto split = Dispatch::make_gemm_split<float>(
-                        geometry, test_case.layout, test_case.trans_a, test_case.trans_b, 1.0f,
-                        a.data(), b.data(), 0.0f, c.data(), PositionEpilogue{});
+                        geometry_of(test_case), test_case.layout, test_case.trans_a,
+                        test_case.trans_b, 1.0f, bound ? nullptr : device_a,
+                        bound ? nullptr : device_b, 0.0f, bound ? nullptr : device_c,
+                        PositionEpilogue{});
+                    void* pointers[Dispatch::K_GEMM_OPERAND_COUNT] = {device_a, device_b, device_c};
+                    const SushiRuntime::span<void* const> table =
+                        bound ? SushiRuntime::span<void* const>(pointers,
+                                                                Dispatch::K_GEMM_OPERAND_COUNT)
+                              : SushiRuntime::span<void* const>();
 
                     const std::uint64_t extent = split->extent;
                     const std::uint64_t first = extent / 3;
@@ -218,18 +204,25 @@ namespace SushiBLAS
                     for (std::size_t index = 0; index < 3; ++index)
                     {
                         split->slice(SushiRuntime::SplitPart{split->axis, bounds[index],
-                                                             bounds[index + 1], index, 3});
+                                                             bounds[index + 1], index, 3},
+                                     q, table);
                     }
+
+                    std::vector<float> c(c_count);
+                    q.memcpy(c.data(), device_c, c_count * sizeof(float)).wait();
+                    sycl::free(device_a, q);
+                    sycl::free(device_b, q);
+                    sycl::free(device_c, q);
                     return c;
                 }
 
-                /** @brief Returns the C that the whole product computes. */
+                /** @brief Returns the C that the whole product computes on the host. */
                 [[nodiscard]] static std::vector<float> whole(const SplitCase& test_case,
                                                               const std::vector<float>& a,
                                                               const std::vector<float>& b)
                 {
                     std::vector<float> c(static_cast<std::size_t>(test_case.m * test_case.n), 0.0f);
-                    const GemmGeometry geometry = geometry_of(test_case);
+                    const Dispatch::GemmGeometry geometry = geometry_of(test_case);
                     Kernels::Reference::gemm<float>(
                         test_case.layout, test_case.trans_a, test_case.trans_b, test_case.m,
                         test_case.n, test_case.k, 1.0f, a.data(), geometry.a.leading_dimension,
@@ -239,25 +232,34 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_P(Small_GemmSplitSlice, ThePartsTogetherComputeTheWholeProduct)
+        TEST_P(Medium_GemmSplitSlice, ThePartsOnTheQueueComputeTheWholeProduct)
         {
             const SplitCase test_case = GetParam();
             const std::vector<float> a = values(static_cast<std::size_t>(test_case.m * test_case.k), 1);
             const std::vector<float> b = values(static_cast<std::size_t>(test_case.k * test_case.n), 4);
 
-            EXPECT_EQ(in_parts(test_case, a, b), whole(test_case, a, b));
+            EXPECT_EQ(in_parts(test_case, a, b, Operands::Recorded), whole(test_case, a, b));
+        }
+
+        TEST_P(Medium_GemmSplitSlice, ThePartsReadThePointersTheRuntimeBound)
+        {
+            const SplitCase test_case = GetParam();
+            const std::vector<float> a = values(static_cast<std::size_t>(test_case.m * test_case.k), 1);
+            const std::vector<float> b = values(static_cast<std::size_t>(test_case.k * test_case.n), 4);
+
+            EXPECT_EQ(in_parts(test_case, a, b, Operands::Bound), whole(test_case, a, b));
         }
 
         INSTANTIATE_TEST_SUITE_P(
-            , Small_GemmSplitSlice,
+            , Medium_GemmSplitSlice,
             ::testing::Values(
-                SplitCase{Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 9, 4, 5},
-                SplitCase{Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 4, 9, 5},
-                SplitCase{Layout::RowMajor, Transpose::Trans, Transpose::NoTrans, 9, 4, 5},
-                SplitCase{Layout::RowMajor, Transpose::NoTrans, Transpose::Trans, 4, 9, 5},
-                SplitCase{Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 9, 4, 5},
-                SplitCase{Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 4, 9, 5},
-                SplitCase{Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 9, 4, 5},
-                SplitCase{Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 4, 9, 5}));
+                SplitCase{Core::Layout::RowMajor, Core::Transpose::NoTrans, Core::Transpose::NoTrans, 9, 4, 5},
+                SplitCase{Core::Layout::RowMajor, Core::Transpose::NoTrans, Core::Transpose::NoTrans, 4, 9, 5},
+                SplitCase{Core::Layout::RowMajor, Core::Transpose::Trans, Core::Transpose::NoTrans, 9, 4, 5},
+                SplitCase{Core::Layout::RowMajor, Core::Transpose::NoTrans, Core::Transpose::Trans, 4, 9, 5},
+                SplitCase{Core::Layout::ColumnMajor, Core::Transpose::NoTrans, Core::Transpose::NoTrans, 9, 4, 5},
+                SplitCase{Core::Layout::ColumnMajor, Core::Transpose::NoTrans, Core::Transpose::NoTrans, 4, 9, 5},
+                SplitCase{Core::Layout::ColumnMajor, Core::Transpose::Trans, Core::Transpose::Trans, 9, 4, 5},
+                SplitCase{Core::Layout::ColumnMajor, Core::Transpose::Trans, Core::Transpose::Trans, 4, 9, 5}));
     } // namespace Test
 } // namespace SushiBLAS

@@ -34,7 +34,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
 | `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
 | `tensor_profile.hpp` | `Dispatch::profile_of`, the device `Profile` an operation sizes its work for from a tensor: the host `Profile` for a host storage, so no record call on a host engine asks a device |
-| `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block |
+| `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block; its `region()` is named by the handle of the block's storage |
 | `scratch_pool.hpp` | `ScratchPool`, the owner of the scratch blocks an `Engine` lends |
 | `scratch_shelf.hpp` | The shelf of idle scratch blocks and the block it lends |
 | `scratch_block_source.hpp` | `ScratchBlockSource`, the port a `ScratchPool` takes its blocks from |

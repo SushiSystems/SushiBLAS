@@ -28,16 +28,39 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/handle/global_handle.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 
 namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
+        namespace Detail
+        {
+            /**
+             * @brief Returns a new handle that names one block of host memory of a host adapter.
+             *
+             * Only HostBuffer and HostPrimitiveRecorder mint these, for memory no runtime holds, so
+             * no directory reads them and no runtime graph is given one. Each call returns a slot
+             * no earlier call returned, counting from 1.
+             * @see modules/foundation/graph_primitives/README.md
+             */
+            [[nodiscard]] inline SushiRuntime::GlobalHandle mint_host_handle() noexcept
+            {
+                static std::atomic<std::uint32_t> next_slot{1};
+                return SushiRuntime::GlobalHandle(
+                    0, 0, SushiRuntime::HandleKind::Buffer,
+                    SushiRuntime::HandleFlags::HostOnly | SushiRuntime::HandleFlags::Borrowed, 1,
+                    next_slot.fetch_add(1, std::memory_order_relaxed));
+            }
+        } // namespace Detail
+
         /**
          * @brief Owns count zeroed elements of host memory and offers the surface a primitive reads.
          *
@@ -79,7 +102,7 @@ namespace SushiBLAS
                 /** @brief Returns the whole buffer as a region, as a dependency set keys it. */
                 [[nodiscard]] SushiRuntime::BufferRegion region() const noexcept
                 {
-                    return SushiRuntime::BufferRegion(data_.get());
+                    return SushiRuntime::BufferRegion(handle_);
                 }
 
             private:
@@ -88,6 +111,9 @@ namespace SushiBLAS
 
                 /** @brief The number of elements. */
                 std::size_t size_ = 0;
+
+                /** @brief The handle that names the buffer; it moves with the buffer. */
+                SushiRuntime::GlobalHandle handle_ = Detail::mint_host_handle();
         };
 
     } // namespace GraphPrimitives

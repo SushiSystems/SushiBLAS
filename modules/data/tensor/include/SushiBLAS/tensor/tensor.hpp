@@ -358,7 +358,7 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Returns the byte interval this view occupies, keyed on the allocation base.
+         * @brief Returns the byte interval this view occupies, keyed on the handle of its storage.
          * @return The region, or an empty base-less region if the tensor has no storage.
          * @see modules/README.md
          */
@@ -368,7 +368,7 @@ namespace SushiBLAS
                 return {};
 
             const size_t bpe = Core::bytes_per_element(dtype);
-            return { storage->allocation_base(),
+            return { storage->global_handle(),
                      static_cast<size_t>(storage_offset) * bpe,
                      static_cast<size_t>(element_span()) * bpe };
         }

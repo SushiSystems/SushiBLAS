@@ -107,8 +107,7 @@ namespace SushiBLAS
             subject.port().kernel(
                 std::size_t{4},
                 SushiRuntime::Access(SushiRuntime::Reads(),
-                                     SushiRuntime::Writes(PrimitiveRecorderContract::region_of(
-                                         subject.output(), 4))),
+                                     SushiRuntime::Writes(subject.output_region(4))),
                 [](std::size_t) {}, options);
 
             ASSERT_EQ(subject.port().nodes().size(), std::size_t{1});
@@ -156,9 +155,9 @@ namespace SushiBLAS
         {
             HostPrimitiveSubject subject;
             const SushiRuntime::BufferRegion first =
-                PrimitiveRecorderContract::region_of(subject.output(), 2);
+                subject.output_region(2);
             const SushiRuntime::BufferRegion second =
-                PrimitiveRecorderContract::region_of(subject.output() + 2, 2);
+                subject.output_region(2, 2);
             subject.port().kernel(std::size_t{1},
                                   SushiRuntime::Access(SushiRuntime::Reads(),
                                                        SushiRuntime::Writes(first)),
@@ -170,8 +169,7 @@ namespace SushiBLAS
 
             EXPECT_EQ(subject.port().nodes_touching(first), std::size_t{2});
             EXPECT_EQ(subject.port().nodes_touching(second), std::size_t{1});
-            EXPECT_EQ(subject.port().nodes_touching(
-                          PrimitiveRecorderContract::region_of(subject.output() + 4, 2)),
+            EXPECT_EQ(subject.port().nodes_touching(subject.output_region(2, 4)),
                       std::size_t{0});
         }
 

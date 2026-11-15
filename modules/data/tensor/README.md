@@ -26,6 +26,12 @@ handle of the buffer it holds, for an allocated and for a borrowed block. `HostB
 with no storage return the null handle, because the runtime does not hold that memory. Every view of
 one storage reports one handle; `region()` names the bytes of the view within it.
 
+A `HostBlock` has no handle, so the `region()` of a host tensor is a region of the null handle: it is
+not `valid()` and overlaps nothing, and a host sink orders none of the tasks that name a host tensor.
+The runtime mints a handle for memory it holds, and a `HostBlock` is built without a runtime. The
+runtime offers no call that mints a handle for host memory with no `Runtime` behind it, and
+`borrowed_region()` needs a `Recorder`, which needs one.
+
 ## Borrowing memory
 
 `borrow_runtime_storage(runtime, std::move(buffer))` builds a `Storage` over a

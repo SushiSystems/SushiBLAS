@@ -22,6 +22,7 @@ sushiblas_add_test_program(
         test_fixed_order_reduce.cpp
         test_fixed_order_scan.cpp
         test_host_buffer.cpp
+        test_scratch_region.cpp
         test_invalid_graph.cpp
         test_radix_plan.cpp
         test_reduce_close.cpp

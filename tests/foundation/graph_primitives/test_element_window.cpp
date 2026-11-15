@@ -131,7 +131,7 @@ namespace SushiBLAS
             SushiRuntime::Runtime& runtime = SushiBLAS::Test::TestEnvironment::runtime();
             auto buffer = runtime.buffer<std::uint32_t>(16).value();
             const SushiRuntime::BufferRegion whole = SushiRuntime::Reads(buffer).keys.front();
-            const SushiRuntime::BufferRegion other{&buffer, 4, 8};
+            const SushiRuntime::BufferRegion other{buffer.handle(), 4, 8};
 
             const SushiRuntime::Writes writes = GraphPrimitives::Detail::access_of<
                 SushiRuntime::Writes>(GraphPrimitives::Detail::elements(buffer, 3, 5), other);

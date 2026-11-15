@@ -57,12 +57,14 @@ namespace SushiBLAS
         /** @brief Holds the checks that define a PrimitiveRecorder; an adapter suite calls each one. */
         struct PrimitiveRecorderContract
         {
-            /** @brief Returns the region of count words starting at words. */
+            /** @brief Returns the region of the count words of a scratch block the subject's port handed out. */
+            template <typename Subject>
             [[nodiscard]] static SushiRuntime::BufferRegion
-            region_of(const std::uint32_t* words, std::size_t count)
+            scratch_region_of(Subject& subject, const std::uint32_t* words, std::size_t count)
             {
-                return SushiRuntime::BufferRegion{const_cast<std::uint32_t*>(words), 0,
-                                                  count * sizeof(std::uint32_t)};
+                return subject.port()
+                    .borrowed_region(words, count * sizeof(std::uint32_t), subject.device())
+                    .value();
             }
 
             /** @brief Records a node that writes region and runs body once. */
@@ -92,7 +94,7 @@ namespace SushiBLAS
             static void expect_record_order_is_run_order(Subject& subject)
             {
                 std::uint32_t* out = subject.output();
-                const SushiRuntime::BufferRegion region = region_of(out, 1);
+                const SushiRuntime::BufferRegion region = subject.output_region(1);
                 write_once(subject, region, [out](std::size_t) { out[0] = 1u; });
                 update_once(subject, region, [out](std::size_t) { out[0] = out[0] * 10u + 2u; });
                 update_once(subject, region, [out](std::size_t) { out[0] = out[0] * 10u + 3u; });
@@ -111,12 +113,12 @@ namespace SushiBLAS
                     1, subject.device(), subject.residency());
                 ASSERT_TRUE(block);
                 std::uint32_t* scratch = *block;
-                const SushiRuntime::BufferRegion scratch_region = region_of(scratch, 1);
+                const SushiRuntime::BufferRegion scratch_region = scratch_region_of(subject, scratch, 1);
                 write_once(subject, scratch_region, [scratch](std::size_t) { scratch[0] = 41u; });
                 subject.port().kernel(
                     std::size_t{1},
                     SushiRuntime::Access(SushiRuntime::Reads(scratch_region),
-                                         SushiRuntime::Writes(region_of(out, 1))),
+                                         SushiRuntime::Writes(subject.output_region(1))),
                     [scratch, out](std::size_t) { out[0] = scratch[0] + 1u; });
 
                 subject.run();
@@ -134,7 +136,7 @@ namespace SushiBLAS
                 subject.port().resolve(
                     std::array<SushiRuntime::LateCount, 1>{count}, subject.device(),
                     SushiRuntime::Access(SushiRuntime::Reads(),
-                                         SushiRuntime::Writes(region_of(out, 1))),
+                                         SushiRuntime::Writes(subject.output_region(1))),
                     [out](const std::array<std::size_t, 1>& live)
                     {
                         out[0] = static_cast<std::uint32_t>(live[0]);
@@ -154,13 +156,13 @@ namespace SushiBLAS
                     1, subject.device(), subject.residency());
                 ASSERT_TRUE(width_block);
                 std::uint32_t* width = *width_block;
-                const SushiRuntime::BufferRegion width_region = region_of(width, 1);
+                const SushiRuntime::BufferRegion width_region = scratch_region_of(subject, width, 1);
                 write_once(subject, width_region,
                            [width](std::size_t) { width[0] = K_CONTRACT_LIVE_WIDTH; });
                 subject.port().kernel(
                     SushiRuntime::DeviceSized{K_CONTRACT_ITEMS, width, nullptr},
                     SushiRuntime::Access(SushiRuntime::Reads(width_region),
-                                         SushiRuntime::Writes(region_of(out, K_CONTRACT_ITEMS))),
+                                         SushiRuntime::Writes(subject.output_region(K_CONTRACT_ITEMS))),
                     [out](std::size_t t) { out[t] = 1u; });
 
                 subject.run();
@@ -176,7 +178,7 @@ namespace SushiBLAS
             static void expect_a_rule_scope_groups_its_nodes(Subject& subject)
             {
                 std::uint32_t* out = subject.output();
-                const SushiRuntime::BufferRegion region = region_of(out, 1);
+                const SushiRuntime::BufferRegion region = subject.output_region(1);
                 {
                     auto rule = subject.port().rule();
                     write_once(subject, region, [out](std::size_t) { out[0] = 1u; });
@@ -191,7 +193,7 @@ namespace SushiBLAS
             static void expect_a_clean_recording_reports_no_refusal(Subject& subject)
             {
                 std::uint32_t* out = subject.output();
-                write_once(subject, region_of(out, 1), [out](std::size_t) { out[0] = 1u; });
+                write_once(subject, subject.output_region(1), [out](std::size_t) { out[0] = 1u; });
 
                 EXPECT_EQ(subject.port().refusal(), nullptr);
             }

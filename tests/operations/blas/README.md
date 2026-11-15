@@ -49,7 +49,8 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_triangular_vector_solve.cpp` | Tests the blocked packed and band triangular solves, TPSV and TBSV, against exact integer systems and each other |
 | `test_blas/test_triangular_half.cpp` | Tests that the blocked HALF TPSV and the HALF TRMV carry their sums in FLOAT32 |
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
-| `test_gemm_split.cpp` | Tests the axis, the sub-problem and the slice kernel of a GEMM split: the parts together compute the whole product on both layouts, the transposes and both axes |
+| `test_gemm_split.cpp` | Tests the axis, the sub-problem and the offset epilogue of a GEMM split, and that its slice runs on the queue it is given and reads the bound or the recorded pointers: the parts together compute the whole product on both layouts, the transposes and both axes |
+| `gemm_split_cases.hpp` | Holds the products and the data the two GEMM split tests share |
 | `test_gemm_recording.cpp` | Tests what a GEMM call records on the in-memory port: the dependencies for the operands its epilogue declares, and the refusals before any task |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings, and the packed GEMM seam against the reference path |

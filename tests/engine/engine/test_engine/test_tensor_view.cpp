@@ -281,7 +281,7 @@ namespace SushiBLAS
 
             EXPECT_EQ(view.num_elements, row.elements);
             EXPECT_EQ(view.element_span(), row.span);
-            EXPECT_EQ(region.base, parent.storage->allocation_base());
+            EXPECT_EQ(region.base, parent.global_handle());
             EXPECT_EQ(region.offset, row.offset_bytes);
             EXPECT_EQ(region.length, row.length_bytes);
         }

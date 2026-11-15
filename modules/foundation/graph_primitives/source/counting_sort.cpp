@@ -53,6 +53,7 @@
 #include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
 #include <SushiBLAS/graph_primitives/runtime_primitive_recorder.hpp>
+#include <SushiBLAS/graph_primitives/scratch_region.hpp>
 #include <SushiBLAS/graph_primitives/sort_resolution.hpp>
 
 namespace SushiBLAS
@@ -112,9 +113,15 @@ namespace SushiBLAS
 
             const std::size_t digit_count = Detail::radix_digit_count(key_capacity);
             const std::size_t plan_words = digit_count * Detail::K_RADIX_PLAN_WORDS;
-            const auto words = [](std::uint32_t* base, std::size_t count)
+
+            // A scratch block reaches a dependency set through the handle the recorder names it by.
+            const auto words = [&recorder, &keys](const std::uint32_t* base, std::size_t count)
+                -> SushiRuntime::Result<BufferRegion>
             {
-                return BufferRegion{static_cast<void*>(base), 0, count * sizeof(std::uint32_t)};
+                auto named = Detail::name_scratch(recorder, base, count, keys.device_index());
+                if (!named)
+                    return SushiRuntime::make_error(std::move(named.error()));
+                return named->whole();
             };
 
             // Every node this call records belongs to one rule.
@@ -126,7 +133,10 @@ namespace SushiBLAS
             if (!n_state_block)
                 return SushiRuntime::make_error(std::move(n_state_block.error()));
             std::uint32_t* n_state = *n_state_block;
-            const BufferRegion n_state_region = words(n_state, 2);
+            auto n_state_named = words(n_state, 2);
+            if (!n_state_named)
+                return SushiRuntime::make_error(std::move(n_state_named.error()));
+            const BufferRegion n_state_region = *n_state_named;
 
             // The plan holds, per digit, its live work counts and where its placement lands.
             std::uint32_t* plan = nullptr;
@@ -138,7 +148,10 @@ namespace SushiBLAS
                     return SushiRuntime::make_error(std::move(plan_block.error()));
                 plan = *plan_block;
             }
-            const BufferRegion plan_region = words(plan, plan_words);
+            auto plan_named = words(plan, plan_words);
+            if (!plan_named)
+                return SushiRuntime::make_error(std::move(plan_named.error()));
+            const BufferRegion plan_region = *plan_named;
 
             // One node resolves both counts, publishes total and fills the digit plan.
             std::uint32_t* total_base = total_span.data();
@@ -207,12 +220,22 @@ namespace SushiBLAS
             std::uint32_t* indices_base = indices_span.data();
 
             const BufferRegion indices_region = Detail::region_of(indices_span);
-            const BufferRegion alternate_region = words(alternate, n_capacity);
-            const BufferRegion hist_region =
-                words(hist, Detail::K_RADIX_DIGIT_BINS * tile_capacity);
-            const BufferRegion column_total_region =
-                words(column_total, Detail::K_RADIX_DIGIT_BINS);
-            const BufferRegion bin_base_region = words(bin_base, Detail::K_RADIX_DIGIT_BINS);
+            auto alternate_named = words(alternate, n_capacity);
+            if (!alternate_named)
+                return SushiRuntime::make_error(std::move(alternate_named.error()));
+            const BufferRegion alternate_region = *alternate_named;
+            auto hist_named = words(hist, Detail::K_RADIX_DIGIT_BINS * tile_capacity);
+            if (!hist_named)
+                return SushiRuntime::make_error(std::move(hist_named.error()));
+            const BufferRegion hist_region = *hist_named;
+            auto column_total_named = words(column_total, Detail::K_RADIX_DIGIT_BINS);
+            if (!column_total_named)
+                return SushiRuntime::make_error(std::move(column_total_named.error()));
+            const BufferRegion column_total_region = *column_total_named;
+            auto bin_base_named = words(bin_base, Detail::K_RADIX_DIGIT_BINS);
+            if (!bin_base_named)
+                return SushiRuntime::make_error(std::move(bin_base_named.error()));
+            const BufferRegion bin_base_region = *bin_base_named;
 
             for (std::size_t d = 0; d < digit_count; ++d)
             {

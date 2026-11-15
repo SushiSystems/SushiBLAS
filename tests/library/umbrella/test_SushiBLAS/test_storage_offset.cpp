@@ -355,7 +355,7 @@ namespace SushiBLAS
 
             // The region handed to the dependency tracker describes the bytes of the view.
             const auto region = f64.region();
-            EXPECT_EQ(region.base, f64.storage->allocation_base());
+            EXPECT_EQ(region.base, f64.global_handle());
             EXPECT_EQ(region.offset, static_cast<size_t>(K_PAD) * sizeof(double));
             EXPECT_EQ(region.length, 4u * sizeof(double));
         }

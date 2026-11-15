@@ -34,6 +34,7 @@
 #include <vector>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiRuntime/handle/global_handle.hpp>
 
 namespace SushiBLAS
 {
@@ -148,9 +149,6 @@ namespace SushiBLAS
                 }
 
             private:
-                /// @brief The spacing of the made-up allocations, wide enough that none touch.
-                static constexpr std::size_t K_ALLOCATION_SPACING = std::size_t{1} << 20;
-
                 /** @brief Sets the strides the shape and the layout imply. */
                 void derive_strides()
                 {
@@ -181,10 +179,12 @@ namespace SushiBLAS
                         return;
                     }
 
-                    void* base = reinterpret_cast<void*>(allocation_ * K_ALLOCATION_SPACING);
+                    const SushiRuntime::GlobalHandle handle(
+                        0, 0, SushiRuntime::HandleKind::Buffer, SushiRuntime::HandleFlags::None, 1,
+                        static_cast<std::uint32_t>(allocation_));
                     const std::size_t bytes = static_cast<std::size_t>(element_span()) *
                                               Core::bytes_per_element(tensor_.dtype);
-                    facts_.region = SushiRuntime::BufferRegion(base, byte_offset_, bytes);
+                    facts_.region = SushiRuntime::BufferRegion(handle, byte_offset_, bytes);
                 }
 
                 Tensor tensor_;                     /**< The shape, strides, dtype and layout. */

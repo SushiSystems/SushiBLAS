@@ -126,7 +126,27 @@ namespace SushiBLAS
                     constexpr std::size_t unit = sizeof(std::max_align_t);
                     const std::size_t units = (count * sizeof(T) + unit - 1) / unit;
                     blocks_.emplace_back(units == 0 ? 1 : units);
+                    named_.push_back(NamedBlock{blocks_.back().data(), count * sizeof(T),
+                                                Detail::mint_host_handle()});
                     return reinterpret_cast<T*>(blocks_.back().data());
+                }
+
+                /**
+                 * @brief Names a block scratch() returned as one region, as the runtime's recorder does.
+                 * @param address The first byte of a block scratch() returned.
+                 * @param bytes The bytes of that block.
+                 * @return The whole block, or InvalidArgument when address is no block of this recorder.
+                 */
+                [[nodiscard]] SushiRuntime::Result<SushiRuntime::BufferRegion>
+                borrowed_region(const void* address, std::size_t bytes,
+                                SushiRuntime::DeviceIndex = SushiRuntime::DeviceIndex{})
+                {
+                    for (const NamedBlock& block : named_)
+                        if (block.address == address && block.bytes == bytes)
+                            return SushiRuntime::BufferRegion(block.handle, 0, bytes);
+                    return SushiRuntime::make_error(SushiRuntime::Error{
+                        SushiRuntime::ErrorCode::InvalidArgument,
+                        "borrowed_region: the address is no scratch block of this recorder"});
                 }
 
                 /** @brief Records the task that resolves counts; run() calls fill with them. */
@@ -234,6 +254,14 @@ namespace SushiBLAS
                     return false;
                 }
 
+                /** @brief Holds one scratch block and the handle that names it. */
+                struct NamedBlock
+                {
+                    const void* address = nullptr;         /**< First byte of the block. */
+                    std::size_t bytes = 0;                 /**< Bytes the caller asked for. */
+                    SushiRuntime::GlobalHandle handle;     /**< The handle that names the block. */
+                };
+
                 /** @brief Holds the first late count that exceeded its capacity in a run. */
                 struct Fault
                 {
@@ -320,6 +348,9 @@ namespace SushiBLAS
 
                 /** @brief The scratch blocks this recorder owns, in max-aligned units. */
                 std::vector<std::vector<std::max_align_t>> blocks_;
+
+                /** @brief The scratch blocks and their handles, in allocation order. */
+                std::vector<NamedBlock> named_;
 
                 /** @brief The number of rules opened by a recorded node. */
                 std::size_t rule_count_ = 0;

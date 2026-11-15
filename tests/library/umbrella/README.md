@@ -240,6 +240,9 @@ This happened in practice. SushiAI's first arena-packed training run reported a 
 ln 6 was expected: the `max` reduction raced the bias add feeding it, and the BLAS `scal` beat
 the `sum` reduction to the loss.
 
+A `BufferRegion` names its allocation by a `GlobalHandle` and has no constructor from a pointer, so a
+region built from `data()` does not compile.
+
 The test asserts on the recorded graph and not on the answer. Without the edge the two tasks may
 still run in the right order by luck, and a test that passes by luck guards nothing. The
 `dependency_count` of the second task decides it. The two views are disjoint and the consumer's operand is

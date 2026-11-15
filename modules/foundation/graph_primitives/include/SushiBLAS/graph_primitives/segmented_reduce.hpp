@@ -50,6 +50,7 @@
 #include <SushiBLAS/graph_primitives/node_stamper.hpp>
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
+#include <SushiBLAS/graph_primitives/scratch_region.hpp>
 #include <SushiBLAS/graph_primitives/segment_fold.hpp>
 
 namespace SushiBLAS
@@ -219,7 +220,11 @@ namespace SushiBLAS
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
-            const BufferRegion state_region{state, 0, sizeof(std::uint32_t)};
+            auto state_named = Detail::name_scratch(recorder, state, std::size_t{1},
+                                                    values.device_index());
+            if (!state_named)
+                return SushiRuntime::make_error(std::move(state_named.error()));
+            const BufferRegion state_region = state_named->whole();
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();

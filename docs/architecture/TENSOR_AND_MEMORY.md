@@ -48,7 +48,7 @@ which is private to `Storage`:
 | --- | --- | --- |
 | `data()` / `data_as<T>()` | The view's first element | Every kernel pointer |
 | `data_or_null()` | The same, or `nullptr` without storage | A source that tolerates an empty operand |
-| `region()` | The view's byte interval, keyed on the allocation base | Every declared read and write |
+| `region()` | The view's byte interval, keyed on the handle of its allocation | Every declared read and write |
 
 `region()` is what lets a memory planner pack an arena. Two disjoint views of one allocation give
 regions that do not overlap, so the tracker does not order them, and two overlapping views are

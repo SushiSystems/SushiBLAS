@@ -53,6 +53,7 @@
 #include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/primitive_recorder.hpp>
 #include <SushiBLAS/graph_primitives/reduce_close.hpp>
+#include <SushiBLAS/graph_primitives/scratch_region.hpp>
 
 namespace SushiBLAS
 {
@@ -135,9 +136,13 @@ namespace SushiBLAS
                     return SushiRuntime::make_error(std::move(scratch_block.error()));
                 scratch = *scratch_block;
             }
+            auto scratch_named = Detail::name_scratch(recorder, scratch, scratch_count,
+                                                      input.device_index());
+            if (!scratch_named)
+                return SushiRuntime::make_error(std::move(scratch_named.error()));
+            const Detail::ScratchRegion<T> scratch_region = *scratch_named;
 
             const T* in_base = in_span.data();
-            void* scratch_key = static_cast<void*>(scratch);
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
@@ -154,12 +159,10 @@ namespace SushiBLAS
 
                 const Reads reads = first
                     ? Detail::access_of<Reads>(in_span)
-                    : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
-                                         level.in_count * sizeof(T)});
+                    : Reads(scratch_region.window(level.in_offset, level.in_count));
                 const Writes writes = last
                     ? Detail::access_of<Writes>(out_span)
-                    : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
-                                          level.out_count * sizeof(T)});
+                    : Writes(scratch_region.window(level.out_offset, level.out_count));
 
                 recorder.kernel(level.out_count, Access(reads, writes),
                     [src, dst, in_count, op](std::size_t t)
@@ -251,7 +254,11 @@ namespace SushiBLAS
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
-            const BufferRegion state_region{state, 0, 2 * level_count * sizeof(std::uint32_t)};
+            auto state_named = Detail::name_scratch(recorder, state, 2 * level_count,
+                                                    input.device_index());
+            if (!state_named)
+                return SushiRuntime::make_error(std::move(state_named.error()));
+            const BufferRegion state_region = state_named->whole();
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
@@ -264,8 +271,13 @@ namespace SushiBLAS
                 },
                 stamper.stage("resolve", std::size_t{1}));
 
+            auto scratch_named = Detail::name_scratch(recorder, scratch, scratch_count,
+                                                      input.device_index());
+            if (!scratch_named)
+                return SushiRuntime::make_error(std::move(scratch_named.error()));
+            const Detail::ScratchRegion<T> scratch_region = *scratch_named;
+
             const T* in_base = in_span.data();
-            void* scratch_key = static_cast<void*>(scratch);
 
             for (std::size_t i = 0; i < levels.size(); ++i)
             {
@@ -278,13 +290,11 @@ namespace SushiBLAS
 
                 const Reads reads = first
                     ? Detail::access_of<Reads>(in_span, state_region)
-                    : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
-                                         level.in_count * sizeof(T)},
+                    : Reads(scratch_region.window(level.in_offset, level.in_count),
                             state_region);
                 const Writes writes = last
                     ? Detail::access_of<Writes>(out_span)
-                    : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
-                                          level.out_count * sizeof(T)});
+                    : Writes(scratch_region.window(level.out_offset, level.out_count));
 
                 recorder.kernel(
                     DeviceSized{level.out_count, state + level_count + i, state + i},

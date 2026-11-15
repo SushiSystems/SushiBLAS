@@ -259,10 +259,10 @@ well-defined same-index aliasing that the in-place callers of `Launch::map` rely
 same-dtype case is refused too: equal widths do not make converting a tensor onto itself useful,
 and a rule with an exception is one more thing for a caller to remember.
 
-The access sets hold `Tensor::region()`, never `data()`. A `BufferRegion` converts implicitly
-from a bare pointer, and a bare pointer widens to the whole allocation. Two views of one arena
-would become two unrelated resources, `overlaps` would answer false, and the tracker would emit no
-edge. `modules/README.md`, under `Tensor::region`, describes the region, and
+The access sets hold `Tensor::region()`, never `data()`. A `BufferRegion` names an allocation by
+its `GlobalHandle` and does not convert from a pointer. A region that disagreed with the view on the
+handle or the byte interval would make two views of one arena two unrelated resources, `overlaps`
+would answer false, and the tracker would emit no edge. `modules/README.md`, under `Tensor::region`, describes the region, and
 `docs/reference/MAINPAGE.md` records that this defect has cost the stack two training runs.
 
 The `switch` in `ElementwiseOps::convert` is the outer half of the dispatch and picks the source

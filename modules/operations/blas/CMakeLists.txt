@@ -65,7 +65,6 @@ sushiblas_add_test_program(
         test_blas/test_syr2k_refusals.cpp
         test_blas_task.cpp
         test_gemm_recording.cpp
-        test_gemm_split.cpp
         test_local_tile.cpp
         test_packed_operand.cpp
         test_packed_product_scratch.cpp
@@ -85,6 +84,7 @@ sushiblas_add_test_program(
         test_blas/test_blas_symmetric_bits.cpp
         test_blas/test_blas_validation.cpp
         test_blas/test_gemm.cpp
+        test_gemm_split.cpp
         test_blas/test_level1_parallel_reductions.cpp
         test_blas/test_level2_sycl_parity.cpp
         test_blas/test_packed_symm.cpp

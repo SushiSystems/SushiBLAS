@@ -52,8 +52,9 @@ warnings that matter more than their signatures do, written in the module README
 
 - `engine/operand_set.hpp` and `blas/dispatch.hpp`: why a task's operands, and an epilogue's,
   are declared as a `Tensor` and never as a `SushiRuntime::BufferRegion` built by hand. A region
-  built from a bare pointer names the whole allocation behind that pointer, so two views of one
-  arena become unrelated resources and no dependency edge is emitted between them.
+  names an allocation by its `GlobalHandle`; one that disagrees with the view on the handle or the
+  byte interval makes two views of one arena unrelated resources and no dependency edge is emitted
+  between them.
 - `functor_map/read_binding.hpp`: a tensor a functor reads at execution time is
   declared through `bind_reads`. A pointer captured inside a bare functor is not ordered, not kept
   alive and not checked under `ForceReference`.

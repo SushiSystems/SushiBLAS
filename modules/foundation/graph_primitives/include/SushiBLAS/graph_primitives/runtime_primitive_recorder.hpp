@@ -83,6 +83,19 @@ namespace SushiBLAS
                     return recorder_.scratch<T>(count, device, residency);
                 }
 
+                /**
+                 * @brief Names a scratch block, or caller USM the recorder borrows, as one region.
+                 *
+                 * The handle lives while the recorder keeps its nodes; see
+                 * SushiRuntime::Recorder::borrowed_region().
+                 */
+                [[nodiscard]] SushiRuntime::Result<SushiRuntime::BufferRegion>
+                borrowed_region(const void* address, std::size_t bytes,
+                                SushiRuntime::DeviceIndex device)
+                {
+                    return recorder_.borrowed_region(address, bytes, device);
+                }
+
                 /** @brief Records the task that resolves counts for a run. */
                 template <std::size_t K, class Fill>
                 std::size_t resolve(const std::array<SushiRuntime::LateCount, K>& counts,

@@ -15,6 +15,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
 | `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
 | `test_host_buffer.cpp` | Tests the size, zeroed memory, region and indexing of `HostBuffer` |
+| `test_scratch_region.cpp` | Tests the windows of a scratch block and the handle `name_scratch` gets for it, on the host recorder |
 | `test_host_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite small on `HostPrimitiveRecorder` and tests the record it keeps of each node |
 | `test_primitive_recorder.cpp` | Tests which types declare themselves an adapter of the `PrimitiveRecorder` port |
 | `test_runtime_primitive_recorder.cpp` | Runs the `PrimitiveRecorderContract` suite medium on `RuntimePrimitiveRecorder` |

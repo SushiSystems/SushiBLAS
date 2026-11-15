@@ -39,7 +39,7 @@
 #include <SushiBLAS/engine/task_sink.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/core/determinism.hpp>
-#include <SushiRuntime/core/node_split.hpp>
+#include <SushiRuntime/machine/node_split.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 

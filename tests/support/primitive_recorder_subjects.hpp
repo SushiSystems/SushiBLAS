@@ -37,6 +37,7 @@
 #include <SushiRuntime/api/graph/graph.hpp>
 #include <SushiRuntime/api/runtime/runtime.hpp>
 #include <SushiRuntime/core/result.hpp>
+#include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
 #include <SushiBLAS/graph_primitives/host_primitive_recorder.hpp>
@@ -71,6 +72,15 @@ namespace SushiBLAS
 
                 /** @brief Returns the words the checks write into. */
                 [[nodiscard]] std::uint32_t* output() const noexcept { return output_.data(); }
+
+                /** @brief Returns count words of the output, from word offset, as a region named by the buffer's handle. */
+                [[nodiscard]] SushiRuntime::BufferRegion
+                output_region(std::size_t count, std::size_t offset = 0) const noexcept
+                {
+                    return SushiRuntime::BufferRegion(output_.region().base,
+                                                      offset * sizeof(std::uint32_t),
+                                                      count * sizeof(std::uint32_t));
+                }
 
                 /** @brief Returns the device scratch is requested on. */
                 [[nodiscard]] SushiRuntime::DeviceIndex device() const noexcept
@@ -125,6 +135,15 @@ namespace SushiBLAS
 
                 /** @brief Returns the words the checks write into. */
                 [[nodiscard]] std::uint32_t* output() const noexcept { return output_.data(); }
+
+                /** @brief Returns count words of the output, from word offset, as a region named by the buffer's handle. */
+                [[nodiscard]] SushiRuntime::BufferRegion
+                output_region(std::size_t count, std::size_t offset = 0) const noexcept
+                {
+                    return SushiRuntime::BufferRegion(output_.handle(),
+                                                      offset * sizeof(std::uint32_t),
+                                                      count * sizeof(std::uint32_t));
+                }
 
                 /** @brief Returns the device scratch is requested on. */
                 [[nodiscard]] SushiRuntime::DeviceIndex device() const noexcept

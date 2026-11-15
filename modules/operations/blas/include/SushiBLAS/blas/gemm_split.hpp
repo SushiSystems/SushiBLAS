@@ -30,18 +30,25 @@
 #pragma once
 
 #include <memory>
+#include <cstddef>
+#include <vector>
 #include <cstdint>
 #include <utility>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas/shape_check.hpp>
-#include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
-#include <SushiRuntime/core/node_split.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiRuntime/machine/node_split.hpp>
 
 namespace SushiBLAS
 {
     namespace Dispatch
     {
+        /// @brief The operands of a GEMM the runtime binds a pointer for: A, B and C.
+        inline constexpr std::size_t K_GEMM_OPERAND_COUNT = 3;
+
         /**
          * @brief Names the axis of C a GEMM is cut along, as the numbers NodeSplit::axis carries.
          * @see modules/operations/blas/README.md
@@ -139,7 +146,7 @@ namespace SushiBLAS
 
                 /** @brief Applies the functor at the position of the element in the whole matrix. */
                 template<typename T>
-                auto operator()(T value, int64_t row, int64_t column)
+                auto operator()(T value, int64_t row, int64_t column) const
                 {
                     return epilogue_(value, row + row_offset_, column + column_offset_);
                 }
@@ -156,10 +163,41 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Builds the split of a GEMM; its slice runs the host reference kernel on one part.
-         * @pre The host can reach A, B and C.
+         * @brief Holds the three operand pointers of a GEMM, as one part's kernel reads them.
          * @tparam T The element type of A, B and C.
+         * @see modules/operations/blas/README.md
+         */
+        template<typename T>
+        struct GemmOperands
+        {
+            const T* a = nullptr; /**< The first element of A. */
+            const T* b = nullptr; /**< The first element of B. */
+            T* c = nullptr;       /**< The first element of C. */
+        };
+
+        /**
+         * @brief Returns the operand pointers a part's kernel reads: the bound ones as A, B and C,
+         *        or the recorded ones when the runtime bound none.
+         * @param bound The pointers the runtime bound; empty for a node with no pointer table.
+         * @param recorded The pointers the whole call recorded.
+         * @pre bound is empty or holds exactly the three pointers A, B and C.
+         * @see modules/operations/blas/README.md
+         */
+        template<typename T>
+        [[nodiscard]] GemmOperands<T> bound_gemm_operands(SushiRuntime::span<void* const> bound,
+                                                           const GemmOperands<T>& recorded) noexcept
+        {
+            if (bound.size() != K_GEMM_OPERAND_COUNT)
+                return recorded;
+            return GemmOperands<T>{static_cast<const T*>(bound[0]), static_cast<const T*>(bound[1]),
+                                   static_cast<T*>(bound[2])};
+        }
+
+        /**
+         * @brief Builds the split of a GEMM; its slice runs the SYCL GEMM on one part, on the
+         *        queue of the part's device, and waits for it.
          * @param geometry The extents and strides of the whole call.
+         * @param a,b,c The first elements of A, B and C as the call recorded them.
          * @return A split along gemm_split_axis(geometry).
          * @see modules/operations/blas/README.md
          */
@@ -170,24 +208,28 @@ namespace SushiBLAS
                         const Epilogue& epilogue)
         {
             const GemmSplitAxis axis = gemm_split_axis(geometry);
+            const GemmOperands<T> recorded{a, b, c};
             auto split = std::make_shared<SushiRuntime::NodeSplit>();
             split->axis = static_cast<std::uint32_t>(axis);
             split->extent = static_cast<std::uint64_t>(gemm_split_extent(geometry, axis));
-            split->slice = [=](const SushiRuntime::SplitPart& part)
+            split->slice = [=](const SushiRuntime::SplitPart& part, sycl::queue& queue,
+                               SushiRuntime::span<void* const> bound)
             {
                 const int64_t begin = static_cast<int64_t>(part.begin);
                 const GemmSlice slice = slice_gemm(geometry, layout, trans_a, trans_b, axis, begin,
                                                    static_cast<int64_t>(part.end));
                 const int64_t row_offset = axis == GemmSplitAxis::Rows ? begin : 0;
                 const int64_t column_offset = axis == GemmSplitAxis::Columns ? begin : 0;
-                Kernels::Reference::gemm<T>(layout, trans_a, trans_b, slice.m, slice.n, geometry.k,
-                                            alpha, a + slice.a_offset, geometry.a.leading_dimension,
-                                            geometry.stride_a, b + slice.b_offset,
-                                            geometry.b.leading_dimension, geometry.stride_b, beta,
-                                            c + slice.c_offset, geometry.c.leading_dimension,
-                                            geometry.stride_c, geometry.batch_size,
-                                            OffsetEpilogue<Epilogue>(epilogue, row_offset,
-                                                                      column_offset));
+                const GemmOperands<T> operands = bound_gemm_operands<T>(bound, recorded);
+                Kernels::SYCL::gemm<T>(queue, layout, trans_a, trans_b, slice.m, slice.n,
+                                       geometry.k, alpha, operands.a + slice.a_offset,
+                                       geometry.a.leading_dimension, geometry.stride_a,
+                                       operands.b + slice.b_offset, geometry.b.leading_dimension,
+                                       geometry.stride_b, beta, operands.c + slice.c_offset,
+                                       geometry.c.leading_dimension, geometry.stride_c,
+                                       geometry.batch_size, std::vector<sycl::event>{},
+                                       OffsetEpilogue<Epilogue>(epilogue, row_offset,
+                                                                column_offset)).wait();
             };
             return split;
         }

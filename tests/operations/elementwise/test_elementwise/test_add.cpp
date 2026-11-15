@@ -111,9 +111,9 @@ namespace
 }
 
 /**
- * @brief Tests that the plan reads the two borrowed bases and writes the output's base.
+ * @brief Tests that the plan reads the two borrowed handles and writes the output's handle.
  */
-TEST_F(Medium_AddTest, TheBorrowedBasesAreReadsAndTheOutputIsAWriteInThePlan)
+TEST_F(Medium_AddTest, TheBorrowedHandlesAreReadsAndTheOutputIsAWriteInThePlan)
 {
     const OwnedFloats left({1.0f, 2.0f, -3.0f, 0.5f});
     const OwnedFloats right({2.0f, 0.5f, 4.0f, -1.5f});
@@ -127,10 +127,10 @@ TEST_F(Medium_AddTest, TheBorrowedBasesAreReadsAndTheOutputIsAWriteInThePlan)
     ASSERT_TRUE(plan);
     ASSERT_EQ(plan->nodes.size(), std::size_t{1});
     ASSERT_EQ(plan->nodes[0].reads.size(), std::size_t{2});
-    EXPECT_EQ(plan->nodes[0].reads[0].base, static_cast<void*>(left.data()));
-    EXPECT_EQ(plan->nodes[0].reads[1].base, static_cast<void*>(right.data()));
+    EXPECT_EQ(plan->nodes[0].reads[0].base, a.global_handle());
+    EXPECT_EQ(plan->nodes[0].reads[1].base, b.global_handle());
     ASSERT_EQ(plan->nodes[0].writes.size(), std::size_t{1});
-    EXPECT_EQ(plan->nodes[0].writes[0].base, c.storage->allocation_base());
+    EXPECT_EQ(plan->nodes[0].writes[0].base, c.global_handle());
 }
 
 /**

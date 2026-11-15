@@ -63,9 +63,9 @@ never raw regions:
 `reads`, `writes` and `updates` also retain the tensor's storage and note a device-only residency.
 `scratch` retains the block's storage, and `merge` carries over what the other set retained and
 noted. A tensor without storage adds nothing. Taking the region from `Tensor::region()` in one
-place is deliberate: a `SushiRuntime::BufferRegion` built from a bare pointer is keyed on that
-pointer and names a whole allocation, so two views of one arena declared by their data pointers
-look unrelated to the tracker, which emits no edge between them.
+place is deliberate: a `SushiRuntime::BufferRegion` is keyed on the `GlobalHandle` of an allocation
+and narrowed to a byte interval, so a region built by hand that names another handle or interval
+makes two views of one arena look unrelated to the tracker, which emits no edge between them.
 
 `TaskHandle` (`engine/task_handle.hpp`) is what every record call returns: the identity of the
 recorder and the sequence number the recorder gave the task. A call that records nothing, such as an
