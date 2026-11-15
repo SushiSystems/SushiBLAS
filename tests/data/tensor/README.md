@@ -19,6 +19,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_tensor/test_tensor.cpp` | Tests the strides, views, checks and regions of a Tensor over one storage |
 | `test_tensor/test_shape_only_tensor.cpp` | Tests that a shape-only Tensor carries dims, strides, dtype and layout and no storage |
 | `test_tensor_factory/test_tensor_factory.cpp` | Tests the layout, the byte size and the tensors a TensorFactory creates |
+| `test_tensor_factory/test_tensor_factory_threads.cpp` | Tests that eight threads create tensors at once, aligned, disjoint and released |
 | `test_tensor_factory/test_tensor_factory_contract.cpp` | Tests that the host and runtime adapters of TensorFactory keep the TensorFactory contract, and that a host factory has no runtime |
 
 ## Contract suites

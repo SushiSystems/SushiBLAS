@@ -32,6 +32,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_SushiBLAS/test_spatial_random_refusals.cpp` | Tests, on a host engine, which spatial geometries and random fills are refused at record time |
 | `test_SushiBLAS/test_storage_offset.cpp` | Tests every operation family on views at a non-zero storage offset |
 | `test_SushiBLAS/test_task_dependencies.cpp` | Tests that one recorded task of each recording seam runs and computes its result |
+| `test_SushiBLAS/test_tensor_host_access.cpp` | Tests that a plan executed again reads the source the host rewrote through data_as |
 
 ## test_SushiBLAS/test_storage_offset.cpp
 

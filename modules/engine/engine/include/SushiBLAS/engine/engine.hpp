@@ -128,6 +128,8 @@ namespace SushiBLAS
 
             /**
              * @brief Creates a tensor from a brace list of dimensions.
+             *
+             * May be called from any thread at any time, also while another thread records or executes.
              * @param device_index Device queue that owns the allocation.
              * @return A tensor without storage when a dimension is 0.
              * @throws std::runtime_error as TensorFactory::create states.
@@ -145,6 +147,8 @@ namespace SushiBLAS
 
             /**
              * @brief Creates a tensor whose dimensions are known only at run time.
+             *
+             * May be called from any thread at any time, also while another thread records or executes.
              * @param device_index Device queue that owns the allocation.
              * @return A tensor without storage when a dimension is 0.
              * @throws std::runtime_error as TensorFactory::create states.

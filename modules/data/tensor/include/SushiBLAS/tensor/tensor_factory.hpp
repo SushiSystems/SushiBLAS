@@ -102,7 +102,7 @@ namespace SushiBLAS
                                                               Core::DataType dtype);
 
             /**
-             * @brief Creates a dense tensor; a shape with a zero dimension gets no storage.
+             * @brief Creates a dense tensor from any thread; a zero dimension gets no storage.
              * @param residency Where the memory lives; a host factory ignores it.
              * @param device_index Device queue that owns the allocation; 0 on a host factory.
              * @throws std::runtime_error on a rank too high, a negative dimension, an overflowing

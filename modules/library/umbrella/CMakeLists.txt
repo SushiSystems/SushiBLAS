@@ -71,3 +71,4 @@ sushiblas_add_test_program(
         test_SushiBLAS/test_task_dependencies.cpp
     DEVICE_BENCHMARKS
         benchmark_elementwise.cpp)
+        test_SushiBLAS/test_tensor_host_access.cpp

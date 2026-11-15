@@ -26,5 +26,6 @@ sushiblas_add_test_program(
         test_tensor/test_tensor.cpp
         test_tensor_factory/test_tensor_factory.cpp
         test_tensor_factory/test_tensor_factory_contract.cpp
+        test_tensor_factory/test_tensor_factory_threads.cpp
     COMPILE_CHECKS
         compile_tensor_log_category.cpp)

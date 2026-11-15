@@ -136,6 +136,11 @@ and the device index before they allocate. `Tensor::reshape` takes a braced list
 
 ## `tensor_factory.hpp`
 
+Both may be called from any thread at any time, also while another thread records or executes: the
+factory holds a runtime pointer and a layout and changes neither, `Storage` calls the allocator and
+nothing else, and the allocator accepts calls from any thread.
+`tests/data/tensor/test_tensor_factory/test_tensor_factory_threads.cpp` creates tensors from eight threads at once.
+
 `TensorFactory` holds a `BlockMaker` (over a `SushiRuntime::Runtime`, or over host memory) and a default layout, and
 `create` allocates a dense tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
 sparse operands without an `Engine`. `allocation_bytes` is the size check alone: it returns the
@@ -318,6 +323,13 @@ differ by `storage_offset` elements, which is zero for a freshly allocated tenso
 every view: a slice, a reshape, or a tensor a memory planner placed inside a shared arena.
 
 ### `Tensor::data_or_null`
+
+**Host access.** A tensor of `Residency::Shared` or `Residency::Host` may be read and written
+through `data_as` on the host while no recorded task that touches its region is pending or running.
+A task executed afterwards reads the bytes written, so one plan executed several times sees a source
+the host rewrote between the executions. A `Residency::Device` tensor has no host address; move its
+elements with `IO`. `tests/library/umbrella/test_SushiBLAS/test_tensor_host_access.cpp` keeps this for an INT32 and a
+FLOAT32 tensor on every device queue.
 
 The operation drivers treat a tensor with no storage as "nothing to address" rather than as an
 error. A driver that tested the storage and took the allocation base itself would drop
