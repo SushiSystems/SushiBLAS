@@ -20,6 +20,17 @@ It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>
 | `tensor.hpp` | Tensor, a typed, strided view over a Storage, or over none for validation |
 | `tensor_factory.hpp` | TensorFactory, which allocates dense tensors from one runtime or from host memory |
 
+## The block contract
+
+Every `StorageBlock` answers `data()`, `size_bytes()`, `residency()`, the two copies,
+`owner_liveness()` and `global_handle()`. A block answers `device_index()` and `queue()` only when one
+device owns its memory: `device_index()` is a `std::optional<std::size_t>` and `queue()` is null
+otherwise. `HostBlock` names device 0, which works on host memory, and has no queue. `PlannedBlock` names
+no device and has no queue, because the runtime places the bytes. `Storage::device_index()` forwards the
+optional; a caller that needs a device calls `Storage::require_device_index(operation)`, which throws
+`UnsupportedExecution` naming the operation when the allocation is planned. Tensor packs, late counts,
+reduction scratch and scratch leases call it, and so refuse a planned operand with a message.
+
 ## Handle
 
 `Tensor::global_handle()` returns the `SushiRuntime::GlobalHandle` of the allocation the tensor views,
@@ -81,7 +92,7 @@ buffer of `Runtime::buffer(count, Residency::Planned)`; `create` with `Residency
 `TensorFactory::from_file(path, offset, dims, dtype)` makes one over `Runtime::buffer_from_file`, whose
 bytes are the file range; its size is the tensor's bytes, not rounded. Both refuse a shape with no
 element. The runtime places the bytes and may move them, so `data()` of the block is null,
-`Tensor::data()` throws, `device_index()` is 0 and the block has no queue. `global_handle()` is the
+`Tensor::data()` throws, `device_index()` is empty and the block has no queue. `global_handle()` is the
 buffer's handle. `copy_to_host` and `copy_from_host` go through the buffer's `read_range` and
 `write_range`.
 
@@ -103,4 +114,5 @@ elements. It is not a placeholder for an allocation that has not happened: nothi
 ## Tests
 
 `StorageBlockContract` and `TensorFactoryContract` are typed suites in `tests/data/tensor/`, `Small_` on the
-host adapter and `Medium_` on the runtime one; the shared checks are under `tests/support/`.
+host adapter and `Medium_` on the runtime one; `PlannedBlock` passes the queries every block answers in
+`Medium_PlannedStorageBlockContract`; the shared checks are under `tests/support/`.

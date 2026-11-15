@@ -35,6 +35,7 @@
 #include <cstring>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <SushiBLAS/core/errors.hpp>
@@ -123,7 +124,10 @@ namespace SushiBLAS
             }
 
             /** @brief Returns 0; no device owns host memory. */
-            [[nodiscard]] std::size_t device_index() const noexcept override { return 0; }
+            [[nodiscard]] std::optional<std::size_t> device_index() const noexcept override
+            {
+                return std::size_t{0};
+            }
 
             /** @brief Returns nullptr; no device owns host memory. */
             [[nodiscard]] sycl::queue* queue() const override { return nullptr; }

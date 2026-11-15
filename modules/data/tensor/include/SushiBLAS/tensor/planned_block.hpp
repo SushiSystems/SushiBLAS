@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -99,8 +100,11 @@ namespace SushiBLAS
                 return buffer_.residency();
             }
 
-            /** @brief Returns 0; the runtime chooses the device. */
-            [[nodiscard]] std::size_t device_index() const noexcept override { return 0; }
+            /** @brief Returns no device; the runtime chooses where the bytes live. */
+            [[nodiscard]] std::optional<std::size_t> device_index() const noexcept override
+            {
+                return std::nullopt;
+            }
 
             /** @brief Returns nullptr; no device owns a planned buffer. */
             [[nodiscard]] sycl::queue* queue() const override { return nullptr; }

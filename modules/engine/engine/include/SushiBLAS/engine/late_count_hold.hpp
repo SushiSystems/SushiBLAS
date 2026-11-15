@@ -98,7 +98,8 @@ namespace SushiBLAS
                     runtime_->interop().borrow<std::uint32_t>(
                         static_cast<std::uint32_t*>(storage.allocation_base()),
                         storage.size_bytes() / sizeof(std::uint32_t),
-                        SushiRuntime::DeviceIndex{storage.device_index()}, storage.residency(),
+                        SushiRuntime::DeviceIndex{storage.require_device_index("A late count")},
+                        storage.residency(),
                         late.owner);
                 SB_THROW_IF(!words, "The late count could not be borrowed: {}",
                             words.error().message);

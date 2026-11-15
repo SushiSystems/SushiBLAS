@@ -102,7 +102,7 @@ namespace SushiBLAS
                                  const Tensor& pack, SushiRuntime::span<const Tensor> tensors,
                                  CopyDirection direction, const char* name)
         {
-            layout.require_tensors(tensors, pack.storage->device_index(), name);
+            layout.require_tensors(tensors, pack.storage->require_device_index(name), name);
             const std::vector<PackEntry>& entries = layout.entries();
 
             std::byte* base = static_cast<std::byte*>(pack.storage->allocation_base());

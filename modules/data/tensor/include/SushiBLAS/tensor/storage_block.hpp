@@ -32,6 +32,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -77,9 +78,8 @@ namespace SushiBLAS
     /**
      * @class StorageBlock
      * @brief Offers the bytes of one allocation: where they are, how many, where they live and
-     *        how to copy them to and from host memory.
-     *
-     * A Storage holds one block and forwards to it, so it names neither the host nor a runtime.
+     *        how to copy them to and from host memory. Every block answers every query but device_index() and queue(), which name a device only
+     * when one owns the memory.
      * @see modules/data/tensor/README.md
      */
     class StorageBlock
@@ -96,12 +96,17 @@ namespace SushiBLAS
             /** @brief Returns the kind of memory the block lives in (Shared, Device or Host). */
             [[nodiscard]] virtual SushiRuntime::Residency residency() const noexcept = 0;
 
-            /** @brief Returns the device queue that owns the block; 0 when no device does. */
-            [[nodiscard]] virtual std::size_t device_index() const noexcept = 0;
+            /**
+             * @brief Returns the device that owns the block.
+             * @return The device index, or empty for a block the runtime places, which no one
+             *         device owns. Host memory names device 0, the device that works on it.
+             */
+            [[nodiscard]] virtual std::optional<std::size_t> device_index() const noexcept = 0;
 
             /**
              * @brief Returns the queue of the device that owns the block.
-             * @return nullptr when no device owns the memory.
+             * @return nullptr when no device queue owns the memory: host memory and a planned
+             *         block.
              */
             [[nodiscard]] virtual sycl::queue* queue() const = 0;
 

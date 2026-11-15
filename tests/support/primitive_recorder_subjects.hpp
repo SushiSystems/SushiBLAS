@@ -85,7 +85,7 @@ namespace SushiBLAS
                 /** @brief Returns the device scratch is requested on. */
                 [[nodiscard]] SushiRuntime::DeviceIndex device() const noexcept
                 {
-                    return output_.device_index();
+                    return output_.device_index().value();
                 }
 
                 /** @brief Returns the residency scratch is requested in. */
@@ -148,7 +148,7 @@ namespace SushiBLAS
                 /** @brief Returns the device scratch is requested on. */
                 [[nodiscard]] SushiRuntime::DeviceIndex device() const noexcept
                 {
-                    return output_.device_index();
+                    return output_.device_index().value();
                 }
 
                 /** @brief Returns the residency scratch is requested in. */

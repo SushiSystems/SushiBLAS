@@ -415,7 +415,7 @@ namespace SushiBLAS
             auto storage = make_runtime_storage(TestEnvironment::runtime(), 4 * sizeof(float));
             const Tensor t(storage, {4}, Core::DataType::Float32);
 
-            EXPECT_EQ(t.device(), TestEnvironment::queue(storage->device_index()).get_device());
+            EXPECT_EQ(t.device(), TestEnvironment::queue(storage->require_device_index("test")).get_device());
         }
 
     } // namespace Test

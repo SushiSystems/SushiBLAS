@@ -56,10 +56,76 @@ namespace SushiBLAS
                 Subject subject;
         };
 
+        /** @brief Runs the queries every StorageBlock answers against a block the runtime places. */
+        template<typename Subject>
+        class Medium_PlannedStorageBlockContract : public ::testing::Test
+        {
+            protected:
+                /// @brief The adapter under test.
+                Subject subject;
+        };
+
         using HostSubjects = ::testing::Types<HostBlockSubject>;
         using RuntimeSubjects = ::testing::Types<RuntimeBlockSubject>;
+        using PlannedSubjects = ::testing::Types<PlannedBlockSubject>;
         SB_TYPED_TEST_SUITE(Small_StorageBlockContract, HostSubjects);
         SB_TYPED_TEST_SUITE(Medium_StorageBlockContract, RuntimeSubjects);
+        SB_TYPED_TEST_SUITE(Medium_PlannedStorageBlockContract, PlannedSubjects);
+
+        TYPED_TEST(Small_StorageBlockContract, ItHasAHostAddress)
+        {
+            StorageBlockContract::expect_address_follows_the_adapter(this->subject);
+        }
+
+        TYPED_TEST(Medium_StorageBlockContract, ItHasAHostAddress)
+        {
+            StorageBlockContract::expect_address_follows_the_adapter(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, TheSizeRoundsUpToTheAlignment)
+        {
+            StorageBlockContract::expect_size_rounds_up_to_the_alignment(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, CopiesRoundTripAtAnOffset)
+        {
+            StorageBlockContract::expect_copies_round_trip_at_an_offset(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, ACopyPastTheEndIsRefused)
+        {
+            StorageBlockContract::expect_copy_past_the_end_is_refused(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, ItReportsItsResidencyAndNoDevice)
+        {
+            StorageBlockContract::expect_reports_its_residency_and_device(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, ItHasNoQueue)
+        {
+            StorageBlockContract::expect_queue_follows_device_ownership(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, ItHasNoHostAddress)
+        {
+            StorageBlockContract::expect_address_follows_the_adapter(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, AnOwnedBlockNamesNoOwner)
+        {
+            StorageBlockContract::expect_an_owned_block_names_no_owner(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, AnEmptyRequestIsRefused)
+        {
+            StorageBlockContract::expect_empty_request_is_refused(this->subject);
+        }
+
+        TYPED_TEST(Medium_PlannedStorageBlockContract, AnOverflowingRequestIsRefused)
+        {
+            StorageBlockContract::expect_overflowing_request_is_refused(this->subject);
+        }
 
         TYPED_TEST(Small_StorageBlockContract, TheSizeRoundsUpToTheAlignment)
         {

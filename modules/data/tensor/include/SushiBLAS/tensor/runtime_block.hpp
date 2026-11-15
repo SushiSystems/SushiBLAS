@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <SushiBLAS/core/errors.hpp>
@@ -113,9 +114,11 @@ namespace SushiBLAS
                                     alignof(std::max_align_t) != 0,
                             "A borrowed buffer must be aligned to {} bytes",
                             alignof(std::max_align_t));
-                SB_THROW_IF(buffer_.device_index().value() >= controls_.device_count(),
+                SB_THROW_IF(!buffer_.device_index().has_value(),
+                            "A borrowed buffer must state the device it lives on");
+                SB_THROW_IF(buffer_.device_index()->value() >= controls_.device_count(),
                             "Device index {} is out of range; the runtime drives {} devices",
-                            buffer_.device_index().value(), controls_.device_count());
+                            buffer_.device_index()->value(), controls_.device_count());
             }
 
             RuntimeBlock(const RuntimeBlock&) = delete;
@@ -134,15 +137,18 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the device queue that owns the buffer. */
-            [[nodiscard]] std::size_t device_index() const noexcept override
+            [[nodiscard]] std::optional<std::size_t> device_index() const noexcept override
             {
-                return buffer_.device_index().value();
+                const std::optional<SushiRuntime::DeviceIndex> device = buffer_.device_index();
+                if (!device)
+                    return std::nullopt;
+                return device->value();
             }
 
             /** @brief Returns the queue of the device that owns the buffer; never null. */
             [[nodiscard]] sycl::queue* queue() const override
             {
-                return &controls_.queue(buffer_.device_index());
+                return &controls_.queue(buffer_.device_index().value());
             }
 
             /**

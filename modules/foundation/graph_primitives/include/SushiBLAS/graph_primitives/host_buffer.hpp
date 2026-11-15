@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -103,7 +104,7 @@ namespace SushiBLAS
                 [[nodiscard]] T* data() const noexcept { return data_.get(); }
 
                 /** @brief Returns the one device a host buffer belongs to: the default index. */
-                [[nodiscard]] SushiRuntime::DeviceIndex device_index() const noexcept
+                [[nodiscard]] std::optional<SushiRuntime::DeviceIndex> device_index() const noexcept
                 {
                     return SushiRuntime::DeviceIndex{};
                 }

@@ -31,6 +31,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -96,10 +98,27 @@ namespace SushiBLAS
                 return block_->residency();
             }
 
-            /** @brief Returns the device queue that owns the allocation; 0 when no device does. */
-            [[nodiscard]] std::size_t device_index() const noexcept
+            /**
+             * @brief Returns the device that owns the allocation.
+             * @return Empty when no one device does, as for a planned allocation.
+             */
+            [[nodiscard]] std::optional<std::size_t> device_index() const noexcept
             {
                 return block_->device_index();
+            }
+
+            /**
+             * @brief Returns the device that owns the allocation, for a caller that needs one.
+             * @param operation Names the caller in the message.
+             * @throws UnsupportedExecution when no one device owns the allocation.
+             */
+            [[nodiscard]] std::size_t require_device_index(const char* operation) const
+            {
+                const std::optional<std::size_t> device = block_->device_index();
+                if (!device)
+                    throw UnsupportedExecution(std::string(operation) +
+                                               ": a storage with no device owner states no device");
+                return *device;
             }
 
             /** @brief Returns the observer a run checks first; empty for memory the storage owns. */

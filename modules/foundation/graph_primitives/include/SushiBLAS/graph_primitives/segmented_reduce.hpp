@@ -216,12 +216,12 @@ namespace SushiBLAS
 
             // state[0] is the live segment count the launch reads on the device.
             auto state_block = recorder.template scratch<std::uint32_t>(
-                1, values.device_index(), values.residency());
+                1, values.device_index().value(), values.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
             auto state_named = Detail::name_scratch(recorder, state, std::size_t{1},
-                                                    values.device_index());
+                                                    values.device_index().value());
             if (!state_named)
                 return SushiRuntime::make_error(std::move(state_named.error()));
             const BufferRegion state_region = state_named->whole();
@@ -229,7 +229,7 @@ namespace SushiBLAS
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
 
-            recorder.resolve(std::array<LateCount, 1>{segment_count}, values.device_index(),
+            recorder.resolve(std::array<LateCount, 1>{segment_count}, values.device_index().value(),
                 Access(Reads(), Writes(state_region)),
                 [state](const std::array<std::size_t, 1>& live)
                 {

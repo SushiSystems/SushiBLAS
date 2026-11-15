@@ -74,9 +74,9 @@ namespace SushiBLAS
             [[nodiscard]] void* data() const noexcept { return storage_->allocation_base(); }
 
             /** @brief Returns the device the buffer was allocated on. */
-            [[nodiscard]] std::size_t device_index() const noexcept
+            [[nodiscard]] std::size_t device_index() const
             {
-                return storage_->device_index();
+                return storage_->require_device_index("TensorPack::device_index");
             }
 
             /** @brief Returns the bytes of the layout, which the buffer holds at least. */

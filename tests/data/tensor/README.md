@@ -15,7 +15,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_runtime_block.cpp` | Tests that RuntimeBlock allocates or borrows a buffer and copies through its device queue |
 | `test_storage_block.cpp` | Tests the defaults and helpers of the StorageBlock port through an in-memory adapter |
 | `test_storage/test_storage.cpp` | Tests that Storage rounds its size up, aligns its allocation, refuses a bad request, views a buffer it borrows and forwards to its block |
-| `test_storage/test_storage_block_contract.cpp` | Tests that the host and runtime adapters of StorageBlock keep the StorageBlock contract |
+| `test_storage/test_storage_block_contract.cpp` | Tests that the host and runtime adapters of StorageBlock keep the StorageBlock contract, and that a planned block keeps the queries every block answers |
 | `test_tensor/test_tensor.cpp` | Tests the strides, views, checks and regions of a Tensor over one storage |
 | `test_tensor/test_shape_only_tensor.cpp` | Tests that a shape-only Tensor carries dims, strides, dtype and layout and no storage |
 | `test_tensor_factory/test_tensor_factory.cpp` | Tests the layout, the byte size and the tensors a TensorFactory creates |

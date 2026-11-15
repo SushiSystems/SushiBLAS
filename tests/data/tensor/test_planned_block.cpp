@@ -95,6 +95,13 @@ namespace SushiBLAS
             EXPECT_EQ(block.size_bytes(), K_PLANNED_BYTES);
         }
 
+        TEST(Medium_PlannedBlock, ReportsNoDevice)
+        {
+            const PlannedBlock block(TestEnvironment::runtime(), K_PLANNED_BYTES);
+
+            EXPECT_EQ(block.device_index(), std::nullopt);
+        }
+
         TEST(Medium_PlannedBlock, TwoLiveBlocksReportTwoHandles)
         {
             const PlannedBlock first(TestEnvironment::runtime(), K_PLANNED_BYTES);

@@ -5,6 +5,12 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-15 — tensor: Changed `StorageBlock::device_index()` and `Storage::device_index()` to return an optional, empty for a planned block in place of device 0 (GLOBAL_HANDLE R07).
+- 2026-11-15 — tensor: Added `Storage::require_device_index()`, which throws `UnsupportedExecution` for a planned allocation (GLOBAL_HANDLE R07).
+- 2026-11-15 — graph_primitives: Changed `HostBuffer::device_index()` to return `std::optional<DeviceIndex>`, as a runtime buffer does (GLOBAL_HANDLE R07).
+- 2026-11-15 — graph_primitives: Changed every primitive to refuse an operand that states no device with InvalidGraph (GLOBAL_HANDLE R07).
+- 2026-11-15 — engine: Changed an operation that needs a device to refuse a planned operand, naming the operation (GLOBAL_HANDLE R07).
+
 ## v0.1.2 — 2026-11-13
 
 - 2026-11-13 — reference: Added no offset to the null input of an empty axis in `reduce_axis`, which UBSan reported in the sanitizer job (`serial_reduce.hpp`).

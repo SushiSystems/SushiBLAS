@@ -184,10 +184,11 @@ namespace SushiBLAS
                 continue;
             SB_THROW_IF(!tensor.storage, "{}: tensor {} has no storage", name, index);
             SB_THROW_IF(!tensor.is_contiguous(), "{}: tensor {} is not contiguous", name, index);
-            SB_THROW_IF(tensor.storage->device_index() != device_index,
+            const std::size_t tensor_device = tensor.storage->require_device_index(name);
+            SB_THROW_IF(tensor_device != device_index,
                         "{}: tensor {} lives on device {} and the pack on device {}; a pack "
                         "copies within one device",
-                        name, index, tensor.storage->device_index(), device_index);
+                        name, index, tensor_device, device_index);
         }
     }
 } // namespace SushiBLAS

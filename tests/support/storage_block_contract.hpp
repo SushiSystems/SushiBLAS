@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
@@ -132,7 +133,16 @@ namespace SushiBLAS
                 const auto block = subject.block_of(64);
 
                 EXPECT_EQ(block->residency(), Subject::residency());
-                EXPECT_EQ(block->device_index(), std::size_t{0});
+                EXPECT_EQ(block->device_index(), Subject::device());
+            }
+
+            /** @brief The block has a host address exactly when its adapter keeps one. */
+            template<typename Subject>
+            static void expect_address_follows_the_adapter(const Subject& subject)
+            {
+                const auto block = subject.block_of(64);
+
+                EXPECT_EQ(block->data() != nullptr, Subject::has_address());
             }
 
             /** @brief The block has a queue exactly when a device owns its memory. */

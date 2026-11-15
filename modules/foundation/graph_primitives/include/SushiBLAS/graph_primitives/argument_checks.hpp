@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <string>
 
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/result.hpp>
@@ -52,8 +53,24 @@ namespace SushiBLAS
             {
                 std::size_t size = 0;             /**< Elements the buffer holds. */
                 std::size_t offset = 0;           /**< First element of the window. */
-                SushiRuntime::DeviceIndex device; /**< Device the buffer lives on. */
+                std::optional<SushiRuntime::DeviceIndex> device; /**< Device the buffer lives on; empty for a planned buffer. */
             };
+
+            /**
+             * @brief Checks that an operand states the device it lives on.
+             * @param primitive Name the message opens with.
+             * @param name Name of the buffer argument the message names.
+             * @return Nothing, or an InvalidGraph error for an operand with no stated device.
+             */
+            [[nodiscard]] inline SushiRuntime::Result<void>
+            require_device(const char* primitive, const char* name, const Operand& operand)
+            {
+                if (operand.device)
+                    return {};
+                return invalid_graph(std::string(primitive) + ": the " + name +
+                                     " buffer states no device, because it is planned; give the "
+                                     "primitive a buffer with a stated residency.");
+            }
 
             /**
              * @brief Holds the facts counting_sort() checks before it records anything.
@@ -134,6 +151,16 @@ namespace SushiBLAS
                 if (fits && shape.counts)
                     fits = require_window("counting_sort", "counts", shape.counts->size,
                                           shape.counts->offset, shape.key_capacity);
+                if (fits)
+                    fits = require_device("counting_sort", "keys", shape.keys);
+                if (fits)
+                    fits = require_device("counting_sort", "indices", shape.indices);
+                if (fits)
+                    fits = require_device("counting_sort", "offsets", shape.offsets);
+                if (fits)
+                    fits = require_device("counting_sort", "total", shape.total);
+                if (fits && shape.counts)
+                    fits = require_device("counting_sort", "counts", *shape.counts);
                 if (!fits)
                     return fits;
 
@@ -166,6 +193,12 @@ namespace SushiBLAS
                 if (fits)
                     fits = require_window("prefix_scan", "total", shape.total.size,
                                           shape.total.offset, std::size_t{1});
+                if (fits)
+                    fits = require_device("prefix_scan", "counts", shape.counts);
+                if (fits)
+                    fits = require_device("prefix_scan", "offsets", shape.offsets);
+                if (fits)
+                    fits = require_device("prefix_scan", "total", shape.total);
                 if (!fits)
                     return fits;
 
@@ -192,6 +225,10 @@ namespace SushiBLAS
                 if (fits)
                     fits = require_window("reduce", "output", shape.output.size,
                                           shape.output.offset, std::size_t{1});
+                if (fits)
+                    fits = require_device("reduce", "input", shape.input);
+                if (fits)
+                    fits = require_device("reduce", "output", shape.output);
                 return fits;
             }
 
@@ -217,6 +254,13 @@ namespace SushiBLAS
                 if (fits)
                     fits = require_window("segmented_reduce", "output", shape.output.size,
                                           shape.output.offset, shape.segment_count);
+                if (fits)
+                    fits = require_device("segmented_reduce", "values", shape.values);
+                if (fits)
+                    fits = require_device("segmented_reduce", "segment_offsets",
+                                          shape.segment_offsets);
+                if (fits)
+                    fits = require_device("segmented_reduce", "output", shape.output);
                 return fits;
             }
         } // namespace Detail

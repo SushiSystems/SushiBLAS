@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/host_block.hpp>
@@ -64,6 +65,15 @@ namespace SushiBLAS
 
             /** @brief Returns whether a block of this adapter has a queue. */
             [[nodiscard]] static bool has_queue() noexcept { return false; }
+
+            /** @brief Returns the device a block of this adapter reports: the one that works on host memory. */
+            [[nodiscard]] static std::optional<std::size_t> device() noexcept
+            {
+                return std::size_t{0};
+            }
+
+            /** @brief Returns whether a block of this adapter has a host address. */
+            [[nodiscard]] static bool has_address() noexcept { return true; }
         };
 
         /** @brief Builds StorageBlocks of runtime buffers through RuntimeBlockMaker. */
@@ -84,6 +94,44 @@ namespace SushiBLAS
 
             /** @brief Returns whether a block of this adapter has a queue. */
             [[nodiscard]] static bool has_queue() noexcept { return true; }
+
+            /** @brief Returns the device a block of this adapter reports: the first. */
+            [[nodiscard]] static std::optional<std::size_t> device() noexcept
+            {
+                return std::size_t{0};
+            }
+
+            /** @brief Returns whether a block of this adapter has a host address. */
+            [[nodiscard]] static bool has_address() noexcept { return true; }
+        };
+
+        /** @brief Builds StorageBlocks of planned runtime buffers through RuntimeBlockMaker. */
+        struct PlannedBlockSubject
+        {
+            /** @brief Returns a block of n_bytes the runtime places. */
+            [[nodiscard]] std::unique_ptr<StorageBlock> block_of(std::size_t n_bytes) const
+            {
+                return RuntimeBlockMaker(TestEnvironment::runtime())
+                    .make(n_bytes, SushiRuntime::Residency::Planned, 0);
+            }
+
+            /** @brief Returns the residency a block of this adapter reports. */
+            [[nodiscard]] static SushiRuntime::Residency residency() noexcept
+            {
+                return SushiRuntime::Residency::Planned;
+            }
+
+            /** @brief Returns whether a block of this adapter has a queue. */
+            [[nodiscard]] static bool has_queue() noexcept { return false; }
+
+            /** @brief Returns the device a block of this adapter reports: none, the runtime places it. */
+            [[nodiscard]] static std::optional<std::size_t> device() noexcept
+            {
+                return std::nullopt;
+            }
+
+            /** @brief Returns whether a block of this adapter has a host address. */
+            [[nodiscard]] static bool has_address() noexcept { return false; }
         };
 
         /** @brief Builds storages and factories on the host, with no runtime. */

@@ -131,13 +131,13 @@ namespace SushiBLAS
             if (scratch_count != 0)
             {
                 auto scratch_block = recorder.template scratch<T>(
-                    scratch_count, input.device_index(), input.residency());
+                    scratch_count, input.device_index().value(), input.residency());
                 if (!scratch_block)
                     return SushiRuntime::make_error(std::move(scratch_block.error()));
                 scratch = *scratch_block;
             }
             auto scratch_named = Detail::name_scratch(recorder, scratch, scratch_count,
-                                                      input.device_index());
+                                                      input.device_index().value());
             if (!scratch_named)
                 return SushiRuntime::make_error(std::move(scratch_named.error()));
             const Detail::ScratchRegion<T> scratch_region = *scratch_named;
@@ -241,7 +241,7 @@ namespace SushiBLAS
             if (scratch_count != 0)
             {
                 auto scratch_block = recorder.template scratch<T>(
-                    scratch_count, input.device_index(), input.residency());
+                    scratch_count, input.device_index().value(), input.residency());
                 if (!scratch_block)
                     return SushiRuntime::make_error(std::move(scratch_block.error()));
                 scratch = *scratch_block;
@@ -250,12 +250,12 @@ namespace SushiBLAS
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t level_count = levels.size();
             auto state_block = recorder.template scratch<std::uint32_t>(
-                2 * level_count, input.device_index(), input.residency());
+                2 * level_count, input.device_index().value(), input.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
             auto state_named = Detail::name_scratch(recorder, state, 2 * level_count,
-                                                    input.device_index());
+                                                    input.device_index().value());
             if (!state_named)
                 return SushiRuntime::make_error(std::move(state_named.error()));
             const BufferRegion state_region = state_named->whole();
@@ -263,7 +263,7 @@ namespace SushiBLAS
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
 
-            recorder.resolve(std::array<LateCount, 1>{n}, input.device_index(),
+            recorder.resolve(std::array<LateCount, 1>{n}, input.device_index().value(),
                 Access(Reads(), Writes(state_region)),
                 [state, level_count](const std::array<std::size_t, 1>& live)
                 {
@@ -272,7 +272,7 @@ namespace SushiBLAS
                 stamper.stage("resolve", std::size_t{1}));
 
             auto scratch_named = Detail::name_scratch(recorder, scratch, scratch_count,
-                                                      input.device_index());
+                                                      input.device_index().value());
             if (!scratch_named)
                 return SushiRuntime::make_error(std::move(scratch_named.error()));
             const Detail::ScratchRegion<T> scratch_region = *scratch_named;

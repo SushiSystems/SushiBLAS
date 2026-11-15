@@ -107,7 +107,7 @@ namespace SushiBLAS
             {
                 // Capacity zero: the resolver checks the live count and writes an empty scan.
                 auto rule = recorder.rule();
-                recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index(),
+                recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index().value(),
                     Access(Reads(), Detail::access_of<Writes>(offsets_span, total_span)),
                     [offsets_base, total_base](const std::array<std::size_t, 1>&)
                     {
@@ -126,23 +126,23 @@ namespace SushiBLAS
             if (sweep_scratch_count != 0)
             {
                 auto up_block = recorder.template scratch<std::uint32_t>(
-                    sweep_scratch_count, counts.device_index(), counts.residency());
+                    sweep_scratch_count, counts.device_index().value(), counts.residency());
                 if (!up_block)
                     return SushiRuntime::make_error(std::move(up_block.error()));
                 up_scratch = *up_block;
 
                 auto down_block = recorder.template scratch<std::uint32_t>(
-                    sweep_scratch_count, counts.device_index(), counts.residency());
+                    sweep_scratch_count, counts.device_index().value(), counts.residency());
                 if (!down_block)
                     return SushiRuntime::make_error(std::move(down_block.error()));
                 down_scratch = *down_block;
             }
             auto up_named = Detail::name_scratch(recorder, up_scratch, sweep_scratch_count,
-                                                 counts.device_index());
+                                                 counts.device_index().value());
             if (!up_named)
                 return SushiRuntime::make_error(std::move(up_named.error()));
             auto down_named = Detail::name_scratch(recorder, down_scratch, sweep_scratch_count,
-                                                   counts.device_index());
+                                                   counts.device_index().value());
             if (!down_named)
                 return SushiRuntime::make_error(std::move(down_named.error()));
             const Detail::ScratchRegion<std::uint32_t> up_region = *up_named;
@@ -151,12 +151,12 @@ namespace SushiBLAS
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t state_words = 2 * level_count;
             auto state_block = recorder.template scratch<std::uint32_t>(
-                state_words, counts.device_index(), counts.residency());
+                state_words, counts.device_index().value(), counts.residency());
             if (!state_block)
                 return SushiRuntime::make_error(std::move(state_block.error()));
             std::uint32_t* state = *state_block;
             auto state_named = Detail::name_scratch(recorder, state, state_words,
-                                                    counts.device_index());
+                                                    counts.device_index().value());
             if (!state_named)
                 return SushiRuntime::make_error(std::move(state_named.error()));
             const BufferRegion state_region = state_named->whole();
@@ -164,7 +164,7 @@ namespace SushiBLAS
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
 
-            recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index(),
+            recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index().value(),
                 Access(Reads(), Writes(state_region)),
                 [state, level_count](const std::array<std::size_t, 1>& live)
                 {

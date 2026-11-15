@@ -94,7 +94,7 @@ namespace SushiBLAS
                 return ScratchBuffer();
 
             ScratchBuffer scratch(recorder.scratch_pool(), bytes,
-                                  anchor.storage->device_index());
+                                  anchor.storage->require_device_index("A scratch lease"));
             operands.scratch(scratch);
             return scratch;
         }

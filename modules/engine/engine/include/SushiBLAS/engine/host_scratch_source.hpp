@@ -32,6 +32,7 @@
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/scratch_block_source.hpp>
@@ -148,8 +149,8 @@ namespace SushiBLAS
                         return block_.residency();
                     }
 
-                    /** @brief Returns 0. */
-                    [[nodiscard]] std::size_t device_index() const noexcept override
+                    /** @brief Returns device 0, which works on host memory. */
+                    [[nodiscard]] std::optional<std::size_t> device_index() const noexcept override
                     {
                         return block_.device_index();
                     }

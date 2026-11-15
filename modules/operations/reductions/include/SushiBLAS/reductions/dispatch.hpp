@@ -107,8 +107,8 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t reduction_device_index(const Tensor& t,
                                                                 const Tensor& result)
         {
-            return t.storage ? t.storage->device_index()
-                             : result.storage->device_index();
+            return t.storage ? t.storage->require_device_index("A reduction")
+                             : result.storage->require_device_index("A reduction");
         }
 
         /** @brief Holds the bytes one (value, index) partial of an index reduction takes. */

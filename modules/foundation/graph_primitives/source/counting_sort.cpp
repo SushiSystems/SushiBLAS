@@ -118,7 +118,7 @@ namespace SushiBLAS
             const auto words = [&recorder, &keys](const std::uint32_t* base, std::size_t count)
                 -> SushiRuntime::Result<BufferRegion>
             {
-                auto named = Detail::name_scratch(recorder, base, count, keys.device_index());
+                auto named = Detail::name_scratch(recorder, base, count, keys.device_index().value());
                 if (!named)
                     return SushiRuntime::make_error(std::move(named.error()));
                 return named->whole();
@@ -129,7 +129,7 @@ namespace SushiBLAS
 
             // n_state[0] is the live element count, n_state[1] its live tile count.
             auto n_state_block = recorder.template scratch<std::uint32_t>(
-                2, keys.device_index(), keys.residency());
+                2, keys.device_index().value(), keys.residency());
             if (!n_state_block)
                 return SushiRuntime::make_error(std::move(n_state_block.error()));
             std::uint32_t* n_state = *n_state_block;
@@ -143,7 +143,7 @@ namespace SushiBLAS
             if (n_capacity != 0)
             {
                 auto plan_block = recorder.template scratch<std::uint32_t>(
-                    plan_words, keys.device_index(), keys.residency());
+                    plan_words, keys.device_index().value(), keys.residency());
                 if (!plan_block)
                     return SushiRuntime::make_error(std::move(plan_block.error()));
                 plan = *plan_block;
@@ -155,7 +155,7 @@ namespace SushiBLAS
 
             // One node resolves both counts, publishes total and fills the digit plan.
             std::uint32_t* total_base = total_span.data();
-            recorder.resolve(std::array<LateCount, 2>{n, key_range}, keys.device_index(),
+            recorder.resolve(std::array<LateCount, 2>{n, key_range}, keys.device_index().value(),
                 Access(Reads(), (plan != nullptr)
                                     ? Detail::access_of<Writes>(n_state_region, total_span,
                                                                 plan_region)
@@ -190,17 +190,17 @@ namespace SushiBLAS
 
             // hist holds raw counts until the column scan overwrites it in place with prefixes.
             auto hist_block = recorder.template scratch<std::uint32_t>(
-                Detail::K_RADIX_DIGIT_BINS * tile_capacity, keys.device_index(), keys.residency());
+                Detail::K_RADIX_DIGIT_BINS * tile_capacity, keys.device_index().value(), keys.residency());
             if (!hist_block)
                 return SushiRuntime::make_error(std::move(hist_block.error()));
             std::uint32_t* hist = *hist_block;
             auto column_total_block = recorder.template scratch<std::uint32_t>(
-                Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
+                Detail::K_RADIX_DIGIT_BINS, keys.device_index().value(), keys.residency());
             if (!column_total_block)
                 return SushiRuntime::make_error(std::move(column_total_block.error()));
             std::uint32_t* column_total = *column_total_block;
             auto bin_base_block = recorder.template scratch<std::uint32_t>(
-                Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
+                Detail::K_RADIX_DIGIT_BINS, keys.device_index().value(), keys.residency());
             if (!bin_base_block)
                 return SushiRuntime::make_error(std::move(bin_base_block.error()));
             std::uint32_t* bin_base = *bin_base_block;
@@ -210,7 +210,7 @@ namespace SushiBLAS
             if (digit_count >= 2)
             {
                 auto alternate_block = recorder.template scratch<std::uint32_t>(
-                    n_capacity, keys.device_index(), keys.residency());
+                    n_capacity, keys.device_index().value(), keys.residency());
                 if (!alternate_block)
                     return SushiRuntime::make_error(std::move(alternate_block.error()));
                 alternate = *alternate_block;
