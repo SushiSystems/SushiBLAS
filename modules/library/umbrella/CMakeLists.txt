@@ -57,6 +57,7 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         ${sushiblas_umbrella_distributed_tests}
         test_SushiBLAS/test_dependency_stress.cpp
+        test_SushiBLAS/test_device_conformance.cpp
         test_SushiBLAS/test_dispatch_complex.cpp
         test_SushiBLAS/test_dispatch_seam.cpp
         test_SushiBLAS/test_framework_sim.cpp

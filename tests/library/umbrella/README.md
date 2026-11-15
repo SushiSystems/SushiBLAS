@@ -15,6 +15,7 @@ the benchmark section of `tests/README.md` describes them.
 | --- | --- |
 | `benchmark_elementwise.cpp` | Times add, in-place exp and in-place relu and prints GB/s per element count |
 | `test_SushiBLAS/test_dependency_stress.cpp` | Tests the dependency tracker under shard collisions |
+| `test_SushiBLAS/test_device_conformance.cpp` | Tests that sum, dot, gemm, softmax and layer norm give on every device of the runtime the CPU device's bytes, or differ by a stated bound that the test names; large tier, a device the runtime lacks is skipped by name |
 | `test_SushiBLAS/test_dispatch_complex.cpp` | Tests which elementwise and logic operations compute on COMPLEX32 and which refuse it |
 | `test_SushiBLAS/test_dispatch_checks.cpp` | Tests, on values and without a device, the record-time domain and parameter-capacity checks of the public Dispatch seam |
 | `test_SushiBLAS/test_dispatch_seam.cpp` | Tests the public Dispatch seam with functors written outside the library |
