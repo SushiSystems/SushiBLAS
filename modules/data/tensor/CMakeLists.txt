@@ -18,6 +18,7 @@ sushiblas_add_test_program(
         test_host_block.cpp
         test_host_data_type.cpp
         test_tensor/test_shape_only_tensor.cpp
+        test_planned_block.cpp
         test_runtime_block.cpp
         test_storage/test_storage.cpp
         test_storage/test_storage_block_contract.cpp

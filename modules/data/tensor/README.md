@@ -2,8 +2,8 @@
 
 The dense containers: `Storage`, the reference-counted allocation; `Tensor`, the typed and
 strided view over it; and `TensorFactory`, which allocates tensors from one runtime or, in its host
-form, from host memory. `Storage` reaches its bytes through the `StorageBlock` port, which `HostBlock`
-and `RuntimeBlock` implement.
+form, from host memory. `Storage` reaches its bytes through the `StorageBlock` port, which `HostBlock`,
+`RuntimeBlock` and `PlannedBlock` implement.
 
 It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>`.
 
@@ -14,6 +14,7 @@ It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>
 | `block_maker.hpp` | BlockMaker, the port a TensorFactory gets its blocks through |
 | `host_block.hpp` | HostBlock and HostBlockMaker, aligned host memory that no runtime owns, and `make_host_storage` |
 | `host_handle_space.hpp` | `host_handle_space()`, the one process-wide LocalHandleSpace that mints the handle of every HostBlock, and `K_HOST_HANDLE_SPACE_ID` |
+| `planned_block.hpp` | PlannedBlock, over a `Residency::Planned` SushiRuntime buffer, which has a handle and no host address |
 | `runtime_block.hpp` | RuntimeBlock and RuntimeBlockMaker over a SushiRuntime buffer, `make_runtime_storage` and `borrow_runtime_storage`; the one header here that includes `SushiRuntime/sushiruntime.hpp` |
 | `storage.hpp` | Storage, the reference-counted allocation a tensor's elements live in |
 | `tensor.hpp` | Tensor, a typed, strided view over a Storage, or over none for validation |
@@ -69,8 +70,24 @@ no queue (`block().queue()` is null). `Storage::queue()` throws `UnsupportedExec
 
 `TensorFactory(TensorFactory::Host{}, layout)` needs no runtime and makes host storages. `create`
 ignores the residency it is given, accepts only device index 0, and returns a tensor without storage
-for a shape with a zero dimension, as the runtime factory does. The factory owns a `BlockMaker`, `HostBlockMaker` or `RuntimeBlockMaker`, that its
+for a shape with a zero dimension, as the runtime factory does, but refuses `Residency::Planned`,
+`planned` and `from_file`. The factory owns a `BlockMaker`, `HostBlockMaker` or `RuntimeBlockMaker`, that its
 constructors build. The constructor that takes a runtime, and its `create`, are unchanged.
+
+## Planned storage
+
+`TensorFactory::planned(dims, dtype)` makes a tensor over a `PlannedBlock`, a `Residency::Planned`
+buffer of `Runtime::buffer(count, Residency::Planned)`; `create` with `Residency::Planned` makes the same.
+`TensorFactory::from_file(path, offset, dims, dtype)` makes one over `Runtime::buffer_from_file`, whose
+bytes are the file range; its size is the tensor's bytes, not rounded. Both refuse a shape with no
+element. The runtime places the bytes and may move them, so `data()` of the block is null,
+`Tensor::data()` throws, `device_index()` is 0 and the block has no queue. `global_handle()` is the
+buffer's handle. `copy_to_host` and `copy_from_host` go through the buffer's `read_range` and
+`write_range`.
+
+An operation records the address of each operand, so `Dispatch::require_storage` refuses a planned
+operand with `std::invalid_argument` naming the operation, before any address is read. No operation
+records over planned tensors yet.
 
 ## Shape-only tensors
 

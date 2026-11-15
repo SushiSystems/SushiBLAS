@@ -38,6 +38,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/host_block.hpp>
 #include <SushiBLAS/tensor/runtime_block.hpp>
+#include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
@@ -448,6 +449,37 @@ namespace SushiBLAS
             const sycl::queue& q = TestEnvironment::queue();
             EXPECT_EQ(Device::profile_for(q).supports_fp16,
                       q.get_device().has(sycl::aspect::fp16));
+        }
+
+        TEST(Medium_OperandCheckPlanned, AnUnportedOperationRefusesAPlannedOperandByName)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4};
+            const Tensor planned = factory.planned(
+                SushiRuntime::span<const int64_t>(dims.data(), dims.size()));
+
+            try
+            {
+                Dispatch::require_storage(planned, "elementwise.mul", "x");
+                FAIL() << "A planned operand reached an operation that records host addresses.";
+            }
+            catch (const std::invalid_argument& error)
+            {
+                const std::string message = error.what();
+                EXPECT_NE(message.find("elementwise.mul"), std::string::npos) << message;
+                EXPECT_NE(message.find("planned"), std::string::npos) << message;
+            }
+        }
+
+        TEST(Medium_OperandCheckPlanned, TheStorageFactsOfAPlannedTensorSayPlanned)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4};
+            const Tensor planned = factory.planned(
+                SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
+                Core::DataType::Float64);
+
+            EXPECT_TRUE(Dispatch::storage_facts_of(planned).planned);
         }
     } // namespace Test
 } // namespace SushiBLAS

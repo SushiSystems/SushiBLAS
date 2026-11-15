@@ -108,6 +108,7 @@ namespace SushiBLAS
         struct StorageFacts
         {
             bool present = false;                   /**< Whether the tensor has storage. */
+            bool planned = false;                   /**< Whether the runtime places the storage, which has no host address. */
             SushiRuntime::BufferRegion region{};    /**< The bytes the tensor covers; empty without storage. */
             bool supports_fp64 = true;              /**< Whether the device of the storage computes FLOAT64. */
             bool supports_fp16 = true;              /**< Whether the device of the storage computes HALF. */
@@ -134,11 +135,13 @@ namespace SushiBLAS
             StorageFacts facts;
             facts.present = static_cast<bool>(t.storage);
             facts.region = t.region();
+            facts.planned = facts.present &&
+                            t.storage->residency() == SushiRuntime::Residency::Planned;
 
             const bool needs_fp64 = t.dtype == Core::DataType::Float64 ||
                                     t.dtype == Core::DataType::Complex64;
             const bool needs_fp16 = t.dtype == Core::DataType::Half;
-            if (!facts.present || (!needs_fp64 && !needs_fp16))
+            if (!facts.present || facts.planned || (!needs_fp64 && !needs_fp16))
                 return facts;
 
             const Device::Profile& profile = profile_of(t);
@@ -156,8 +159,8 @@ namespace SushiBLAS
         /**
          * @brief Throws unless a tensor holding elements has storage.
          * @param facts The storage of t.
-         * @throws std::invalid_argument when num_elements > 0 and the storage is absent; the
-         *         message says so when t is shape-only.
+         * @throws std::invalid_argument when num_elements > 0 and the storage is absent, the
+         *         message saying so when t is shape-only, or when the storage is planned.
          * @see modules/engine/engine/README.md
          */
         inline void require_storage(const Tensor& t, const StorageFacts& facts, const char* op,
@@ -171,17 +174,25 @@ namespace SushiBLAS
             if (t.num_elements > 0 && !facts.present)
                 Detail::throw_operand_error(op, operand, "holds {} elements but has no storage",
                                             t.num_elements);
+            if (facts.planned)
+                Detail::throw_operand_error(op, operand,
+                                            "is a planned tensor, which has no host address; {} "
+                                            "does not record over planned tensors yet",
+                                            op);
         }
 
         /**
-         * @brief Throws unless a tensor holding elements has storage.
-         * @throws std::invalid_argument when num_elements > 0 and storage is null.
+         * @brief Throws unless a tensor holding elements has storage with a host address.
+         * @throws std::invalid_argument when num_elements > 0 and storage is null, or when the
+         *         storage is planned.
          * @see modules/engine/engine/README.md
          */
         inline void require_storage(const Tensor& t, const char* op, const char* operand)
         {
             StorageFacts facts;
             facts.present = static_cast<bool>(t.storage);
+            facts.planned = facts.present &&
+                            t.storage->residency() == SushiRuntime::Residency::Planned;
             require_storage(t, facts, op, operand);
         }
 

@@ -31,10 +31,12 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <new>
 #include <stdexcept>
+#include <string>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/tensor/block_maker.hpp>
 #include <SushiBLAS/tensor/host_handle_space.hpp>
@@ -205,19 +207,36 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Allocates host memory no runtime owns; residency and device_index are ignored.
+             * @brief Allocates host memory no runtime owns; device_index is ignored.
              * @param n_bytes Number of bytes requested; above zero.
-             * @throws std::runtime_error if the size is zero or overflows.
+             * @param residency Ignored, except that Residency::Planned is refused.
+             * @throws std::runtime_error if the size is zero or overflows, or residency is
+             *         Residency::Planned.
              * @throws std::bad_alloc if the allocation fails.
              */
             [[nodiscard]] std::unique_ptr<StorageBlock> make(
-                std::size_t n_bytes, SushiRuntime::Residency, std::size_t) const override
+                std::size_t n_bytes, SushiRuntime::Residency residency, std::size_t) const override
             {
+                SB_THROW_IF(residency == SushiRuntime::Residency::Planned,
+                            "Host memory has an address and no runtime places it; make a planned "
+                            "tensor through a TensorFactory over a runtime");
                 return std::make_unique<HostBlock>(rounded_storage_size(n_bytes),
                                                    K_STORAGE_ALIGNMENT);
             }
 
-            /** @brief Returns 1; host memory has one place. */
+            /**
+             * @brief Refuses: a file block is planned memory, which only a runtime places.
+             * @throws std::runtime_error always.
+             */
+            [[nodiscard]] std::unique_ptr<StorageBlock> make_from_file(
+                const std::string& path, std::uint64_t, std::size_t) const override
+            {
+                SB_THROW_IF(true, "A host factory cannot read {} as a planned tensor; make it "
+                            "through a TensorFactory over a runtime", path);
+                return nullptr;
+            }
+
+                        /** @brief Returns 1; host memory has one place. */
             [[nodiscard]] std::size_t device_count() const override { return 1; }
     };
 

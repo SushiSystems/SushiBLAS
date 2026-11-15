@@ -33,10 +33,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/tensor/block_maker.hpp>
+#include <SushiBLAS/tensor/planned_block.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiBLAS/tensor/tensor_log_category.hpp>
@@ -215,12 +217,24 @@ namespace SushiBLAS
 
             }
 
-            /** @brief Allocates a RuntimeBlock on the runtime; the throws are RuntimeBlock's. */
+            /**
+             * @brief Makes a PlannedBlock for Residency::Planned, which states no device, and
+             *        allocates a RuntimeBlock otherwise; the throws are theirs.
+             */
             [[nodiscard]] std::unique_ptr<StorageBlock> make(
                 std::size_t n_bytes, SushiRuntime::Residency residency,
                 std::size_t device_index) const override
             {
+                if (residency == SushiRuntime::Residency::Planned)
+                    return std::make_unique<PlannedBlock>(runtime_, n_bytes);
                 return std::make_unique<RuntimeBlock>(runtime_, n_bytes, residency, device_index);
+            }
+
+            /** @brief Makes a PlannedBlock over the file range; the throws are PlannedBlock's. */
+            [[nodiscard]] std::unique_ptr<StorageBlock> make_from_file(
+                const std::string& path, std::uint64_t offset, std::size_t n_bytes) const override
+            {
+                return std::make_unique<PlannedBlock>(runtime_, path, offset, n_bytes);
             }
 
             /** @brief Returns the number of devices the runtime drives. */

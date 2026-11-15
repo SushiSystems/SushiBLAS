@@ -31,7 +31,9 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <SushiBLAS/tensor/storage_block.hpp>
 
 namespace SushiBLAS
@@ -49,14 +51,25 @@ namespace SushiBLAS
             /**
              * @brief Allocates a block of n_bytes rounded up to K_STORAGE_ALIGNMENT.
              * @param n_bytes Number of bytes requested; above zero.
-             * @param residency Where the memory lives; a maker of host memory ignores it.
+             * @param residency Where the memory lives; Planned only on a runtime's maker.
              * @param device_index Device queue that owns the allocation; a device of the maker.
              * @throws std::runtime_error if the size is zero or overflows, the device index is out
-             *         of range, or the allocation fails.
+             *         of range, the maker cannot place the residency, or the allocation fails.
              */
             [[nodiscard]] virtual std::unique_ptr<StorageBlock> make(
                 std::size_t n_bytes, SushiRuntime::Residency residency,
                 std::size_t device_index) const = 0;
+
+            /**
+             * @brief Makes a Residency::Planned block whose bytes are n_bytes of a file from offset.
+             * @param path The file; it must not change while the block lives.
+             * @param offset First byte of the file the block holds.
+             * @param n_bytes Number of bytes the block holds; above zero.
+             * @throws std::runtime_error if the maker places no planned memory, the size is zero,
+             *         or the file cannot be read or is shorter than the range.
+             */
+            [[nodiscard]] virtual std::unique_ptr<StorageBlock> make_from_file(
+                const std::string& path, std::uint64_t offset, std::size_t n_bytes) const = 0;
 
             /** @brief Returns the number of device queues a block can sit on; 1 for host memory. */
             [[nodiscard]] virtual std::size_t device_count() const = 0;

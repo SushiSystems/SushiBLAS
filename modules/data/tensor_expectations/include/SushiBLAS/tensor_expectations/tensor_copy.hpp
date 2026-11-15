@@ -31,6 +31,7 @@
 #pragma once
 
 #include <cstddef>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
 namespace SushiBLAS
@@ -43,16 +44,17 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline std::size_t byte_offset_of(const Tensor& tensor)
         {
-            const std::byte* first = static_cast<const std::byte*>(tensor.data());
-            return static_cast<std::size_t>(
-                first - static_cast<const std::byte*>(tensor.storage->allocation_base()));
+            SB_THROW_IF(tensor.shape_only, "A shape-only tensor carries no storage");
+            SB_THROW_IF(tensor.storage == nullptr, "The tensor has no storage");
+            return static_cast<std::size_t>(tensor.storage_offset) *
+                   Core::bytes_per_element(tensor.dtype);
         }
 
         /**
          * @brief Copies bytes from a tensor's data into host memory and returns with the copy done.
          *
          * The storage of the tensor does the copy: host storage by memcpy, runtime storage through
-         * the queue of its device.
+         * the queue of its device, planned storage through the buffer's range copies.
          * @param bytes Bytes to copy; at most the tensor's dense byte size.
          */
         inline void copy_tensor_to_host(void* destination, const Tensor& tensor, std::size_t bytes)
@@ -64,7 +66,7 @@ namespace SushiBLAS
          * @brief Copies bytes from host memory into a tensor's data and returns with the copy done.
          *
          * The storage of the tensor does the copy: host storage by memcpy, runtime storage through
-         * the queue of its device.
+         * the queue of its device, planned storage through the buffer's range copies.
          * @param bytes Bytes to copy; at most the tensor's dense byte size.
          */
         inline void copy_host_to_tensor(Tensor& tensor, const void* source, std::size_t bytes)

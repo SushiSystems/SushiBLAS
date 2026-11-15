@@ -29,6 +29,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <fstream>
+#include <string>
 #include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
@@ -148,6 +151,72 @@ namespace SushiBLAS
                                                  SushiRuntime::Residency::Device);
 
             EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Device);
+        }
+
+        TEST(Medium_TensorFactoryPlanned, APlannedTensorHasAHandleAndNoHostAddress)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4, 8};
+
+            const Tensor tensor = factory.planned(span_of(dims), Core::DataType::Float32);
+
+            EXPECT_FALSE(tensor.global_handle().is_null());
+            EXPECT_EQ(tensor.storage->residency(), SushiRuntime::Residency::Planned);
+            EXPECT_EQ(tensor.storage->allocation_base(), nullptr);
+            EXPECT_THROW((void)tensor.data(), std::runtime_error);
+        }
+
+        TEST(Medium_TensorFactoryPlanned, APlannedTensorReadsBackWhatTheHostWrote)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{2, 3};
+            const Tensor tensor = factory.planned(span_of(dims), Core::DataType::Float32);
+            const std::vector<float> written{1.0f, -2.0f, 3.5f, 4.0f, 0.25f, -6.0f};
+
+            tensor.storage->copy_from_host(written.data(), 0, written.size() * sizeof(float));
+            std::vector<float> read(written.size());
+            tensor.storage->copy_to_host(read.data(), 0, read.size() * sizeof(float));
+
+            EXPECT_EQ(read, written);
+        }
+
+        TEST(Medium_TensorFactoryPlanned, RefusesAShapeWithNoElement)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4, 0};
+
+            EXPECT_THROW((void)factory.planned(span_of(dims)), std::runtime_error);
+        }
+
+        TEST(Small_TensorFactoryPlanned, AHostFactoryRefusesAPlannedTensor)
+        {
+            const TensorFactory factory(TensorFactory::Host{});
+            const std::vector<int64_t> dims{4};
+
+            EXPECT_THROW((void)factory.planned(span_of(dims)), std::runtime_error);
+            EXPECT_THROW((void)factory.from_file("unused.bin", 0, span_of(dims)),
+                         std::runtime_error);
+        }
+
+        TEST(Medium_TensorFactoryPlanned, AFileTensorReadsItsFileRange)
+        {
+            const std::vector<float> contents{9.0f, 8.0f, 1.0f, 2.0f, 3.0f, 4.0f, 7.0f};
+            const std::string path = ::testing::TempDir() + "sushiblas_tensor_factory_range.bin";
+            {
+                std::ofstream out(path, std::ios::binary | std::ios::trunc);
+                out.write(reinterpret_cast<const char*>(contents.data()),
+                          static_cast<std::streamsize>(contents.size() * sizeof(float)));
+            }
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{2, 2};
+
+            const Tensor tensor = factory.from_file(path, 2 * sizeof(float), span_of(dims));
+            std::vector<float> read(4);
+            tensor.storage->copy_to_host(read.data(), 0, read.size() * sizeof(float));
+            std::remove(path.c_str());
+
+            EXPECT_FALSE(tensor.global_handle().is_null());
+            EXPECT_EQ(read, (std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f}));
         }
     } // namespace Test
 } // namespace SushiBLAS

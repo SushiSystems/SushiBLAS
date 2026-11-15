@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
@@ -124,6 +125,41 @@ namespace SushiBLAS
 
                 SushiRuntime::sushi_ptr<Storage> storage =
                     SushiRuntime::make_sushi<Storage>(maker_->make(bytes, residency, device_index));
+                return Tensor(std::move(storage), dims, dtype, 0, layout_);
+            }
+
+            /**
+             * @brief Creates a dense tensor the runtime places: it has a global handle and no
+             *        host address, and the host reaches it through Tensor's host copies.
+             * @throws std::runtime_error on a factory with no runtime, a shape that holds no
+             *         element, or what create() throws.
+             * @see modules/data/tensor/README.md
+             */
+            [[nodiscard]] Tensor planned(SushiRuntime::span<const int64_t> dims,
+                                         Core::DataType dtype = Core::DataType::Float32) const
+            {
+                SB_THROW_IF(allocation_bytes(dims, dtype) == 0,
+                            "A planned tensor must hold at least one element");
+                return create(dims, dtype, SushiRuntime::Residency::Planned, 0);
+            }
+
+            /**
+             * @brief Creates a planned tensor whose elements are the file's bytes from offset.
+             * @param path The file; it must not change while the tensor's storage lives.
+             * @param offset First byte of the file the tensor holds.
+             * @throws std::runtime_error on a factory with no runtime, a shape that holds no
+             *         element, or a file that cannot be read or is shorter than the tensor.
+             * @see modules/data/tensor/README.md
+             */
+            [[nodiscard]] Tensor from_file(const std::string& path, std::uint64_t offset,
+                                           SushiRuntime::span<const int64_t> dims,
+                                           Core::DataType dtype = Core::DataType::Float32) const
+            {
+                const std::size_t bytes = allocation_bytes(dims, dtype);
+                SB_THROW_IF(bytes == 0, "A tensor read from {} must hold at least one element",
+                            path);
+                SushiRuntime::sushi_ptr<Storage> storage = SushiRuntime::make_sushi<Storage>(
+                    maker_->make_from_file(path, offset, bytes));
                 return Tensor(std::move(storage), dims, dtype, 0, layout_);
             }
 
