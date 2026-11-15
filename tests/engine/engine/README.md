@@ -21,7 +21,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_late_count_hold.cpp` | Tests that a late count's token holds every storage and dies at release |
 | `test_kernel_pair_dispatcher.cpp` | Tests that the dispatcher picks the reference body under ForceReference only |
 | `test_operand_check.cpp` | Tests the operand checks as rows on host tensors, the size of a narrowed functor, the Tensor constructor and transpose guards, the device dtype rows and the storage rule of an operation that binds its operands |
-| `test_operand_pointers.cpp` | Tests that OperandPointers finds the address of a bound operand from its slot and offset, and reads an absent operand as null |
+| `test_operand_binding.cpp` | Tests that `operand_address()` finds the address of a bound operand from its slot and offset through the runtime's `BoundOperands`, reads an absent operand as null and refuses a slot, offset or element type the view refuses |
 | `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive, its merge and the operands it binds |
 | `test_operation_options.cpp` | Tests that OperationOptions names a node and states no determinism class unless told to, and the record-time check every family shares |
 | `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |

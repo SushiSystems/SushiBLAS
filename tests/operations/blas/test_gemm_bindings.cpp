@@ -48,7 +48,7 @@ namespace SushiBLAS
                                                   OperandBinding{2, 0}};
 
             const Dispatch::GemmOperands<float> operands = Dispatch::bound_gemm_operands<float>(
-                OperandPointers(table, 3), bindings, Dispatch::GemmOperands<float>{});
+                SushiRuntime::BoundOperands::of_bytes(table, 3), bindings, Dispatch::GemmOperands<float>{});
 
             EXPECT_EQ(operands.a, a.data() + 1);
             EXPECT_EQ(operands.b, b.data() + 2);
@@ -63,7 +63,7 @@ namespace SushiBLAS
             const Dispatch::GemmOperands<float> recorded{a.data(), b.data(), c.data()};
 
             const Dispatch::GemmOperands<float> operands = Dispatch::bound_gemm_operands<float>(
-                OperandPointers(), std::nullopt, recorded);
+                SushiRuntime::BoundOperands(), std::nullopt, recorded);
 
             EXPECT_EQ(operands.a, a.data());
             EXPECT_EQ(operands.b, b.data());

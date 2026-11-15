@@ -293,7 +293,7 @@ namespace SushiBLAS
                         gemm.operands, gemm.dtype,
                         [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
                             const std::vector<sycl::event>& deps,
-                            const OperandPointers& pointers) -> sycl::event
+                            const SushiRuntime::BoundOperands& pointers) -> sycl::event
                         {
                             using T = decltype(scalar_type);
 

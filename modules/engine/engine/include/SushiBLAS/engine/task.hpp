@@ -43,7 +43,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiRuntime/handle/bound_operands.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
@@ -56,7 +56,7 @@ namespace SushiBLAS
             template<typename Func>
             inline constexpr bool K_TAKES_OPERAND_POINTERS = std::is_invocable_v<
                 const Func&, float, const KernelPairDispatcher&, const std::vector<sycl::event>&,
-                const OperandPointers&>;
+                const SushiRuntime::BoundOperands&>;
 
             /** @brief Names what Func returns when it takes no operand pointers. */
             template<typename Func, bool = K_TAKES_OPERAND_POINTERS<Func>>
@@ -75,13 +75,13 @@ namespace SushiBLAS
                 /// @brief The decayed return type of the four-argument call.
                 using type = std::decay_t<std::invoke_result_t<
                     const Func&, float, const KernelPairDispatcher&,
-                    const std::vector<sycl::event>&, const OperandPointers&>>;
+                    const std::vector<sycl::event>&, const SushiRuntime::BoundOperands&>>;
             };
 
             /**
              * @brief Calls a task body with a value of the element type its dtype names.
              * @tparam Func Callable `(T, const KernelPairDispatcher&, deps)` or, for a task that
-             *         binds operands, `(T, dispatcher, deps, const OperandPointers&)`, for each T
+             *         binds operands, `(T, dispatcher, deps, const SushiRuntime::BoundOperands&)`, for each T
              *         in Dom, returning one type for all: a `sycl::event`, or Device::SubmittedEvents.
              * @see modules/engine/engine/README.md
              */
@@ -110,7 +110,7 @@ namespace SushiBLAS
                      */
                     Result operator()(const KernelPairDispatcher& dispatcher,
                                       const std::vector<sycl::event>& deps,
-                                      const OperandPointers& pointers) const
+                                      const SushiRuntime::BoundOperands& pointers) const
                     {
                         // The arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
                         switch (dtype_)
@@ -151,7 +151,7 @@ namespace SushiBLAS
                     Result operator()(const KernelPairDispatcher& dispatcher,
                                       const std::vector<sycl::event>& deps) const
                     {
-                        return (*this)(dispatcher, deps, OperandPointers());
+                        return (*this)(dispatcher, deps, SushiRuntime::BoundOperands());
                     }
 
                 private:
@@ -159,7 +159,7 @@ namespace SushiBLAS
                     template<typename T>
                     Result call(T value, const KernelPairDispatcher& dispatcher,
                                 const std::vector<sycl::event>& deps,
-                                const OperandPointers& pointers) const
+                                const SushiRuntime::BoundOperands& pointers) const
                     {
                         if constexpr (K_TAKES_OPERAND_POINTERS<Func>)
                         {
@@ -188,7 +188,7 @@ namespace SushiBLAS
         /**
          * @brief Records one dtype-dispatched task whose body runs a reference and SYCL kernel pair.
          * @param family What kind of operation this is, for diagnostics; a string literal.
-         * @param op_func Callable `(scalar, dispatcher, deps[, const OperandPointers&])`.
+         * @param op_func Callable `(scalar, dispatcher, deps[, const SushiRuntime::BoundOperands&])`.
          * @deprecated An op_func that also takes the queue is still taken until H5 of the plan.
          * @throws std::invalid_argument on a dtype outside Dom; UnsupportedExecution as record_pair.
          * @see modules/engine/engine/README.md

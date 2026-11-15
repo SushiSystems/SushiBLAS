@@ -37,7 +37,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
-#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiBLAS/engine/operand_binding.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/task_sink_subjects.hpp"
 
@@ -93,7 +93,7 @@ namespace SushiBLAS
                           [&](PairRun& run)
                           {
                               bound_count = run.operands().size();
-                              seen = run.operands().address(binding);
+                              seen = operand_address<const std::byte>(run.operands(), binding);
                           });
             const auto ran = graph.run();
 
@@ -103,7 +103,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a task that bound nothing gets an empty table. */
-        TEST_F(Medium_GraphTaskSinkTest, ATaskThatBoundNothingGetsNoOperandPointers)
+        TEST_F(Medium_GraphTaskSinkTest, ATaskThatBoundNothingGetsNoBoundOperands)
         {
             const Tensor target = sink_target_of(tensors);
             TaskDescription description;

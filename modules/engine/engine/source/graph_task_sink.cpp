@@ -36,7 +36,6 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
-#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/engine/task_cost.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
@@ -70,8 +69,7 @@ namespace SushiBLAS
                 sycl::event operator()(sycl::queue& q, const std::vector<sycl::event>& deps) const
                 {
                     const KernelPairDispatcher dispatcher(mode_, q);
-                    const SushiRuntime::BoundOperands bound = SushiRuntime::bound_operands();
-                    PairRun run(dispatcher, deps, OperandPointers(bound.data(), bound.size()));
+                    PairRun run(dispatcher, deps, SushiRuntime::bound_operands());
                     body_(run);
                     return run.finished();
                 }

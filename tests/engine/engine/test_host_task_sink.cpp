@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/host_task_sink.hpp>
+#include <SushiBLAS/engine/operand_binding.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
@@ -254,7 +255,7 @@ namespace SushiBLAS
             sink.add_pair(description, operands, ExecutionMode::ForceReference, std::string(),
                           [&](PairRun& run)
                           {
-                              seen = run.operands().address(binding);
+                              seen = operand_address<const std::byte>(run.operands(), binding);
                           });
 
             EXPECT_FALSE(sink.run().has_value());

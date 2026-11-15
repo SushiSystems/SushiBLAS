@@ -103,7 +103,7 @@ namespace SushiBLAS
              * @brief Wraps a kernel-pair body in the shape a TaskSink keeps.
              * @tparam Body Callable `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`
              *         or, for a task that binds operands, `(dispatcher, deps, const
-             *         OperandPointers&)`, returning a `sycl::event`, or a Device::SubmittedEvents
+             *         SushiRuntime::BoundOperands&)`, returning a `sycl::event`, or a Device::SubmittedEvents
              *         when it submits several kernels.
              */
             template<typename Body>
@@ -126,7 +126,7 @@ namespace SushiBLAS
                     {
                         if constexpr (std::is_invocable_v<const Body&, const KernelPairDispatcher&,
                                                           const std::vector<sycl::event>&,
-                                                          const OperandPointers&>)
+                                                          const SushiRuntime::BoundOperands&>)
                         {
                             run.finish(runtime_events(
                                 (*body_)(run.dispatcher(), run.dependencies(), run.operands())));

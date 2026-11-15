@@ -21,7 +21,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which routes one kernel of a reference and SYCL pair and holds the queue the SYCL half runs on |
 | `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through; it names no SYCL type |
 | `pair_run.hpp` | `PairRun`, one run of a recorded body: its dispatcher, its dependencies, the operand pointers it bound and the event that ends its work |
-| `operand_pointers.hpp` | `OperandBinding` and `OperandPointers`, how a recorded body finds the address of an operand its task bound by handle |
+| `operand_binding.hpp` | `OperandBinding` and `operand_address()`, how a recorded body finds the address of an operand its task bound by handle in the runtime's `BoundOperands` |
 | `late_count_sink.hpp` | `LateCountSink`, the port a `TaskRecorder` adds a late-count kernel through |
 | `late_count_keeper.hpp` | `LateCount` and `LateCountKeeper`, the port a `TaskRecorder` borrows a late count through and keeps its owner in |
 | `host_late_count_keeper.hpp` | `HostLateCountKeeper`, the adapter that makes no runtime and counts the owners it keeps |
@@ -307,10 +307,10 @@ the sink with its recording mutex held.
 
 A task that bound operands (`OperandSet::bind`) is added by handle. `GraphTaskSink` records it with
 `Recorder::task(access, handles, body)`, so the runtime may place it on any device, and the run
-carries the table the runtime bound for the node on that device. `HostTaskSink` keeps the base
-address of each bound allocation and hands those to the run, and refuses a task that binds an
+carries the `BoundOperands` view the runtime bound for the node on that device; SushiBLAS keeps no view of its own. `HostTaskSink` keeps the base
+address of each bound allocation and hands those to the run as a view of raw bytes, and refuses a task that binds an
 allocation with no host address, such as a planned tensor. A task that bound nothing is recorded as
-before and stays on its home device. The body finds an operand with `run.operands().as<T>(binding)`;
+before and stays on its home device. The body finds an operand with `operand_address<T>(run.operands(), binding)`, which throws `std::runtime_error` when the view refuses the slot, the element type or the offset;
 `Detail::RecordedPairTask` and `TypedTaskBody` pass the pointers to a body that takes them as a last
 argument and call any other body without them.
 

@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-16 — engine: Replaced `OperandPointers` with the runtime's `BoundOperands`, read through `operand_address()`, which refuses a wrong slot, offset or element type (GLOBAL_HANDLE R10).
+- 2026-11-16 — blas: Changed the GEMM split slice and `bound_gemm_operands()` to take `BoundOperands`, and the copy to read operands through `operand_address()` (GLOBAL_HANDLE R10).
 - 2026-11-15 — tensor: Changed `StorageBlock::device_index()` and `Storage::device_index()` to return an optional, empty for a planned block in place of device 0 (GLOBAL_HANDLE R07).
 - 2026-11-15 — tensor: Added `Storage::require_device_index()`, which throws `UnsupportedExecution` for a planned allocation (GLOBAL_HANDLE R07).
 - 2026-11-15 — graph_primitives: Changed `HostBuffer::device_index()` to return `std::optional<DeviceIndex>`, as a runtime buffer does (GLOBAL_HANDLE R07).

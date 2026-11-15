@@ -141,7 +141,7 @@ namespace SushiBLAS
                 Dispatch::Detail::MapOperand(OperandBinding{0, K_SKIPPED * sizeof(float)}),
                 Dispatch::Detail::MapOperand(OperandBinding{1, 0}));
             task(KernelPairDispatcher(ExecutionMode::ForceSYCL, queue()), {},
-                 OperandPointers(table, 3)).wait();
+                 SushiRuntime::BoundOperands::of_bytes(table, 3)).wait();
 
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 EXPECT_EQ(out.get()[i], a.get()[i + K_SKIPPED] * b.get()[i] - a.get()[i + K_SKIPPED]);

@@ -116,7 +116,7 @@ namespace SushiBLAS
             try
             {
                 PairRun run(dispatcher, no_dependencies,
-                            OperandPointers(tasks[index].bases.data(),
+                            SushiRuntime::BoundOperands::of_bytes(tasks[index].bases.data(),
                                             tasks[index].bases.size()));
                 tasks[index].body(run);
             }

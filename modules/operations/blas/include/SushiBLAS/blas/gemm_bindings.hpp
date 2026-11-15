@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiBLAS/engine/operand_binding.hpp>
 
 namespace SushiBLAS
 {

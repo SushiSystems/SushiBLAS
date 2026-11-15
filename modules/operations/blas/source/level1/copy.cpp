@@ -77,11 +77,11 @@ namespace SushiBLAS
             recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
                 const std::vector<sycl::event>& deps,
-                const OperandPointers& pointers) -> sycl::event
+                const SushiRuntime::BoundOperands& pointers) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                const T* pX = pointers.as<const T>(bound_x);
-                T* pY = pointers.as<T>(bound_y);
+                const T* pX = operand_address<const T>(pointers, bound_x);
+                T* pY = operand_address<T>(pointers, bound_y);
 
                 return dispatcher.run(deps,
                     [=]

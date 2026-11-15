@@ -39,7 +39,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
-#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiBLAS/engine/operand_binding.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 

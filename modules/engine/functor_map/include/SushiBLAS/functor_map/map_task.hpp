@@ -42,7 +42,8 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiBLAS/engine/operand_binding.hpp>
+#include <SushiRuntime/handle/bound_operands.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 
 namespace SushiBLAS
@@ -75,11 +76,11 @@ namespace SushiBLAS
 
                 }
 
-                /** @brief Returns the address of the first element for the run whose table is @p pointers. */
-                [[nodiscard]] const void* resolve(const OperandPointers& pointers) const noexcept
+                /** @brief Returns the address of the first element for the run whose operands are @p operands. */
+                [[nodiscard]] const void* resolve(const SushiRuntime::BoundOperands& operands) const
                 {
                     return binding.slot == OperandBinding::K_ABSENT ? recorded
-                                                                    : pointers.address(binding);
+                                                                    : operand_address<const std::byte>(operands, binding);
                 }
 
                 /// @brief Where the task's bound table holds the operand; absent for a recorded address.
@@ -195,7 +196,7 @@ namespace SushiBLAS
                      */
                     sycl::event operator()(const KernelPairDispatcher& pair,
                                            const std::vector<sycl::event>& deps,
-                                           const OperandPointers& pointers) const
+                                           const SushiRuntime::BoundOperands& pointers) const
                     {
                         // The runtime may bind another instance at each run, so read them now.
                         void* const out = const_cast<void*>(out_.resolve(pointers));
@@ -229,7 +230,7 @@ namespace SushiBLAS
                     sycl::event operator()(const KernelPairDispatcher& pair,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        return (*this)(pair, deps, OperandPointers());
+                        return (*this)(pair, deps, SushiRuntime::BoundOperands());
                     }
 
                 private:
@@ -380,7 +381,7 @@ namespace SushiBLAS
                      */
                     sycl::event operator()(const KernelPairDispatcher& pair,
                                            const std::vector<sycl::event>& deps,
-                                           const OperandPointers& pointers) const
+                                           const SushiRuntime::BoundOperands& pointers) const
                     {
                         std::array<void*, N> ptrs{};
                         bool vec_ok = true;
@@ -412,7 +413,7 @@ namespace SushiBLAS
                     sycl::event operator()(const KernelPairDispatcher& pair,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        return (*this)(pair, deps, OperandPointers());
+                        return (*this)(pair, deps, SushiRuntime::BoundOperands());
                     }
 
                 private:
