@@ -47,6 +47,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     random_kernels      kernels
     sparse_kernels      kernels
     spatial_kernels     kernels
+    index_kernels       kernels
     signal_kernels      kernels
     linalg_kernels      kernels
     blend_kernels       kernels
@@ -63,6 +64,8 @@ set(SUSHIBLAS_MODULE_LAYERS
     blas                operations
     elementwise         operations
     index               operations
+    gather              operations
+    broadcast           operations
     nonlinear           operations
     reductions          operations
     random              operations

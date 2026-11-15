@@ -38,7 +38,9 @@ sushiblas_add_module(
         spatial
         signal
         blend
-        index)
+        index
+        gather
+        broadcast)
 
 # The tests that cross several operation families and so belong to no single family. The pack
 # test needs the cluster module, which only SB_ENABLE_DISTRIBUTED builds.
@@ -69,6 +71,6 @@ sushiblas_add_test_program(
         test_SushiBLAS/test_spatial_random_io_validation.cpp
         test_SushiBLAS/test_storage_offset.cpp
         test_SushiBLAS/test_task_dependencies.cpp
+        test_SushiBLAS/test_tensor_host_access.cpp
     DEVICE_BENCHMARKS
         benchmark_elementwise.cpp)
-        test_SushiBLAS/test_tensor_host_access.cpp

@@ -6,20 +6,20 @@ on the device. The random draws exist only under `sycl/`; the orthonormalisation
 
 `blas_seam_kernels` holds GEMM's pair, the packed product and the access bricks the BLAS kernels
 read their operands through. A public seam instantiates them in a consumer's translation unit, so
-the module is installed, for the reason given under `blas.hpp` below. The other four modules are
+the module is installed, for the reason given under `blas.hpp` below. The other modules are
 internal: a module of the library includes their headers and the install does not ship them.
 
 The paths in the table are relative to `<module>/include/SushiBLAS/<module>/`.
 
 | Module | Path | Holds |
 | --- | --- | --- |
-| each | `blas.hpp`, `sparse.hpp`, `spatial.hpp`, `random.hpp` | The include of every kernel of one family |
+| each | `blas.hpp`, `sparse.hpp`, `spatial.hpp`, `random.hpp`, `index.hpp` | The include of every kernel of one family |
 | `blas_kernels` | `reference/`, `sycl/` | Levels 1 to 3. `level1.hpp` holds the vector routines of one side and `rotg`, `rotm` and `rotmg` have a file each |
 | `sparse_kernels` | `csr_pattern.hpp`, `index_list.hpp` | `CsrPattern` and `IndexList`, how a kernel of either side reads a sparse operand |
 | `sparse_kernels` | `reference/`, `sycl/` | The sparse-dense level 1 routines, the CSR products and the triangular solve |
 | `spatial_kernels` | `reference/`, `sycl/` | im2col, col2im, pooling, the window product, upsampling, channel and broadcast copies |
-| `random_kernels` | `reference/` | The reference orthonormalisation sweep |
-| `random_kernels` | `sycl/` | Philox4x32-10, the Poisson and truncated normal draws, and the Gram-Schmidt sweep |
+| `index_kernels` | `spans.hpp`, `reference/`, `sycl/` | The row copy and row sum by index, and the pick and write of one element per row |
+| `random_kernels` | `reference/`, `sycl/` | The reference orthonormalisation sweep; on the device Philox4x32-10, the Poisson and truncated normal draws, and the Gram-Schmidt sweep |
 | `signal_kernels` | `fft_plan.hpp`, `reference/`, `sycl/` | The valid-mode convolution and the batched FFT |
 | `linalg_kernels` | `chunked_dot.hpp`, `reference/`, `sycl/` | The batched LU factorisation and solve, and GMRES |
 | `blend_kernels` | `reference/`, `sycl/` | The weighted blend of transforms applied to points |
@@ -30,7 +30,7 @@ Each module's own README lists its headers and what each declares:
 [blas_kernels](blas_kernels/README.md), [blas_seam_kernels](blas_seam_kernels/README.md),
 [sparse_kernels](sparse_kernels/README.md), [spatial_kernels](spatial_kernels/README.md),
 [signal_kernels](signal_kernels/README.md), [linalg_kernels](linalg_kernels/README.md),
-[blend_kernels](blend_kernels/README.md) and [random_kernels](random_kernels/README.md). A kernel header is named after its routine. A
+[blend_kernels](blend_kernels/README.md), [index_kernels](index_kernels/README.md) and [random_kernels](random_kernels/README.md). A kernel header is named after its routine. A
 routine and its Hermitian sibling share a header, and so do `ger`, `geru` and `gerc`.
 
 ## Notes by file

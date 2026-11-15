@@ -35,8 +35,8 @@ one beside the consumer's compiler.
 
 The install copies the include root of every module that is not internal, so a consumer of the
 package can include the umbrella header, any header it names, the `dispatch.hpp` of each family
-and the seam kernels of `blas_seam_kernels`. `blas_kernels`, `random_kernels`, `sparse_kernels`
-and `spatial_kernels` are declared `INTERNAL` in their `CMakeLists.txt` and are left out
+and the seam kernels of `blas_seam_kernels`. `blas_kernels`, `random_kernels`, `sparse_kernels`,
+`spatial_kernels` and `index_kernels` are declared `INTERNAL` in their `CMakeLists.txt` and are left out
 (`cmake/SushiBLASModule.cmake`).
 
 ## The header-only modules without the library

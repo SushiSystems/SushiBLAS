@@ -222,6 +222,7 @@ and from `BENCHMARKS` otherwise.
 | `operations/reductions/benchmark_reductions.cpp` | `sum`, `max`, `var` over the whole tensor |
 | `operations/random/benchmark_random.cpp` | The `RandomOps` draws, `shuffle` and `orthogonal` |
 | `operations/spatial/benchmark_spatial.cpp` | Every `SpatialOps` operation on a batch of NHWC images |
+| `operations/gather/benchmark_index_rows.cpp` | `RowIndexOps` beside the sparse products it replaces, at V, R and C of 8192 and D of 384 |
 | `library/umbrella/benchmark_elementwise.cpp` | `add`, in-place `exp`, in-place `relu`; it crosses `elementwise` and `nonlinear` |
 
 ### Build and run

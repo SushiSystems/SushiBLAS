@@ -32,6 +32,7 @@ in one line.
 | data | `tensor_expectations` | Test-only: filling, reading back and comparing a dense tensor | [README](data/tensor_expectations/README.md) |
 | kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
 | kernels | `blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` | The internal kernels of each family | [README](kernels/README.md) |
+| kernels | `index_kernels` | The kernels of the row index operations | [README](kernels/index_kernels/README.md) |
 | kernels | `linalg_kernels` | The kernels of the batched LU, its solve and GMRES | [README](kernels/linalg_kernels/README.md) |
 | kernels | `packed_product_harness` | Test-only: the problem, the data and the blockings of the packed GEMM tests | [README](kernels/packed_product_harness/README.md) |
 | engine | `engine` | `Engine`, the task recorder, the operand set and checks, the scratch pool, the dispatch seam | [README](engine/engine/README.md) |
@@ -47,6 +48,7 @@ in one line.
 | operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |
 | operations | `sparse` | The sparse operations, their record-time checks and operand describers | [README](operations/sparse/README.md) |
 | operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
+| operations | `gather` | `RowIndexOps`: rows by index, their sum into a table, and one element per row | [README](operations/gather/README.md) |
 | operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
 | operations | `experimental` | `TransformsOps`, the batched FFT, and `LinalgOps`, the batched LU and GMRES | [README](operations/experimental/README.md) |
 | operations | `benchmark_harness` | Benchmark-only: the size arguments, environment lines, fill, timing loop and table of the benchmark programs | [README](operations/benchmark_harness/README.md) |
@@ -134,12 +136,12 @@ Both forward to `TensorFactory::create`, so both check the rank, negative dimens
 and the device index before they allocate. `Tensor::reshape` takes a braced list or a
 `std::vector<int64_t>`.
 
-## `tensor_factory.hpp`
-
 Both may be called from any thread at any time, also while another thread records or executes: the
 factory holds a runtime pointer and a layout and changes neither, `Storage` calls the allocator and
 nothing else, and the allocator accepts calls from any thread.
 `tests/data/tensor/test_tensor_factory/test_tensor_factory_threads.cpp` creates tensors from eight threads at once.
+
+## `tensor_factory.hpp`
 
 `TensorFactory` holds a `BlockMaker` (over a `SushiRuntime::Runtime`, or over host memory) and a default layout, and
 `create` allocates a dense tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
@@ -322,14 +324,14 @@ This calculates the address using the storage pointer and the offset.
 differ by `storage_offset` elements, which is zero for a freshly allocated tensor and non-zero for
 every view: a slice, a reshape, or a tensor a memory planner placed inside a shared arena.
 
-### `Tensor::data_or_null`
-
 **Host access.** A tensor of `Residency::Shared` or `Residency::Host` may be read and written
 through `data_as` on the host while no recorded task that touches its region is pending or running.
 A task executed afterwards reads the bytes written, so one plan executed several times sees a source
 the host rewrote between the executions. A `Residency::Device` tensor has no host address; move its
 elements with `IO`. `tests/library/umbrella/test_SushiBLAS/test_tensor_host_access.cpp` keeps this for an INT32 and a
 FLOAT32 tensor on every device queue.
+
+### `Tensor::data_or_null`
 
 The operation drivers treat a tensor with no storage as "nothing to address" rather than as an
 error. A driver that tested the storage and took the allocation base itself would drop

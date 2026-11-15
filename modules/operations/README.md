@@ -15,11 +15,13 @@ kernels a task runs are in the modules under `modules/kernels/`.
 | `blas/source/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine; a routine and its Hermitian or conjugated sibling share a file |
 | `sparse/source/` | `SparseOps`, one file per routine; `doti.cpp` holds the three dot products and `spsymv.cpp` also `sphemv` |
 | `logic/source/` | `LogicOps`, one file per comparison, logical operation or truth reduction |
+| `broadcast/source/` | `BroadcastOps`, one file per operation |
 | `elementwise/source/` | `ElementwiseOps`, one file per operation |
 | `nonlinear/source/` | `NonLinearOps`, one file per activation and its gradient |
 | `random/source/` | `RandomOps`, one file per distribution or initialiser; `PositionedRandomOps` and the position tensor, one file each |
 | `reductions/source/` | `ReductionOps`, one file per reduction |
 | `spatial/source/` | `SpatialOps`: the window, pooling, window product, channel and broadcast operations |
+| `gather/source/` | `RowIndexOps`, one file per operation |
 
 ## What a file holds
 
@@ -48,8 +50,8 @@ no task: it reseeds the stream the view draws from. `positioned_bernoulli.cpp` a
 `rng_position_tensor.cpp` belong to the fills that read their stream position from a tensor when
 they run; see the random README.
 
-**Elementwise, logic, reductions** (`elementwise/source/`, `logic/source/`,
-`reductions/source/`). One method per file, each named after its method.
+**Broadcast, elementwise, logic, reductions** (`broadcast/source/`, `elementwise/source/`,
+`logic/source/`, `reductions/source/`). One method per file, each named after its method.
 
 ## Notes by file
 

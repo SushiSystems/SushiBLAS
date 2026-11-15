@@ -11,7 +11,7 @@ flags. The dense BLAS, sparse and spatial families have a kernel pair per operat
   `const std::vector<sycl::event>& deps`, makes every command group depend on `deps`, and returns
   the event of its last submission.
 
-`blas_kernels`, `random_kernels`, `sparse_kernels` and `spatial_kernels` are internal modules:
+`blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` and `index_kernels` are internal modules:
 their headers are not installed and a consumer cannot include them. A kernel a public seam
 instantiates in a consumer's translation unit cannot be internal, so those live in
 `modules/kernels/blas_seam_kernels/` and are installed: GEMM's reference and SYCL kernels with the packed product they share with SYRK, the

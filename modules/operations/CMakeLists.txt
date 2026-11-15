@@ -7,6 +7,8 @@
 add_subdirectory(blas)
 add_subdirectory(elementwise)
 add_subdirectory(index)
+add_subdirectory(gather)
+add_subdirectory(broadcast)
 add_subdirectory(nonlinear)
 add_subdirectory(reductions)
 add_subdirectory(random)

@@ -2,13 +2,14 @@
 
 The per-element seam: the map and zip task bodies, and the bindings that declare the tensors and
 narrow the scalars a functor reads. `elementwise`, `nonlinear` and `logic` record their operations
-through it.
+through it, and `broadcast` records through the broadcast task body.
 
 It depends on `core`, `support`, `tensor` and `engine`. Its headers are included as
 `<SushiBLAS/functor_map/<name>.hpp>`.
 
 | File | Declares |
 | --- | --- |
+| `broadcast_task.hpp` | The task body of the broadcast seam, with its nested host loops and its SYCL path |
 | `index_task.hpp` | The task body of the per-index seam, with its serial host path and its SYCL path |
 | `map_task.hpp` | The task bodies of the per-element seams, each with its serial host path and its SYCL path |
 | `read_binding.hpp` | The binding that declares the tensors an element functor reads and hands them to it as typed pointers |
@@ -144,6 +145,19 @@ this order needs no new mechanism. `bind_updates` refuses to wrap a `bind_writes
 `Detail::IsWriteBound` is true for an update bundle, so the elementwise, nonlinear and logic seams
 refuse it as they refuse a write bundle. A seam that takes updates calls
 `require_declared_updates` and `declare_updates` between the read and the write calls.
+
+## `functor_map/broadcast_task.hpp`
+
+`BroadcastTask` runs `out[o, n] = op(a[o, n], v0, ..., vN-1)` for one to four vectors, each
+selected by the outer index `o` or the inner index `n`. `BroadcastIndex` names which; the
+`BroadcastOperands` struct holds the two extents, the base addresses and one `BroadcastIndex` per
+vector. Under `ForceReference` the body runs two nested loops over `o` and `n`; under any other
+mode it submits one `sycl::range<2>{outer, inner}` kernel, so no work-item divides. Both paths call
+`BroadcastElement`, one object built from the functor `kernel_op` returns, so the host path is not a
+second implementation. Each element of `a` is read before the element of `out` at the same index is
+written, which is what lets `out` be `a`. There is no `sycl::vec` path. `make_broadcast_task`
+builds the body from the seam's arguments; `execute_broadcast` in
+[`broadcast`](../../operations/broadcast/README.md) is its only caller.
 
 ## `functor_map/index_task.hpp`
 

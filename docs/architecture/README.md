@@ -50,14 +50,14 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
   kernels/
     blas_seam_kernels/  The GEMM kernels, the packed product and the access policies a
                          public seam instantiates; installed
-    blas_kernels/, random_kernels/, sparse_kernels/, spatial_kernels/
+    blas_kernels/, random_kernels/, sparse_kernels/, spatial_kernels/, index_kernels/
                         The reference and SYCL kernels of each family; never installed
   engine/
     engine/             Engine, TaskRecorder, the execution mode, scratch, the random stream
     operands/           The operand checks and views the families share
     functor_map/        The per-element seam: the map task and its bindings
   operations/
-    blas/, elementwise/, nonlinear/, reductions/, random/, logic/, sparse/, spatial/
+    blas/, elementwise/, nonlinear/, reductions/, random/, logic/, sparse/, spatial/, gather/
                         One operation view each, with one <op>.cpp per operation
     io/                 Host transfer, save, load and print (native, .npy, raw binary)
     experimental/       The batched FFT, LU and GMRES; the other LAPACK declarations are undefined
