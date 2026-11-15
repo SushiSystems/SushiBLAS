@@ -46,6 +46,7 @@
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/blas/gemm_bindings.hpp>
+#include <SushiBLAS/blas/gemm_split_regions.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
@@ -85,6 +86,7 @@ namespace SushiBLAS
             BLASScalar alpha = 1.0;                             /**< The scale of the product. */
             BLASScalar beta = 0.0;                              /**< The scale of the old C. */
             std::optional<GemmBindings> bindings;               /**< Where A, B and C sit in the bound operands; empty when the call bound none. */
+            GemmOperandRegions regions;                         /**< Where A, B and C start, and the epilogue's reads, for the parts of a split. */
             const void* read_a = nullptr;                       /**< The data of A; null when the call bound its operands. */
             const void* read_b = nullptr;                       /**< The data of B; null when the call bound its operands. */
             void* write_c = nullptr;                            /**< The data of C; null when the call bound its operands. */
@@ -168,6 +170,8 @@ namespace SushiBLAS
             else
                 gemm.operands.updates(C);
             gemm.operands.merge(epilogue.operands);
+            gemm.regions = GemmOperandRegions{A.region(), B.region(), C.region(),
+                                              epilogue.operands.read_regions()};
 
             gemm.pack = Internal::allocate_packed_product_scratch(
                 recorder, C, g.m, g.n, g.k, g.batch_size, gemm.operands);

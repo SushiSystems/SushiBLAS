@@ -42,6 +42,7 @@
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/blas/gemm_bindings.hpp>
+#include <SushiBLAS/blas/gemm_split_regions.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/machine/node_split.hpp>
 
@@ -51,16 +52,6 @@ namespace SushiBLAS
     {
         /// @brief The operands of a GEMM the runtime binds a pointer for: A, B and C.
         inline constexpr std::size_t K_GEMM_OPERAND_COUNT = 3;
-
-        /**
-         * @brief Names the axis of C a GEMM is cut along, as the numbers NodeSplit::axis carries.
-         * @see modules/operations/blas/README.md
-         */
-        enum class GemmSplitAxis : std::uint32_t
-        {
-            Rows = 0,   /**< Parts hold consecutive rows of C and of op(A). */
-            Columns = 1 /**< Parts hold consecutive columns of C and of op(B). */
-        };
 
         /**
          * @brief Holds the sub-problem one part of a split GEMM computes: its extents and the element
@@ -199,9 +190,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Builds the split of a GEMM; its slice runs the SYCL GEMM on one part and waits.
-         * @param geometry The extents and strides of the whole call.
+         * @brief Builds the split of a GEMM: gemm_part_regions() and the SYCL GEMM of each part.
          * @param a,b,c The first elements of A, B and C as recorded; null for a bound call.
+         * @param operand_regions Where A, B and C start in their allocations; C is read when beta is not zero.
          * @param bindings Where the bound table holds A, B and C; empty for a call that bound none.
          * @return A split along gemm_split_axis(geometry).
          * @see modules/operations/blas/README.md
@@ -210,7 +201,7 @@ namespace SushiBLAS
         [[nodiscard]] std::shared_ptr<const SushiRuntime::NodeSplit>
         make_gemm_split(const GemmGeometry& geometry, Core::Layout layout, Core::Transpose trans_a,
                         Core::Transpose trans_b, T alpha, const T* a, const T* b, T beta, T* c,
-                        const Epilogue& epilogue,
+                        const Epilogue& epilogue, const GemmOperandRegions& operand_regions,
                         const std::optional<GemmBindings>& bindings = std::nullopt)
         {
             const GemmSplitAxis axis = gemm_split_axis(geometry);
@@ -218,6 +209,14 @@ namespace SushiBLAS
             auto split = std::make_shared<SushiRuntime::NodeSplit>();
             split->axis = static_cast<std::uint32_t>(axis);
             split->extent = static_cast<std::uint64_t>(gemm_split_extent(geometry, axis));
+            const bool reads_c = beta != T(0);
+            split->regions = [=](const SushiRuntime::SplitPart& part)
+            {
+                return gemm_part_regions(geometry, layout, trans_a, trans_b, reads_c, axis,
+                                         static_cast<int64_t>(part.begin),
+                                         static_cast<int64_t>(part.end), sizeof(T),
+                                         operand_regions);
+            };
             split->slice = [=](const SushiRuntime::SplitPart& part, sycl::queue& queue,
                                SushiRuntime::span<void* const> table)
             {

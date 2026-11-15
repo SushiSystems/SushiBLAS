@@ -191,7 +191,7 @@ namespace SushiBLAS
                         geometry_of(test_case), test_case.layout, test_case.trans_a,
                         test_case.trans_b, 1.0f, bound ? nullptr : device_a,
                         bound ? nullptr : device_b, 0.0f, bound ? nullptr : device_c,
-                        PositionEpilogue{},
+                        PositionEpilogue{}, Dispatch::GemmOperandRegions{},
                         bound ? std::optional<Dispatch::GemmBindings>(Dispatch::GemmBindings{
                                     OperandBinding{0, 0}, OperandBinding{1, 0},
                                     OperandBinding{2, 0}})
@@ -253,6 +253,55 @@ namespace SushiBLAS
             const std::vector<float> b = values(static_cast<std::size_t>(test_case.k * test_case.n), 4);
 
             EXPECT_EQ(in_parts(test_case, a, b, Operands::Bound), whole(test_case, a, b));
+        }
+
+        /**
+         * @brief Tests that two parts of a batched row-major GEMM, cut along the columns of C, give
+         *        the product the host reference gives.
+         */
+        TEST(Medium_GemmSplitBatched, TwoColumnPartsOfABatchedProductGiveTheHostReference)
+        {
+            constexpr int64_t K_M = 3;
+            constexpr int64_t K_N = 7;
+            constexpr int64_t K_K = 4;
+            constexpr int64_t K_BATCH = 2;
+            GemmGeometry geometry = geometry_of(SplitCase{Layout::RowMajor, Transpose::NoTrans,
+                                                          Transpose::NoTrans, K_M, K_N, K_K});
+            geometry.batch_size = K_BATCH;
+            geometry.stride_a = K_M * K_K;
+            geometry.stride_b = K_K * K_N;
+            geometry.stride_c = K_M * K_N;
+            const std::vector<float> a = values(static_cast<std::size_t>(K_BATCH * K_M * K_K), 1);
+            const std::vector<float> b = values(static_cast<std::size_t>(K_BATCH * K_K * K_N), 4);
+            const std::size_t c_count = static_cast<std::size_t>(K_BATCH * K_M * K_N);
+            std::vector<float> expected(c_count, 0.0f);
+            Kernels::Reference::gemm<float>(Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans,
+                                            K_M, K_N, K_K, 1.0f, a.data(), geometry.a.leading_dimension,
+                                            geometry.stride_a, b.data(), geometry.b.leading_dimension,
+                                            geometry.stride_b, 0.0f, expected.data(),
+                                            geometry.c.leading_dimension, geometry.stride_c, K_BATCH,
+                                            PositionEpilogue{});
+            sycl::queue& q = TestEnvironment::queue();
+            float* device_a = sycl::malloc_shared<float>(a.size(), q);
+            float* device_b = sycl::malloc_shared<float>(b.size(), q);
+            float* device_c = sycl::malloc_shared<float>(c_count, q);
+            q.memcpy(device_a, a.data(), a.size() * sizeof(float)).wait();
+            q.memcpy(device_b, b.data(), b.size() * sizeof(float)).wait();
+            q.memset(device_c, 0, c_count * sizeof(float)).wait();
+            const auto split = Dispatch::make_gemm_split<float>(
+                geometry, Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 1.0f, device_a,
+                device_b, 0.0f, device_c, PositionEpilogue{}, Dispatch::GemmOperandRegions{});
+
+            split->slice(SushiRuntime::SplitPart{split->axis, 0, 4, 0, 2}, q, SushiRuntime::span<void* const>());
+            split->slice(SushiRuntime::SplitPart{split->axis, 4, 7, 1, 2}, q, SushiRuntime::span<void* const>());
+
+            std::vector<float> c(c_count);
+            q.memcpy(c.data(), device_c, c_count * sizeof(float)).wait();
+            sycl::free(device_a, q);
+            sycl::free(device_b, q);
+            sycl::free(device_c, q);
+            EXPECT_EQ(split->axis, static_cast<std::uint32_t>(GemmSplitAxis::Columns));
+            EXPECT_EQ(c, expected);
         }
 
         INSTANTIATE_TEST_SUITE_P(

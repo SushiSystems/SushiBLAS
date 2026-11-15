@@ -285,7 +285,7 @@ namespace SushiBLAS
                                     gemm.geometry, layout, transA, transB, alpha.as<T>(),
                                     static_cast<const T*>(read_A), static_cast<const T*>(read_B),
                                     beta.as<T>(), static_cast<T*>(rw_C), kernel_epilogue,
-                                    bindings);
+                                    gemm.regions, bindings);
                             });
                     }
 

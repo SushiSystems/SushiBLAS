@@ -23,7 +23,8 @@ so one view records all three levels.
 | `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
 | `dispatch.hpp` | The GEMM executor of the dispatch seam and the epilogue bundle it accepts |
 | `gemm_recording.hpp` | `GemmTaskPort`, the port that records a checked GEMM call, and `InMemoryGemmPort`, which records it with no kernel |
-| `gemm_split.hpp` | The split a GEMM states: `GemmSplitAxis`, `GemmSlice`, `slice_gemm`, `OffsetEpilogue` and `make_gemm_split` |
+| `gemm_split.hpp` | The split a GEMM states: `GemmSlice`, `slice_gemm`, `OffsetEpilogue` and `make_gemm_split` |
+| `gemm_split_regions.hpp` | `GemmSplitAxis`, `GemmOperandRegions` and `gemm_part_regions`, the bytes one part of a split GEMM reads and writes |
 | `sparse.hpp` | `SparseBLAS`, a placeholder class that declares no operation |
 
 `SparseBLAS` is not the sparse surface and no class derives from it. The sparse operations are
@@ -179,6 +180,16 @@ the part's device, and waits for it, because the slice returns nothing the runti
 `slice_gemm` gives the part's extents and the element offsets of A, B and C for the layout and the
 transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix. The
 parts write disjoint elements of C, so the split states no combine.
+
+The split's `regions` are `gemm_part_regions` of each part, because SushiRuntime reads no layout
+and plans exactly the bytes a consumer declares. A row part reads its rows of op(A) and all of B,
+a column part all of A and its columns of op(B), and each writes its block of C, which it also
+reads when beta is not zero; every part also reads the epilogue's operands whole. The block of a
+stored matrix is one range per row (row-major) or column (column-major), or one range per matrix
+when the part covers whole rows or columns of leading-dimension length, repeated per matrix of the
+batch at the batch stride. Ranges that touch are merged. A column part of a row-major C is thus one
+range per row of each matrix. `prepare_gemm` fills `GemmOperandRegions` from the regions of A, B
+and C, whose offsets name each view's first element.
 
 The slice reads A, B and C through `bound_gemm_operands`: the base address of each of the three
 allocations the runtime bound on the part's device, in that order, plus the byte offset of each
