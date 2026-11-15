@@ -13,6 +13,7 @@ It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>
 | `storage_block.hpp` | StorageBlock, the port a Storage reads its bytes through, and `K_STORAGE_ALIGNMENT` |
 | `block_maker.hpp` | BlockMaker, the port a TensorFactory gets its blocks through |
 | `host_block.hpp` | HostBlock and HostBlockMaker, aligned host memory that no runtime owns, and `make_host_storage` |
+| `host_handle_space.hpp` | `host_handle_space()`, the one process-wide LocalHandleSpace that mints the handle of every HostBlock, and `K_HOST_HANDLE_SPACE_ID` |
 | `runtime_block.hpp` | RuntimeBlock and RuntimeBlockMaker over a SushiRuntime buffer, `make_runtime_storage` and `borrow_runtime_storage`; the one header here that includes `SushiRuntime/sushiruntime.hpp` |
 | `storage.hpp` | Storage, the reference-counted allocation a tensor's elements live in |
 | `tensor.hpp` | Tensor, a typed, strided view over a Storage, or over none for validation |
@@ -22,15 +23,26 @@ It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>
 
 `Tensor::global_handle()` returns the `SushiRuntime::GlobalHandle` of the allocation the tensor views,
 through `Storage::global_handle()` and `StorageBlock::global_handle()`. `RuntimeBlock` returns the
-handle of the buffer it holds, for an allocated and for a borrowed block. `HostBlock` and a tensor
-with no storage return the null handle, because the runtime does not hold that memory. Every view of
+handle of the buffer it holds, for an allocated and for a borrowed block. `HostBlock` returns a handle
+of the host handle space (below), and a tensor with no storage returns the null handle. Every view of
 one storage reports one handle; `region()` names the bytes of the view within it.
 
-A `HostBlock` has no handle, so the `region()` of a host tensor is a region of the null handle: it is
-not `valid()` and overlaps nothing, and a host sink orders none of the tasks that name a host tensor.
-The runtime mints a handle for memory it holds, and a `HostBlock` is built without a runtime. The
-runtime offers no call that mints a handle for host memory with no `Runtime` behind it, and
-`borrowed_region()` needs a `Recorder`, which needs one.
+### The host handle space
+
+`host_handle_space.hpp` declares `host_handle_space()`, one `SushiRuntime::LocalHandleSpace` for the
+whole process: a function-local static, so every translation unit that includes the header shares
+it. Its space id is `K_HOST_HANDLE_SPACE_ID` (1), carried in the machine field of each handle; the
+host double of `graph_primitives` takes 2, and any other SushiBLAS space needs an id of its own.
+Each `HostBlock` that owns memory mints one handle of kind `Buffer` in its constructor, before it
+allocates, and the handle stays with the block through a move. A default or moved-from block owns
+nothing and returns the null handle. Minting takes no lock and the slots count in mint order, so the
+same sequence of allocations gives the same handles. The constructor throws `std::runtime_error`
+after 2^32 mints.
+
+The `region()` of a host tensor is therefore valid: it overlaps the regions of its own storage that
+share bytes with it and nothing else, so a host sink orders the tasks that name the same host
+storage. The handles carry the local universe, which no runtime serves, so a runtime refuses them
+as a foreign universe and none is ever given to a runtime graph.
 
 ## Borrowing memory
 

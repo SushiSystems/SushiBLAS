@@ -32,6 +32,7 @@
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/host_block.hpp>
+#include <SushiRuntime/handle/local_handle_space.hpp>
 
 namespace SushiBLAS
 {
@@ -51,11 +52,42 @@ namespace SushiBLAS
             EXPECT_EQ(block.size_bytes(), std::size_t{300});
         }
 
-        TEST(Small_HostBlock, ItReportsTheNullHandleBecauseTheRuntimeDoesNotHoldIt)
+        TEST(Small_HostBlock, ItReportsAHandleOfTheHostHandleSpace)
         {
             const HostBlock block(300, 128);
 
+            const SushiRuntime::GlobalHandle handle = block.global_handle();
+
+            EXPECT_FALSE(handle.is_null());
+            EXPECT_TRUE(SushiRuntime::LocalHandleSpace::is_local(handle));
+            EXPECT_EQ(handle.machine(), K_HOST_HANDLE_SPACE_ID);
+            EXPECT_EQ(handle.kind(), SushiRuntime::HandleKind::Buffer);
+        }
+
+        TEST(Small_HostBlock, TwoBlocksReportDifferentHandles)
+        {
+            const HostBlock first(64, 64);
+            const HostBlock second(64, 64);
+
+            EXPECT_NE(first.global_handle(), second.global_handle());
+        }
+
+        TEST(Small_HostBlock, ADefaultBlockReportsTheNullHandle)
+        {
+            const HostBlock block;
+
             EXPECT_TRUE(block.global_handle().is_null());
+        }
+
+        TEST(Small_HostBlock, AMoveHandsTheHandleOverAndLeavesTheSourceWithTheNullHandle)
+        {
+            HostBlock source(64, 64);
+            const SushiRuntime::GlobalHandle handle = source.global_handle();
+
+            const HostBlock target(std::move(source));
+
+            EXPECT_EQ(target.global_handle(), handle);
+            EXPECT_TRUE(source.global_handle().is_null());
         }
 
         TEST(Small_HostBlock, ADefaultBlockOwnsNothing)

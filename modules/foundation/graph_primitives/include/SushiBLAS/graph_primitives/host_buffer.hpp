@@ -28,13 +28,14 @@
 
 #pragma once
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
 
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/handle/global_handle.hpp>
+#include <SushiRuntime/handle/local_handle_space.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 
 namespace SushiBLAS
@@ -43,21 +44,35 @@ namespace SushiBLAS
     {
         namespace Detail
         {
+            /// @brief The space id of the handles of the host double; the tensor module's host
+            ///        blocks use 1, so a handle of one never equals a handle of the other.
+            inline constexpr std::uint16_t K_HOST_DOUBLE_SPACE_ID = 2;
+
             /**
-             * @brief Returns a new handle that names one block of host memory of a host adapter.
+             * @brief Returns the space that mints the handle of every HostBuffer and every scratch
+             *        block of HostPrimitiveRecorder in the process.
              *
-             * Only HostBuffer and HostPrimitiveRecorder mint these, for memory no runtime holds, so
-             * no directory reads them and no runtime graph is given one. Each call returns a slot
-             * no earlier call returned, counting from 1.
+             * These blocks are memory no runtime holds, so no directory reads their handles and no
+             * runtime graph is given one.
              * @see modules/foundation/graph_primitives/README.md
              */
-            [[nodiscard]] inline SushiRuntime::GlobalHandle mint_host_handle() noexcept
+            [[nodiscard]] inline SushiRuntime::LocalHandleSpace& host_double_space() noexcept
             {
-                static std::atomic<std::uint32_t> next_slot{1};
-                return SushiRuntime::GlobalHandle(
-                    0, 0, SushiRuntime::HandleKind::Buffer,
-                    SushiRuntime::HandleFlags::HostOnly | SushiRuntime::HandleFlags::Borrowed, 1,
-                    next_slot.fetch_add(1, std::memory_order_relaxed));
+                static SushiRuntime::LocalHandleSpace space(K_HOST_DOUBLE_SPACE_ID);
+                return space;
+            }
+
+            /**
+             * @brief Returns a new handle from host_double_space().
+             * @throws std::runtime_error if the space has minted 2^32 handles.
+             */
+            [[nodiscard]] inline SushiRuntime::GlobalHandle mint_double_handle()
+            {
+                const SushiRuntime::MintOutcome outcome =
+                    host_double_space().mint(SushiRuntime::HandleKind::Buffer);
+                if (outcome.status != SushiRuntime::HandleStatus::Ok)
+                    throw std::runtime_error("host double: the handle space is exhausted");
+                return outcome.handle;
             }
         } // namespace Detail
 
@@ -113,7 +128,7 @@ namespace SushiBLAS
                 std::size_t size_ = 0;
 
                 /** @brief The handle that names the buffer; it moves with the buffer. */
-                SushiRuntime::GlobalHandle handle_ = Detail::mint_host_handle();
+                SushiRuntime::GlobalHandle handle_ = Detail::mint_double_handle();
         };
 
     } // namespace GraphPrimitives

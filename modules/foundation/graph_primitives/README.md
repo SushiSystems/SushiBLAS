@@ -74,7 +74,7 @@ place the tile size is written.
 | `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
 | `primitive_recorder.hpp` | `PrimitiveNodeKind`, `PrimitiveNodeRecord`, `K_IS_PRIMITIVE_RECORDER` |
 | `runtime_primitive_recorder.hpp` | `RuntimePrimitiveRecorder`: the adapter over a `SushiRuntime::Recorder` |
-| `host_buffer.hpp` | `HostBuffer`: the operand type of `HostPrimitiveRecorder`, host memory with no runtime; `Detail::mint_host_handle` |
+| `host_buffer.hpp` | `HostBuffer`: the operand type of `HostPrimitiveRecorder`, host memory with no runtime; `Detail::host_double_space` and `Detail::mint_double_handle` |
 | `scratch_region.hpp` | `Detail::ScratchRegion`, `Detail::name_scratch`: the windows of one scratch block, named by the handle the recorder gives it |
 | `host_primitive_recorder.hpp` | `HostPrimitiveRecorder`: the in-memory adapter that keeps a `PrimitiveNodeRecord` per node and runs the host forms |
 | `primitive_options.hpp` | `PrimitiveOptions`, `Detail::require_options` |
@@ -115,9 +115,12 @@ nothing and every window is an empty region, which overlaps nothing. `reduce`, `
 `counting_sort` name their scratch this way.
 
 `HostPrimitiveRecorder` and `HostBuffer` hold memory no runtime owns, so no runtime mints their
-handles. `Detail::mint_host_handle()` returns a handle for each, in universe 0 with the `HostOnly` and
-`Borrowed` flags and a slot that counts up from 1. These handles are test identities: no directory
-reads them and no runtime graph is given one.
+handles. `Detail::host_double_space()` is one `SushiRuntime::LocalHandleSpace` of the process, with
+space id `K_HOST_DOUBLE_SPACE_ID` (2), and `Detail::mint_double_handle()` returns its next handle,
+or throws `std::runtime_error` once the space is exhausted. The `tensor` module's host blocks use
+id 1, so a handle of one space never equals a handle of the other. These handles are test
+identities: they carry the local universe, so no runtime directory reads them and no runtime graph
+is given one.
 
 ## Errors
 

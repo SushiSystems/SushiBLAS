@@ -127,7 +127,7 @@ namespace SushiBLAS
                     const std::size_t units = (count * sizeof(T) + unit - 1) / unit;
                     blocks_.emplace_back(units == 0 ? 1 : units);
                     named_.push_back(NamedBlock{blocks_.back().data(), count * sizeof(T),
-                                                Detail::mint_host_handle()});
+                                                Detail::mint_double_handle()});
                     return reinterpret_cast<T*>(blocks_.back().data());
                 }
 

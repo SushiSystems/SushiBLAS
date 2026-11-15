@@ -9,7 +9,8 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_block_maker.cpp` | Tests that the host and runtime adapters of BlockMaker size, place and report their blocks |
-| `test_host_block.cpp` | Tests that HostBlock owns aligned host memory and hands it over on a move |
+| `test_host_block.cpp` | Tests that HostBlock owns aligned host memory, hands it and its handle over on a move, and reports a handle of the host handle space |
+| `test_host_handle_space.cpp` | Tests that the host handle space is one process-wide space with the host space id and mints distinct local handles |
 | `test_host_data_type.cpp` | Tests that HostDataType gives each host element type its DataType |
 | `test_runtime_block.cpp` | Tests that RuntimeBlock allocates or borrows a buffer and copies through its device queue |
 | `test_storage_block.cpp` | Tests the defaults and helpers of the StorageBlock port through an in-memory adapter |

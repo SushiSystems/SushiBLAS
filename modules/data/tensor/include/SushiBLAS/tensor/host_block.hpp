@@ -34,8 +34,10 @@
 #include <cstring>
 #include <memory>
 #include <new>
+#include <stdexcept>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/tensor/block_maker.hpp>
+#include <SushiBLAS/tensor/host_handle_space.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -59,9 +61,11 @@ namespace SushiBLAS
              * @param n_bytes Number of bytes; above zero.
              * @param alignment A power of two.
              * @throws std::bad_alloc if the allocation fails.
+             * @throws std::runtime_error if the host handle space is exhausted.
              */
             HostBlock(std::size_t n_bytes, std::size_t alignment)
-                : data_(::operator new(n_bytes, std::align_val_t{alignment})),
+                : handle_(mint_handle()),
+                  data_(::operator new(n_bytes, std::align_val_t{alignment})),
                   size_bytes_(n_bytes),
                   alignment_(alignment)
             {
@@ -73,10 +77,12 @@ namespace SushiBLAS
 
             /** @brief Takes the memory of other, which owns none afterwards. */
             HostBlock(HostBlock&& other) noexcept
-                : data_(other.data_), size_bytes_(other.size_bytes_), alignment_(other.alignment_)
+                : handle_(other.handle_), data_(other.data_), size_bytes_(other.size_bytes_),
+                  alignment_(other.alignment_)
             {
                 other.data_ = nullptr;
                 other.size_bytes_ = 0;
+                other.handle_ = SushiRuntime::GlobalHandle::null();
             }
 
             /** @brief Frees the memory it owns, then takes the memory of other. */
@@ -88,8 +94,10 @@ namespace SushiBLAS
                     data_ = other.data_;
                     size_bytes_ = other.size_bytes_;
                     alignment_ = other.alignment_;
+                    handle_ = other.handle_;
                     other.data_ = nullptr;
                     other.size_bytes_ = 0;
+                    other.handle_ = SushiRuntime::GlobalHandle::null();
                 }
                 return *this;
             }
@@ -142,7 +150,30 @@ namespace SushiBLAS
                     std::memcpy(static_cast<std::byte*>(data_) + offset, source, bytes);
             }
 
+            /**
+             * @brief Returns the handle that names this allocation.
+             * @return A handle of host_handle_space(), the same for the whole life of the block and
+             *         after a move; the null handle for a block that owns no memory.
+             */
+            [[nodiscard]] SushiRuntime::GlobalHandle global_handle() const noexcept override
+            {
+                return handle_;
+            }
+
         private:
+            /**
+             * @brief Mints the handle of a new allocation from host_handle_space().
+             * @throws std::runtime_error if the space has minted 2^32 handles.
+             */
+            [[nodiscard]] static SushiRuntime::GlobalHandle mint_handle()
+            {
+                const SushiRuntime::MintOutcome outcome =
+                    host_handle_space().mint(SushiRuntime::HandleKind::Buffer);
+                if (outcome.status != SushiRuntime::HandleStatus::Ok)
+                    throw std::runtime_error("HostBlock: the host handle space is exhausted");
+                return outcome.handle;
+            }
+
             /** @brief Frees the memory and leaves the block empty. */
             void release() noexcept
             {
@@ -150,6 +181,10 @@ namespace SushiBLAS
                     ::operator delete(data_, std::align_val_t{alignment_});
                 data_ = nullptr;
             }
+
+            /// @brief The handle that names the block; null when it owns no memory. Declared first,
+            ///        so a failed mint throws before the allocation is made.
+            SushiRuntime::GlobalHandle handle_ = SushiRuntime::GlobalHandle::null();
 
             /// @brief The first byte of the block; null when it owns none.
             void* data_ = nullptr;

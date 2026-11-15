@@ -379,6 +379,29 @@ namespace SushiBLAS
             EXPECT_TRUE(views.first.region().overlaps(views.first.region()));
         }
 
+        TEST(Small_Tensor, TwoHostTensorsOfSeparateStoragesHaveDistinctHandlesAndNoOverlap)
+        {
+            const Tensor first(make_host_storage(32 * sizeof(float)), {8}, Core::DataType::Float32);
+            const Tensor second(make_host_storage(32 * sizeof(float)), {8}, Core::DataType::Float32);
+
+            EXPECT_FALSE(first.global_handle().is_null());
+            EXPECT_FALSE(second.global_handle().is_null());
+            EXPECT_NE(first.global_handle(), second.global_handle());
+            EXPECT_TRUE(first.region().valid());
+            EXPECT_FALSE(first.region().overlaps(second.region()));
+        }
+
+        TEST(Small_Tensor, AViewOfAHostTensorSharesItsHandleAndOverlapsIt)
+        {
+            const Tensor whole(make_host_storage(32 * sizeof(float)), {32}, Core::DataType::Float32);
+            const Tensor other(make_host_storage(32 * sizeof(float)), {32}, Core::DataType::Float32);
+            const Tensor view = whole.slice(0, 4, 12);
+
+            EXPECT_EQ(view.global_handle(), whole.global_handle());
+            EXPECT_TRUE(view.region().overlaps(whole.region()));
+            EXPECT_FALSE(view.region().overlaps(other.region()));
+        }
+
         TEST(Small_Tensor, ASliceOffTheBaseReportsItsOwnAlignment)
         {
             constexpr int64_t K_ELEMENTS = 64;
