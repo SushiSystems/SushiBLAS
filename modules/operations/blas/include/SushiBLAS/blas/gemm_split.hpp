@@ -190,7 +190,7 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Builds the split of a GEMM: gemm_part_regions() and the SYCL GEMM of each part.
+         * @brief Builds a GEMM's split, whose slice submits a part after the given events and returns its event unwaited.
          * @param a,b,c The first elements of A, B and C as recorded; null for a bound call.
          * @param operand_regions Where A, B and C start in their allocations; C is read when beta is not zero.
          * @param bindings Where the bound table holds A, B and C; empty for a call that bound none.
@@ -218,6 +218,7 @@ namespace SushiBLAS
                                          operand_regions);
             };
             split->slice = [=](const SushiRuntime::SplitPart& part, sycl::queue& queue,
+                               SushiRuntime::span<const sycl::event> dependencies,
                                SushiRuntime::span<void* const> table)
             {
                 const int64_t begin = static_cast<int64_t>(part.begin);
@@ -227,15 +228,16 @@ namespace SushiBLAS
                 const int64_t column_offset = axis == GemmSplitAxis::Columns ? begin : 0;
                 const GemmOperands<T> operands = bound_gemm_operands<T>(
                     OperandPointers(table.data(), table.size()), bindings, recorded);
-                Kernels::SYCL::gemm<T>(queue, layout, trans_a, trans_b, slice.m, slice.n,
-                                       geometry.k, alpha, operands.a + slice.a_offset,
-                                       geometry.a.leading_dimension, geometry.stride_a,
-                                       operands.b + slice.b_offset, geometry.b.leading_dimension,
-                                       geometry.stride_b, beta, operands.c + slice.c_offset,
-                                       geometry.c.leading_dimension, geometry.stride_c,
-                                       geometry.batch_size, std::vector<sycl::event>{},
-                                       OffsetEpilogue<Epilogue>(epilogue, row_offset,
-                                                                column_offset)).wait();
+                return Kernels::SYCL::gemm<T>(queue, layout, trans_a, trans_b, slice.m, slice.n,
+                                              geometry.k, alpha, operands.a + slice.a_offset,
+                                              geometry.a.leading_dimension, geometry.stride_a,
+                                              operands.b + slice.b_offset, geometry.b.leading_dimension,
+                                              geometry.stride_b, beta, operands.c + slice.c_offset,
+                                              geometry.c.leading_dimension, geometry.stride_c,
+                                              geometry.batch_size,
+                                              std::vector<sycl::event>(dependencies.begin(), dependencies.end()),
+                                              OffsetEpilogue<Epilogue>(epilogue, row_offset,
+                                                                       column_offset));
             };
             return split;
         }

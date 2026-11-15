@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <atomic>
+#include <thread>
 #include <vector>
 #include <optional>
 #include <cstddef>
@@ -206,12 +208,14 @@ namespace SushiBLAS
                     const std::uint64_t first = extent / 3;
                     const std::uint64_t second = extent - extent / 3;
                     const std::uint64_t bounds[4] = {0, first, second, extent};
+                    std::vector<sycl::event> parts;
                     for (std::size_t index = 0; index < 3; ++index)
                     {
-                        split->slice(SushiRuntime::SplitPart{split->axis, bounds[index],
-                                                             bounds[index + 1], index, 3},
-                                     q, table);
+                        parts.push_back(split->slice(SushiRuntime::SplitPart{split->axis, bounds[index],
+                                                                             bounds[index + 1], index, 3},
+                                                     q, SushiRuntime::span<const sycl::event>(), table));
                     }
+                    sycl::event::wait(parts);
 
                     std::vector<float> c(c_count);
                     q.memcpy(c.data(), device_c, c_count * sizeof(float)).wait();
@@ -292,8 +296,12 @@ namespace SushiBLAS
                 geometry, Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 1.0f, device_a,
                 device_b, 0.0f, device_c, PositionEpilogue{}, Dispatch::GemmOperandRegions{});
 
-            split->slice(SushiRuntime::SplitPart{split->axis, 0, 4, 0, 2}, q, SushiRuntime::span<void* const>());
-            split->slice(SushiRuntime::SplitPart{split->axis, 4, 7, 1, 2}, q, SushiRuntime::span<void* const>());
+            const std::vector<sycl::event> parts = {
+                split->slice(SushiRuntime::SplitPart{split->axis, 0, 4, 0, 2}, q,
+                             SushiRuntime::span<const sycl::event>(), SushiRuntime::span<void* const>()),
+                split->slice(SushiRuntime::SplitPart{split->axis, 4, 7, 1, 2}, q,
+                             SushiRuntime::span<const sycl::event>(), SushiRuntime::span<void* const>())};
+            sycl::event::wait(parts);
 
             std::vector<float> c(c_count);
             q.memcpy(c.data(), device_c, c_count * sizeof(float)).wait();
@@ -301,6 +309,65 @@ namespace SushiBLAS
             sycl::free(device_b, q);
             sycl::free(device_c, q);
             EXPECT_EQ(split->axis, static_cast<std::uint32_t>(GemmSplitAxis::Columns));
+            EXPECT_EQ(c, expected);
+        }
+
+        /**
+         * @brief Tests that a slice returns its part's event without waiting, and that the part
+         *        runs only after the event it is given.
+         */
+        TEST(Medium_GemmSplitEvent, ASliceReturnsItsEventWithoutWaiting)
+        {
+            const SplitCase test_case{Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 4, 3, 2};
+            const std::vector<float> a = values(static_cast<std::size_t>(test_case.m * test_case.k), 1);
+            const std::vector<float> b = values(static_cast<std::size_t>(test_case.k * test_case.n), 4);
+            const std::size_t c_count = static_cast<std::size_t>(test_case.m * test_case.n);
+            const GemmGeometry geometry = geometry_of(test_case);
+            std::vector<float> expected(c_count, 0.0f);
+            Kernels::Reference::gemm<float>(test_case.layout, test_case.trans_a, test_case.trans_b, test_case.m,
+                                            test_case.n, test_case.k, 1.0f, a.data(), geometry.a.leading_dimension,
+                                            b.data(), geometry.b.leading_dimension, 0.0f, expected.data(),
+                                            geometry.c.leading_dimension, PositionEpilogue{});
+            sycl::queue& q = TestEnvironment::queue();
+            float* device_a = sycl::malloc_shared<float>(a.size(), q);
+            float* device_b = sycl::malloc_shared<float>(b.size(), q);
+            float* device_c = sycl::malloc_shared<float>(c_count, q);
+            q.memcpy(device_a, a.data(), a.size() * sizeof(float)).wait();
+            q.memcpy(device_b, b.data(), b.size() * sizeof(float)).wait();
+            q.memset(device_c, 0, c_count * sizeof(float)).wait();
+            const auto split = Dispatch::make_gemm_split<float>(
+                geometry, test_case.layout, test_case.trans_a, test_case.trans_b, 1.0f, device_a, device_b,
+                0.0f, device_c, PositionEpilogue{}, Dispatch::GemmOperandRegions{});
+
+            // A host step that holds until the test opens it stands for a producer still running.
+            std::atomic<bool> open{false};
+            const sycl::event producer = q.submit([&open](sycl::handler& handler)
+            {
+                const auto hold = [&open]()
+                {
+                    while (!open.load(std::memory_order_acquire))
+                        std::this_thread::yield();
+                };
+#if defined(__ACPP__) || defined(__HIPSYCL__)
+                handler.AdaptiveCpp_enqueue_custom_operation([hold](auto&&) { hold(); });
+#else
+                handler.host_task(hold);
+#endif
+            });
+            sycl::event part = split->slice(
+                SushiRuntime::SplitPart{split->axis, 0, split->extent, 0, 1}, q,
+                SushiRuntime::span<const sycl::event>(&producer, 1), SushiRuntime::span<void* const>());
+
+            EXPECT_NE(part.get_info<sycl::info::event::command_execution_status>(),
+                      sycl::info::event_command_status::complete);
+            open.store(true, std::memory_order_release);
+            part.wait();
+
+            std::vector<float> c(c_count);
+            q.memcpy(c.data(), device_c, c_count * sizeof(float)).wait();
+            sycl::free(device_a, q);
+            sycl::free(device_b, q);
+            sycl::free(device_c, q);
             EXPECT_EQ(c, expected);
         }
 

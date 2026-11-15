@@ -176,7 +176,8 @@ with no kernel instantiated and no runtime. `record_gemm(port, ...)` is the step
 `KernelGemmPort::record` states a split on the task of a GEMM whose operands the host can reach, as
 `TaskDescription::split`. The axis is the longer side of C, the rows on a tie, and the extent is
 that side's length. The slice runs the SYCL GEMM over the part's range of the axis, on the queue of
-the part's device, and waits for it, because the slice returns nothing the runtime could wait on.
+the part's device, after the events the runtime hands it, and returns the GEMM's event without
+waiting, so the runtime has every part in flight before it waits on any.
 `slice_gemm` gives the part's extents and the element offsets of A, B and C for the layout and the
 transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix. The
 parts write disjoint elements of C, so the split states no combine.
