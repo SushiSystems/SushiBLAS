@@ -60,6 +60,7 @@ sushiblas_add_test_program(
         test_SushiBLAS/test_device_conformance.cpp
         test_SushiBLAS/test_dispatch_complex.cpp
         test_SushiBLAS/test_dispatch_seam.cpp
+        test_SushiBLAS/test_file_backed_product.cpp
         test_SushiBLAS/test_framework_sim.cpp
         test_SushiBLAS/test_integer_dtypes.cpp
         test_SushiBLAS/test_math_validation.cpp

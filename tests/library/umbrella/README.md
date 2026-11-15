@@ -20,6 +20,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_SushiBLAS/test_dispatch_checks.cpp` | Tests, on values and without a device, the record-time domain and parameter-capacity checks of the public Dispatch seam |
 | `test_SushiBLAS/test_dispatch_seam.cpp` | Tests the public Dispatch seam with functors written outside the library |
 | `test_SushiBLAS/test_empty_tensors.cpp` | Tests, on a host engine, what elementwise, non-linear, logic and reduction ops do with an empty tensor |
+| `test_SushiBLAS/test_file_backed_product.cpp` | Tests a blocked product graph over file-backed tensors larger than any GPU's own memory: it runs on every device the plan gives a node, reads no file after the first run, leaves equal bytes over ten runs and steps at most 1.05 times the floor devices alone; large tier, skipped by name without a CUDA GPU, a HIP GPU, a CPU or the disk |
 | `test_SushiBLAS/test_framework_sim.cpp` | Tests a ten-layer forward pass and 24 independent models through the engine |
 | `test_SushiBLAS/test_integer_dtypes.cpp` | Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every operation refuses UINT32 |
 | `test_SushiBLAS/test_math_validation.cpp` | Tests the device-only operand refusal, the mode independence of operand errors and the softplus range |
