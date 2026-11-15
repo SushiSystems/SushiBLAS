@@ -15,7 +15,7 @@ this page.
 
 The place a layout is interpreted for the windowed operations. Everything downstream of
 `window_span_for` sees element counts, so adding NCHW later is a second stride assignment here and
-in the spans `modules/operations/spatial/source/broadcast.cpp`, `channels.cpp` and `upsample_nearest.cpp` build
+in the spans `modules/operations/spatial/source/broadcast.cpp`, `channels.cpp` and `upsample_span.hpp` build
 by hand.
 
 ### `window_span_for` with stated extents
@@ -194,6 +194,25 @@ builds a `Spatial::WindowSpan` by hand, for the extents and the strides.
 
 Each input pixel gathers the fixed `scale_h * scale_w` output elements that read it, in ascending
 order, so this needs no atomic add and no index buffer.
+
+### `SpatialOps::upsample_bilinear`
+
+Each output pixel interpolates the four input pixels around its centre. The centres are half-pixel
+(align corners off, in PyTorch's terms), so with an integer scale the weights depend on the
+output index modulo the scale only. A scale of 1 on an axis copies along that axis, and a scale of 1
+on both gives the input's bit patterns. The scales are integers and positive; `out` must be exactly
+`scale_h * H` by `scale_w * W`, and it may share no byte with `in`, because the kernel reads `in`
+while it writes. The domain is real, the value is evaluated in `Accumulator<T>` and rounded once on
+the store, and the operands' strides are read as `upsample_nearest` reads them. It was added beside
+`upsample_nearest`, not as a mode of it: a mode flag would put a branch in a kernel that copies bit
+patterns. Both upsampling operations build their span with `upsample_span_for` in `source/upsample_span.hpp`.
+
+### `SpatialOps::upsample_bilinear_backward`
+
+Each input pixel gathers the output gradients it contributed to, each times the weight the forward
+gave it, so the operation needs no atomic add and no index buffer. `dx` takes the input role and
+`dy` the output role, and `dx` may share no byte with `dy`. Every element of `dx` is written. The
+kernels' README, `modules/kernels/README.md`, holds the visit order.
 
 ### `SpatialOps::concat_channels`
 

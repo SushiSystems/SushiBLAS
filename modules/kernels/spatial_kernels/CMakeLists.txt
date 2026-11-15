@@ -17,6 +17,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE spatial_kernels
     TESTS
+        test_bilinear_taps.cpp
         test_im2col_index.cpp
         test_pixel_index.cpp
         test_pool_max_index.cpp
@@ -30,6 +31,7 @@ sushiblas_add_test_program(
         reference/test_pool_avg.cpp
         reference/test_pool_max.cpp
         reference/test_upsample.cpp
+        reference/test_upsample_bilinear.cpp
         reference/test_window_dot.cpp
         reference/test_window_dot_weights.cpp
     DEVICE_TESTS
@@ -40,6 +42,7 @@ sushiblas_add_test_program(
         sycl/test_pool_avg.cpp
         sycl/test_pool_max.cpp
         sycl/test_upsample.cpp
+        sycl/test_upsample_bilinear.cpp
         sycl/test_window_dot.cpp
         sycl/test_window_dot_weights.cpp
     COMPILE_CHECKS

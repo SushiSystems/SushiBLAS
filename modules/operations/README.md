@@ -17,7 +17,7 @@ kernels a task runs are in the modules under `modules/kernels/`.
 | `logic/source/` | `LogicOps`, one file per comparison, logical operation or truth reduction |
 | `elementwise/source/` | `ElementwiseOps`, one file per operation |
 | `nonlinear/source/` | `NonLinearOps`, one file per activation and its gradient |
-| `random/source/` | `RandomOps`, one file per distribution or initialiser |
+| `random/source/` | `RandomOps`, one file per distribution or initialiser; `PositionedRandomOps` and the position tensor, one file each |
 | `reductions/source/` | `ReductionOps`, one file per reduction |
 | `spatial/source/` | `SpatialOps`: the window, pooling, window product, channel and broadcast operations |
 
@@ -44,7 +44,9 @@ are gradients with a file of their own.
 **Non-linear** (`nonlinear/source/`). Each file holds an activation and its `_backward`.
 
 **Random** (`random/source/`). One file per distribution or initialiser. `set_seed.cpp` records
-no task: it reseeds the stream the view draws from.
+no task: it reseeds the stream the view draws from. `positioned_bernoulli.cpp` and
+`rng_position_tensor.cpp` belong to the fills that read their stream position from a tensor when
+they run; see the random README.
 
 **Elementwise, logic, reductions** (`elementwise/source/`, `logic/source/`,
 `reductions/source/`). One method per file, each named after its method.

@@ -214,6 +214,7 @@ namespace SushiBLAS
         uncosted("random.log_normal"_op, UncostedReason::Unaudited),
         uncosted("random.normal"_op, UncostedReason::Unaudited),
         uncosted("random.orthogonal"_op, UncostedReason::Unaudited),
+        uncosted("random.bernoulli_at"_op, UncostedReason::Unaudited),
         uncosted("random.poisson"_op, UncostedReason::Unaudited),
         uncosted("random.shuffle"_op, UncostedReason::Unaudited),
         uncosted("random.truncated_normal"_op, UncostedReason::Unaudited),
@@ -228,6 +229,7 @@ namespace SushiBLAS
         uncosted("sparse.doti"_op, UncostedReason::Unaudited),
         uncosted("sparse.dotui"_op, UncostedReason::Unaudited),
         uncosted("sparse.gthr"_op, UncostedReason::Unaudited),
+        costed("reductions.argmax_along"_op, 0, 1, 0),
         uncosted("sparse.gthrz"_op, UncostedReason::Unaudited),
         uncosted("sparse.roti"_op, UncostedReason::Unaudited),
         uncosted("sparse.sctr"_op, UncostedReason::Unaudited),
@@ -255,6 +257,8 @@ namespace SushiBLAS
         };
 
         /// @brief The rows ordered by id, which find_cost_row searches.
+        costed("spatial.upsample_bilinear"_op, 12, 0, 0),
+        costed("spatial.upsample_bilinear_backward"_op, 12, 0, 0),
         constexpr std::array K_ROWS = sorted_by_id(K_NAMED_ROWS);
 
         /** @brief Returns a negative extent as 0, so a malformed shape costs nothing it could overflow. */

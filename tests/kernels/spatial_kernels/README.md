@@ -15,6 +15,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/test_pool_avg.cpp` | Tests the reference average pool against hand values and its backward as its adjoint |
 | `reference/test_pool_max.cpp` | Tests the reference max pool values, the index it records and the backward that uses it |
 | `reference/test_upsample.cpp` | Tests the reference nearest upsample against hand values and its backward as its adjoint |
+| `reference/test_upsample_bilinear.cpp` | Tests the reference bilinear upsample against hand values and its backward as its adjoint |
 | `reference/test_window_dot.cpp` | Tests the reference window product against hand values and its backward as its adjoint |
 | `reference/test_window_dot_weights.cpp` | Tests that the reference weight gradient pairs with the window product as a bilinear form |
 | `sycl/test_broadcast.cpp` | Tests the SYCL affine, broadcast and layout conversion against the reference |
@@ -24,8 +25,10 @@ what a test checks; a section below holds why a test is written the way it is.
 | `sycl/test_pool_avg.cpp` | Tests the SYCL average pool and its backward against the reference ones |
 | `sycl/test_pool_max.cpp` | Tests the SYCL max pool and its backward against the reference ones |
 | `sycl/test_upsample.cpp` | Tests the SYCL nearest upsample and its backward against the reference ones |
+| `sycl/test_upsample_bilinear.cpp` | Tests the SYCL bilinear upsample and its backward against the reference ones |
 | `sycl/test_window_dot.cpp` | Tests the SYCL window product and its backward against the reference ones |
 | `sycl/test_window_dot_weights.cpp` | Tests the SYCL weight gradient in both launch shapes against the reference |
+| `test_bilinear_taps.cpp` | Tests the bilinear taps, the blend and the output ranges against hand values |
 | `test_im2col_index.cpp` | Tests the im2col element split against the loops that fill the matrix |
 | `test_pixel_index.cpp` | Tests the NHWC flat-index split, the flat index and the stride offsets |
 | `test_pool_max_index.cpp` | Tests when a tap replaces the running max-pool maximum, NaN included |

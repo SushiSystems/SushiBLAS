@@ -36,6 +36,7 @@
 #include <SushiBLAS/spatial_kernels/reference/pool_max.hpp>
 #include <SushiBLAS/spatial_kernels/reference/pool_avg.hpp>
 #include <SushiBLAS/spatial_kernels/reference/upsample.hpp>
+#include <SushiBLAS/spatial_kernels/reference/upsample_bilinear.hpp>
 #include <SushiBLAS/spatial_kernels/reference/channels.hpp>
 #include <SushiBLAS/spatial_kernels/reference/broadcast.hpp>
 #include <SushiBLAS/spatial_kernels/reference/window_dot.hpp>
@@ -45,6 +46,7 @@
 #include <SushiBLAS/spatial_kernels/sycl/pool_max.hpp>
 #include <SushiBLAS/spatial_kernels/sycl/pool_avg.hpp>
 #include <SushiBLAS/spatial_kernels/sycl/upsample.hpp>
+#include <SushiBLAS/spatial_kernels/sycl/upsample_bilinear.hpp>
 #include <SushiBLAS/spatial_kernels/sycl/channels.hpp>
 #include <SushiBLAS/spatial_kernels/sycl/broadcast.hpp>
 #include <SushiBLAS/spatial_kernels/sycl/window_dot.hpp>

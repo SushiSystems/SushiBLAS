@@ -160,7 +160,11 @@
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiBLAS/sparse/accumulator_size.hpp>
 #include <SushiBLAS/sparse/index_check.hpp>
+#include <SushiBLAS/random/positioned_dispatch.hpp>
+#include <SushiBLAS/random/positioned_random.hpp>
 #include <SushiBLAS/sparse/sparse.hpp>
+#include <SushiBLAS/random/rng_position_tensor.hpp>
+#include <SushiBLAS/reductions/arg_axis_reduction.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>

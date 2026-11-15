@@ -37,56 +37,11 @@
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 
+#include "upsample_span.hpp"
+
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Literals;
-
-    namespace
-    {
-        /**
-         * @brief Builds the span for an upsample from its two rank-4 operands.
-         * @return The span, in element counts, with both operands' strides filled in.
-         * @throws std::invalid_argument when a rank is not 4, a scale is not positive, or the
-         *         extents are not the exact scaled multiples.
-         * @see modules/operations/README.md
-         */
-        Spatial::WindowSpan upsample_span_for(const Tensor& in, const Tensor& out,
-                                              int64_t scale_h, int64_t scale_w,
-                                              const char* name)
-        {
-            Dispatch::require_rank(in, 4, name, "in");
-            Dispatch::require_rank(out, 4, name, "out");
-            Dispatch::require_operand(scale_h > 0, name, "scale_h",
-                                      "is {}; a scale must be positive", scale_h);
-            Dispatch::require_operand(scale_w > 0, name, "scale_w",
-                                      "is {}; a scale must be positive", scale_w);
-
-            Spatial::WindowSpan span;
-            span.batch = in.shape[0];
-            span.in_h = in.shape[1];
-            span.in_w = in.shape[2];
-            span.channels = in.shape[3];
-            span.out_h = out.shape[1];
-            span.out_w = out.shape[2];
-
-            Dispatch::require_extent(out.shape[0], span.batch, "images", name, "out");
-            Dispatch::require_extent(out.shape[3], span.channels, "channels", name, "out");
-            Dispatch::require_extent(span.out_h, span.in_h * scale_h, "rows", name, "out");
-            Dispatch::require_extent(span.out_w, span.in_w * scale_w, "columns", name, "out");
-
-            span.in_batch_stride = in.strides[0];
-            span.in_row_stride = in.strides[1];
-            span.in_col_stride = in.strides[2];
-            span.in_channel_stride = in.strides[3];
-
-            span.out_batch_stride = out.strides[0];
-            span.out_row_stride = out.strides[1];
-            span.out_col_stride = out.strides[2];
-            span.out_channel_stride = out.strides[3];
-
-            return span;
-        }
-    } // namespace
 
     TaskHandle SpatialOps::upsample_nearest(const Tensor& in, Tensor& out,
                                             int64_t scale_h, int64_t scale_w)
@@ -98,7 +53,7 @@ namespace SushiBLAS
         Dispatch::require_device_dtype(in, NAME, "in");
         Dispatch::require_device_dtype(out, NAME, "out");
 
-        const Spatial::WindowSpan span = upsample_span_for(in, out, scale_h, scale_w, NAME);
+        const Spatial::WindowSpan span = Detail::upsample_span_for(in, out, scale_h, scale_w, NAME);
 
         const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
@@ -146,7 +101,7 @@ namespace SushiBLAS
         Dispatch::require_device_dtype(dx, NAME, "dx");
 
         // dx plays the input role and dy the output role, as in the forward; see modules/operations/README.md.
-        const Spatial::WindowSpan span = upsample_span_for(dx, dy, scale_h, scale_w, NAME);
+        const Spatial::WindowSpan span = Detail::upsample_span_for(dx, dy, scale_h, scale_w, NAME);
 
         const void* read_dy = dy.data_or_null();
         void* write_dx = dx.data_or_null();

@@ -7,6 +7,7 @@ sushiblas_add_module(
     NAME random
     LAYER operations
     SOURCES
+        rng_position_tensor.cpp
         set_seed.cpp
     DEVICE_SOURCES
         bernoulli.cpp
@@ -19,6 +20,7 @@ sushiblas_add_module(
         normal.cpp
         orthogonal.cpp
         poisson.cpp
+        positioned_bernoulli.cpp
         shuffle.cpp
         truncated_normal.cpp
         uniform.cpp
@@ -35,8 +37,11 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE random
+    TESTS
+        test_rng_position_tensor.cpp
     DEVICE_TESTS
         test_dispatch.cpp
+        test_positioned_random.cpp
         test_random/test_constant.cpp
         test_random/test_distributions.cpp
         test_random/test_initializers.cpp
@@ -48,6 +53,7 @@ sushiblas_add_test_program(
         test_random/test_shuffle.cpp
         test_random/test_uniform.cpp
     COMPILE_CHECKS
+        compile_positioned_dispatch.cpp
         compile_random_log_category.cpp
     DEVICE_BENCHMARKS
         benchmark_random.cpp)

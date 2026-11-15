@@ -8,6 +8,7 @@ sushiblas_add_module(
     LAYER operations
     DEVICE_SOURCES
         argmax.cpp
+        argmax_along.cpp
         argmin.cpp
         asum.cpp
         count_nonfinite.cpp
@@ -37,6 +38,7 @@ sushiblas_add_test_program(
     TESTS
         test_reductions/test_refusals.cpp
     DEVICE_TESTS
+        test_arg_axis_reduction.cpp
         test_arg_reduction.cpp
         test_centred_reduction.cpp
         test_dispatch.cpp

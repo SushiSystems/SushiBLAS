@@ -1,0 +1,150 @@
+/**************************************************************************/
+/* upsample_bilinear.cpp                                                  */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License"); you    */
+/* may not use this file except in compliance with the License. You may   */
+/* obtain a copy of the License at                                        */
+/*                                                                        */
+/*     https://www.apache.org/licenses/LICENSE-2.0                        */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+/**
+ * @file upsample_bilinear.cpp
+ * @brief Defines SpatialOps::upsample_bilinear and upsample_bilinear_backward, which record
+ * bilinear upsampling and its gradient.
+ * @author Mustafa Garip
+ */
+
+#include <vector>
+#include <cstdint>
+#include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/spatial/spatial.hpp>
+#include <SushiBLAS/spatial/window.hpp>
+#include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
+
+#include "upsample_span.hpp"
+
+namespace SushiBLAS
+{
+    using namespace SushiRuntime::Literals;
+
+    TaskHandle SpatialOps::upsample_bilinear(const Tensor& in, Tensor& out,
+                                             int64_t scale_h, int64_t scale_w)
+    {
+        static constexpr const char* NAME = "spatial.upsample_bilinear";
+
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
+
+        const Spatial::WindowSpan span = Detail::upsample_span_for(in, out, scale_h, scale_w, NAME);
+
+        // The kernel reads in while it writes out.
+        Dispatch::require_operand(!out.region().overlaps(in.region()), NAME, "out",
+                                  "overlaps 'in' in memory");
+
+        const void* read_in = in.data_or_null();
+        void* write_out = out.data_or_null();
+
+        OperandSet operands;
+        operands.reads(in).writes(out);
+
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.upsample_bilinear"_op;
+        description.shape = ElementwiseShape{out.num_elements, out.dtype};
+
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
+            recorder_, description, operands, in.dtype, "Spatial operation",
+            [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
+                const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                auto source = static_cast<const T*>(read_in);
+                auto destination = static_cast<T*>(write_out);
+
+                return dispatcher.run(deps,
+                    [=]
+                    {
+                        Kernels::Reference::upsample_bilinear<T>(span, scale_h, scale_w,
+                                                                 source, destination);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::upsample_bilinear<T>(q2, span, scale_h, scale_w,
+                                                                   source, destination, deps2);
+                    });
+            });
+    }
+
+    TaskHandle SpatialOps::upsample_bilinear_backward(const Tensor& dy, Tensor& dx,
+                                                      int64_t scale_h, int64_t scale_w)
+    {
+        static constexpr const char* NAME = "spatial.upsample_bilinear_backward";
+
+        Dispatch::require_dtype(dx, dy.dtype, NAME, "dx");
+
+        Dispatch::require_device_dtype(dy, NAME, "dy");
+        Dispatch::require_device_dtype(dx, NAME, "dx");
+
+        // dx plays the input role and dy the output role, as in the forward; see modules/operations/README.md.
+        const Spatial::WindowSpan span = Detail::upsample_span_for(dx, dy, scale_h, scale_w, NAME);
+
+        // The kernel reads dy while it writes dx.
+        Dispatch::require_operand(!dx.region().overlaps(dy.region()), NAME, "dx",
+                                  "overlaps 'dy' in memory");
+
+        const void* read_dy = dy.data_or_null();
+        void* write_dx = dx.data_or_null();
+
+        OperandSet operands;
+        operands.reads(dy).writes(dx);
+
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.upsample_bilinear_backward"_op;
+        description.shape = ElementwiseShape{dy.num_elements, dy.dtype};
+
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
+            recorder_, description, operands, dy.dtype, "Spatial operation",
+            [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
+                const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                auto source = static_cast<const T*>(read_dy);
+                auto destination = static_cast<T*>(write_dx);
+
+                return dispatcher.run(deps,
+                    [=]
+                    {
+                        Kernels::Reference::upsample_bilinear_backward<T>(span, scale_h, scale_w,
+                                                                          source, destination);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::upsample_bilinear_backward<T>(q2, span,
+                                                                            scale_h, scale_w,
+                                                                            source, destination,
+                                                                            deps2);
+                    });
+            });
+    }
+} // namespace SushiBLAS

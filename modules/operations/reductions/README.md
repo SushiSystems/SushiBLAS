@@ -7,12 +7,13 @@ It depends on `core`, `support`, `tensor` and `engine`. Its headers are included
 
 | File | Declares |
 | --- | --- |
+| `arg_axis_reduction.hpp` | The executor of an index reduction along one axis through the Reduce arg accumulators |
 | `arg_reduction.hpp` | The dispatcher of an index reduction through the Reduce arg accumulators |
 | `centred_reduction.hpp` | The dispatcher of a reduction that centres on a first fold: variance, standard deviation and logsumexp |
 | `dispatch.hpp` | The reduction executors of the dispatch seam and the span builders they share |
 | `reductions.hpp` | ReductionOps, the whole-tensor and per-axis reductions |
 
-`source/` holds 17 translation units.
+`source/` holds 18 translation units.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to.
@@ -32,6 +33,18 @@ is recorded, as it does for `mean`, `argmax`, `argmin`, `var`, `std` and `logsum
 Each records through `execute_index_reduction` with a `Dispatch::ArgReductionDispatch` over
 `Reduce::RunningArgMax` or `RunningArgMin`. The partials are (value, index) pairs, and the lowest
 index of the extreme value wins. `reductions/arg_reduction.hpp` holds the dispatcher.
+
+### `ReductionOps::argmax_along`
+
+The per-axis counterpart of `argmax`: one index per surviving position of a rank-2 tensor, into an
+INT64 vector, for the reason `argmax` gives. `execute_arg_axis_reduction` takes the geometry from
+`axis_span_for` and folds `(value, index)` pairs with `Reduce::RunningArgMax` through
+`Reduce::reduce_segments`, so the order is total, the lowest index wins a tie and a NaN follows the
+rule of `argmax`: a NaN at index 0 wins, a NaN elsewhere loses to any number. The index counts along
+the reduced axis. Both paths give the same indices, because no sum is involved and the accumulator's
+order is total. The operand `t` is `Domain::Real`; an empty tensor, a rank or axis or length
+mismatch, a result that is not INT64 and a complex input throw `std::invalid_argument` naming
+`reductions.argmax_along`. `reductions/arg_axis_reduction.hpp` holds the executor.
 
 ### `ReductionOps::var`, `std`, `logsumexp`
 

@@ -168,6 +168,25 @@ namespace SushiBLAS
                                                  int64_t scale_h, int64_t scale_w);
 
             /**
+             * @brief Interpolates each output pixel from the four input pixels around its centre.
+             * @param out Its extents must be exactly `scale_h * H` by `scale_w * W`.
+             * @param scale_h Must be positive, as must scale_w.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, or out overlaps in.
+             * @see modules/operations/spatial/README.md
+             */
+            TaskHandle upsample_bilinear(const Tensor& in, Tensor& out,
+                                         int64_t scale_h, int64_t scale_w);
+
+            /**
+             * @brief Sums onto each input pixel the output gradients it contributed to, by its weights.
+             * @param scale_h The factor the forward used, as is scale_w; both must be positive.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, or dx overlaps dy.
+             * @see modules/operations/spatial/README.md
+             */
+            TaskHandle upsample_bilinear_backward(const Tensor& dy, Tensor& dx,
+                                                  int64_t scale_h, int64_t scale_w);
+
+            /**
              * @brief Copies all of src's channels into dst starting at a channel offset.
              * @pre src and dst agree on N, H and W.
              * @throws std::invalid_argument at record time, also when the range runs past dst's channel count.

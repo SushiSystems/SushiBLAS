@@ -12,6 +12,7 @@ the benchmark section of `tests/README.md` describes them.
 | File | Tests |
 | --- | --- |
 | `benchmark_reductions.cpp` | Times full-tensor sum, max and var and prints GB/s per element count |
+| `test_arg_axis_reduction.cpp` | Tests ReductionOps::argmax_along against a host loop, against argmax and on its refusals |
 | `test_arg_reduction.cpp` | Tests the arg reduction dispatcher on the reference path and on the host device |
 | `test_centred_reduction.cpp` | Tests the centred reduction dispatcher as a variance, on the reference path and on SYCL |
 | `test_dispatch.cpp` | Tests the partial sizes, the lease rule and an index reduction recorded on a host engine and on a runtime engine |

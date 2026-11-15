@@ -23,7 +23,7 @@
 
 /**
  * @file benchmark_random.cpp
- * @brief Times the random draws, shuffle and orthogonal and prints Melem/s per length.
+ * @brief Times the random draws, positioned Bernoulli, shuffle and orthogonal and prints Melem/s per length.
  * @author Mustafa Garip
  */
 
@@ -60,6 +60,9 @@ namespace
     /// @brief Rate of the Poisson draws PTRS serves.
     constexpr double K_LARGE_LAMBDA = 30.0;
 
+    /// @brief Probability of a 1 in the Bernoulli draws, the default of RandomOps::bernoulli.
+    constexpr double K_BERNOULLI_P = 0.5;
+
     /// @brief Largest integer discrete_uniform draws, from zero.
     constexpr int32_t K_DISCRETE_MAX = 9;
 
@@ -76,6 +79,10 @@ namespace
         SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
         SushiBLAS::Tensor t = engine.create_tensor({n}, dtype);
+        SushiBLAS::Tensor position = engine.create_tensor({SushiBLAS::K_RNG_POSITION_ELEMENTS},
+                                                          DataType::Int64);
+        SushiBLAS::write_rng_position(position, SushiBLAS::RNGPosition{K_SEED, 0});
+        SushiBLAS::PositionedRandomOps positioned(recorder);
         const double elements = static_cast<double>(n);
         const double unit = K_ELEMENTS_PER_MEGAELEMENT;
 
@@ -102,7 +109,12 @@ namespace
                         Bench::measure(graph, [&]() { random.truncated_normal(t); }), elements,
                         unit);
         table.print_row("bernoulli", dtype, n,
-                        Bench::measure(graph, [&]() { random.bernoulli(t); }), elements, unit);
+                        Bench::measure(graph, [&]() { random.bernoulli(t, K_BERNOULLI_P); }),
+                        elements, unit);
+        table.print_row("bernoulli_at", dtype, n,
+                        Bench::measure(graph, [&]()
+                                       { positioned.bernoulli(t, K_BERNOULLI_P, position); }),
+                        elements, unit);
         if (n <= K_SHUFFLE_MAX_LENGTH)
             table.print_row("shuffle", dtype, n,
                             Bench::measure(graph, [&]() { random.shuffle(t); }), elements,

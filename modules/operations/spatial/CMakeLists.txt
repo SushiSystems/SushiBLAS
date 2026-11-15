@@ -14,6 +14,7 @@ sushiblas_add_module(
         pool_avg.cpp
         pool_max.cpp
         pool_max_backward.cpp
+        upsample_bilinear.cpp
         upsample_nearest.cpp
         window_dot.cpp
         window_dot_weights_backward.cpp
@@ -41,6 +42,7 @@ sushiblas_add_test_program(
         test_spatial/test_spatial_pool_avg.cpp
         test_spatial/test_spatial_pool_max.cpp
         test_spatial/test_spatial_upsample.cpp
+        test_spatial/test_spatial_upsample_bilinear.cpp
         test_spatial/test_spatial_window_dot.cpp
     DEVICE_BENCHMARKS
         benchmark_spatial.cpp)

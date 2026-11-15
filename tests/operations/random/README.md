@@ -10,6 +10,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | --- | --- |
 | `random_statistics.hpp` | Holds the laws of the draws and the standard-error checks the statistical tests share |
 | `test_dispatch.cpp` | Tests the dtypes a random task admits, its seed slots and the fill on both paths |
+| `test_positioned_random.cpp` | Tests that PositionedRandomOps::bernoulli draws RandomOps::bernoulli's bits at the position it reads, follows a position rewritten between executions and refuses what it cannot fill |
+| `test_rng_position_tensor.cpp` | Tests that write_rng_position fills a position tensor and refuses a tensor that cannot hold one |
+| `benchmark_random.cpp` | Times the random draws, the positioned Bernoulli, shuffle and orthogonal and prints Melem/s per length |
 | `test_random/test_constant.cpp` | Tests, one row per dtype, that RandomOps::constant fills a tensor with one value, `Small_` on a host engine |
 | `test_random/test_distributions.cpp` | Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws against their laws, `Small_` on a host engine |
 | `test_random/test_initializers.cpp` | Tests the Xavier and He initializers of RandomOps, `Small_` on a host engine |
@@ -20,8 +23,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_random/test_random_refusals.cpp` | Tests, on a host engine, that RandomOps refuses a bad parameter, truncated-normal bound, dtype or shape at record time |
 | `test_random/test_shuffle.cpp` | Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset, `Small_` on a host engine |
 | `test_random/test_uniform.cpp` | Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism, `Small_` on a host engine |
+| `compile_positioned_dispatch.cpp` | Checks that `positioned_dispatch.hpp` compiles on its own; compiled, never run |
 | `compile_random_log_category.cpp` | Checks that `random_log_category.hpp` compiles on its own and names `K_RANDOM_LOG_CATEGORY`; compiled, never run |
-| `benchmark_random.cpp` | Times the random draws, shuffle and orthogonal and prints Melem/s per length |
+| `benchmark_random.cpp` | Times the random draws, the positioned Bernoulli, shuffle and orthogonal and prints Melem/s per length |
 
 ## test_random/test_orthogonal.cpp
 

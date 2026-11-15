@@ -8,9 +8,12 @@ as `<SushiBLAS/random/<name>.hpp>`.
 | File | Declares |
 | --- | --- |
 | `dispatch.hpp` | The random-fill executor of the dispatch seam |
+| `positioned_dispatch.hpp` | The executor of a random fill that reads its stream position when it runs |
+| `positioned_random.hpp` | PositionedRandomOps, the random fills whose stream position is an operand |
 | `random.hpp` | RandomOps, the random fills and initialisers |
+| `rng_position_tensor.hpp` | The position tensor, its checks and `write_rng_position` |
 
-`source/` holds 16 translation units.
+`source/` holds 18 translation units.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to.
@@ -58,6 +61,35 @@ at record time when `t` has elements and its device lacks the fp64 aspect, whate
 
 Bounds that are not finite with `a < b`, and bounds that enclose no probability mass in `t`'s
 dtype, throw `std::invalid_argument`.
+
+## `positioned_random.hpp`, `positioned_dispatch.hpp` and `rng_position_tensor.hpp`
+
+`RandomOps` reserves one stream position when a fill is recorded and captures it by value, so a plan
+that is executed again draws the same numbers each time. `PositionedRandomOps::bernoulli(t, p,
+position)` records the same fill with the position as an operand: the draw reads `position[0]`, the
+seed, and `position[1]`, the offset, inside the kernel at each execution, so one compiled plan draws a
+new mask whenever the host writes a new position between executions. This is the shape of a value
+that varies between replays, held in memory the kernel reads.
+
+`position` is a contiguous rank-1 INT64 tensor of `K_RNG_POSITION_ELEMENTS` elements in
+`Residency::Shared` or `Residency::Host`. `write_rng_position(position, {seed, offset})` fills it on the
+calling thread. The caller keeps one rule: no recorded task that reads the position is pending or
+running while it writes. A view into a larger allocation is accepted. `position` may not overlap `t`;
+the task declares `reads(position).writes(t)`.
+
+At the same `(seed, offset)` the fill writes the same bytes as `RandomOps::bernoulli` recorded at that
+stream position, on the reference path and on the device. The metadata slots `K_RNG_SEED_PARAM` and
+`K_RNG_OFFSET_PARAM` hold 0, since neither value is known when the call is recorded; `p` is in slot 0.
+`t` is FLOAT32 or FLOAT64 as for `RandomOps::bernoulli`. HALF, a position that is not INT64, has
+other than two elements or is not rank 1, a device-only position, an overlap and a `p` outside [0, 1]
+throw `std::invalid_argument` before anything is recorded.
+
+`Dispatch::execute_random_at` is the generic form: a further distribution is one method and one source
+file. Its task body has the shape `(T, const RandomFill&, const std::uint64_t* position, int64_t size,
+T*) -> sycl::event`, and its draw reads the position inside the kernel.
+
+The Bernoulli threshold in `positioned_bernoulli.cpp` repeats the four lines of `bernoulli.cpp`; the
+equality test `test_positioned_bernoulli.cpp` keeps the two draws together.
 
 ## `random/dispatch.hpp`
 

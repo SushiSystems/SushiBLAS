@@ -166,6 +166,16 @@ namespace SushiBLAS
             TaskHandle min_along(const Tensor& t, int axis, Tensor& result);
 
             /**
+             * @brief Computes the index of the maximum along one axis of a rank-2 tensor.
+             * @param axis 0 for a per-column index, 1 for a per-row index.
+             * @param result Rank-1 INT64 tensor of the surviving length; each element receives the
+             *        lowest index of its segment's maximum, counted along the reduced axis.
+             * @throws std::invalid_argument if t is empty or on a rank, axis, length or dtype mismatch.
+             * @see modules/operations/reductions/README.md
+             */
+            TaskHandle argmax_along(const Tensor& t, int axis, Tensor& result);
+
+            /**
              * @brief Computes the Neumaier-compensated sum along one axis of a rank-2 tensor.
              * @param axis 0 for column sums, 1 for row sums.
              * @param result Rank-1 tensor of the surviving length, sharing t's dtype.
