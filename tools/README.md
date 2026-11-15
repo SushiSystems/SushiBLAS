@@ -1,8 +1,8 @@
 # tools
 
-The checkers every Sushi Systems repository carries, copied whole from `tools/` in SushiSkills.
-A rule is fixed there first and copied here with `checking/copy_shared_tools.py`; `settings.py`
-holds what differs. `layering/check_tier_contents.py`, `layering/check_engine_seams.py`,
+The checkers every Sushi Systems repository carries, taken from SushiCore with
+`python -m sushicore.shared_tools sync` and never edited here; `shared_tools.lock` lists them and a
+fix lands in SushiCore first. `settings.py` holds what differs. `layering/check_tier_contents.py`, `layering/check_engine_seams.py`,
 `styling/check_raw_colours.py`, `versioning/`, `naming/` and the tests `test_check_tier_contents.py`,
 `test_check_engine_seams.py`, `test_check_raw_colours.py`, `test_check_version.py` and
 `test_tier_table.py` are this repository's own.
@@ -11,7 +11,7 @@ holds what differs. `layering/check_tier_contents.py`, `layering/check_engine_se
 | --- | --- | --- |
 | `check_all.py` | Nothing itself; runs the eleven checkers, then the repository's own `<area>/check_<what>.py` files and the tests, and prints only what failed | Repository root |
 | `settings.py` | Nothing; holds the settings that differ between repositories | |
-| `checking/copy_shared_tools.py` | Nothing; copies these files, `.github/CODE_OF_CONDUCT.md` and `.github/SECURITY.md` into a repository, keeping its license blocks, `settings.py`, this README and its own tools, or lists the files that differ with `--report` | Repository root, `--from` |
+| `checking/check_shared_tools.py` | The files `shared_tools.lock` lists against their recorded hashes | Repository root |
 | `checking/checker.py` | Nothing itself; runs a checker's rule table and prints findings | |
 | `checking/ignored_paths.py` | Nothing itself; names the files and folders git ignores, which no checker reads | |
 | `testing/check_test_mirror.py` | `tests/` mirrors the source: one `test_<name>` file per header or source file (`<name>.test.ts` in TypeScript), no test without a unit, no folder without a counterpart, no test that includes a header under `source/`; in a Unity repository, `Assets/<Product>/Tests/` with `<Name>Tests.cs` | Repository root |

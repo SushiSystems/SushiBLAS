@@ -4,7 +4,7 @@
 # Licensed under the Apache License 2.0. See LICENSE.
 """Holds the settings of one repository that the shared checkers read.
 
-copy_shared_tools.py writes this file only when a repository has none, and never overwrites it.
+`python -m sushicore.shared_tools sync` never copies or overwrites this file.
 """
 
 from __future__ import annotations
@@ -57,3 +57,5 @@ K_TEST_TIMES: dict[str, float] = {
     "large_test_s": 30,
     "pre_merge_s": 600,
 }
+K_TRAILER_SINCE = "6a4e4f83e8aa3395e2358bc83fbbe73de4e83466"
+K_DOCS_FOLLOW_SINCE = "6a4e4f83e8aa3395e2358bc83fbbe73de4e83466"
