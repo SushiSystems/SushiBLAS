@@ -36,6 +36,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/functor_map/map_operand.hpp>
 #include <SushiBLAS/broadcast/broadcast_operand.hpp>
 
 namespace SushiBLAS
@@ -93,11 +94,13 @@ namespace SushiBLAS
 
             /**
              * @brief Checks the operands of a broadcast call and returns the extents it walks.
+             * @tparam Bind True when the task binds its operands, so a vector may be planned.
              * @pre a holds at least one element.
              * @throws std::invalid_argument naming the operand and the rule, for each refusal the
              *         broadcast design lists.
              * @see modules/operations/broadcast/README.md
              */
+            template<bool Bind>
             [[nodiscard]] inline BroadcastGeometry require_broadcast_operands(
                 const Tensor& a, const BroadcastOperand* vectors, std::size_t count, const Tensor& c,
                 const char* name)
@@ -112,7 +115,7 @@ namespace SushiBLAS
                                     "is null");
 
                     const Tensor& v = *vectors[k].vector;
-                    require_storage(v, name, operand.c_str());
+                    require_map_storage<Bind>(v, name, operand.c_str());
                     require_device_dtype(v, name, operand.c_str());
                     require_broadcast_layout(v, name, operand.c_str());
                     require_contiguous(v, name, operand.c_str());

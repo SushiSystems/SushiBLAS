@@ -16,10 +16,12 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE functor_map
     TESTS
+        test_map_operand.cpp
         test_read_binding/test_include_order.cpp
         test_scalar.cpp
         test_scalar_binding.cpp
     DEVICE_TESTS
+        test_broadcast_task.cpp
         test_index_task.cpp
         test_map_task.cpp
         test_read_binding/test_read_binding.cpp

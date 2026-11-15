@@ -11,6 +11,7 @@ It depends on `core`, `support`, `tensor` and `engine`. Its headers are included
 | --- | --- |
 | `broadcast_task.hpp` | The task body of the broadcast seam, with its nested host loops and its SYCL path |
 | `index_task.hpp` | The task body of the per-index seam, with its serial host path and its SYCL path |
+| `map_operand.hpp` | MapOperand, which names where a task finds one operand at each run, and the two calls that bind a tensor to a task or record its address |
 | `map_task.hpp` | The task bodies of the per-element seams, each with its serial host path and its SYCL path |
 | `read_binding.hpp` | The binding that declares the tensors an element functor reads and hands them to it as typed pointers |
 | `scalar.hpp` | ElementScalar, a double operation parameter narrowed once to every element type |
@@ -45,8 +46,8 @@ things:
 ### `functor_map/map_task.hpp`
 
 `MapTask` and `ZipTask` hold the dtype, where each operand is found, the element count and the
-functor. A `MapOperand` names an operand by a binding into the table the task's run is given or by
-a recorded address; the task reads the addresses and their alignment at each run. A functor that
+functor. A `MapOperand`, declared in `map_operand.hpp`, names an operand by a binding into the table the
+task's run is given or by a recorded address; the task reads the addresses and their alignment at each run. A functor that
 declares reads (`bind_reads`) holds raw read addresses, so its task records addresses and binds
 nothing. Under
 `ForceReference` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
@@ -151,12 +152,14 @@ refuse it as they refuse a write bundle. A seam that takes updates calls
 `BroadcastTask` runs `out[o, n] = op(a[o, n], v0, ..., vN-1)` for one to four vectors, each
 selected by the outer index `o` or the inner index `n`. `BroadcastIndex` names which; the
 `BroadcastOperands` struct holds the two extents, the base addresses and one `BroadcastIndex` per
-vector. Under `ForceReference` the body runs two nested loops over `o` and `n`; under any other
+vector. A `BroadcastBinding` holds the same, with a `MapOperand` in place of each address, and
+`resolve` turns it into `BroadcastOperands` at each run from the table the run is given, as
+`MapTask` does; a task built from `BroadcastOperands` records addresses and binds nothing. Under `ForceReference` the body runs two nested loops over `o` and `n`; under any other
 mode it submits one `sycl::range<2>{outer, inner}` kernel, so no work-item divides. Both paths call
 `BroadcastElement`, one object built from the functor `kernel_op` returns, so the host path is not a
 second implementation. Each element of `a` is read before the element of `out` at the same index is
 written, which is what lets `out` be `a`. There is no `sycl::vec` path. `make_broadcast_task`
-builds the body from the seam's arguments; `execute_broadcast` in
+builds the body from recorded addresses and `make_operand_broadcast_task` from a `BroadcastBinding`; `execute_broadcast` in
 [`broadcast`](../../operations/broadcast/README.md) is its only caller.
 
 ## `functor_map/index_task.hpp`

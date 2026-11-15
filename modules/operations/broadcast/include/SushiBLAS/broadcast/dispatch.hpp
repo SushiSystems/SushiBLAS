@@ -41,6 +41,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/functor_map/map_operand.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 #include <SushiBLAS/functor_map/broadcast_task.hpp>
@@ -76,11 +77,12 @@ namespace SushiBLAS
                           "write it declares; a functor that writes more records "
                           "through IndexOps::for_each.");
 
-            require_storage(A, name, "A");
+            constexpr bool k_binds = !Detail::DeclaresReads<std::decay_t<Func>>::value;
+            Detail::require_map_storage<k_binds>(A, name, "A");
             require_device_dtype(A, name, "A");
             Detail::require_broadcast_layout(A, name, "A");
             require_contiguous(A, name, "A");
-            require_storage(C, name, "C");
+            Detail::require_map_storage<k_binds>(C, name, "C");
             require_device_dtype(C, name, "C");
             Detail::require_broadcast_layout(C, name, "C");
             require_contiguous(C, name, "C");
@@ -95,22 +97,28 @@ namespace SushiBLAS
 
             Detail::require_broadcast_output(A, C, name);
             const Detail::BroadcastGeometry geometry =
-                Detail::require_broadcast_operands(A, vectors.data(), N, C, name);
+                Detail::require_broadcast_operands<k_binds>(A, vectors.data(), N, C, name);
 
-            Detail::BroadcastOperands<N> addresses{geometry.outer, geometry.inner, C.data(),
-                                                   A.data(), {}, {}};
             OperandSet operands;
             operands.reads(A);
             for (std::size_t k = 0; k < N; ++k)
-            {
-                addresses.vectors[k] = vectors[k].vector->data();
-                addresses.selected_by[k] = vectors[k].axis == BroadcastAxis::Leading
-                                               ? BroadcastIndex::Outer
-                                               : BroadcastIndex::Inner;
                 operands.reads(*vectors[k].vector);
-            }
             operands.writes(C);
             Detail::declare_reads(op_func, operands, name);
+
+            Detail::BroadcastBinding<N> binding{geometry.outer,
+                                                Detail::map_operand<k_binds>(operands, C),
+                                                Detail::map_operand<k_binds>(operands, A),
+                                                {},
+                                                geometry.inner,
+                                                {}};
+            for (std::size_t k = 0; k < N; ++k)
+            {
+                binding.vectors[k] = Detail::map_operand<k_binds>(operands, *vectors[k].vector);
+                binding.selected_by[k] = vectors[k].axis == BroadcastAxis::Leading
+                                             ? BroadcastIndex::Outer
+                                             : BroadcastIndex::Inner;
+            }
 
             TaskDescription description;
             description.name = name;
@@ -119,8 +127,8 @@ namespace SushiBLAS
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Broadcast operation",
-                Detail::make_broadcast_task<Dom>(A.dtype, "Broadcast operation", name, addresses,
-                                                 Detail::task_functor(op_func)));
+                Detail::make_operand_broadcast_task<Dom>(A.dtype, "Broadcast operation", name,
+                                                         binding, Detail::task_functor(op_func)));
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

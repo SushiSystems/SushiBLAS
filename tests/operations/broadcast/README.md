@@ -12,7 +12,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `compile_broadcast_operand.cpp` | Checks that `broadcast_operand.hpp` compiles on its own; compiled, never run |
 | `benchmark_broadcast.cpp` | Times BroadcastOps::mul beside channel_affine and beside a per-index launch that divides |
 | `test_broadcast.cpp` | Tests BroadcastOps::add, sub, mul and div along each axis against a host loop, and C as A |
-| `test_dispatch.cpp` | Tests Dispatch::execute_broadcast with several vectors and a bound scalar, its refusals, and that the host path equals the device bit for bit |
+| `test_dispatch.cpp` | Tests Dispatch::execute_broadcast with several vectors and a bound scalar, its refusals, that the host path equals the device bit for bit, and that planned and runtime operands bound by handle equal the host reference |
 
 ## test_broadcast.cpp
 

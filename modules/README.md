@@ -137,8 +137,9 @@ and the device index before they allocate. `Tensor::reshape` takes a braced list
 `std::vector<int64_t>`.
 
 Both may be called from any thread at any time, also while another thread records or executes: the
-factory holds a runtime pointer and a layout and changes neither, `Storage` calls the allocator and
-nothing else, and the allocator accepts calls from any thread.
+factory holds a runtime pointer and a layout and changes neither, `Storage` calls the allocator and,
+for a host block, takes the next slot of the host handle space, an atomic counter, and nothing else,
+and the allocator accepts calls from any thread.
 `tests/data/tensor/test_tensor_factory/test_tensor_factory_threads.cpp` creates tensors from eight threads at once.
 
 ## `tensor_factory.hpp`

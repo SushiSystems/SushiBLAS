@@ -8,7 +8,9 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_broadcast_task.cpp` | Tests that a broadcast task over bound operands reads the table of each run and gives one result on the reference and the SYCL path |
 | `test_index_task.cpp` | Tests that an index task gives one result on the reference and the SYCL path, and that the host body of a late count reads its width when it runs |
+| `test_map_operand.cpp` | Tests that a bound operand reads the slot and offset of the table it is given, a recorded one its own address, and one with no storage null |
 | `test_map_task.cpp` | Tests that a map task and a zip task give one result on the reference and the SYCL path, and that a map task reads the table of each run |
 | `test_read_binding/test_read_binding.cpp` | Tests bind_reads, the bundle that declares the tensors an element functor reads |
 | `test_read_binding/test_include_order.cpp` | Tests that a seam defined before `write_binding.hpp` is included still checks a write bundle's reads |

@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-16 — broadcast: Bound the matrix, the output and the vectors of `execute_broadcast` by handle, so a planned tensor is accepted unless the functor declares reads (GLOBAL_HANDLE R10).
+- 2026-11-16 — functor_map: Moved `MapOperand` and the two calls that bind an operand into `map_operand.hpp`, so a second seam binds as the elementwise executors do (GLOBAL_HANDLE R10).
 - 2026-11-16 — engine: Replaced `OperandPointers` with the runtime's `BoundOperands`, read through `operand_address()`, which refuses a wrong slot, offset or element type (GLOBAL_HANDLE R10).
 - 2026-11-16 — blas: Changed the GEMM split slice and `bound_gemm_operands()` to take `BoundOperands`, and the copy to read operands through `operand_address()` (GLOBAL_HANDLE R10).
 - 2026-11-15 — tensor: Changed `StorageBlock::device_index()` and `Storage::device_index()` to return an optional, empty for a planned block in place of device 0 (GLOBAL_HANDLE R07).

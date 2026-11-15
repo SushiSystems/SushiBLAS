@@ -62,6 +62,15 @@ operand and the rule.
 - **Empty.** An `A` with no element records nothing and returns an empty handle, as
   `execute_binary` does.
 
+### Operands bound by handle
+
+`execute_broadcast` binds `A`, `C` and each vector with `OperandSet::bind`, as the elementwise
+executors do, and records no address, so each takes a planned tensor and the runtime may place the
+task on any device. The task finds each operand at every run through the `MapOperand` of
+[`functor_map`](../../engine/functor_map/README.md). A functor that declares reads (`bind_reads`)
+holds raw read addresses, so its task records the addresses, binds nothing and refuses a planned
+operand by name.
+
 ## Paths
 
 The device path launches `sycl::range<2>{outer, inner}`, the shape `ger` uses, so no work-item

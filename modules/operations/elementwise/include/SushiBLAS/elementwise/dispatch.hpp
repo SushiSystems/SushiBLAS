@@ -43,6 +43,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/arithmetic/safe_math.hpp>
+#include <SushiBLAS/functor_map/map_operand.hpp>
 #include <SushiBLAS/functor_map/map_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/elementwise/wrapping_math.hpp>
@@ -54,39 +55,6 @@ namespace SushiBLAS
 {
     namespace Dispatch
     {
-        namespace Detail
-        {
-            /**
-             * @brief Checks the storage of an elementwise operand.
-             * @tparam Bind True when the task binds its operands, which a planned tensor may be;
-             *         false when it records addresses, which a planned tensor has none of.
-             * @throws std::invalid_argument as require_bindable_storage or require_storage states.
-             */
-            template<bool Bind>
-            inline void require_map_storage(const Tensor& t, const char* op, const char* operand)
-            {
-                if constexpr (Bind)
-                    require_bindable_storage(t, op, operand);
-                else
-                    require_storage(t, op, operand);
-            }
-
-            /**
-             * @brief Returns where a task finds the first element of t at each run.
-             * @tparam Bind True binds t on operands and records no address; false records the
-             *         address of the first element and binds nothing.
-             * @pre t has passed require_map_storage<Bind>.
-             */
-            template<bool Bind>
-            [[nodiscard]] inline MapOperand map_operand(OperandSet& operands, const Tensor& t)
-            {
-                if constexpr (Bind)
-                    return MapOperand(operands.bind(t));
-                else
-                    return MapOperand(t.data_or_null());
-            }
-        } // namespace Detail
-
         /**
          * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::Real; a wider domain needs an op_func well-formed for it.

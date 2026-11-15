@@ -42,8 +42,8 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiBLAS/engine/operand_binding.hpp>
 #include <SushiRuntime/handle/bound_operands.hpp>
+#include <SushiBLAS/functor_map/map_operand.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 
 namespace SushiBLAS
@@ -52,44 +52,6 @@ namespace SushiBLAS
     {
         namespace Detail
         {
-            /**
-             * @brief Names where a map task finds one operand at each run: in the table its task
-             *        bound, or at the address recorded with it.
-             *
-             * An operand with no storage has neither and reads as null.
-             * @see modules/engine/functor_map/README.md
-             */
-            struct MapOperand
-            {
-                /** @brief Names an operand with no storage. */
-                MapOperand() = default;
-
-                /** @brief Names an operand the task bound; it records no address. */
-                MapOperand(const OperandBinding& bound) noexcept : binding(bound)
-                {
-
-                }
-
-                /** @brief Names an operand by the address recorded with the task. */
-                MapOperand(const void* address) noexcept : recorded(address)
-                {
-
-                }
-
-                /** @brief Returns the address of the first element for the run whose operands are @p operands. */
-                [[nodiscard]] const void* resolve(const SushiRuntime::BoundOperands& operands) const
-                {
-                    return binding.slot == OperandBinding::K_ABSENT ? recorded
-                                                                    : operand_address<const std::byte>(operands, binding);
-                }
-
-                /// @brief Where the task's bound table holds the operand; absent for a recorded address.
-                OperandBinding binding;
-
-                /// @brief The address recorded with the task; null for a bound operand.
-                const void* recorded = nullptr;
-            };
-
             /**
              * @brief Runs a map on the host for the element type of a with_element_type arm.
              * @tparam Op What Detail::task_functor returned for the seam's functor.

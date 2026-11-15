@@ -98,8 +98,8 @@ buffer's handle. `copy_to_host` and `copy_from_host` go through the buffer's `re
 
 An operation that records the address of each operand calls `Dispatch::require_storage`, which
 refuses a planned operand with `std::invalid_argument` naming the operation, before any address is
-read. The operations that record by handle (GEMM and COPY of BLAS, and the elementwise executors,
-see [the engine](../../engine/engine/README.md)) call `Dispatch::require_bindable_storage` and take
+read. The operations that record by handle (GEMM and COPY of BLAS, the elementwise executors and
+the broadcast executor, see [the engine](../../engine/engine/README.md)) call `Dispatch::require_bindable_storage` and take
 a planned tensor.
 
 ## Shape-only tensors

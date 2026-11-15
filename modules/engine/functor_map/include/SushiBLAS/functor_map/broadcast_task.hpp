@@ -37,8 +37,10 @@
 #include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiRuntime/handle/bound_operands.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/functor_map/map_operand.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 
@@ -75,6 +77,58 @@ namespace SushiBLAS
                 /** @brief Holds the index that selects from each vector. */
                 std::array<BroadcastIndex, N> selected_by;
             };
+
+            /**
+             * @brief Holds the geometry of one broadcast call and where its task finds each operand
+             *        at each run: in the table the task bound, or at the address recorded with it.
+             * @tparam N How many vectors the call broadcasts, one to four.
+             * @see modules/engine/functor_map/README.md
+             */
+            template<std::size_t N>
+            struct BroadcastBinding
+            {
+                /** @brief Holds the extent of the outer index. */
+                std::size_t outer;
+                /** @brief Holds where the output is found; it may be where a is. */
+                MapOperand out;
+                /** @brief Holds where the matrix operand is found. */
+                MapOperand a;
+                /** @brief Holds where each vector is found, in functor order. */
+                std::array<MapOperand, N> vectors;
+                /** @brief Holds the extent of the inner index. */
+                std::size_t inner;
+                /** @brief Holds the index that selects from each vector. */
+                std::array<BroadcastIndex, N> selected_by;
+
+                /**
+                 * @brief Returns the addresses of the run whose bound operands are @p pointers.
+                 * @param pointers The base addresses the task bound; empty for a task that
+                 *        recorded its addresses.
+                 */
+                [[nodiscard]] BroadcastOperands<N> resolve(
+                    const SushiRuntime::BoundOperands& pointers) const
+                {
+                    BroadcastOperands<N> operands{outer, inner,
+                                                  const_cast<void*>(out.resolve(pointers)),
+                                                  a.resolve(pointers), {}, selected_by};
+                    for (std::size_t k = 0; k < N; ++k)
+                        operands.vectors[k] = vectors[k].resolve(pointers);
+                    return operands;
+                }
+            };
+
+            /** @brief Returns the binding that stands for the addresses recorded in @p operands. */
+            template<std::size_t N>
+            [[nodiscard]] inline BroadcastBinding<N> recorded_binding(
+                const BroadcastOperands<N>& operands)
+            {
+                BroadcastBinding<N> binding{operands.outer, MapOperand(operands.out),
+                                            MapOperand(operands.a), {}, operands.inner,
+                                            operands.selected_by};
+                for (std::size_t k = 0; k < N; ++k)
+                    binding.vectors[k] = MapOperand(operands.vectors[k]);
+                return binding;
+            }
 
             /**
              * @brief Computes one element, `out[o, n] = op(a[o, n], v0, ..., vN-1)`, for the element type T.
@@ -220,36 +274,61 @@ namespace SushiBLAS
                 public:
                     /**
                      * @brief Holds everything the body needs at execute time.
+                     * @param binding Where each operand is found at each run.
                      * @param family Stored, not copied; must outlive the task, as name must.
                      */
                     BroadcastTask(Core::DataType dtype, const char* family, const char* name,
-                                  const BroadcastOperands<N>& operands, Op op)
-                        : dtype_(dtype), family_(family), name_(name), operands_(operands),
+                                  const BroadcastBinding<N>& binding, Op op)
+                        : dtype_(dtype), family_(family), name_(name), binding_(binding),
                           op_(std::move(op))
                     {
 
                     }
 
-                    /** @brief Runs the nested host loops under ForceReference, else submits the kernel. */
-                    sycl::event operator()(const KernelPairDispatcher& pair,
-                                           const std::vector<sycl::event>& deps) const
+                    /** @brief Holds the operands by their recorded addresses. */
+                    BroadcastTask(Core::DataType dtype, const char* family, const char* name,
+                                  const BroadcastOperands<N>& operands, Op op)
+                        : BroadcastTask(dtype, family, name, recorded_binding(operands),
+                                        std::move(op))
                     {
+
+                    }
+
+                    /**
+                     * @brief Runs the nested host loops under ForceReference, else submits the kernel.
+                     * @param pointers The base addresses the task bound; empty for a task that
+                     *        recorded its addresses.
+                     */
+                    sycl::event operator()(const KernelPairDispatcher& pair,
+                                           const std::vector<sycl::event>& deps,
+                                           const SushiRuntime::BoundOperands& pointers) const
+                    {
+                        // The runtime may bind another instance at each run, so read them now.
+                        const BroadcastOperands<N> operands = binding_.resolve(pointers);
+
                         return pair.run(deps,
-                            [this]
+                            [&]
                             {
                                 with_element_type<Dom>(dtype_, family_, name_,
-                                    SerialBroadcastArm<Op, N>{op_, operands_});
+                                    SerialBroadcastArm<Op, N>{op_, operands});
                             },
-                            [this](sycl::queue& q2,
-                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                            [&](sycl::queue& q2,
+                                const std::vector<sycl::event>& deps2) -> sycl::event
                             {
                                 return q2.submit([&](sycl::handler& h)
                                 {
                                     h.depends_on(deps2);
                                     with_element_type<Dom>(dtype_, family_, name_,
-                                        LaunchBroadcastArm<Op, N>{h, op_, operands_});
+                                        LaunchBroadcastArm<Op, N>{h, op_, operands});
                                 });
                             });
+                    }
+
+                    /** @brief Runs the task as above, for a caller that holds no bound table. */
+                    sycl::event operator()(const KernelPairDispatcher& pair,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        return (*this)(pair, deps, SushiRuntime::BoundOperands());
                     }
 
                 private:
@@ -262,15 +341,15 @@ namespace SushiBLAS
                     /// @brief The operation name, for diagnostics.
                     const char* name_;
 
-                    /// @brief The geometry and the addresses of every operand.
-                    BroadcastOperands<N> operands_;
+                    /// @brief The geometry and where each operand is found.
+                    BroadcastBinding<N> binding_;
 
                     /// @brief The functor, with the addresses of its declared reads if it has any.
                     Op op_;
             };
 
             /**
-             * @brief Builds the task body of a broadcast-shaped seam.
+             * @brief Builds the task body of a broadcast-shaped seam over operands found by address.
              * @param op The seam's functor after Detail::task_functor.
              */
             template<Domain Dom, typename Op, std::size_t N>
@@ -279,6 +358,19 @@ namespace SushiBLAS
                 const BroadcastOperands<N>& operands, const Op& op)
             {
                 return BroadcastTask<Dom, Op, N>(dtype, family, name, operands, op);
+            }
+
+            /**
+             * @brief Builds the task body of a broadcast-shaped seam over operands found through a
+             *        bound table or by address, as each MapOperand of the binding says.
+             * @param op The seam's functor after Detail::task_functor.
+             */
+            template<Domain Dom, typename Op, std::size_t N>
+            [[nodiscard]] inline BroadcastTask<Dom, Op, N> make_operand_broadcast_task(
+                Core::DataType dtype, const char* family, const char* name,
+                const BroadcastBinding<N>& binding, const Op& op)
+            {
+                return BroadcastTask<Dom, Op, N>(dtype, family, name, binding, op);
             }
         } // namespace Detail
     } // namespace Dispatch

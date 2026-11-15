@@ -24,7 +24,7 @@
 /**
  * @file test_dispatch.cpp
  * @brief Tests Dispatch::execute_broadcast with several vectors and a bound scalar, its refusals,
- *        and that the host path equals the device bit for bit.
+ *        that the host path equals the device bit for bit, and its operands bound by handle.
  * @author Mustafa Garip
  */
 
@@ -42,7 +42,10 @@
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/broadcast/dispatch.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -189,6 +192,75 @@ namespace SushiBLAS
                 /** @brief Holds the element count of the trailing vector, or 0 for none. */
                 int64_t trailing;
             };
+
+            /// @brief Rows of the matrix of this file.
+            constexpr std::int64_t K_ROWS = 5;
+
+            /// @brief Columns of the matrix of this file.
+            constexpr std::int64_t K_COLUMNS = 7;
+
+            /// @brief Elements of the matrix of this file.
+            constexpr std::size_t K_COUNT = static_cast<std::size_t>(K_ROWS * K_COLUMNS);
+
+            /** @brief Returns a planned FLOAT32 tensor of the extents holding values. */
+            [[nodiscard]] Tensor planned_tensor(const std::vector<int64_t>& dims,
+                                                const std::vector<float>& values)
+            {
+                const TensorFactory factory(TestEnvironment::runtime());
+                Tensor tensor = factory.planned(
+                    SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
+                    Core::DataType::Float32);
+                tensor.storage->copy_from_host(values.data(), 0, values.size() * sizeof(float));
+                return tensor;
+            }
+
+            /** @brief Returns the elements of a planned tensor, read through the host copy. */
+            [[nodiscard]] std::vector<float> read_back(const Tensor& tensor, std::size_t count)
+            {
+                std::vector<float> values(count);
+                tensor.storage->copy_to_host(values.data(), 0, count * sizeof(float));
+                return values;
+            }
+
+            /** @brief Returns n small integers starting at first. */
+            [[nodiscard]] std::vector<float> counting(std::size_t n, float first)
+            {
+                std::vector<float> values(n);
+                for (std::size_t i = 0; i < n; ++i)
+                    values[i] = first + static_cast<float>(i % 11) - 5.0f;
+                return values;
+            }
+
+            /** @brief Returns what `a * v` is on the host, v selected by the column or by the row. */
+            [[nodiscard]] std::vector<float> reference_product(const std::vector<float>& a,
+                                                               const std::vector<float>& v,
+                                                               BroadcastAxis axis)
+            {
+                std::vector<float> product(a.size());
+                for (std::size_t i = 0; i < a.size(); ++i)
+                {
+                    const std::size_t selected = axis == BroadcastAxis::Leading
+                                                     ? i / static_cast<std::size_t>(K_COLUMNS)
+                                                     : i % static_cast<std::size_t>(K_COLUMNS);
+                    product[i] = a[i] * v[selected];
+                }
+                return product;
+            }
+
+            /** @brief Returns the message of the std::invalid_argument fn throws, or empty. */
+            template<typename Function>
+            [[nodiscard]] std::string refusal_of(Function&& fn)
+            {
+                try
+                {
+                    fn();
+                }
+                catch (const std::invalid_argument& error)
+                {
+                    return error.what();
+                }
+                return std::string();
+            }
         } // namespace
 
         /** @brief Gives each test the fixture's engine, and builders for the tensors it records over. */
@@ -509,6 +581,98 @@ namespace SushiBLAS
             const std::array<BroadcastOperand, 1> vectors{{{nullptr, BroadcastAxis::Trailing}}};
 
             expect_refusal([&]() { record_sum(a, vectors, c); }, "'vector 0' is null");
+        }
+
+        /** @brief Records on the runtime and compares with the host. */
+        class Medium_BroadcastPlanned : public SushiBLASTest
+        {
+
+        };
+
+        TEST_F(Medium_BroadcastPlanned, MulOverPlannedTensorsWithATrailingVectorEqualsTheHostReference)
+        {
+            const std::vector<float> a_values = counting(K_COUNT, 1.0f);
+            const std::vector<float> v_values = counting(static_cast<std::size_t>(K_COLUMNS), 3.0f);
+            const Tensor a = planned_tensor({K_ROWS, K_COLUMNS}, a_values);
+            const Tensor v = planned_tensor({K_COLUMNS}, v_values);
+            Tensor c = planned_tensor({K_ROWS, K_COLUMNS}, std::vector<float>(K_COUNT, 0.0f));
+
+            BroadcastOps(recorder()).mul(a, v, c, BroadcastAxis::Trailing);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            EXPECT_EQ(read_back(c, K_COUNT),
+                      reference_product(a_values, v_values, BroadcastAxis::Trailing));
+        }
+
+        TEST_F(Medium_BroadcastPlanned, MulOverPlannedTensorsWithALeadingVectorEqualsTheHostReference)
+        {
+            const std::vector<float> a_values = counting(K_COUNT, 2.0f);
+            const std::vector<float> v_values = counting(static_cast<std::size_t>(K_ROWS), 4.0f);
+            const Tensor a = planned_tensor({K_ROWS, K_COLUMNS}, a_values);
+            const Tensor v = planned_tensor({K_ROWS}, v_values);
+            Tensor c = planned_tensor({K_ROWS, K_COLUMNS}, std::vector<float>(K_COUNT, 0.0f));
+
+            BroadcastOps(recorder()).mul(a, v, c, BroadcastAxis::Leading);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            EXPECT_EQ(read_back(c, K_COUNT),
+                      reference_product(a_values, v_values, BroadcastAxis::Leading));
+        }
+
+        TEST_F(Medium_BroadcastPlanned, MulOverRuntimeTensorsEqualsTheHostReference)
+        {
+            const std::vector<float> a_values = counting(K_COUNT, 1.0f);
+            const std::vector<float> v_values = counting(static_cast<std::size_t>(K_COLUMNS), 3.0f);
+            Tensor a = engine->create_tensor({K_ROWS, K_COLUMNS});
+            Tensor v = engine->create_tensor({K_COLUMNS});
+            Tensor c = engine->create_tensor({K_ROWS, K_COLUMNS});
+            fill_tensor(a, a_values);
+            fill_tensor(v, v_values);
+
+            BroadcastOps(recorder()).mul(a, v, c, BroadcastAxis::Trailing);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            expect_tensor_equal(c, reference_product(a_values, v_values, BroadcastAxis::Trailing));
+        }
+
+        TEST_F(Medium_BroadcastPlanned, AnInPlaceMulOverAPlannedMatrixEqualsTheHostReference)
+        {
+            const std::vector<float> a_values = counting(K_COUNT, 1.0f);
+            const std::vector<float> v_values = counting(static_cast<std::size_t>(K_COLUMNS), 3.0f);
+            Tensor a = planned_tensor({K_ROWS, K_COLUMNS}, a_values);
+            const Tensor v = planned_tensor({K_COLUMNS}, v_values);
+
+            BroadcastOps(recorder()).mul(a, v, a, BroadcastAxis::Trailing);
+            ASSERT_TRUE(recording->run_succeeds());
+
+            EXPECT_EQ(read_back(a, K_COUNT),
+                      reference_product(a_values, v_values, BroadcastAxis::Trailing));
+        }
+
+        TEST_F(Medium_BroadcastPlanned, AFunctorThatDeclaresReadsRefusesAPlannedOperandByName)
+        {
+            const Tensor a = planned_tensor({K_ROWS, K_COLUMNS}, counting(K_COUNT, 1.0f));
+            const Tensor v = planned_tensor({K_COLUMNS}, counting(7, 3.0f));
+            Tensor c = planned_tensor({K_ROWS, K_COLUMNS}, std::vector<float>(K_COUNT, 0.0f));
+            Tensor table = engine->create_tensor({K_COLUMNS});
+            fill_tensor(table, counting(7, 1.0f));
+            const std::array<BroadcastOperand, 1> vectors{{{&v, BroadcastAxis::Trailing}}};
+
+            const std::string message = refusal_of(
+                [&]
+                {
+                    Dispatch::execute_broadcast(
+                        recorder(), a, vectors, c, "test.broadcast_reads", "test.broadcast_reads"_op,
+                        Dispatch::bind_reads(
+                            [](auto x, auto scale, const auto* weights)
+                            {
+                                return x * scale * weights[0];
+                            },
+                            Dispatch::read_as_element(table)));
+                });
+
+            EXPECT_NE(message.find("test.broadcast_reads"), std::string::npos) << message;
+            EXPECT_NE(message.find("planned"), std::string::npos) << message;
         }
     } // namespace Test
 } // namespace SushiBLAS
