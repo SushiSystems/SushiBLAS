@@ -180,6 +180,12 @@ namespace SushiBLAS
                 return SushiRuntime::On(buffer_).life;
             }
 
+            /** @brief Returns the handle the runtime minted for the buffer this block holds. */
+            [[nodiscard]] SushiRuntime::GlobalHandle global_handle() const noexcept override
+            {
+                return buffer_.handle();
+            }
+
         private:
             /// @brief Holds the runtime's device view, which hands out the queue of the allocation.
             SushiRuntime::AdvancedControls controls_;

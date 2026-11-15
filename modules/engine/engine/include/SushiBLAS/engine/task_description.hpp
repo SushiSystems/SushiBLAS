@@ -32,11 +32,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <type_traits>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/cost/cost_shape.hpp>
 #include <SushiBLAS/engine/engine_log_category.hpp>
 #include <SushiRuntime/core/determinism.hpp>
+#include <SushiRuntime/core/node_split.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -68,6 +70,12 @@ namespace SushiBLAS
          * @see modules/foundation/cost/README.md
          */
         CostShape shape;
+
+        /**
+         * @brief How the runtime may cut the task into parts; null states none and the task runs whole.
+         * @see modules/engine/engine/README.md
+         */
+        std::shared_ptr<const SushiRuntime::NodeSplit> split;
 
         /**
          * @brief Writes the bytes of value to one slot.

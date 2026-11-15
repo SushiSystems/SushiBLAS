@@ -102,6 +102,12 @@ namespace SushiBLAS
         /** @brief Bytes the operands the task declared span, an updated operand counted twice. */
         std::uint64_t bytes = 0;
 
+        /** @brief The part of bytes the task declared as read; an updated operand counts here too. */
+        std::uint64_t read_bytes = 0;
+
+        /** @brief The part of bytes the task declared as written; an updated operand counts here too. */
+        std::uint64_t written_bytes = 0;
+
         /** @brief The real type the task's operands are judged in; meaningless when the task is uncosted. */
         Core::DataType dtype = Core::DataType::Float32;
 
@@ -128,6 +134,23 @@ namespace SushiBLAS
             Cost cost = *this;
             if (cost.is_costed())
                 cost.bytes = operand_bytes;
+            return cost;
+        }
+
+        /**
+         * @brief Returns this cost with the bytes the operands read and write; an uncosted cost stays as it is.
+         * @post bytes equals read_bytes plus written_bytes.
+         */
+        [[nodiscard]] constexpr Cost with_traffic(std::uint64_t operand_read_bytes,
+                                                  std::uint64_t operand_written_bytes) const noexcept
+        {
+            Cost cost = *this;
+            if (cost.is_costed())
+            {
+                cost.read_bytes = operand_read_bytes;
+                cost.written_bytes = operand_written_bytes;
+                cost.bytes = operand_read_bytes + operand_written_bytes;
+            }
             return cost;
         }
     };

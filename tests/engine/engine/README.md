@@ -32,7 +32,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out |
 | `test_host_graph_sink.cpp` | Tests that HostGraphSink admits every mode and keeps the name, cost and origin of a late-count node without calling its record |
 | `test_host_late_count_keeper.cpp` | Tests that HostLateCountKeeper lends an empty late count and counts the owners it keeps |
-| `test_task_cost.cpp` | Tests the access and the cost a recorded node states for an operation, a shape and its operands |
+| `test_task_cost.cpp` | Tests the access and the cost a recorded node states for an operation, a shape and its operands, including the bytes read and written and the kind of work |
 | `test_task_sink.cpp` | Tests that the host and graph adapters of TaskSink keep the TaskSink contract |
 | `test_tensor_profile.cpp` | Tests that profile_of() gives a host tensor the host Profile and refuses a tensor with no storage |
 | `test_mode_admission.cpp` | Tests that both ModeAdmission adapters keep its contract |

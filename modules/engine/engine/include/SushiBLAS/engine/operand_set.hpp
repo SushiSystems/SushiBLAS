@@ -197,12 +197,25 @@ namespace SushiBLAS
              */
             [[nodiscard]] std::uint64_t declared_bytes() const noexcept
             {
-                std::uint64_t total = 0;
-                for (const SushiRuntime::BufferRegion& region : reads_)
-                    total += region.length == SushiRuntime::BufferRegion::K_WHOLE ? 0U : region.length;
-                for (const SushiRuntime::BufferRegion& region : writes_)
-                    total += region.length == SushiRuntime::BufferRegion::K_WHOLE ? 0U : region.length;
-                return total;
+                return declared_read_bytes() + declared_written_bytes();
+            }
+
+            /**
+             * @brief Returns the sum of the lengths of the read regions; a region with no length of its own counts nothing.
+             * @see modules/foundation/cost/README.md
+             */
+            [[nodiscard]] std::uint64_t declared_read_bytes() const noexcept
+            {
+                return span_of(reads_);
+            }
+
+            /**
+             * @brief Returns the sum of the lengths of the written regions; a region with no length of its own counts nothing.
+             * @see modules/foundation/cost/README.md
+             */
+            [[nodiscard]] std::uint64_t declared_written_bytes() const noexcept
+            {
+                return span_of(writes_);
             }
 
             /** @brief Returns the storages the recorded task holds a reference to. */
@@ -230,6 +243,16 @@ namespace SushiBLAS
         private:
             /** @brief Holds the region count reserved on the first declaration. */
             static constexpr std::size_t K_TYPICAL_REGIONS = 4;
+
+            /** @brief Returns the sum of the lengths of regions; a K_WHOLE region adds nothing. */
+            [[nodiscard]] static std::uint64_t
+            span_of(const std::vector<SushiRuntime::BufferRegion>& regions) noexcept
+            {
+                std::uint64_t total = 0;
+                for (const SushiRuntime::BufferRegion& region : regions)
+                    total += region.length == SushiRuntime::BufferRegion::K_WHOLE ? 0U : region.length;
+                return total;
+            }
 
             /** @brief Appends region, reserving K_TYPICAL_REGIONS on the first call. */
             static void append(std::vector<SushiRuntime::BufferRegion>& regions,

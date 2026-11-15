@@ -88,6 +88,28 @@ namespace SushiBLAS
             EXPECT_EQ(costed.with_bytes(64).flops, 7U);
         }
 
+        TEST(Small_CostStated, WithTrafficSetsTheReadTheWrittenAndTheTotalBytes)
+        {
+            Cost costed;
+            costed.flops = 7;
+
+            const Cost traffic = costed.with_traffic(72, 32);
+
+            EXPECT_EQ(traffic.read_bytes, 72U);
+            EXPECT_EQ(traffic.written_bytes, 32U);
+            EXPECT_EQ(traffic.bytes, 104U);
+            EXPECT_EQ(traffic.flops, 7U);
+        }
+
+        TEST(Small_CostStated, WithTrafficLeavesAnUncostedCostAtZeroBytes)
+        {
+            const Cost traffic = Cost::uncosted(UncostedReason::NoRule).with_traffic(72, 32);
+
+            EXPECT_EQ(traffic.read_bytes, 0U);
+            EXPECT_EQ(traffic.written_bytes, 0U);
+            EXPECT_EQ(traffic.bytes, 0U);
+        }
+
         TEST(Small_CostStated, WithBytesLeavesAnUncostedCostAtZeroBytes)
         {
             EXPECT_EQ(Cost::uncosted(UncostedReason::NoRule).with_bytes(64).bytes, 0U);

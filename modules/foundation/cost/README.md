@@ -13,7 +13,7 @@ It depends on [`core`](../core/README.md) and on SushiRuntime for `OperationID`.
 
 ## How a cost is stated
 
-`TaskRecorder::insert` is the one place that states it. It calls `cost_of(description.operation, description.shape)`, adds the bytes the operands declared (`OperandSet::declared_bytes`) and hands the result to the runtime as `NodeOptions::cost`. A call site states only facts it already holds: the extents, in the shape struct of its family. The knowledge of what an operation costs is in `cost_table.cpp`.
+`TaskRecorder::insert` is the one place that states it. It calls `cost_of(description.operation, description.shape)`, adds the bytes the operands declared (`OperandSet::declared_read_bytes` and `declared_written_bytes`, through `Cost::with_traffic`) and hands the result to the runtime as `NodeOptions::cost`. A call site states only facts it already holds: the extents, in the shape struct of its family. The knowledge of what an operation costs is in `cost_table.cpp`.
 
 A task that states no cost carries no `NodeCost` at all; the runtime then writes no `flops` or `bytes` attribute on its span. A stated zero is a real zero: an `im2col` moves data and does no arithmetic, and its row says so. The reason a task has no cost is one of:
 
@@ -47,7 +47,7 @@ A GEMM epilogue states its count per element of C as `static constexpr std::uint
 
 ### Bytes
 
-The bytes of a task are the lengths of the regions it declared, an updated operand counted twice and a region with no length of its own counted 0. For a dense operand this is a lower bound of the traffic the task causes. For a strided view it is the span of the view, which may be above or below the traffic: no direction is guaranteed. A task that declares a scratch lease counts it as the operand it is.
+`Cost::bytes` is `read_bytes` plus `written_bytes`. The bytes of a task are the lengths of the regions it declared, an updated operand counted twice and a region with no length of its own counted 0. For a dense operand this is a lower bound of the traffic the task causes. For a strided view it is the span of the view, which may be above or below the traffic: no direction is guaranteed. A task that declares a scratch lease counts it as the operand it is.
 
 ### Weights of the elementwise and nonlinear rows
 

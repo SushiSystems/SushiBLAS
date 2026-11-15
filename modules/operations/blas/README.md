@@ -23,6 +23,7 @@ so one view records all three levels.
 | `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
 | `dispatch.hpp` | The GEMM executor of the dispatch seam and the epilogue bundle it accepts |
 | `gemm_recording.hpp` | `GemmTaskPort`, the port that records a checked GEMM call, and `InMemoryGemmPort`, which records it with no kernel |
+| `gemm_split.hpp` | The split a GEMM states: `GemmSplitAxis`, `GemmSlice`, `slice_gemm`, `OffsetEpilogue` and `make_gemm_split` |
 | `sparse.hpp` | `SparseBLAS`, a placeholder class that declares no operation |
 
 `SparseBLAS` is not the sparse surface and no class derives from it. The sparse operations are
@@ -167,6 +168,16 @@ the reference kernel or the SYCL kernel. `InMemoryGemmPort` records the same tas
 submits nothing, so a test reads the dependencies, the description and the checks of a GEMM call
 with no kernel instantiated and no runtime. `record_gemm(port, ...)` is the step both share, and
 `epilogue_access(epilogue)` returns what a bare functor or a `GemmEpilogue` bundle declares.
+
+### `make_gemm_split`
+
+`KernelGemmPort::record` states a split on the task of a GEMM whose operands the host can reach, as
+`TaskDescription::split`. The axis is the longer side of C, the rows on a tie, and the extent is
+that side's length. The slice kernel runs the host reference kernel over the part's range of the
+axis: `slice_gemm` gives the part's extents and the element offsets of A, B and C for the layout and
+the transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix.
+The parts write disjoint elements of C, so the split states no combine. A GEMM with a device-only
+operand states no split, because its slice would dereference memory the host cannot read.
 
 ### `execute_gemm`
 

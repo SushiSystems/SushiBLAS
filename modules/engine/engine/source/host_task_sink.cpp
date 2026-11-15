@@ -75,7 +75,7 @@ namespace SushiBLAS
             HostTaskRecord{description.name, description.operation, description.determinism,
                            operands.read_regions(), operands.write_regions(),
                            Internal::task_cost(description.operation, description.shape, operands),
-                           origin},
+                           origin, description.split},
             std::move(body), operands.retained()});
     }
 

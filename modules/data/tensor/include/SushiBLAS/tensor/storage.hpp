@@ -108,6 +108,15 @@ namespace SushiBLAS
                 return block_->owner_liveness();
             }
 
+            /**
+             * @brief Returns the runtime's identity of the allocation.
+             * @return The null handle when the runtime does not hold the allocation.
+             */
+            [[nodiscard]] SushiRuntime::GlobalHandle global_handle() const noexcept
+            {
+                return block_->global_handle();
+            }
+
             /** @brief Returns the block this storage forwards to. */
             [[nodiscard]] const StorageBlock& block() const noexcept { return *block_; }
 

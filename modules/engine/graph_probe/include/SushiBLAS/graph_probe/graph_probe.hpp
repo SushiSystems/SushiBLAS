@@ -72,6 +72,9 @@ namespace SushiBLAS
 
             /** @brief The origin the task was recorded under; empty when no scope was open. */
             std::string origin;
+
+            /** @brief Whether the task stated that the runtime may cut it into parts. */
+            bool splittable = false;
         };
 
         /**
@@ -137,7 +140,8 @@ namespace SushiBLAS
                                                      node.predecessor_count,
                                                      std::move(node.reads),
                                                      std::move(node.writes), node.cost,
-                                                     std::string(node.origin)});
+                                                     std::string(node.origin),
+                                                     node.splittable});
                     }
                     return tasks;
                 }

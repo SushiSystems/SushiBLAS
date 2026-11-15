@@ -270,6 +270,18 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns the runtime's identity of the allocation the tensor views.
+         *
+         * Every view of one storage reports the same handle; the handle names the allocation, and
+         * region() names the bytes of the view within it.
+         * @return The null handle when the tensor has no storage or the runtime does not hold it.
+         */
+        [[nodiscard]] SushiRuntime::GlobalHandle global_handle() const noexcept
+        {
+            return storage ? storage->global_handle() : SushiRuntime::GlobalHandle::null();
+        }
+
+        /**
          * @brief Returns a pointer to the first element, storage_offset elements past the allocation base.
          * @throws std::runtime_error if the tensor has no storage.
          * @see modules/README.md

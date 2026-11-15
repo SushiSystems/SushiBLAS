@@ -598,6 +598,31 @@ namespace SushiBLAS
             EXPECT_EQ(record.writes.size(), std::size_t{1});
         }
 
+        /** @brief Tests that a GEMM on the host sink states the split of the longer side of C. */
+        TEST_F(Small_TaskRecorderCost, AGemmStatesASplitAlongTheLongerSideOfC)
+        {
+            record_gemm(0.0);
+
+            const std::shared_ptr<const SushiRuntime::NodeSplit> split = only_record().split;
+            ASSERT_NE(split, nullptr);
+            EXPECT_EQ(split->axis, std::uint32_t{1});
+            EXPECT_EQ(split->extent, std::uint64_t{4});
+            EXPECT_TRUE(static_cast<bool>(split->slice));
+            EXPECT_FALSE(static_cast<bool>(split->combine));
+        }
+
+        /** @brief Tests that an elementwise task states no split. */
+        TEST_F(Small_TaskRecorderCost, AnElementwiseTaskStatesNoSplit)
+        {
+            const Tensor a = floats({4});
+            const Tensor b = floats({4});
+            Tensor out = floats({4});
+
+            SushiBLAS::ElementwiseOps(recorder()).add(a, b, out);
+
+            EXPECT_EQ(only_record().split, nullptr);
+        }
+
         /** @brief Tests that a beta of one updates C, so its bytes count twice. */
         TEST_F(Small_TaskRecorderCost, AnUpdatedOperandCountsTwiceInTheBytes)
         {
@@ -681,8 +706,54 @@ namespace SushiBLAS
             ASSERT_EQ(tasks->size(), std::size_t{2});
             ASSERT_TRUE(before.cost.has_value());
             ASSERT_TRUE((*tasks)[0].cost.has_value());
-            EXPECT_EQ((*tasks)[0].cost->flops, before.cost->flops);
-            EXPECT_EQ((*tasks)[0].cost->bytes, before.cost->bytes);
+            EXPECT_EQ((*tasks)[0].cost->operations, before.cost->operations);
+            EXPECT_EQ((*tasks)[0].cost->read_bytes, before.cost->read_bytes);
+            EXPECT_EQ((*tasks)[0].cost->written_bytes, before.cost->written_bytes);
+        }
+
+        /** @brief Tests that a GEMM node reaches the plan with the numbers of a 2x3 by 3x4 product. */
+        TEST_F(Medium_TaskRecorderCost, AGemmNodeStatesItsOperationsItsBytesAndItsKind)
+        {
+            GraphProbe probe;
+            const Tensor a = floats({2, 3});
+            const Tensor b = floats({3, 4});
+            Tensor c = floats({2, 4});
+
+            SushiBLAS::BLASOps(probe.recorder()).gemm(a, b, c);
+
+            const RecordedTask task = first_task_of(probe);
+            ASSERT_TRUE(task.cost.has_value());
+            EXPECT_EQ(task.cost->operations, std::uint64_t{2 * 2 * 3 * 4});
+            EXPECT_EQ(task.cost->read_bytes, std::uint64_t{(6 + 12) * sizeof(float)});
+            EXPECT_EQ(task.cost->written_bytes, std::uint64_t{8 * sizeof(float)});
+            EXPECT_EQ(task.cost->kind, SushiRuntime::OperationKinds::K_COMPUTE_BOUND);
+            EXPECT_EQ(task.cost->dtype, SushiRuntime::NodeDType::F32);
+        }
+
+        /** @brief Tests that a GEMM node over host-reachable operands states a split in the plan. */
+        TEST_F(Medium_TaskRecorderCost, AGemmNodeIsSplittable)
+        {
+            GraphProbe probe;
+            const Tensor a = floats({2, 3});
+            const Tensor b = floats({3, 4});
+            Tensor c = floats({2, 4});
+
+            SushiBLAS::BLASOps(probe.recorder()).gemm(a, b, c);
+
+            EXPECT_TRUE(first_task_of(probe).splittable);
+        }
+
+        /** @brief Tests that an elementwise node states no split. */
+        TEST_F(Medium_TaskRecorderCost, AnElementwiseNodeIsNotSplittable)
+        {
+            GraphProbe probe;
+            const Tensor a = floats({4});
+            const Tensor b = floats({4});
+            Tensor out = floats({4});
+
+            SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, out);
+
+            EXPECT_FALSE(first_task_of(probe).splittable);
         }
 
         /** @brief Holds the checks of the join between a record call and a runtime rule. */

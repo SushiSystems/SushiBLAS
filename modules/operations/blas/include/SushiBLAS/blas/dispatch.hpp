@@ -43,6 +43,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/blas/gemm_recording.hpp>
+#include <SushiBLAS/blas/gemm_split.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -269,7 +270,23 @@ namespace SushiBLAS
                     const void* read_B = gemm.read_b;
                     void* rw_C = gemm.write_c;
 
-                    return Internal::execute_blas_task<Dom>(recorder, gemm.description,
+                    TaskDescription description = gemm.description;
+                    require_domain<Dom>(gemm.dtype, "BLAS operation", description.name);
+                    if (!gemm.operands.has_device_only_operand())
+                    {
+                        with_element_type<Dom>(
+                            gemm.dtype, "BLAS operation", description.name,
+                            [&](auto tag)
+                            {
+                                using T = typename decltype(tag)::type;
+                                description.split = make_gemm_split<T>(
+                                    gemm.geometry, layout, transA, transB, alpha.as<T>(),
+                                    static_cast<const T*>(read_A), static_cast<const T*>(read_B),
+                                    beta.as<T>(), static_cast<T*>(rw_C), kernel_epilogue);
+                            });
+                    }
+
+                    return Internal::execute_blas_task<Dom>(recorder, description,
                         gemm.operands, gemm.dtype,
                         [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
                             const std::vector<sycl::event>& deps) -> sycl::event

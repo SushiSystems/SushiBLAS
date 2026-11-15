@@ -51,6 +51,13 @@ namespace SushiBLAS
             EXPECT_EQ(block.size_bytes(), std::size_t{300});
         }
 
+        TEST(Small_HostBlock, ItReportsTheNullHandleBecauseTheRuntimeDoesNotHoldIt)
+        {
+            const HostBlock block(300, 128);
+
+            EXPECT_TRUE(block.global_handle().is_null());
+        }
+
         TEST(Small_HostBlock, ADefaultBlockOwnsNothing)
         {
             const HostBlock block;

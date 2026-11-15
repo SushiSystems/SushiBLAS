@@ -36,6 +36,7 @@
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/handle/global_handle.hpp>
 #include <SushiRuntime/region/liveness.hpp>
 
 namespace SushiBLAS
@@ -132,6 +133,15 @@ namespace SushiBLAS
             [[nodiscard]] virtual SushiRuntime::LivenessObserver owner_liveness() const noexcept
             {
                 return {};
+            }
+
+            /**
+             * @brief Returns the runtime's identity of the allocation.
+             * @return The null handle for a block the runtime does not hold, such as host memory.
+             */
+            [[nodiscard]] virtual SushiRuntime::GlobalHandle global_handle() const noexcept
+            {
+                return SushiRuntime::GlobalHandle::null();
             }
 
         protected:

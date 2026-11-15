@@ -31,13 +31,16 @@
 #pragma once
 
 #include <optional>
+#include <variant>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/cost/cost.hpp>
 #include <SushiBLAS/cost/cost_shape.hpp>
 #include <SushiBLAS/cost/cost_table.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/node_cost.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
+#include <SushiRuntime/core/operation_kind.hpp>
 
 namespace SushiBLAS
 {
@@ -62,6 +65,69 @@ namespace SushiBLAS
                         return SushiRuntime::NodeDType::Unstated;
                 }
             }
+
+            /** @brief Names the class of work each shape family belongs to, for std::visit. */
+            struct OperationKindOf
+            {
+                /** @brief A product is compute bound. */
+                [[nodiscard]] SushiRuntime::OperationKind operator()(const GemmShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_COMPUTE_BOUND;
+                }
+
+                /** @brief A convolution is compute bound. */
+                [[nodiscard]] SushiRuntime::OperationKind
+                operator()(const ConvolutionShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_COMPUTE_BOUND;
+                }
+
+                /** @brief An elementwise task is memory bound. */
+                [[nodiscard]] SushiRuntime::OperationKind
+                operator()(const ElementwiseShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_MEMORY_BOUND;
+                }
+
+                /** @brief A reduction is memory bound. */
+                [[nodiscard]] SushiRuntime::OperationKind
+                operator()(const ReductionShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_MEMORY_BOUND;
+                }
+
+                /** @brief A window fold is memory bound. */
+                [[nodiscard]] SushiRuntime::OperationKind operator()(const WindowShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_MEMORY_BOUND;
+                }
+
+                /** @brief A copy is memory bound. */
+                [[nodiscard]] SushiRuntime::OperationKind operator()(const CopyShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_MEMORY_BOUND;
+                }
+
+                /** @brief A transform names no kind. */
+                [[nodiscard]] SushiRuntime::OperationKind
+                operator()(const TransformShape&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_GENERIC;
+                }
+
+                /** @brief A task with no shape names no kind. */
+                [[nodiscard]] SushiRuntime::OperationKind operator()(const std::monostate&) const noexcept
+                {
+                    return SushiRuntime::OperationKinds::K_GENERIC;
+                }
+            };
+
+            /** @brief Returns the class of work the shape family belongs to. */
+            [[nodiscard]] inline SushiRuntime::OperationKind
+            operation_kind_of(const CostShape& shape) noexcept
+            {
+                return std::visit(OperationKindOf{}, shape);
+            }
         } // namespace Detail
 
         /**
@@ -84,23 +150,27 @@ namespace SushiBLAS
         [[nodiscard]] inline Cost task_cost(SushiRuntime::OperationID operation,
                                             const CostShape& shape, const OperandSet& operands)
         {
-            return cost_of(operation, shape).with_bytes(operands.declared_bytes());
+            return cost_of(operation, shape)
+                .with_traffic(operands.declared_read_bytes(), operands.declared_written_bytes());
         }
 
         /**
-         * @brief Returns the cost a runtime node states.
+         * @brief Returns the cost a runtime node states, with the kind of work the shape names.
+         * @param shape The shape the cost was computed from; it picks the kind.
          * @return Empty when cost is uncosted.
          * @see modules/engine/engine/README.md
          */
         [[nodiscard]] inline std::optional<SushiRuntime::NodeCost>
-        node_cost_of(const Cost& cost) noexcept
+        node_cost_of(const Cost& cost, const CostShape& shape) noexcept
         {
             if (!cost.is_costed())
                 return std::nullopt;
 
             SushiRuntime::NodeCost node_cost;
-            node_cost.flops = cost.flops;
-            node_cost.bytes = cost.bytes;
+            node_cost.operations = cost.flops;
+            node_cost.read_bytes = cost.read_bytes;
+            node_cost.written_bytes = cost.written_bytes;
+            node_cost.kind = Detail::operation_kind_of(shape);
             node_cost.dtype = Detail::node_dtype_of(cost.dtype);
             return node_cost;
         }

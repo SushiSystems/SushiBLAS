@@ -28,10 +28,14 @@
  */
 
 #include <cstddef>
+#include <memory>
+#include <utility>
 #include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/runtime_block.hpp>
+#include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/owned_memory.hpp"
 
@@ -54,6 +58,42 @@ namespace SushiBLAS
             const RuntimeBlock block(TestEnvironment::runtime(), K_BORROWED_BYTES);
 
             EXPECT_FALSE(names_an_owner(block.owner_liveness()));
+        }
+
+        TEST(Medium_RuntimeBlock, ABlockReportsTheHandleOfItsBuffer)
+        {
+            const RuntimeBlock block(TestEnvironment::runtime(), K_BORROWED_BYTES);
+
+            EXPECT_FALSE(block.global_handle().is_null());
+        }
+
+        TEST(Medium_RuntimeBlock, TwoLiveBlocksReportTwoHandles)
+        {
+            const RuntimeBlock first(TestEnvironment::runtime(), K_BORROWED_BYTES);
+            const RuntimeBlock second(TestEnvironment::runtime(), K_BORROWED_BYTES);
+
+            EXPECT_NE(first.global_handle(), second.global_handle());
+        }
+
+        TEST(Medium_RuntimeBlock, AStorageAndATensorOverTheBlockReportItsHandle)
+        {
+            auto block = std::make_unique<RuntimeBlock>(TestEnvironment::runtime(), K_BORROWED_BYTES);
+            const SushiRuntime::GlobalHandle expected = block->global_handle();
+            const SushiRuntime::sushi_ptr<Storage> storage =
+                SushiRuntime::make_sushi<Storage>(std::move(block));
+            const Tensor tensor(storage, {4});
+
+            EXPECT_EQ(storage->global_handle(), expected);
+            EXPECT_EQ(tensor.global_handle(), expected);
+        }
+
+        TEST(Medium_RuntimeBlock, ABorrowingBlockReportsTheHandleOfTheBufferItViews)
+        {
+            const OwnedMemory memory(K_BORROWED_BYTES);
+            const RuntimeBlock block(RuntimeBlock::Borrowed{}, TestEnvironment::runtime(),
+                                     memory.borrow(0, K_BORROWED_BYTES));
+
+            EXPECT_FALSE(block.global_handle().is_null());
         }
 
         TEST(Medium_RuntimeBlock, ItsQueueIsTheQueueOfItsDevice)

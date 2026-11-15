@@ -13,7 +13,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `profile_hooks.hpp` | `in_recording`, `in_scratch_lease`, `count_scratch_lease` and `install_profile_hooks`, the zones and counters of the recorder and the scratch shelf, declared with no profiler header |
 | `late_count_hold.hpp` | `LateCountHold`, which keeps the storages of late-count tasks for as long as the owner of their recording keeps it |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
-| `task_cost.hpp` | `task_access`, `task_cost` and `node_cost_of`, the access and the cost of one recorded node as value functions of the operation, the shape and the operand set |
+| `task_cost.hpp` | `task_access`, `task_cost` and `node_cost_of`, the access and the cost of one recorded node as value functions of the operation, the shape and the operand set; `node_cost_of` also names the kind of work from the shape |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
 | `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |
@@ -435,7 +435,7 @@ alive until the graph or the sink drops the task even if the caller's `Tensor` i
 
 ### Cost, origin and the events of a body
 
-The node insertion of `GraphTaskSink` states the node's cost: `cost_of(operation, shape)` from [`cost`](../../foundation/cost/README.md), plus `OperandSet::declared_bytes()`, as `NodeOptions::cost`; a task with no stated cost carries none. `record_late_pair` always states none, because its width is read on the device at run time (`DataDependent`).
+The node insertion of `GraphTaskSink` states the node's cost: `cost_of(operation, shape)` from [`cost`](../../foundation/cost/README.md), plus the bytes `OperandSet::declared_read_bytes()` and `declared_written_bytes()` give, as `NodeOptions::cost`: `operations` is the flops, `read_bytes` and `written_bytes` are those two sums, `dtype` is the ceiling class of the cost, and `kind` is `K_COMPUTE_BOUND` for a product or a convolution, `K_MEMORY_BOUND` for an elementwise, reduction, window or copy task and generic for a transform or a task with no shape. A task with no stated cost carries none. A task that states a split carries it as `NodeOptions::split` from `TaskDescription::split`; the host sink keeps it in `HostTaskRecord::split`, and `GraphProbe` reports it as `RecordedTask::splittable`. `record_late_pair` always states none, because its width is read on the device at run time (`DataDependent`).
 
 `origin(label)` returns an `OriginScope`. Every node recorded on this recorder while the scope lives gets `NodeOptions::origin` equal to the label, and the spans of those nodes name it. Scopes nest, and a scope that ends restores the label that was open when it began. The recorder holds the label as a string under its recording mutex, so it must not be called from inside `run_exclusive`.
 
@@ -504,7 +504,7 @@ Holds one reference per distinct `Storage`. The first six sit in an inline array
 spills to a `std::vector`, so the common task allocates nothing for it. Retaining a storage twice
 holds it once.
 
-`declared_bytes()` is the sum of the lengths of the read and the write regions, so an updated operand counts twice and a region with no length of its own counts nothing. It is the byte count of a task's cost: a lower bound of the traffic for a dense operand, and the span of the view for a strided one.
+`declared_read_bytes()` and `declared_written_bytes()` are the sums of the lengths of the read and of the write regions, and `declared_bytes()` is their sum, so an updated operand counts twice and a region with no length of its own counts nothing. It is the byte count of a task's cost: a lower bound of the traffic for a dense operand, and the span of the view for a strided one.
 
 ## `kernel_pair_dispatcher.hpp`
 

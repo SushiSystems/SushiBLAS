@@ -95,7 +95,8 @@ namespace SushiBLAS
             options.determinism = description.determinism;
             options.parameters = SushiRuntime::span<const std::uint64_t>(
                 description.parameters, TaskDescription::K_MAX_PARAMETERS);
-            options.cost = Internal::node_cost_of(cost);
+            options.cost = Internal::node_cost_of(cost, description.shape);
+            options.split = description.split;
             options.origin = origin;
 
             // The count before and the recording are one step under the recorder's mutex.

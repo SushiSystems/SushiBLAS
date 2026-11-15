@@ -18,6 +18,14 @@ It depends on `core`. Its headers are included as `<SushiBLAS/tensor/<name>.hpp>
 | `tensor.hpp` | Tensor, a typed, strided view over a Storage, or over none for validation |
 | `tensor_factory.hpp` | TensorFactory, which allocates dense tensors from one runtime or from host memory |
 
+## Handle
+
+`Tensor::global_handle()` returns the `SushiRuntime::GlobalHandle` of the allocation the tensor views,
+through `Storage::global_handle()` and `StorageBlock::global_handle()`. `RuntimeBlock` returns the
+handle of the buffer it holds, for an allocated and for a borrowed block. `HostBlock` and a tensor
+with no storage return the null handle, because the runtime does not hold that memory. Every view of
+one storage reports one handle; `region()` names the bytes of the view within it.
+
 ## Borrowing memory
 
 `borrow_runtime_storage(runtime, std::move(buffer))` builds a `Storage` over a

@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
+#include <SushiRuntime/core/operation_kind.hpp>
 #include <SushiBLAS/tensor/runtime_block.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/cost/cost.hpp>
@@ -69,12 +70,14 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the cost of a costed task of the given work. */
-            [[nodiscard]] Cost costed_work(std::uint64_t flops, std::uint64_t bytes,
-                                           Core::DataType dtype)
+            [[nodiscard]] Cost costed_work(std::uint64_t flops, std::uint64_t read_bytes,
+                                           std::uint64_t written_bytes, Core::DataType dtype)
             {
                 Cost cost;
                 cost.flops = flops;
-                cost.bytes = bytes;
+                cost.read_bytes = read_bytes;
+                cost.written_bytes = written_bytes;
+                cost.bytes = read_bytes + written_bytes;
                 cost.dtype = dtype;
                 return cost;
             }
@@ -201,6 +204,34 @@ namespace SushiBLAS
             EXPECT_EQ(cost.dtype, Core::DataType::Float32);
         }
 
+        TEST_F(Medium_TaskCost, AGemmSplitsItsBytesIntoWhatItReadsAndWhatItWrites)
+        {
+            const Tensor a = engine->create_tensor({2, 3});
+            const Tensor b = engine->create_tensor({3, 4});
+            const Tensor c = engine->create_tensor({2, 4});
+            OperandSet operands;
+            operands.reads(a).reads(b).writes(c);
+
+            const Cost cost = Internal::task_cost(K_GEMM, gemm_shape(2, 4, 3), operands);
+
+            EXPECT_EQ(cost.read_bytes, std::uint64_t{(6 + 12) * sizeof(float)});
+            EXPECT_EQ(cost.written_bytes, std::uint64_t{8 * sizeof(float)});
+        }
+
+        TEST_F(Medium_TaskCost, AnUpdatedOperandIsReadAndWritten)
+        {
+            const Tensor a = engine->create_tensor({2, 3});
+            const Tensor b = engine->create_tensor({3, 4});
+            const Tensor c = engine->create_tensor({2, 4});
+            OperandSet operands;
+            operands.reads(a).reads(b).updates(c);
+
+            const Cost cost = Internal::task_cost(K_GEMM, gemm_shape(2, 4, 3), operands);
+
+            EXPECT_EQ(cost.read_bytes, std::uint64_t{(6 + 12 + 8) * sizeof(float)});
+            EXPECT_EQ(cost.written_bytes, std::uint64_t{8 * sizeof(float)});
+        }
+
         TEST_F(Medium_TaskCost, AnUpdatedOperandCountsTwiceInTheBytes)
         {
             const Tensor a = engine->create_tensor({2, 3});
@@ -244,19 +275,49 @@ namespace SushiBLAS
         TEST(Small_NodeCostOf, AnUncostedCostStatesNothing)
         {
             const std::optional<SushiRuntime::NodeCost> node_cost =
-                Internal::node_cost_of(Cost::uncosted(UncostedReason::NoShape));
+                Internal::node_cost_of(Cost::uncosted(UncostedReason::NoShape), CostShape{});
 
             EXPECT_FALSE(node_cost.has_value());
         }
 
-        TEST(Small_NodeCostOf, ACostedCostCarriesItsFlopsAndBytes)
+        TEST(Small_NodeCostOf, ACostedCostCarriesItsOperationsAndItsBytesReadAndWritten)
         {
-            const std::optional<SushiRuntime::NodeCost> node_cost =
-                Internal::node_cost_of(costed_work(48, 104, Core::DataType::Float32));
+            const std::optional<SushiRuntime::NodeCost> node_cost = Internal::node_cost_of(
+                costed_work(48, 72, 32, Core::DataType::Float32), gemm_shape(2, 4, 3));
 
             ASSERT_TRUE(node_cost.has_value());
-            EXPECT_EQ(node_cost->flops, std::uint64_t{48});
-            EXPECT_EQ(node_cost->bytes, std::uint64_t{104});
+            EXPECT_EQ(node_cost->operations, std::uint64_t{48});
+            EXPECT_EQ(node_cost->read_bytes, std::uint64_t{72});
+            EXPECT_EQ(node_cost->written_bytes, std::uint64_t{32});
+            EXPECT_EQ(node_cost->moved_bytes(), std::uint64_t{104});
+        }
+
+        TEST(Small_NodeCostOf, AProductIsComputeBound)
+        {
+            const std::optional<SushiRuntime::NodeCost> node_cost = Internal::node_cost_of(
+                costed_work(48, 72, 32, Core::DataType::Float32), gemm_shape(2, 4, 3));
+
+            ASSERT_TRUE(node_cost.has_value());
+            EXPECT_EQ(node_cost->kind, SushiRuntime::OperationKinds::K_COMPUTE_BOUND);
+        }
+
+        TEST(Small_NodeCostOf, AnElementwiseTaskIsMemoryBound)
+        {
+            const std::optional<SushiRuntime::NodeCost> node_cost = Internal::node_cost_of(
+                costed_work(4, 8, 4, Core::DataType::Float32),
+                ElementwiseShape{4, Core::DataType::Float32});
+
+            ASSERT_TRUE(node_cost.has_value());
+            EXPECT_EQ(node_cost->kind, SushiRuntime::OperationKinds::K_MEMORY_BOUND);
+        }
+
+        TEST(Small_NodeCostOf, ATaskWithNoShapeNamesTheGenericKind)
+        {
+            const std::optional<SushiRuntime::NodeCost> node_cost = Internal::node_cost_of(
+                costed_work(4, 8, 4, Core::DataType::Float32), CostShape{});
+
+            ASSERT_TRUE(node_cost.has_value());
+            EXPECT_TRUE(node_cost->kind.is_generic());
         }
 
         /** @brief Maps the dtype of a cost to the class of a runtime node. */
@@ -270,7 +331,7 @@ namespace SushiBLAS
             const NodeDTypeRow row = GetParam();
 
             const std::optional<SushiRuntime::NodeCost> node_cost =
-                Internal::node_cost_of(costed_work(0, 0, row.dtype));
+                Internal::node_cost_of(costed_work(0, 0, 0, row.dtype), CostShape{});
 
             ASSERT_TRUE(node_cost.has_value());
             EXPECT_EQ(node_cost->dtype, row.expected);
