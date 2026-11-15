@@ -160,11 +160,11 @@ namespace SushiBLAS
          * @brief Throws unless a tensor holding elements has storage.
          * @param facts The storage of t.
          * @throws std::invalid_argument when num_elements > 0 and the storage is absent, the
-         *         message saying so when t is shape-only, or when the storage is planned.
+         *         message saying so when t is shape-only.
          * @see modules/engine/engine/README.md
          */
-        inline void require_storage(const Tensor& t, const StorageFacts& facts, const char* op,
-                                    const char* operand)
+        inline void require_present_storage(const Tensor& t, const StorageFacts& facts,
+                                            const char* op, const char* operand)
         {
             if (t.num_elements > 0 && !facts.present && t.shape_only)
                 Detail::throw_operand_error(op, operand,
@@ -174,11 +174,49 @@ namespace SushiBLAS
             if (t.num_elements > 0 && !facts.present)
                 Detail::throw_operand_error(op, operand, "holds {} elements but has no storage",
                                             t.num_elements);
+        }
+
+        /**
+         * @brief Throws when the storage is planned, which has no host address an operation that
+         *        records addresses could take.
+         * @throws std::invalid_argument naming the operation and the operand.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_host_address(const StorageFacts& facts, const char* op,
+                                         const char* operand)
+        {
             if (facts.planned)
                 Detail::throw_operand_error(op, operand,
                                             "is a planned tensor, which has no host address; {} "
                                             "does not record over planned tensors yet",
                                             op);
+        }
+
+        /**
+         * @brief Throws unless a tensor holding elements has storage with a host address.
+         * @param facts The storage of t.
+         * @throws std::invalid_argument when num_elements > 0 and the storage is absent, or when
+         *         the storage is planned.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_storage(const Tensor& t, const StorageFacts& facts, const char* op,
+                                    const char* operand)
+        {
+            require_present_storage(t, facts, op, operand);
+            require_host_address(facts, op, operand);
+        }
+
+        /**
+         * @brief Reads the facts require_storage needs: whether the storage exists and is planned.
+         * @see modules/engine/engine/README.md
+         */
+        [[nodiscard]] inline StorageFacts presence_facts_of(const Tensor& t) noexcept
+        {
+            StorageFacts facts;
+            facts.present = static_cast<bool>(t.storage);
+            facts.planned = facts.present &&
+                            t.storage->residency() == SushiRuntime::Residency::Planned;
+            return facts;
         }
 
         /**
@@ -189,11 +227,20 @@ namespace SushiBLAS
          */
         inline void require_storage(const Tensor& t, const char* op, const char* operand)
         {
-            StorageFacts facts;
-            facts.present = static_cast<bool>(t.storage);
-            facts.planned = facts.present &&
-                            t.storage->residency() == SushiRuntime::Residency::Planned;
-            require_storage(t, facts, op, operand);
+            require_storage(t, presence_facts_of(t), op, operand);
+        }
+
+        /**
+         * @brief Throws unless a tensor holding elements has storage, planned or not.
+         *
+         * An operation that records its operands by handle and reads their bound pointers calls
+         * this instead of require_storage; every other operation keeps refusing a planned tensor.
+         * @throws std::invalid_argument when num_elements > 0 and storage is null.
+         * @see modules/engine/engine/README.md
+         */
+        inline void require_bindable_storage(const Tensor& t, const char* op, const char* operand)
+        {
+            require_present_storage(t, presence_facts_of(t), op, operand);
         }
 
         /**

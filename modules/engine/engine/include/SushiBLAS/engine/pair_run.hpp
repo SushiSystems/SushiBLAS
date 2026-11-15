@@ -34,6 +34,7 @@
 #include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 
 namespace SushiBLAS
 {
@@ -51,10 +52,13 @@ namespace SushiBLAS
              * @brief Binds the run to a dispatcher and the events it is ordered behind.
              * @param dispatcher Must outlive the run.
              * @param dependencies Must outlive the run.
+             * @param operands The base address of each allocation the task bound, valid during
+             *        the run; empty for a task that bound none.
              */
             PairRun(const KernelPairDispatcher& dispatcher,
-                    const std::vector<sycl::event>& dependencies) noexcept
-                : dispatcher_(dispatcher), dependencies_(dependencies)
+                    const std::vector<sycl::event>& dependencies,
+                    OperandPointers operands = OperandPointers()) noexcept
+                : dispatcher_(dispatcher), dependencies_(dependencies), operands_(operands)
             {
 
             }
@@ -68,6 +72,9 @@ namespace SushiBLAS
                 return dependencies_;
             }
 
+            /** @brief Returns the addresses of the operands the task bound, for this run only. */
+            [[nodiscard]] const OperandPointers& operands() const noexcept { return operands_; }
+
             /** @brief Records the event that completes after every kernel the body submitted. */
             void finish(sycl::event done) noexcept { done_ = std::move(done); }
 
@@ -80,6 +87,9 @@ namespace SushiBLAS
 
             /// @brief The events this run is ordered behind.
             const std::vector<sycl::event>& dependencies_;
+
+            /// @brief The addresses of the operands the task bound.
+            OperandPointers operands_;
 
             /// @brief The event that ends the body's work.
             sycl::event done_;

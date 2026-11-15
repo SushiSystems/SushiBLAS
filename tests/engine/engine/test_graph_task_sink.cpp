@@ -37,6 +37,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/task_sink_subjects.hpp"
 
@@ -74,6 +75,52 @@ namespace SushiBLAS
                           });
 
             EXPECT_EQ(sink.node_count(), std::size_t{1});
+        }
+
+        /** @brief Tests that a task that bound an operand reads its address from the table the runtime bound. */
+        TEST_F(Medium_GraphTaskSinkTest, ABoundOperandReachesTheBodyThroughTheRun)
+        {
+            const Tensor target = sink_target_of(tensors);
+            TaskDescription description;
+            description.name = "graph.bound";
+            OperandSet operands;
+            operands.writes(target);
+            const OperandBinding binding = operands.bind(target);
+            std::size_t bound_count = 0;
+            const void* seen = nullptr;
+
+            sink.add_pair(description, operands, ExecutionMode::ForceReference, std::string(),
+                          [&](PairRun& run)
+                          {
+                              bound_count = run.operands().size();
+                              seen = run.operands().address(binding);
+                          });
+            const auto ran = graph.run();
+
+            ASSERT_TRUE(ran) << ran.error().message;
+            EXPECT_EQ(bound_count, std::size_t{1});
+            EXPECT_EQ(seen, target.data());
+        }
+
+        /** @brief Tests that a task that bound nothing gets an empty table. */
+        TEST_F(Medium_GraphTaskSinkTest, ATaskThatBoundNothingGetsNoOperandPointers)
+        {
+            const Tensor target = sink_target_of(tensors);
+            TaskDescription description;
+            description.name = "graph.unbound";
+            OperandSet operands;
+            operands.writes(target);
+            std::size_t bound_count = 1;
+
+            sink.add_pair(description, operands, ExecutionMode::ForceReference, std::string(),
+                          [&](PairRun& run)
+                          {
+                              bound_count = run.operands().size();
+                          });
+            const auto ran = graph.run();
+
+            ASSERT_TRUE(ran) << ran.error().message;
+            EXPECT_EQ(bound_count, std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -25,6 +25,7 @@ sushiblas_add_test_program(
     TESTS
         test_dispatch.cpp
         test_late_count_hold.cpp
+        test_operand_pointers.cpp
         test_operand_set.cpp
         test_operation_options.cpp
         test_profile_hooks.cpp

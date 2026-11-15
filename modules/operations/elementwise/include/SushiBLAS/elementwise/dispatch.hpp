@@ -54,6 +54,39 @@ namespace SushiBLAS
 {
     namespace Dispatch
     {
+        namespace Detail
+        {
+            /**
+             * @brief Checks the storage of an elementwise operand.
+             * @tparam Bind True when the task binds its operands, which a planned tensor may be;
+             *         false when it records addresses, which a planned tensor has none of.
+             * @throws std::invalid_argument as require_bindable_storage or require_storage states.
+             */
+            template<bool Bind>
+            inline void require_map_storage(const Tensor& t, const char* op, const char* operand)
+            {
+                if constexpr (Bind)
+                    require_bindable_storage(t, op, operand);
+                else
+                    require_storage(t, op, operand);
+            }
+
+            /**
+             * @brief Returns where a task finds the first element of t at each run.
+             * @tparam Bind True binds t on operands and records no address; false records the
+             *         address of the first element and binds nothing.
+             * @pre t has passed require_map_storage<Bind>.
+             */
+            template<bool Bind>
+            [[nodiscard]] inline MapOperand map_operand(OperandSet& operands, const Tensor& t)
+            {
+                if constexpr (Bind)
+                    return MapOperand(operands.bind(t));
+                else
+                    return MapOperand(t.data_or_null());
+            }
+        } // namespace Detail
+
         /**
          * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::Real; a wider domain needs an op_func well-formed for it.
@@ -71,7 +104,8 @@ namespace SushiBLAS
                           "execute_unary_inplace takes no bind_writes bundle: its output is the "
                           "write it declares; a functor that writes more records "
                           "through IndexOps::for_each.");
-            require_storage(t, name, "t");
+            constexpr bool k_binds = !Detail::DeclaresReads<std::decay_t<Func>>::value;
+            Detail::require_map_storage<k_binds>(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
             require_domain<Dom>(t.dtype, "Elementwise operation", name);
@@ -83,6 +117,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.updates(t);
             Detail::declare_reads(op_func, operands, name);
+            const Detail::MapOperand operand = Detail::map_operand<k_binds>(operands, t);
 
             TaskDescription description;
             description.name = name;
@@ -90,12 +125,11 @@ namespace SushiBLAS
             description.shape = ElementwiseShape{t.num_elements, t.dtype};
             set_task_params(description, params, name);
 
-            void* ptr = t.data();
             return recorder.record_pair(description, operands, "Elementwise operation",
-                Detail::make_map_task<Dom>(t.dtype, "Elementwise operation", name,
-                                           static_cast<std::size_t>(t.num_elements), ptr,
-                                           Detail::task_functor(op_func),
-                                           static_cast<const void*>(ptr)));
+                Detail::make_operand_map_task<Dom>(t.dtype, "Elementwise operation", name,
+                                                   static_cast<std::size_t>(t.num_elements),
+                                                   operand, Detail::task_functor(op_func),
+                                                   operand));
         }
 
         /**
@@ -115,11 +149,12 @@ namespace SushiBLAS
                           "execute_binary takes no bind_writes bundle: its output is the "
                           "write it declares; a functor that writes more records "
                           "through IndexOps::for_each.");
-            require_storage(A, name, "A");
+            constexpr bool k_binds = !Detail::DeclaresReads<std::decay_t<Func>>::value;
+            Detail::require_map_storage<k_binds>(A, name, "A");
             require_device_dtype(A, name, "A");
-            require_storage(B, name, "B");
+            Detail::require_map_storage<k_binds>(B, name, "B");
             require_device_dtype(B, name, "B");
-            require_storage(C, name, "C");
+            Detail::require_map_storage<k_binds>(C, name, "C");
             require_device_dtype(C, name, "C");
             require_contiguous(A, name, "A");
             require_contiguous(B, name, "B");
@@ -140,6 +175,9 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(A).reads(B).writes(C);
             Detail::declare_reads(op_func, operands, name);
+            const Detail::MapOperand operand_a = Detail::map_operand<k_binds>(operands, A);
+            const Detail::MapOperand operand_b = Detail::map_operand<k_binds>(operands, B);
+            const Detail::MapOperand operand_c = Detail::map_operand<k_binds>(operands, C);
 
             TaskDescription description;
             description.name = name;
@@ -148,9 +186,10 @@ namespace SushiBLAS
             set_task_params(description, params, name);
 
             return recorder.record_pair(description, operands, "Elementwise operation",
-                Detail::make_map_task<Dom>(A.dtype, "Elementwise operation", name,
-                                           static_cast<std::size_t>(A.num_elements), C.data(),
-                                           Detail::task_functor(op_func), A.data(), B.data()));
+                Detail::make_operand_map_task<Dom>(A.dtype, "Elementwise operation", name,
+                                                   static_cast<std::size_t>(A.num_elements),
+                                                   operand_c, Detail::task_functor(op_func),
+                                                   operand_a, operand_b));
         }
 
         /**
@@ -172,8 +211,9 @@ namespace SushiBLAS
                           "through IndexOps::for_each.");
             static_assert(N >= 1, "A fused in-place elementwise op needs at least one tensor.");
 
+            constexpr bool k_binds = !Detail::DeclaresReads<std::decay_t<Func>>::value;
             require_operand(tensors[0] != nullptr, name, "operand 0", "is null");
-            require_storage(*tensors[0], name, "operand 0");
+            Detail::require_map_storage<k_binds>(*tensors[0], name, "operand 0");
             require_device_dtype(*tensors[0], name, "operand 0");
             require_contiguous(*tensors[0], name, "operand 0");
 
@@ -184,7 +224,7 @@ namespace SushiBLAS
             {
                 const std::string operand = "operand " + std::to_string(k);
                 require_operand(tensors[k] != nullptr, name, operand.c_str(), "is null");
-                require_storage(*tensors[k], name, operand.c_str());
+                Detail::require_map_storage<k_binds>(*tensors[k], name, operand.c_str());
                 require_device_dtype(*tensors[k], name, operand.c_str());
                 require_contiguous(*tensors[k], name, operand.c_str());
                 require_same_shape(*tensors[k], *tensors[0], name, operand.c_str(), "operand 0");
@@ -199,12 +239,12 @@ namespace SushiBLAS
                 return TaskHandle();
 
             // Every operand is declared as both a read and a write, since the functor may touch any; see modules/operations/MATH_README.md.
-            std::array<void*, N> ptrs{};
+            std::array<Detail::MapOperand, N> zipped{};
             OperandSet operands;
             for (std::size_t k = 0; k < N; ++k)
             {
-                ptrs[k] = tensors[k]->data();
                 operands.updates(*tensors[k]);
+                zipped[k] = Detail::map_operand<k_binds>(operands, *tensors[k]);
             }
             Detail::declare_reads(op_func, operands, name);
 
@@ -217,7 +257,7 @@ namespace SushiBLAS
             using Op = std::decay_t<decltype(Detail::task_functor(op_func))>;
             return recorder.record_pair(description, operands, "Elementwise operation",
                 Detail::ZipTask<Dom, Op, N>(dtype, "Elementwise operation", name,
-                                            static_cast<std::size_t>(size), ptrs,
+                                            static_cast<std::size_t>(size), zipped,
                                             Detail::task_functor(op_func)));
         }
 

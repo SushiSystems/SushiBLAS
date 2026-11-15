@@ -481,5 +481,28 @@ namespace SushiBLAS
 
             EXPECT_TRUE(Dispatch::storage_facts_of(planned).planned);
         }
+
+        TEST(Medium_OperandCheckPlanned, ABindingOperationAcceptsAPlannedOperand)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<int64_t> dims{4};
+            const Tensor planned = factory.planned(
+                SushiRuntime::span<const int64_t>(dims.data(), dims.size()));
+
+            EXPECT_NO_THROW(Dispatch::require_bindable_storage(planned, "blas.lvl1.copy", "x"));
+            EXPECT_THROW(Dispatch::require_storage(planned, "blas.lvl1.copy", "x"),
+                         std::invalid_argument);
+        }
+
+        TEST(Medium_OperandCheckPlanned, ABindingOperationStillRefusesAMissingStorage)
+        {
+            const std::vector<int64_t> dims{4};
+            const Tensor shape_only = Tensor::make_shape_only(
+                SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
+                Core::DataType::Float32);
+
+            EXPECT_THROW(Dispatch::require_bindable_storage(shape_only, "blas.lvl1.copy", "x"),
+                         std::invalid_argument);
+        }
     } // namespace Test
 } // namespace SushiBLAS

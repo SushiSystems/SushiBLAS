@@ -134,6 +134,15 @@ and in `logic/dispatch.hpp` runs its shape, layout, dtype and domain checks, the
 elements needs no storage, and the executor never calls `data()` on it. `ElementwiseOps::convert`
 follows the same rule.
 
+### Operands bound by handle
+
+`execute_unary_inplace`, `execute_binary` and `execute_zip_inplace` bind their tensors with
+`OperandSet::bind` and record no address, so each takes a planned tensor and the runtime may place
+the task on any device. The task finds each operand, and its alignment for a wide access, at every
+run. A functor that declares reads (`bind_reads`) holds raw read addresses, so its task records the
+addresses, binds nothing and refuses a planned tensor by name, as `ElementwiseOps::convert`,
+`ordered_sum` and the executors of `nonlinear` and `logic` do.
+
 ### Integer operands
 
 `add`, `sub`, `mul`, `neg` and `abs` accept every dtype (`Domain::All`); `min`, `max` and `clamp`

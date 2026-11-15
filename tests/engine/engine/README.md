@@ -20,16 +20,17 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
 | `test_late_count_hold.cpp` | Tests that a late count's token holds every storage and dies at release |
 | `test_kernel_pair_dispatcher.cpp` | Tests that the dispatcher picks the reference body under ForceReference only |
-| `test_operand_check.cpp` | Tests the operand checks as rows on host tensors, the size of a narrowed functor, the Tensor constructor and transpose guards and the device dtype rows |
-| `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive and its merge |
+| `test_operand_check.cpp` | Tests the operand checks as rows on host tensors, the size of a narrowed functor, the Tensor constructor and transpose guards, the device dtype rows and the storage rule of an operation that binds its operands |
+| `test_operand_pointers.cpp` | Tests that OperandPointers finds the address of a bound operand from its slot and offset, and reads an absent operand as null |
+| `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive, its merge and the operands it binds |
 | `test_operation_options.cpp` | Tests that OperationOptions names a node and states no determinism class unless told to, and the record-time check every family shares |
 | `test_profile_hooks.cpp` | Tests that the profiling hooks run their body once, under their lock, and let an exception out |
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, the pairing of seed and offset on a seeded schedule, thread safety and seed determinism |
 | `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
 | `test_host_scratch_source.cpp` | Tests what HostScratchSource counts served and released, and the memory it serves |
 | `test_engine_log_category.cpp` | Checks at compile time that the log category names its module and the SushiBLAS project; no test runner lists it |
-| `test_graph_task_sink.cpp` | Tests that GraphTaskSink adds one node to its recorder for each task |
-| `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out |
+| `test_graph_task_sink.cpp` | Tests that GraphTaskSink adds one node to its recorder for each task, and that a task that bound operands reads the pointers the runtime bound |
+| `test_host_task_sink.cpp` | Tests the parts of HostTaskSink that the TaskSink contract leaves out, among them the bound operands its runs receive |
 | `test_host_graph_sink.cpp` | Tests that HostGraphSink admits every mode and keeps the name, cost and origin of a late-count node without calling its record |
 | `test_host_late_count_keeper.cpp` | Tests that HostLateCountKeeper lends an empty late count and counts the owners it keeps |
 | `test_task_cost.cpp` | Tests the access and the cost a recorded node states for an operation, a shape and its operands, including the bytes read and written and the kind of work |

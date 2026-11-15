@@ -30,6 +30,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <cstddef>
 #include <vector>
 #include <cstdint>
@@ -39,6 +40,8 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
+#include <SushiBLAS/blas/gemm_bindings.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/machine/node_split.hpp>
 
@@ -176,28 +179,30 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Returns the operand pointers a part's kernel reads: the bound ones as A, B and C,
-         *        or the recorded ones when the runtime bound none.
-         * @param bound The pointers the runtime bound; empty for a node with no pointer table.
-         * @param recorded The pointers the whole call recorded.
-         * @pre bound is empty or holds exactly the three pointers A, B and C.
+         * @brief Returns the first elements of A, B and C in the bound table, or the recorded ones.
+         * @param bound The base address of each allocation the task bound.
+         * @param bindings Where A, B and C sit in bound; empty for a call that bound nothing.
+         * @param recorded The pointers the call recorded; read only when bindings is empty.
+         * @pre When bindings holds a value, bound holds the three allocations.
          * @see modules/operations/blas/README.md
          */
         template<typename T>
-        [[nodiscard]] GemmOperands<T> bound_gemm_operands(SushiRuntime::span<void* const> bound,
-                                                           const GemmOperands<T>& recorded) noexcept
+        [[nodiscard]] GemmOperands<T>
+        bound_gemm_operands(const OperandPointers& bound,
+                            const std::optional<GemmBindings>& bindings,
+                            const GemmOperands<T>& recorded) noexcept
         {
-            if (bound.size() != K_GEMM_OPERAND_COUNT)
+            if (!bindings.has_value())
                 return recorded;
-            return GemmOperands<T>{static_cast<const T*>(bound[0]), static_cast<const T*>(bound[1]),
-                                   static_cast<T*>(bound[2])};
+            return GemmOperands<T>{bound.as<const T>(bindings->a), bound.as<const T>(bindings->b),
+                                   bound.as<T>(bindings->c)};
         }
 
         /**
-         * @brief Builds the split of a GEMM; its slice runs the SYCL GEMM on one part, on the
-         *        queue of the part's device, and waits for it.
+         * @brief Builds the split of a GEMM; its slice runs the SYCL GEMM on one part and waits.
          * @param geometry The extents and strides of the whole call.
-         * @param a,b,c The first elements of A, B and C as the call recorded them.
+         * @param a,b,c The first elements of A, B and C as recorded; null for a bound call.
+         * @param bindings Where the bound table holds A, B and C; empty for a call that bound none.
          * @return A split along gemm_split_axis(geometry).
          * @see modules/operations/blas/README.md
          */
@@ -205,7 +210,8 @@ namespace SushiBLAS
         [[nodiscard]] std::shared_ptr<const SushiRuntime::NodeSplit>
         make_gemm_split(const GemmGeometry& geometry, Core::Layout layout, Core::Transpose trans_a,
                         Core::Transpose trans_b, T alpha, const T* a, const T* b, T beta, T* c,
-                        const Epilogue& epilogue)
+                        const Epilogue& epilogue,
+                        const std::optional<GemmBindings>& bindings = std::nullopt)
         {
             const GemmSplitAxis axis = gemm_split_axis(geometry);
             const GemmOperands<T> recorded{a, b, c};
@@ -213,14 +219,15 @@ namespace SushiBLAS
             split->axis = static_cast<std::uint32_t>(axis);
             split->extent = static_cast<std::uint64_t>(gemm_split_extent(geometry, axis));
             split->slice = [=](const SushiRuntime::SplitPart& part, sycl::queue& queue,
-                               SushiRuntime::span<void* const> bound)
+                               SushiRuntime::span<void* const> table)
             {
                 const int64_t begin = static_cast<int64_t>(part.begin);
                 const GemmSlice slice = slice_gemm(geometry, layout, trans_a, trans_b, axis, begin,
                                                    static_cast<int64_t>(part.end));
                 const int64_t row_offset = axis == GemmSplitAxis::Rows ? begin : 0;
                 const int64_t column_offset = axis == GemmSplitAxis::Columns ? begin : 0;
-                const GemmOperands<T> operands = bound_gemm_operands<T>(bound, recorded);
+                const GemmOperands<T> operands = bound_gemm_operands<T>(
+                    OperandPointers(table.data(), table.size()), bindings, recorded);
                 Kernels::SYCL::gemm<T>(queue, layout, trans_a, trans_b, slice.m, slice.n,
                                        geometry.k, alpha, operands.a + slice.a_offset,
                                        geometry.a.leading_dimension, geometry.stride_a,

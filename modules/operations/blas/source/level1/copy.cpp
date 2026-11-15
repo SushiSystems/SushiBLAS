@@ -56,12 +56,14 @@ namespace SushiBLAS
                                                   Core::to_string(y.dtype),
                                                   Core::to_string(x.dtype));
 
-        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
-        const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+        const Dispatch::VectorOperand vx = Dispatch::describe_bound_vector_operand(x, op, "x");
+        const Dispatch::VectorOperand vy = Dispatch::describe_bound_vector_operand(y, op, "y");
         Dispatch::require_same_element_count(x, y, op, "x", "y");
 
         OperandSet operands;
         operands.reads(x).writes(y);
+        const OperandBinding bound_x = operands.bind(x);
+        const OperandBinding bound_y = operands.bind(y);
 
         const Internal::BLASMetadata metadata =
             Internal::BLASMetadata(op, "blas.lvl1.copy"_op).shape(CopyShape{x.dtype});
@@ -69,18 +71,17 @@ namespace SushiBLAS
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;
         const int64_t incy = vy.increment;
-        const void* read_x = x.data_or_null();
-        void* write_y = y.data_or_null();
 
         // copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
         return Internal::execute_blas_task<Dispatch::Domain::All>(
             recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                const std::vector<sycl::event>& deps) -> sycl::event
+                const std::vector<sycl::event>& deps,
+                const OperandPointers& pointers) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                auto pX = static_cast<const T*>(read_x);
-                auto pY = static_cast<T*>(write_y);
+                const T* pX = pointers.as<const T>(bound_x);
+                T* pY = pointers.as<T>(bound_y);
 
                 return dispatcher.run(deps,
                     [=]

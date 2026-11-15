@@ -180,12 +180,14 @@ the part's device, and waits for it, because the slice returns nothing the runti
 transpose flags, and `OffsetEpilogue` hands the epilogue its row and column in the whole matrix. The
 parts write disjoint elements of C, so the split states no combine.
 
-The slice reads A, B and C through `bound_gemm_operands`: the three pointers the runtime bound on the
-part's device, in that order, or the pointers the call recorded when the runtime bound none. The
-runtime binds none today, because the GEMM is recorded as a task body, and a task body has no
-pointer table, so the recorded pointers stand. That is why a GEMM with a device-only operand still
-states no split: its recorded pointer is valid on the device that owns it and nowhere else. The
-restriction ends when the GEMM is recorded in a form the runtime gives a pointer table.
+The slice reads A, B and C through `bound_gemm_operands`: the base address of each of the three
+allocations the runtime bound on the part's device, in that order, plus the byte offset of each
+view, which `GemmBindings` (`gemm_bindings.hpp`) holds. A GEMM with no leased panel and no
+epilogue operand binds A, B and C, so `prepare_gemm` records no address and a planned tensor is
+accepted. A GEMM with either records the addresses it was given and takes the pointers it recorded,
+because the runtime cannot rebind a leased panel or a functor's pointer; it refuses a planned
+tensor by name. That is also why a GEMM with a device-only operand states no split: its recorded
+pointer is valid on the device that owns it and nowhere else.
 
 ### `execute_gemm`
 
@@ -329,7 +331,8 @@ Each throws `std::invalid_argument` through `Detail::throw_operand_error`.
 
 Each describer checks one operand and returns its geometry, so every routine that takes that kind
 of operand derives it the same way. All of them call `require_storage` and
-`require_device_dtype`.
+`require_device_dtype`; `describe_bound_vector_operand` calls `require_bindable_storage` instead, and
+`Level1::copy` uses it, so COPY takes planned tensors and records both operands by handle.
 
 `describe_vector_operand` returns a length and an increment of at least 1. It refuses a rank-1
 stride of zero or less and a non-contiguous tensor of rank above 1. `require_vector_length` and

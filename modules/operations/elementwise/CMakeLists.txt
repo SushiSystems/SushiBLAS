@@ -91,6 +91,7 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         test_dispatch.cpp
         test_elementwise/test_add.cpp
+        test_elementwise/test_elementwise_planned.cpp
         test_elementwise/test_ordered_sum.cpp
     COMPILE_CHECKS
         compile_elementwise_log_category.cpp)

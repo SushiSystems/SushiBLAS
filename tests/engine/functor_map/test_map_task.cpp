@@ -126,5 +126,25 @@ namespace SushiBLAS
             EXPECT_EQ(ref_a.values(), negated_second);
             EXPECT_EQ(ref_b.values(), first);
         }
+
+        TEST_F(Medium_MapTask, ATaskOverBoundOperandsReadsTheTableOfEachRun)
+        {
+            constexpr std::size_t K_SKIPPED = 2;
+            const SharedArray<float> a(queue(), small_integers<float>(K_COUNT + K_SKIPPED, 1));
+            const SharedArray<float> b(queue(), small_integers<float>(K_COUNT, 2));
+            SharedArray<float> out(queue(), K_COUNT);
+            void* table[3] = {a.get(), b.get(), out.get()};
+
+            const auto task = Dispatch::Detail::make_operand_map_task<Dispatch::Domain::All>(
+                Core::DataType::Float32, "test", "map", K_COUNT,
+                Dispatch::Detail::MapOperand(OperandBinding{2, 0}), MultiplyLess{},
+                Dispatch::Detail::MapOperand(OperandBinding{0, K_SKIPPED * sizeof(float)}),
+                Dispatch::Detail::MapOperand(OperandBinding{1, 0}));
+            task(KernelPairDispatcher(ExecutionMode::ForceSYCL, queue()), {},
+                 OperandPointers(table, 3)).wait();
+
+            for (std::size_t i = 0; i < K_COUNT; ++i)
+                EXPECT_EQ(out.get()[i], a.get()[i + K_SKIPPED] * b.get()[i] - a.get()[i + K_SKIPPED]);
+        }
     } // namespace Test
 } // namespace SushiBLAS

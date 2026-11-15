@@ -39,6 +39,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/storage_block.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 
@@ -150,6 +151,28 @@ namespace SushiBLAS
                 return reads(operand).writes(operand);
             }
 
+            /**
+             * @brief Binds the allocation of operand to the task, which is then recorded by handle.
+             *
+             * A task binds every tensor its body dereferences, in a fixed order. It declares no
+             * region, and merge() copies no binding.
+             * @return The slot and offset of the first element; a tensor without storage binds
+             *         nothing and its binding reads as a null address.
+             */
+            [[nodiscard]] OperandBinding bind(const Tensor& operand)
+            {
+                if (!operand.storage)
+                    return OperandBinding();
+
+                const OperandBinding binding{
+                    bound_handles_.size(),
+                    static_cast<std::size_t>(operand.storage_offset) *
+                        Core::bytes_per_element(operand.dtype)};
+                bound_handles_.push_back(operand.global_handle());
+                bound_bases_.push_back(operand.storage->allocation_base());
+                return binding;
+            }
+
             /** @brief Declares that the task writes a device scratch; an empty one adds nothing. */
             OperandSet& scratch(const ScratchBuffer& buffer)
             {
@@ -234,6 +257,24 @@ namespace SushiBLAS
                 return owners_;
             }
 
+            /** @brief Returns the handle of each bound allocation, in bind order. */
+            [[nodiscard]] const std::vector<SushiRuntime::GlobalHandle>&
+            bound_handles() const noexcept
+            {
+                return bound_handles_;
+            }
+
+            /**
+             * @brief Returns the base address of each bound allocation, in bind order.
+             *
+             * A planned allocation has no host address and reports null; the graph sink never reads
+             * the list, a host sink refuses a null base.
+             */
+            [[nodiscard]] const std::vector<void*>& bound_bases() const noexcept
+            {
+                return bound_bases_;
+            }
+
             /** @brief Reports whether a declared tensor lives in device-only USM. */
             [[nodiscard]] bool has_device_only_operand() const noexcept
             {
@@ -290,6 +331,12 @@ namespace SushiBLAS
 
             /// @brief The owner observer of each distinct borrowed storage behind the regions.
             std::vector<SushiRuntime::LivenessObserver> owners_;
+
+            /// @brief The handle of each allocation bind() took, in bind order.
+            std::vector<SushiRuntime::GlobalHandle> bound_handles_;
+
+            /// @brief The base address of each allocation bind() took, in bind order.
+            std::vector<void*> bound_bases_;
 
             /// @brief Whether a declared tensor is Residency::Device.
             bool has_device_only_operand_ = false;

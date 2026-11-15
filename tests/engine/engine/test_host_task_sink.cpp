@@ -38,6 +38,8 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/tensor/tensor_factory.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 #include "support/task_sink_subjects.hpp"
 
 namespace SushiBLAS
@@ -235,6 +237,48 @@ namespace SushiBLAS
             ASSERT_TRUE(failure.has_value());
             EXPECT_EQ(failure->name, "host.integer");
             EXPECT_FALSE(failure->message.empty());
+        }
+
+        /** @brief Tests that the body reads the base address of an operand its task bound, from the run. */
+        TEST(Small_HostTaskSink, ABoundOperandReachesTheBodyThroughTheRun)
+        {
+            HostTensorSubject tensors;
+            const Tensor target = sink_target_of(tensors);
+            OperandSet operands;
+            operands.writes(target);
+            const OperandBinding binding = operands.bind(target);
+            const void* seen = nullptr;
+            HostTaskSink sink;
+            TaskDescription description;
+            description.name = "host.bound";
+            sink.add_pair(description, operands, ExecutionMode::ForceReference, std::string(),
+                          [&](PairRun& run)
+                          {
+                              seen = run.operands().address(binding);
+                          });
+
+            EXPECT_FALSE(sink.run().has_value());
+
+            EXPECT_EQ(seen, target.data());
+        }
+
+        /** @brief Tests that the sink refuses a task that binds an operand with no host address. */
+        TEST(Medium_HostTaskSink, ItRefusesATaskThatBindsAPlannedOperand)
+        {
+            const TensorFactory factory(TestEnvironment::runtime());
+            const std::vector<std::int64_t> dims{4};
+            const Tensor planned = factory.planned(
+                SushiRuntime::span<const std::int64_t>(dims.data(), dims.size()));
+            OperandSet operands;
+            (void)operands.bind(planned);
+            HostTaskSink sink;
+            TaskDescription description;
+            description.name = "host.planned";
+
+            EXPECT_THROW(sink.add_pair(description, operands, ExecutionMode::ForceReference,
+                                       std::string(), [](PairRun&) {}),
+                         std::runtime_error);
+            EXPECT_EQ(sink.recorded_count(), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS

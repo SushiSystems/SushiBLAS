@@ -56,6 +56,19 @@ namespace SushiBLAS
             require_device_dtype(t, op, operand);
         }
 
+        /**
+         * @brief Throws unless a tensor has storage, planned or not, on a device that computes in
+         *        its dtype: the check of an operation that records its operands by handle.
+         * @throws std::invalid_argument on missing storage.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         */
+        inline void require_bound_operand_storage(const Tensor& t, const char* op,
+                                                  const char* operand)
+        {
+            require_bindable_storage(t, op, operand);
+            require_device_dtype(t, op, operand);
+        }
+
         /** @brief Holds what GEMM takes from the shapes of its three operands. */
         struct GemmGeometry
         {

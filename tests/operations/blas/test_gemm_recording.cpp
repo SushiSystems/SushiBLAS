@@ -270,5 +270,48 @@ namespace SushiBLAS
                          std::invalid_argument);
             EXPECT_EQ(0u, probe.recorded_count());
         }
+
+        TEST_F(Small_GemmSeamDependencies, ABareGemmBindsItsThreeOperandsInOrder)
+        {
+            HostGraphProbe probe;
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+
+            const Dispatch::PreparedGemm gemm = Dispatch::prepare_gemm(
+                probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans, 1.0, 0.0,
+                "test.gemm_bound", "test.gemm_bound"_op, true,
+                Dispatch::epilogue_access(Kernels::GemmIdentityEpilogue{}));
+
+            ASSERT_TRUE(gemm.bindings.has_value());
+            EXPECT_EQ(gemm.bindings->a.slot, std::size_t{0});
+            EXPECT_EQ(gemm.bindings->b.slot, std::size_t{1});
+            EXPECT_EQ(gemm.bindings->c.slot, std::size_t{2});
+            ASSERT_EQ(gemm.operands.bound_handles().size(), std::size_t{3});
+            EXPECT_EQ(gemm.operands.bound_handles()[0], A.global_handle());
+            EXPECT_EQ(gemm.operands.bound_handles()[1], B.global_handle());
+            EXPECT_EQ(gemm.operands.bound_handles()[2], C.global_handle());
+            EXPECT_EQ(gemm.read_a, nullptr);
+        }
+
+        TEST_F(Small_GemmSeamDependencies, AnEpilogueOperandLeavesTheGemmRecordingItsAddresses)
+        {
+            HostGraphProbe probe;
+            auto A = create_initialized_tensor<float>({3, 2}, a_values());
+            auto B = create_initialized_tensor<float>({2, 3}, b_values());
+            auto C = engine->create_tensor({3, 3}, DataType::Float32);
+            auto bias = engine->create_tensor({3}, DataType::Float32);
+
+            const Dispatch::PreparedGemm gemm = Dispatch::prepare_gemm(
+                probe.recorder(), A, B, C, Transpose::NoTrans, Transpose::NoTrans, 1.0, 0.0,
+                "test.gemm_unbound", "test.gemm_unbound"_op, true,
+                Dispatch::epilogue_access(
+                    Dispatch::gemm_epilogue(BiasColumnEpilogue{bias.data_as<float>()}).reads(bias)));
+
+            EXPECT_FALSE(gemm.bindings.has_value());
+            EXPECT_TRUE(gemm.operands.bound_handles().empty());
+            EXPECT_EQ(gemm.read_a, A.data());
+            EXPECT_EQ(gemm.write_c, C.data());
+        }
     } // namespace Test
 } // namespace SushiBLAS

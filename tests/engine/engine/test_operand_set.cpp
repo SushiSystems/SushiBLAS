@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -161,6 +162,54 @@ namespace SushiBLAS
             EXPECT_EQ(first.read_regions().size(), std::size_t{1});
             EXPECT_EQ(first.write_regions().size(), std::size_t{1});
             EXPECT_EQ(first.retained().size(), std::size_t{2});
+        }
+
+        TEST_F(Small_OperandSet, BindingTakesTheSlotsInBindOrderWithTheOffsetOfEachView)
+        {
+            const Tensor whole = engine->create_tensor({16});
+            const std::vector<int64_t> dims{4};
+            const Tensor view(whole.storage,
+                              SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
+                              Core::DataType::Float32, 3);
+            OperandSet operands;
+
+            const OperandBinding first = operands.bind(whole);
+            const OperandBinding second = operands.bind(view);
+
+            EXPECT_EQ(first.slot, std::size_t{0});
+            EXPECT_EQ(first.byte_offset, std::size_t{0});
+            EXPECT_EQ(second.slot, std::size_t{1});
+            EXPECT_EQ(second.byte_offset, 3 * sizeof(float));
+            ASSERT_EQ(operands.bound_handles().size(), std::size_t{2});
+            EXPECT_EQ(operands.bound_handles()[0], whole.global_handle());
+            EXPECT_EQ(operands.bound_handles()[1], whole.global_handle());
+            EXPECT_EQ(operands.bound_bases()[1], whole.storage->allocation_base());
+        }
+
+        TEST_F(Small_OperandSet, BindingDeclaresNoRegionAndMergeCopiesNoBinding)
+        {
+            const Tensor a = engine->create_tensor({4});
+            OperandSet operands;
+            OperandSet other;
+            (void)other.bind(a);
+
+            (void)operands.bind(a);
+            operands.merge(other);
+
+            EXPECT_TRUE(operands.read_regions().empty());
+            EXPECT_TRUE(operands.write_regions().empty());
+            EXPECT_EQ(operands.bound_handles().size(), std::size_t{1});
+        }
+
+        TEST_F(Small_OperandSet, ATensorWithoutStorageBindsNothing)
+        {
+            const Tensor empty = engine->create_tensor({0});
+            OperandSet operands;
+
+            const OperandBinding binding = operands.bind(empty);
+
+            EXPECT_EQ(binding.slot, OperandBinding::K_ABSENT);
+            EXPECT_TRUE(operands.bound_handles().empty());
         }
     } // namespace Test
 } // namespace SushiBLAS

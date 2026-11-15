@@ -29,9 +29,11 @@
 
 #include <SushiBLAS/engine/host_task_sink.hpp>
 
+#include <string>
 #include <vector>
 #include <utility>
 #include <exception>
+#include <stdexcept>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
@@ -55,6 +57,9 @@ namespace SushiBLAS
 
             /// @brief The storages that stay allocated until the task is dropped.
             Internal::StorageKeepAlive retained;
+
+            /// @brief The base address of each allocation the task bound, in bind order.
+            std::vector<void*> bases;
         };
 
         /// @brief The kept tasks in record order.
@@ -71,12 +76,19 @@ namespace SushiBLAS
     void HostTaskSink::add_pair(const TaskDescription& description, const OperandSet& operands,
                                 ExecutionMode, const std::string& origin, PairBody body)
     {
+        for (void* const base : operands.bound_bases())
+        {
+            if (base == nullptr)
+                throw std::runtime_error(std::string(description.name) +
+                                         ": a host sink cannot run a task that binds an operand "
+                                         "with no host address, such as a planned tensor");
+        }
         tasks_->kept.push_back(Tasks::Task{
             HostTaskRecord{description.name, description.operation, description.determinism,
                            operands.read_regions(), operands.write_regions(),
                            Internal::task_cost(description.operation, description.shape, operands),
                            origin, description.split},
-            std::move(body), operands.retained()});
+            std::move(body), operands.retained(), operands.bound_bases()});
     }
 
     std::size_t HostTaskSink::recorded_count() const noexcept
@@ -103,7 +115,9 @@ namespace SushiBLAS
         {
             try
             {
-                PairRun run(dispatcher, no_dependencies);
+                PairRun run(dispatcher, no_dependencies,
+                            OperandPointers(tasks[index].bases.data(),
+                                            tasks[index].bases.size()));
                 tasks[index].body(run);
             }
             catch (const std::exception& error)

@@ -36,16 +36,21 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/pair_run.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/engine/task_cost.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiRuntime/api/graph/bound_operands.hpp>
 
 namespace SushiBLAS
 {
     namespace
     {
-        /** @brief Runs a recorded body on the runtime's queue with a dispatcher that holds it. */
+        /**
+         * @brief Runs a recorded body on the runtime's queue with a dispatcher that holds it and the
+         *        operand pointers the runtime bound for the node on its device.
+         */
         class GraphPairTask
         {
             public:
@@ -57,11 +62,16 @@ namespace SushiBLAS
 
                 }
 
-                /** @brief Runs the body on @p q and returns the event that ends its work. */
+                /**
+                 * @brief Runs the body on @p q and returns the event that ends its work.
+                 *
+                 * The pointers are empty for a node recorded without handles.
+                 */
                 sycl::event operator()(sycl::queue& q, const std::vector<sycl::event>& deps) const
                 {
                     const KernelPairDispatcher dispatcher(mode_, q);
-                    PairRun run(dispatcher, deps);
+                    const SushiRuntime::BoundOperands bound = SushiRuntime::bound_operands();
+                    PairRun run(dispatcher, deps, OperandPointers(bound.data(), bound.size()));
                     body_(run);
                     return run.finished();
                 }
@@ -120,9 +130,16 @@ namespace SushiBLAS
                     origin,
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
-                        recorder.task(Internal::task_access(operands),
-                                      GraphPairTask(std::move(body), mode, operands.retained()),
-                                      options);
+                        GraphPairTask task(std::move(body), mode, operands.retained());
+                        if (operands.bound_handles().empty())
+                        {
+                            recorder.task(Internal::task_access(operands), std::move(task), options);
+                        }
+                        else
+                        {
+                            recorder.task(Internal::task_access(operands), operands.bound_handles(),
+                                          std::move(task), options);
+                        }
                     });
     }
 

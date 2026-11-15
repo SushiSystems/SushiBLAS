@@ -25,6 +25,7 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_blas_structured_validation.cpp` | Tests what the band, packed and rotation routines refuse at record time, and the forwards of the Hermitian routines on a real tensor |
 | `test_blas/test_blas_symmetric_bits.cpp` | Tests that the unconjugated reference kernels equal a plain host loop bit for bit |
 | `test_blas/test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations that need a device |
+| `test_blas/test_blas_planned.cpp` | Tests that GEMM and COPY over planned tensors and over runtime tensors equal the host reference, and that an operation not yet ported refuses a planned operand by name |
 | `test_blas/test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
 | `test_blas/test_gemm_reference.cpp` | Tests that the reference gemm reads a transpose as a flipped layout |
 | `test_blas/test_iamax.cpp` | Tests that iamax refuses a result tensor that cannot hold the INT64 index |
@@ -51,7 +52,8 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
 | `test_gemm_split.cpp` | Tests the axis, the sub-problem and the offset epilogue of a GEMM split, and that its slice runs on the queue it is given and reads the bound or the recorded pointers: the parts together compute the whole product on both layouts, the transposes and both axes |
 | `gemm_split_cases.hpp` | Holds the products and the data the two GEMM split tests share |
-| `test_gemm_recording.cpp` | Tests what a GEMM call records on the in-memory port: the dependencies for the operands its epilogue declares, and the refusals before any task |
+| `test_gemm_bindings.cpp` | Tests that GemmBindings names the slots of A, B and C and that bound_gemm_operands reads them, with their offsets, from the bound table |
+| `test_gemm_recording.cpp` | Tests what a GEMM call records on the in-memory port: the dependencies for the operands its epilogue declares, the operands it binds and the refusals before any task |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings, and the packed GEMM seam against the reference path |
 | `test_dispatch/test_reference_mode_guard.cpp` | Tests that ForceReference refuses device-only USM and runs on host-reachable USM |

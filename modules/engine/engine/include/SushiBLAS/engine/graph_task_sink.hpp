@@ -65,6 +65,9 @@ namespace SushiBLAS
             /**
              * @brief Adds a node that runs the body on the runtime's queue, costed by the table
              *        and the operands' bytes, and keeps the operand storages until the node goes.
+             *
+             * A task that bound operands is recorded with their handles and reads the pointers the
+             * runtime bound; one that bound none is recorded as before and stays on its home device.
              * @throws std::runtime_error with the runtime's message when the recorder refuses.
              */
             void add_pair(const TaskDescription& description, const OperandSet& operands,

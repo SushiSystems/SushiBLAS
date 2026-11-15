@@ -43,11 +43,16 @@ things:
 
 ### `functor_map/map_task.hpp`
 
-`MapTask` and `ZipTask` hold the dtype, the base addresses, the element count and the functor. Under
+`MapTask` and `ZipTask` hold the dtype, where each operand is found, the element count and the
+functor. A `MapOperand` names an operand by a binding into the table the task's run is given or by
+a recorded address; the task reads the addresses and their alignment at each run. A functor that
+declares reads (`bind_reads`) holds raw read addresses, so its task records addresses and binds
+nothing. Under
 `ForceReference` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
 mode it submits one kernel through `Launch::map` or `Launch::zip_inplace`, with the launch shape
 planned from the queue's device. Both paths call the same functor, so the host path is not a second
-implementation of the operation. `make_map_task` builds a `MapTask` from the seam's arguments.
+implementation of the operation. `make_map_task` builds a `MapTask` from recorded addresses and `make_operand_map_task` from
+`MapOperand`s.
 
 ### `functor_map/scalar_binding.hpp`
 

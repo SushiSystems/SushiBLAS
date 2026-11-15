@@ -42,6 +42,7 @@
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 
 namespace SushiBLAS
@@ -50,6 +51,44 @@ namespace SushiBLAS
     {
         namespace Detail
         {
+            /**
+             * @brief Names where a map task finds one operand at each run: in the table its task
+             *        bound, or at the address recorded with it.
+             *
+             * An operand with no storage has neither and reads as null.
+             * @see modules/engine/functor_map/README.md
+             */
+            struct MapOperand
+            {
+                /** @brief Names an operand with no storage. */
+                MapOperand() = default;
+
+                /** @brief Names an operand the task bound; it records no address. */
+                MapOperand(const OperandBinding& bound) noexcept : binding(bound)
+                {
+
+                }
+
+                /** @brief Names an operand by the address recorded with the task. */
+                MapOperand(const void* address) noexcept : recorded(address)
+                {
+
+                }
+
+                /** @brief Returns the address of the first element for the run whose table is @p pointers. */
+                [[nodiscard]] const void* resolve(const OperandPointers& pointers) const noexcept
+                {
+                    return binding.slot == OperandBinding::K_ABSENT ? recorded
+                                                                    : pointers.address(binding);
+                }
+
+                /// @brief Where the task's bound table holds the operand; absent for a recorded address.
+                OperandBinding binding;
+
+                /// @brief The address recorded with the task; null for a bound operand.
+                const void* recorded = nullptr;
+            };
+
             /**
              * @brief Runs a map on the host for the element type of a with_element_type arm.
              * @tparam Op What Detail::task_functor returned for the seam's functor.
@@ -136,38 +175,61 @@ namespace SushiBLAS
                 public:
                     /**
                      * @brief Holds everything the body needs at execute time.
+                     * @param out Where the output is found at each run.
+                     * @param in Where each input is found, in functor order.
                      * @param family Stored, not copied; must outlive the task, as name must.
                      */
                     MapTask(Core::DataType dtype, const char* family, const char* name,
-                            std::size_t n, void* out, const std::array<const void*, Arity>& in,
-                            Op op)
+                            std::size_t n, const MapOperand& out,
+                            const std::array<MapOperand, Arity>& in, Op op)
                         : dtype_(dtype), family_(family), name_(name), n_(n), out_(out), in_(in),
-                          vec_ok_(Launch::is_vector_aligned(out)), op_(std::move(op))
+                          op_(std::move(op))
                     {
-                        for (const void* input : in_)
-                            vec_ok_ = vec_ok_ && Launch::is_vector_aligned(input);
+
                     }
 
-                    /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
+                    /**
+                     * @brief Runs the serial host loop under ForceReference, else submits the kernel.
+                     * @param pointers The base addresses the task bound; empty for a task that
+                     *        recorded its addresses.
+                     */
                     sycl::event operator()(const KernelPairDispatcher& pair,
-                                           const std::vector<sycl::event>& deps) const
+                                           const std::vector<sycl::event>& deps,
+                                           const OperandPointers& pointers) const
                     {
+                        // The runtime may bind another instance at each run, so read them now.
+                        void* const out = const_cast<void*>(out_.resolve(pointers));
+                        std::array<const void*, Arity> in{};
+                        bool vec_ok = Launch::is_vector_aligned(out);
+                        for (std::size_t k = 0; k < Arity; ++k)
+                        {
+                            in[k] = in_[k].resolve(pointers);
+                            vec_ok = vec_ok && Launch::is_vector_aligned(in[k]);
+                        }
+
                         return pair.run(deps,
-                            [this]
+                            [&]
                             {
                                 with_element_type<Dom>(dtype_, family_, name_,
-                                    SerialMapArm<Op, Arity>{op_, n_, out_, in_});
+                                    SerialMapArm<Op, Arity>{op_, n_, out, in});
                             },
-                            [this](sycl::queue& q2,
-                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                            [&](sycl::queue& q2,
+                                const std::vector<sycl::event>& deps2) -> sycl::event
                             {
                                 return q2.submit([&](sycl::handler& h)
                                 {
                                     h.depends_on(deps2);
                                     with_element_type<Dom>(dtype_, family_, name_,
-                                        LaunchMapArm<Op, Arity>{h, q2, op_, n_, vec_ok_, out_, in_});
+                                        LaunchMapArm<Op, Arity>{h, q2, op_, n_, vec_ok, out, in});
                                 });
                             });
+                    }
+
+                    /** @brief Runs the task as above, for a caller that holds no bound table. */
+                    sycl::event operator()(const KernelPairDispatcher& pair,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        return (*this)(pair, deps, OperandPointers());
                     }
 
                 private:
@@ -183,21 +245,18 @@ namespace SushiBLAS
                     /// @brief The element count of every operand.
                     std::size_t n_;
 
-                    /// @brief The output's base address.
-                    void* out_;
+                    /// @brief Where the output is found.
+                    MapOperand out_;
 
-                    /// @brief The inputs' base addresses, in functor order.
-                    std::array<const void*, Arity> in_;
-
-                    /// @brief Whether every operand can base a 128-bit access.
-                    bool vec_ok_;
+                    /// @brief Where each input is found, in functor order.
+                    std::array<MapOperand, Arity> in_;
 
                     /// @brief The functor, with the addresses of its declared reads if it has any.
                     Op op_;
             };
 
             /**
-             * @brief Builds the task body of a map-shaped seam.
+             * @brief Builds the task body of a map-shaped seam over operands found by address.
              * @param op The seam's functor after Detail::task_functor.
              * @param ins The inputs' base addresses, in functor order.
              */
@@ -207,8 +266,25 @@ namespace SushiBLAS
                 void* out, const Op& op, const Ins*... ins)
             {
                 return MapTask<Dom, Op, sizeof...(Ins)>(
-                    dtype, family, name, n, out,
-                    std::array<const void*, sizeof...(Ins)>{ins...}, op);
+                    dtype, family, name, n, MapOperand(static_cast<const void*>(out)),
+                    std::array<MapOperand, sizeof...(Ins)>{
+                        MapOperand(static_cast<const void*>(ins))...},
+                    op);
+            }
+
+            /**
+             * @brief Builds the task body of a map-shaped seam over operands found through a bound
+             *        table or by address, as each MapOperand says.
+             * @param op The seam's functor after Detail::task_functor.
+             */
+            template<Domain Dom, typename Op, typename... Ins>
+            [[nodiscard]] inline MapTask<Dom, Op, sizeof...(Ins)> make_operand_map_task(
+                Core::DataType dtype, const char* family, const char* name, std::size_t n,
+                const MapOperand& out, const Op& op, const Ins&... ins)
+            {
+                return MapTask<Dom, Op, sizeof...(Ins)>(
+                    dtype, family, name, n, out, std::array<MapOperand, sizeof...(Ins)>{ins...},
+                    op);
             }
 
             /**
@@ -278,40 +354,78 @@ namespace SushiBLAS
                 public:
                     /**
                      * @brief Holds everything the body needs at execute time.
+                     * @param operands Where each operand is found, in functor order.
                      * @param family Stored, not copied; must outlive the task, as name must.
                      */
                     ZipTask(Core::DataType dtype, const char* family, const char* name,
-                            std::size_t n, const std::array<void*, N>& ptrs, Op op)
-                        : dtype_(dtype), family_(family), name_(name), n_(n), ptrs_(ptrs),
-                          vec_ok_(true), op_(std::move(op))
+                            std::size_t n, const std::array<MapOperand, N>& operands, Op op)
+                        : dtype_(dtype), family_(family), name_(name), n_(n), operands_(operands),
+                          op_(std::move(op))
                     {
-                        for (const void* operand : ptrs_)
-                            vec_ok_ = vec_ok_ && Launch::is_vector_aligned(operand);
+
                     }
 
-                    /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
-                    sycl::event operator()(const KernelPairDispatcher& pair,
-                                           const std::vector<sycl::event>& deps) const
+                    /** @brief Holds the operands by their recorded addresses. */
+                    ZipTask(Core::DataType dtype, const char* family, const char* name,
+                            std::size_t n, const std::array<void*, N>& ptrs, Op op)
+                        : ZipTask(dtype, family, name, n, recorded_operands(ptrs), std::move(op))
                     {
+
+                    }
+
+                    /**
+                     * @brief Runs the serial host loop under ForceReference, else submits the kernel.
+                     * @param pointers The base addresses the task bound; empty for a task that
+                     *        recorded its addresses.
+                     */
+                    sycl::event operator()(const KernelPairDispatcher& pair,
+                                           const std::vector<sycl::event>& deps,
+                                           const OperandPointers& pointers) const
+                    {
+                        std::array<void*, N> ptrs{};
+                        bool vec_ok = true;
+                        for (std::size_t k = 0; k < N; ++k)
+                        {
+                            ptrs[k] = const_cast<void*>(operands_[k].resolve(pointers));
+                            vec_ok = vec_ok && Launch::is_vector_aligned(ptrs[k]);
+                        }
+
                         return pair.run(deps,
-                            [this]
+                            [&]
                             {
                                 with_element_type<Dom>(dtype_, family_, name_,
-                                    SerialZipArm<Op, N>{op_, n_, ptrs_});
+                                    SerialZipArm<Op, N>{op_, n_, ptrs});
                             },
-                            [this](sycl::queue& q2,
-                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                            [&](sycl::queue& q2,
+                                const std::vector<sycl::event>& deps2) -> sycl::event
                             {
                                 return q2.submit([&](sycl::handler& h)
                                 {
                                     h.depends_on(deps2);
                                     with_element_type<Dom>(dtype_, family_, name_,
-                                        LaunchZipArm<Op, N>{h, q2, op_, n_, vec_ok_, ptrs_});
+                                        LaunchZipArm<Op, N>{h, q2, op_, n_, vec_ok, ptrs});
                                 });
                             });
                     }
 
+                    /** @brief Runs the task as above, for a caller that holds no bound table. */
+                    sycl::event operator()(const KernelPairDispatcher& pair,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        return (*this)(pair, deps, OperandPointers());
+                    }
+
                 private:
+                    /** @brief Returns the operands that stand for the recorded addresses ptrs. */
+                    [[nodiscard]] static std::array<MapOperand, N>
+                    recorded_operands(const std::array<void*, N>& ptrs)
+                    {
+                        std::array<MapOperand, N> operands{};
+                        for (std::size_t k = 0; k < N; ++k)
+                            operands[k] = MapOperand(static_cast<const void*>(ptrs[k]));
+                        return operands;
+                    }
+
                     /// @brief The dtype the task was recorded for.
                     Core::DataType dtype_;
 
@@ -324,11 +438,8 @@ namespace SushiBLAS
                     /// @brief The element count of every operand.
                     std::size_t n_;
 
-                    /// @brief The operands' base addresses, in functor order.
-                    std::array<void*, N> ptrs_;
-
-                    /// @brief Whether every operand can base a 128-bit access.
-                    bool vec_ok_;
+                    /// @brief Where each operand is found, in functor order.
+                    std::array<MapOperand, N> operands_;
 
                     /// @brief The functor, with the addresses of its declared reads if it has any.
                     Op op_;

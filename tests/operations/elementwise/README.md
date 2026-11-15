@@ -9,6 +9,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_dispatch.cpp` | Tests that the functor seams give the same result on the host path as on the SYCL path |
+| `test_elementwise/test_elementwise_planned.cpp` | Tests that the elementwise executors over planned tensors and over runtime tensors equal the host reference, and that an operation not yet ported refuses a planned operand by name |
 | `test_elementwise/test_abs.cpp` | Tests ElementwiseOps::abs against fixed expected values |
 | `test_elementwise/test_acos.cpp` | Tests ElementwiseOps::acos against fixed expected values |
 | `test_elementwise/test_acosh.cpp` | Tests ElementwiseOps::acosh against fixed expected values |

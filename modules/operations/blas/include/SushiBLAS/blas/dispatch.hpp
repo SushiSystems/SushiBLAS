@@ -31,6 +31,7 @@
 
 #include <vector>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
@@ -269,6 +270,7 @@ namespace SushiBLAS
                     const void* read_A = gemm.read_a;
                     const void* read_B = gemm.read_b;
                     void* rw_C = gemm.write_c;
+                    const std::optional<GemmBindings> bindings = gemm.bindings;
 
                     TaskDescription description = gemm.description;
                     require_domain<Dom>(gemm.dtype, "BLAS operation", description.name);
@@ -282,20 +284,27 @@ namespace SushiBLAS
                                 description.split = make_gemm_split<T>(
                                     gemm.geometry, layout, transA, transB, alpha.as<T>(),
                                     static_cast<const T*>(read_A), static_cast<const T*>(read_B),
-                                    beta.as<T>(), static_cast<T*>(rw_C), kernel_epilogue);
+                                    beta.as<T>(), static_cast<T*>(rw_C), kernel_epilogue,
+                                    bindings);
                             });
                     }
 
                     return Internal::execute_blas_task<Dom>(recorder, description,
                         gemm.operands, gemm.dtype,
                         [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
-                            const std::vector<sycl::event>& deps) -> sycl::event
+                            const std::vector<sycl::event>& deps,
+                            const OperandPointers& pointers) -> sycl::event
                         {
                             using T = decltype(scalar_type);
 
-                            auto pA = static_cast<const T*>(read_A);
-                            auto pB = static_cast<const T*>(read_B);
-                            auto pC = static_cast<T*>(rw_C);
+                            const GemmOperands<T> operands = bound_gemm_operands<T>(
+                                pointers, bindings,
+                                GemmOperands<T>{static_cast<const T*>(read_A),
+                                                static_cast<const T*>(read_B),
+                                                static_cast<T*>(rw_C)});
+                            const T* pA = operands.a;
+                            const T* pB = operands.b;
+                            T* pC = operands.c;
                             const T alpha_t = alpha.as<T>();
                             const T beta_t = beta.as<T>();
 

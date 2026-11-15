@@ -90,6 +90,22 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns the geometry of a vector operand of an operation that records it by handle,
+         *        so a planned tensor is accepted.
+         * @throws std::invalid_argument on missing storage, a non-contiguous tensor of rank
+         *         above 1, or a rank-1 stride of zero or less.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
+         */
+        [[nodiscard]] inline VectorOperand describe_bound_vector_operand(const Tensor& t,
+                                                                         const char* op,
+                                                                         const char* operand)
+        {
+            require_bindable_storage(t, op, operand);
+            require_device_dtype(t, op, operand);
+            return describe_vector_shape(t, op, operand);
+        }
+
+        /**
          * @brief Throws unless a vector holds the number of elements the call needs.
          * @param against Names what sets the count, such as "the columns of op(A)".
          * @throws std::invalid_argument naming both counts.

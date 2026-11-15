@@ -453,6 +453,20 @@ namespace SushiBLAS
                 return bound.element_dtype();
             }
 
+            /** @brief Reports false: a bare functor holds no read address, so its task may bind its operands. */
+            template<typename Op>
+            struct DeclaresReads : std::false_type
+            {
+
+            };
+
+            /** @brief Reports true: a bundle holds the addresses of its reads, so its task records addresses. */
+            template<typename Fn, typename... Reads>
+            struct DeclaresReads<ReadBound<Fn, Reads...>> : std::true_type
+            {
+
+            };
+
             /** @brief Adds nothing, because a bare functor declares no reads. */
             template<typename Op>
             inline void declare_reads(const Op&, OperandSet&, const char*) noexcept

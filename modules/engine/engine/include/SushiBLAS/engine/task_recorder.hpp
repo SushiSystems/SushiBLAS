@@ -102,8 +102,9 @@ namespace SushiBLAS
             /**
              * @brief Wraps a kernel-pair body in the shape a TaskSink keeps.
              * @tparam Body Callable `(const KernelPairDispatcher&, const std::vector<sycl::event>&)`
-             *         returning a `sycl::event`, or a Device::SubmittedEvents when it submits
-             *         several kernels.
+             *         or, for a task that binds operands, `(dispatcher, deps, const
+             *         OperandPointers&)`, returning a `sycl::event`, or a Device::SubmittedEvents
+             *         when it submits several kernels.
              */
             template<typename Body>
             class RecordedPairTask
@@ -118,11 +119,23 @@ namespace SushiBLAS
                     /**
                      * @brief Runs the body with the dispatcher and the dependencies of the run,
                      *        and finishes the run with the event that completes after every kernel
-                     *        the body submitted.
+                     *        the body submitted. A body that takes the operand pointers gets
+                     *        those of the run.
                      */
                     void operator()(PairRun& run) const
                     {
-                        run.finish(runtime_events((*body_)(run.dispatcher(), run.dependencies())));
+                        if constexpr (std::is_invocable_v<const Body&, const KernelPairDispatcher&,
+                                                          const std::vector<sycl::event>&,
+                                                          const OperandPointers&>)
+                        {
+                            run.finish(runtime_events(
+                                (*body_)(run.dispatcher(), run.dependencies(), run.operands())));
+                        }
+                        else
+                        {
+                            run.finish(runtime_events((*body_)(run.dispatcher(),
+                                                               run.dependencies())));
+                        }
                     }
 
                 private:

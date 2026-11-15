@@ -43,6 +43,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/operand_pointers.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
@@ -51,10 +52,37 @@ namespace SushiBLAS
     {
         namespace Detail
         {
+            /** @brief Tells whether Func also takes the operand pointers after the dependencies. */
+            template<typename Func>
+            inline constexpr bool K_TAKES_OPERAND_POINTERS = std::is_invocable_v<
+                const Func&, float, const KernelPairDispatcher&, const std::vector<sycl::event>&,
+                const OperandPointers&>;
+
+            /** @brief Names what Func returns when it takes no operand pointers. */
+            template<typename Func, bool = K_TAKES_OPERAND_POINTERS<Func>>
+            struct TypedTaskResult
+            {
+                /// @brief The decayed return type of the three-argument call.
+                using type = std::decay_t<std::invoke_result_t<
+                    const Func&, float, const KernelPairDispatcher&,
+                    const std::vector<sycl::event>&>>;
+            };
+
+            /** @brief Names what Func returns when it takes the operand pointers. */
+            template<typename Func>
+            struct TypedTaskResult<Func, true>
+            {
+                /// @brief The decayed return type of the four-argument call.
+                using type = std::decay_t<std::invoke_result_t<
+                    const Func&, float, const KernelPairDispatcher&,
+                    const std::vector<sycl::event>&, const OperandPointers&>>;
+            };
+
             /**
              * @brief Calls a task body with a value of the element type its dtype names.
-             * @tparam Func Callable `(T, const KernelPairDispatcher&, deps)` for each T in Dom,
-             *         returning one type for all: a `sycl::event`, or Device::SubmittedEvents.
+             * @tparam Func Callable `(T, const KernelPairDispatcher&, deps)` or, for a task that
+             *         binds operands, `(T, dispatcher, deps, const OperandPointers&)`, for each T
+             *         in Dom, returning one type for all: a `sycl::event`, or Device::SubmittedEvents.
              * @see modules/engine/engine/README.md
              */
             template<Dispatch::Domain Dom, typename Func>
@@ -62,9 +90,7 @@ namespace SushiBLAS
             {
                 public:
                     /// @brief What the body returns: the event of its kernel, or the events of all of them.
-                    using Result = std::decay_t<std::invoke_result_t<
-                        const Func&, float, const KernelPairDispatcher&,
-                        const std::vector<sycl::event>&>>;
+                    using Result = typename TypedTaskResult<Func>::type;
 
                     /**
                      * @brief Holds everything the body needs at execute time.
@@ -83,32 +109,33 @@ namespace SushiBLAS
                      * @throws std::runtime_error if dtype falls outside Dom.
                      */
                     Result operator()(const KernelPairDispatcher& dispatcher,
-                                      const std::vector<sycl::event>& deps) const
+                                      const std::vector<sycl::event>& deps,
+                                      const OperandPointers& pointers) const
                     {
                         // The arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
                         switch (dtype_)
                         {
                             case Core::DataType::Half:
-                                return op_func_(sycl::half{}, dispatcher, deps);
+                                return call(sycl::half{}, dispatcher, deps, pointers);
                             case Core::DataType::Float32:
-                                return op_func_(float{}, dispatcher, deps);
+                                return call(float{}, dispatcher, deps, pointers);
                             case Core::DataType::Float64:
-                                return op_func_(double{}, dispatcher, deps);
+                                return call(double{}, dispatcher, deps, pointers);
                             case Core::DataType::Complex32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return op_func_(std::complex<float>{}, dispatcher, deps);
+                                    return call(std::complex<float>{}, dispatcher, deps, pointers);
                                 break;
                             case Core::DataType::Complex64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
-                                    return op_func_(std::complex<double>{}, dispatcher, deps);
+                                    return call(std::complex<double>{}, dispatcher, deps, pointers);
                                 break;
                             case Core::DataType::Int32:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return op_func_(int32_t{}, dispatcher, deps);
+                                    return call(int32_t{}, dispatcher, deps, pointers);
                                 break;
                             case Core::DataType::Int64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
-                                    return op_func_(int64_t{}, dispatcher, deps);
+                                    return call(int64_t{}, dispatcher, deps, pointers);
                                 break;
                             case Core::DataType::UInt32:
                                 break;
@@ -120,7 +147,30 @@ namespace SushiBLAS
                         return Result();
                     }
 
+                    /** @brief Runs the body for a task that bound no operand, with no pointer. */
+                    Result operator()(const KernelPairDispatcher& dispatcher,
+                                      const std::vector<sycl::event>& deps) const
+                    {
+                        return (*this)(dispatcher, deps, OperandPointers());
+                    }
+
                 private:
+                    /** @brief Calls the body with the pointers when it takes them, else without. */
+                    template<typename T>
+                    Result call(T value, const KernelPairDispatcher& dispatcher,
+                                const std::vector<sycl::event>& deps,
+                                const OperandPointers& pointers) const
+                    {
+                        if constexpr (K_TAKES_OPERAND_POINTERS<Func>)
+                        {
+                            return op_func_(value, dispatcher, deps, pointers);
+                        }
+                        else
+                        {
+                            return op_func_(value, dispatcher, deps);
+                        }
+                    }
+
                     /// @brief The dtype the task was recorded for.
                     Core::DataType dtype_;
 
@@ -138,9 +188,9 @@ namespace SushiBLAS
         /**
          * @brief Records one dtype-dispatched task whose body runs a reference and SYCL kernel pair.
          * @param family What kind of operation this is, for diagnostics; a string literal.
-         * @param op_func Callable `(scalar, const KernelPairDispatcher&, deps)`.
+         * @param op_func Callable `(scalar, dispatcher, deps[, const OperandPointers&])`.
          * @deprecated An op_func that also takes the queue is still taken until H5 of the plan.
-         * @throws std::invalid_argument at record time on a dtype outside Dom; UnsupportedExecution as TaskRecorder::record_pair states.
+         * @throws std::invalid_argument on a dtype outside Dom; UnsupportedExecution as record_pair.
          * @see modules/engine/engine/README.md
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>

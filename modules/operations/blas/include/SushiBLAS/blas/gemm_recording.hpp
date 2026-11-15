@@ -32,6 +32,7 @@
 
 #include <vector>
 #include <cstdint>
+#include <optional>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -44,6 +45,7 @@
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/blas/shape_check.hpp>
+#include <SushiBLAS/blas/gemm_bindings.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
@@ -82,9 +84,10 @@ namespace SushiBLAS
             Core::Transpose trans_b = Core::Transpose::NoTrans; /**< How B is read. */
             BLASScalar alpha = 1.0;                             /**< The scale of the product. */
             BLASScalar beta = 0.0;                              /**< The scale of the old C. */
-            const void* read_a = nullptr;                       /**< The data of A. */
-            const void* read_b = nullptr;                       /**< The data of B. */
-            void* write_c = nullptr;                            /**< The data of C. */
+            std::optional<GemmBindings> bindings;               /**< Where A, B and C sit in the bound operands; empty when the call bound none. */
+            const void* read_a = nullptr;                       /**< The data of A; null when the call bound its operands. */
+            const void* read_b = nullptr;                       /**< The data of B; null when the call bound its operands. */
+            void* write_c = nullptr;                            /**< The data of C; null when the call bound its operands. */
         };
 
         /**
@@ -128,7 +131,7 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Checks a GEMM call, builds its access set and leases its panels.
+         * @brief Checks a GEMM call, builds its access set, leases its panels and binds A, B, C.
          * @param real_only True when the call refuses a complex tensor.
          * @param epilogue What the epilogue declared; empty for a bare functor.
          * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
@@ -150,9 +153,9 @@ namespace SushiBLAS
 
             require_gemm_domain(real_only, A, name);
 
-            require_operand_storage(A, name, "A");
-            require_operand_storage(B, name, "B");
-            require_operand_storage(C, name, "C");
+            require_bound_operand_storage(A, name, "A");
+            require_bound_operand_storage(B, name, "B");
+            require_bound_operand_storage(C, name, "C");
 
             PreparedGemm gemm;
             gemm.geometry = check_gemm_shapes(A, B, C, transA, transB, name);
@@ -181,6 +184,21 @@ namespace SushiBLAS
             gemm.trans_b = transB;
             gemm.alpha = alpha;
             gemm.beta = beta;
+
+            // A leased panel and an epilogue operand cannot be rebound, so a call with either records addresses.
+            const bool is_bindable = gemm.pack.is_empty() &&
+                                     epilogue.operands.read_regions().empty() &&
+                                     epilogue.operands.write_regions().empty();
+            if (is_bindable)
+            {
+                gemm.bindings = GemmBindings{gemm.operands.bind(A), gemm.operands.bind(B),
+                                             gemm.operands.bind(C)};
+                return gemm;
+            }
+
+            require_storage(A, name, "A");
+            require_storage(B, name, "B");
+            require_storage(C, name, "C");
             gemm.read_a = A.data_or_null();
             gemm.read_b = B.data_or_null();
             gemm.write_c = C.data_or_null();

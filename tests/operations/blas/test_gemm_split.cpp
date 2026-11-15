@@ -28,6 +28,7 @@
  */
 
 #include <vector>
+#include <optional>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -190,7 +191,11 @@ namespace SushiBLAS
                         geometry_of(test_case), test_case.layout, test_case.trans_a,
                         test_case.trans_b, 1.0f, bound ? nullptr : device_a,
                         bound ? nullptr : device_b, 0.0f, bound ? nullptr : device_c,
-                        PositionEpilogue{});
+                        PositionEpilogue{},
+                        bound ? std::optional<Dispatch::GemmBindings>(Dispatch::GemmBindings{
+                                    OperandBinding{0, 0}, OperandBinding{1, 0},
+                                    OperandBinding{2, 0}})
+                              : std::nullopt);
                     void* pointers[Dispatch::K_GEMM_OPERAND_COUNT] = {device_a, device_b, device_c};
                     const SushiRuntime::span<void* const> table =
                         bound ? SushiRuntime::span<void* const>(pointers,

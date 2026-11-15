@@ -20,7 +20,8 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which routes one kernel of a reference and SYCL pair and holds the queue the SYCL half runs on |
 | `task_sink.hpp` | `TaskSink`, the port `TaskRecorder` records its tasks through; it names no SYCL type |
-| `pair_run.hpp` | `PairRun`, one run of a recorded body: its dispatcher, its dependencies and the event that ends its work |
+| `pair_run.hpp` | `PairRun`, one run of a recorded body: its dispatcher, its dependencies, the operand pointers it bound and the event that ends its work |
+| `operand_pointers.hpp` | `OperandBinding` and `OperandPointers`, how a recorded body finds the address of an operand its task bound by handle |
 | `late_count_sink.hpp` | `LateCountSink`, the port a `TaskRecorder` adds a late-count kernel through |
 | `late_count_keeper.hpp` | `LateCount` and `LateCountKeeper`, the port a `TaskRecorder` borrows a late count through and keeps its owner in |
 | `host_late_count_keeper.hpp` | `HostLateCountKeeper`, the adapter that makes no runtime and counts the owners it keeps |
@@ -228,7 +229,8 @@ live in `SushiBLAS::Dispatch` beside the dtype checks of `dispatch.hpp`.
 
 | Function | Rule | Throws |
 | --- | --- | --- |
-| `require_storage` | A tensor with `num_elements > 0` has storage. | `std::invalid_argument` |
+| `require_storage` | A tensor with `num_elements > 0` has storage with a host address, so not a planned one. | `std::invalid_argument` |
+| `require_bindable_storage` | A tensor with `num_elements > 0` has storage, planned or not; the check of an operation that records its operands by handle. | `std::invalid_argument` |
 | `require_dtype` | The tensor holds the expected dtype. | `std::invalid_argument` |
 | `require_same_shape` | Two tensors have the same rank and the same size in every dimension. | `std::invalid_argument` |
 | `require_same_layout` | Two tensors of rank 2 or more have the same layout. | `std::invalid_argument` |
@@ -302,6 +304,15 @@ where the body is a `std::function<void(PairRun&)>`. `PairRun` (`pair_run.hpp`) 
 dispatcher and the dependencies in, and `finish(event)` carries the event that ends the work out, so
 `task_sink.hpp` names no SYCL type and a host consumer includes it without SYCL. `TaskRecorder` calls
 the sink with its recording mutex held.
+
+A task that bound operands (`OperandSet::bind`) is added by handle. `GraphTaskSink` records it with
+`Recorder::task(access, handles, body)`, so the runtime may place it on any device, and the run
+carries the table the runtime bound for the node on that device. `HostTaskSink` keeps the base
+address of each bound allocation and hands those to the run, and refuses a task that binds an
+allocation with no host address, such as a planned tensor. A task that bound nothing is recorded as
+before and stays on its home device. The body finds an operand with `run.operands().as<T>(binding)`;
+`Detail::RecordedPairTask` and `TypedTaskBody` pass the pointers to a body that takes them as a last
+argument and call any other body without them.
 
 `LateCountSink` (`late_count_sink.hpp`) is a second port, for a late-count kernel: a graph node whose
 count a previous node writes, with no host form. `add_late_node(description, cost, origin, record)`
@@ -497,6 +508,14 @@ epilogue's operands join the task's. The recorder reads the two region lists for
 tracker, `retained()` for the keep-alive, `owner_liveness()` for the owners of borrowed storage
 the runtime checks before a run, and `has_device_only_operand()` for the refusal under
 `ForceReference`.
+
+`bind(tensor)` adds the tensor's handle and the base address of its allocation to the task's bound
+list and returns the `OperandBinding` of its first element: the slot, in bind order, and the bytes
+from the base of the allocation to that element. A task binds every tensor its body dereferences, in
+a fixed order, and records no address of any of them. A tensor without storage binds nothing and its
+binding reads as a null address. `bind` declares no region and `merge` copies no binding. A task
+whose body also holds a raw address, such as a leased scratch or a functor's read pointer, binds
+nothing, because the runtime cannot rebind that address.
 
 ### `Internal::StorageKeepAlive`
 
