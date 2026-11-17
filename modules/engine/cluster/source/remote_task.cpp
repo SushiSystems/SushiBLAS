@@ -43,8 +43,8 @@ namespace SushiBLAS
         /** @brief Holds the hex digits of a fingerprint, lower case. */
         constexpr char K_HEX_DIGITS[] = "0123456789abcdef";
 
-        /** @brief Appends the view of each pack, after checking it is shared. */
-        void append_views(std::vector<SushiRuntime::Distributed::BufferView>& views,
+        /** @brief Appends the view and the handle of each pack, after checking it is shared. */
+        void append_buffers(std::vector<SushiRuntime::Distributed::TaskBuffer>& buffers,
                           const ClusterBinding& binding,
                           SushiRuntime::span<const TensorPack* const> packs,
                           const std::string& name)
@@ -54,7 +54,8 @@ namespace SushiBLAS
                 SB_THROW_IF(pack == nullptr, "record_remote({}): a pack is null", name);
                 SB_THROW_IF(!binding.is_shared(*pack),
                             "record_remote({}): a pack is not shared with the cluster", name);
-                views.push_back(pack->view());
+                buffers.push_back(
+                    SushiRuntime::Distributed::TaskBuffer{pack->view(), pack->global_handle()});
             }
         }
     } // namespace
@@ -85,19 +86,19 @@ namespace SushiBLAS
         SB_THROW_IF(!binding.kernels().has(options.operation),
                     "record_remote({}): the registry has no kernel for the operation", name);
 
-        std::vector<SushiRuntime::Distributed::BufferView> views;
-        views.reserve(inputs.size() + outputs.size());
-        append_views(views, binding, inputs, name);
-        append_views(views, binding, outputs, name);
+        std::vector<SushiRuntime::Distributed::TaskBuffer> buffers;
+        buffers.reserve(inputs.size() + outputs.size());
+        append_buffers(buffers, binding, inputs, name);
+        append_buffers(buffers, binding, outputs, name);
 
         // Inside an open rule scope a node joins the scope's rule, so only nodes are counted.
         const std::size_t recorded_before = recorder.node_count();
         const std::size_t position = SushiRuntime::Distributed::record_registered_task(
             recorder, binding.kernels(), options,
-            SushiRuntime::span<const SushiRuntime::Distributed::BufferView>(views.data(),
+            SushiRuntime::span<const SushiRuntime::Distributed::TaskBuffer>(buffers.data(),
                                                                             inputs.size()),
-            SushiRuntime::span<const SushiRuntime::Distributed::BufferView>(
-                views.data() + inputs.size(), outputs.size()));
+            SushiRuntime::span<const SushiRuntime::Distributed::TaskBuffer>(
+                buffers.data() + inputs.size(), outputs.size()));
         if (recorder.node_count() == recorded_before)
         {
             const SushiRuntime::Error* refusal = recorder.refusal();

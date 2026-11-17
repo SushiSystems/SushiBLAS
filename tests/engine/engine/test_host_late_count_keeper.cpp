@@ -51,8 +51,8 @@ namespace SushiBLAS
         {
             HostLateCountKeeper keeper;
 
-            keeper.keep(std::make_shared<SushiRuntime::Liveness>());
-            keeper.keep(std::make_shared<SushiRuntime::Liveness>());
+            keeper.keep(LateCount{std::make_shared<SushiRuntime::Liveness>(), {}});
+            keeper.keep(LateCount{std::make_shared<SushiRuntime::Liveness>(), {}});
 
             EXPECT_EQ(keeper.kept_count(), std::size_t{2});
         }

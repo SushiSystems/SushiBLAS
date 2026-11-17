@@ -84,7 +84,7 @@ namespace SushiBLAS
                 operands.writes(out);
                 LateCount late = hold.borrow(operands, count);
                 watch = late.owner;
-                hold.keep(std::move(late.owner));
+                hold.keep(std::move(late));
             }
 
             EXPECT_EQ(hold.held_count(), std::size_t{1});

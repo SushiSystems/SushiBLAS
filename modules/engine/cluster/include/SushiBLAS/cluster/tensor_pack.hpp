@@ -73,6 +73,12 @@ namespace SushiBLAS
             /** @brief Returns the buffer's address. */
             [[nodiscard]] void* data() const noexcept { return storage_->allocation_base(); }
 
+            /** @brief Returns the handle the cluster shares the buffer by. */
+            [[nodiscard]] SushiRuntime::GlobalHandle global_handle() const noexcept
+            {
+                return storage_->global_handle();
+            }
+
             /** @brief Returns the device the buffer was allocated on. */
             [[nodiscard]] std::size_t device_index() const
             {

@@ -50,12 +50,12 @@ namespace SushiBLAS
 
     void ClusterBinding::share(const TensorPack& pack)
     {
-        cluster_.share(pack.data(), pack.size_bytes());
+        cluster_.share(pack.global_handle(), pack.size_bytes());
     }
 
     bool ClusterBinding::is_shared(const TensorPack& pack) const
     {
-        return cluster_.buffer_handle(pack.data()).has_value();
+        return cluster_.buffer_handle(pack.global_handle()).has_value();
     }
 
     bool ClusterBinding::has_worker_for(SushiRuntime::OperationID operation) const

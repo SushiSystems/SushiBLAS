@@ -171,14 +171,15 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
         }
 
-        TEST(Medium_Storage, ABorrowedStorageAllocatesNothing)
+        TEST(Medium_Storage, ABorrowedStorageRegistersOneRangeAndAllocatesNoBuffer)
         {
             const OwnedMemory memory(256);
             const std::size_t before = TestEnvironment::live_allocation_count();
 
             const auto storage = borrowed_of(memory, 0, 200);
 
-            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
+            // The runtime counts one entry per borrowed range and one per Buffer it allocates.
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), before + 1);
         }
 
         TEST(Medium_Storage, ABorrowedStorageViewsTheOwnersMemory)

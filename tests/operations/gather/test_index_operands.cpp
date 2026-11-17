@@ -79,7 +79,9 @@ namespace SushiBLAS
 
         TEST_F(Small_IndexOperands, AnIndexWithoutStorageIsRefused)
         {
-            const Tensor index = engine->create_tensor({0}, Core::DataType::Int64);
+            const int64_t dims[1] = {3};
+            const Tensor index = Tensor::make_shape_only(SushiRuntime::span<const int64_t>(dims, 1),
+                                                         Core::DataType::Int64);
 
             EXPECT_THROW(Gather::require_index_operand(index, "op", "index"),
                          std::invalid_argument);

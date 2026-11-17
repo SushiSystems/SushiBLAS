@@ -407,7 +407,8 @@ A device-mode task cannot hold its operands' storage itself, because the runtime
 must be device copyable. The `LateCountHold` (`late_count_hold.hpp`) the recorder was given holds it
 instead. `borrow` makes the owner token, a `LivenessToken` whose deleter holds one reference to
 every storage in `operands` and to the count, and borrows the count under it from the hold's
-runtime; `keep` stores the token once the task is recorded. The deleter drops those references
+runtime; `keep` stores the token and the borrowed words once the task is recorded, since the
+runtime releases a borrow when its buffer dies. The deleter drops those references
 when the token dies, not when its last observer does, since a `LivenessObserver` keeps the deleter
 itself alive. The runtime watches the token, so a
 run after the hold lets go is refused as `DanglingResource` and never reads freed memory.

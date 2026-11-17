@@ -72,8 +72,13 @@ namespace SushiBLAS
             [[nodiscard]] virtual LateCount borrow(const OperandSet& operands,
                                                    const Tensor& count) const = 0;
 
-            /** @brief Keeps owner until the adapter owner lets the recording go. */
-            virtual void keep(SushiRuntime::LivenessToken owner) = 0;
+            /**
+             * @brief Keeps the owner token and the borrowed words of a recorded late task until the
+             *        adapter owner lets the recording go.
+             *
+             * The words are kept as well, because the runtime releases a borrow when its buffer dies.
+             */
+            virtual void keep(LateCount late) = 0;
 
         protected:
             /** @brief Lets an adapter construct itself; the port is never built alone. */

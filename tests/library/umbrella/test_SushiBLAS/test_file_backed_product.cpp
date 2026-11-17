@@ -50,7 +50,7 @@
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/engine_fixture/recording_fixture.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include <SushiRuntime/coherence/transfer_observer.hpp>
+#include <SushiRuntime/report/transfer_observer.hpp>
 
 namespace SushiBLAS
 {
@@ -314,11 +314,11 @@ namespace SushiBLAS
             }
 
             /** @brief Counts the copies the runtime's transfer paths report that read a file space. */
-            class FileCopyCounter final : public SushiRuntime::Internal::Coherence::TransferObserver
+            class FileCopyCounter final : public SushiRuntime::TransferObserver
             {
                 public:
                     /** @brief Counts the copy when the file path took it. */
-                    void copied(const SushiRuntime::Internal::Coherence::TransferRecord& record) override
+                    void copied(const SushiRuntime::TransferRecord& record) override
                     {
                         if (record.path == K_FILE_PATH_NAME)
                         {

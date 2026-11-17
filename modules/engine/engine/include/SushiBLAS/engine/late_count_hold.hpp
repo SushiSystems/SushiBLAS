@@ -107,24 +107,24 @@ namespace SushiBLAS
                 return late;
             }
 
-            /** @brief Keeps owner until release(). */
-            void keep(SushiRuntime::LivenessToken owner) override
+            /** @brief Keeps the token and the borrowed words of late until release(). */
+            void keep(LateCount late) override
             {
                 const std::lock_guard<std::mutex> lock(mutex_);
-                held_.push_back(std::move(owner));
+                held_.push_back(std::move(late));
             }
 
-            /** @brief Drops every kept token, once no recording that needs them will run again. */
+            /** @brief Drops every kept late count, once no recording that needs them will run again. */
             void release() noexcept
             {
-                std::vector<SushiRuntime::LivenessToken> dropped;
+                std::vector<LateCount> dropped;
                 {
                     const std::lock_guard<std::mutex> lock(mutex_);
                     dropped.swap(held_);
                 }
             }
 
-            /** @brief Returns how many tokens are kept. */
+            /** @brief Returns how many late counts are kept. */
             [[nodiscard]] std::size_t held_count() const
             {
                 const std::lock_guard<std::mutex> lock(mutex_);
@@ -138,7 +138,7 @@ namespace SushiBLAS
             /// @brief Serialises every use of held_.
             mutable std::mutex mutex_;
 
-            /// @brief The tokens kept, one per late task recorded since the last release.
-            std::vector<SushiRuntime::LivenessToken> held_;
+            /// @brief The late counts kept, one per late task recorded since the last release.
+            std::vector<LateCount> held_;
     };
 } // namespace SushiBLAS

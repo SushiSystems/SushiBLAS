@@ -51,8 +51,8 @@ namespace SushiBLAS
                 return LateCount{};
             }
 
-            /** @brief Counts the owner and drops it. */
-            void keep(SushiRuntime::LivenessToken) override { ++kept_; }
+            /** @brief Counts the late count and drops it. */
+            void keep(LateCount) override { ++kept_; }
 
             /** @brief Returns how many owners were kept. */
             [[nodiscard]] std::size_t kept_count() const noexcept { return kept_; }

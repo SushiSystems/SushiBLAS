@@ -558,7 +558,7 @@ namespace SushiBLAS
             const std::size_t partials = leased_partials(recorder, scratch_elements);
             const ScratchBuffer scratch(recorder.scratch_pool(),
                                         partials * K_INDEXED_PARTIAL_BYTES,
-                                        t.storage->device_index());
+                                        t.storage->require_device_index(name));
             operands.scratch(scratch);
 
             TaskDescription description;

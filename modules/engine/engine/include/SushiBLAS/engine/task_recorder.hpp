@@ -400,7 +400,7 @@ namespace SushiBLAS
                                     std::forward<Kernel>(kernel), options);
                             });
                     });
-                late_counts_->keep(std::move(late.owner));
+                late_counts_->keep(std::move(late));
                 return handle;
             }
 

@@ -38,6 +38,7 @@
 #include <SushiBLAS/blas/gemm_split.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiRuntime/handle/bound_operands.hpp>
 #include "gemm_split_cases.hpp"
 
 namespace SushiBLAS
@@ -199,10 +200,10 @@ namespace SushiBLAS
                                     OperandBinding{2, 0}})
                               : std::nullopt);
                     void* pointers[Dispatch::K_GEMM_OPERAND_COUNT] = {device_a, device_b, device_c};
-                    const SushiRuntime::span<void* const> table =
-                        bound ? SushiRuntime::span<void* const>(pointers,
-                                                                Dispatch::K_GEMM_OPERAND_COUNT)
-                              : SushiRuntime::span<void* const>();
+                    const SushiRuntime::BoundOperands table =
+                        bound ? SushiRuntime::BoundOperands::of_bytes(
+                                    pointers, Dispatch::K_GEMM_OPERAND_COUNT)
+                              : SushiRuntime::BoundOperands();
 
                     const std::uint64_t extent = split->extent;
                     const std::uint64_t first = extent / 3;
@@ -298,9 +299,9 @@ namespace SushiBLAS
 
             const std::vector<sycl::event> parts = {
                 split->slice(SushiRuntime::SplitPart{split->axis, 0, 4, 0, 2}, q,
-                             SushiRuntime::span<const sycl::event>(), SushiRuntime::span<void* const>()),
+                             SushiRuntime::span<const sycl::event>(), SushiRuntime::BoundOperands()),
                 split->slice(SushiRuntime::SplitPart{split->axis, 4, 7, 1, 2}, q,
-                             SushiRuntime::span<const sycl::event>(), SushiRuntime::span<void* const>())};
+                             SushiRuntime::span<const sycl::event>(), SushiRuntime::BoundOperands())};
             sycl::event::wait(parts);
 
             std::vector<float> c(c_count);
@@ -356,7 +357,7 @@ namespace SushiBLAS
             });
             sycl::event part = split->slice(
                 SushiRuntime::SplitPart{split->axis, 0, split->extent, 0, 1}, q,
-                SushiRuntime::span<const sycl::event>(&producer, 1), SushiRuntime::span<void* const>());
+                SushiRuntime::span<const sycl::event>(&producer, 1), SushiRuntime::BoundOperands());
 
             EXPECT_NE(part.get_info<sycl::info::event::command_execution_status>(),
                       sycl::info::event_command_status::complete);

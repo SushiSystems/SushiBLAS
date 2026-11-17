@@ -66,13 +66,13 @@ namespace SushiBLAS
             EXPECT_EQ(tap.weight, row.weight);
         }
 
-        // Scale 2 over 2 pixels: the centres sit at -0.25, 0.25, 0.75, 1.25; scale 1 copies.
+        // Scale 2 over 2 pixels: centres at -0.25, 0.25, 0.75, 1.25; scale 1 copies at weight 0.
         INSTANTIATE_TEST_SUITE_P(, Small_BilinearTap,
                                  ::testing::Values(TapRow{0, 2, 2, 0, 0, 0.75},
                                                    TapRow{1, 2, 2, 0, 1, 0.25},
                                                    TapRow{2, 2, 2, 0, 1, 0.75},
                                                    TapRow{3, 2, 2, 1, 1, 0.25},
-                                                   TapRow{0, 1, 3, 0, 0, 0.0},
+                                                   TapRow{0, 1, 3, 0, 1, 0.0},
                                                    TapRow{2, 1, 3, 2, 2, 0.0}));
 
         TEST(Small_BilinearBlend, ABlendIsTheWeightedSumOfItsTwoValues)

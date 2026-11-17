@@ -98,14 +98,14 @@ reference path.
 `ClusterBinding` holds a `Cluster` handle and the `KernelRegistry` the engine's remote tasks run.
 It exposes `share()`, `is_shared()`, `has_worker_for()` and `kernels()`, never the cluster
 itself. The static `require_kernels()` refuses a null registry, as the constructor does, and
-needs no runtime. `share()` registers the pack's buffer with the master; the buffer leaves the registry when
+needs no runtime. `share()` registers the pack's buffer with the master by its `global_handle()`; the buffer leaves the registry when
 the last copy of the pack frees it, through the allocator's release observer.
 
 ## remote_task.hpp
 
 `record_remote()` is the tensor form of `record_registered_task()`. It takes the caller's
 `SushiRuntime::Recorder`, never an engine graph: a caller with a `TaskRecorder` passes the
-runtime recorder it built that `TaskRecorder` on. Each pack becomes one `BufferView`, inputs
+runtime recorder it built that `TaskRecorder` on. Each pack becomes one `TaskBuffer`, its view and its handle, inputs
 first. It refuses a null pack, a pack the binding has not shared, an operation the registry has
 no kernel for and a recording the runtime refuses. The node does not keep the packs alive, so
 they must outlive the run.
