@@ -4,6 +4,7 @@
 
 | ID | Pri | State | Title | Done when | Blocked by | Source | Opened |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| RW-163 | P2 | open | Give BroadcastOps a public call that takes a caller's functor | SushiAI's lowering reaches no SushiBLAS::Dispatch symbol and the call is released in a SushiBLAS tag |  | `modules/operations/broadcast/include/SushiBLAS/broadcast/broadcast.hpp` | 2026-11-17 |
 
 ## Known issues
 
