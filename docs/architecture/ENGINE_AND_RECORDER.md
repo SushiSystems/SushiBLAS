@@ -106,6 +106,12 @@ holds when it is called, so the caller runs the graph that writes the tensor fir
 | `LogicOps` | `logic/logic.hpp` | Comparisons, logical operations, `where`, `all`, `any` |
 | `ReductionOps` | `reductions/reductions.hpp` | Whole-tensor and axis reductions |
 | `RandomOps` | `random/random.hpp` | Distributions, initialisers, `shuffle`, `set_seed` |
+| `PositionedRandomOps` | `random/positioned_random.hpp` | Bernoulli mask whose seed and offset come from a position tensor read when the plan runs |
+| `BroadcastOps` | `broadcast/broadcast.hpp` | A matrix combined with up to four vectors along its leading or trailing axes |
+| `RowIndexOps` | `gather/gather.hpp` | Row gather and scatter by an INT32 or INT64 index: `take_rows`, `add_rows`, `take_along`, `put_along` |
+| `IndexOps` | `index/index_ops.hpp` | One task that calls a functor once per index below a fixed or late count |
+| `SignalOps` | `signal/signal.hpp` | Operations that act on each row of a signal on its own |
+| `BlendOps` | `blend/blend.hpp` | Moves each point by a weighted blend of indexed transforms |
 | `SpatialOps` | `spatial/spatial.hpp` | Windowed and strided movement over NHWC tensors |
 | `IO` | `io/io.hpp` | Host transfer, `.sushi`, `.npy` and raw files, printing |
 

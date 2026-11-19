@@ -278,8 +278,8 @@ the recorder of one `SushiRuntime::Graph`, one `ScratchPool` and one `LateCountH
 execution mode, in that constructor order; it builds a `GraphTaskSink` over the graph recorder and
 owns it. A caller builds one over a graph it owns; the recorder
 may be a local of one record call, since it owns nothing a run needs. The other constructor takes a
-`TaskSink&`, an optional `ScratchPool*`, an optional `LateCountHold*` and a mode that defaults to
-`ForceReference`. It throws `UnsupportedExecution` for a mode the sink does not admit, and so does
+`TaskSink&`, an optional `ScratchPool*`, an optional `LateCountKeeper*`, a mode that defaults to
+`ForceReference` and an optional `LateCountSink*`. It throws `UnsupportedExecution` for a mode the sink does not admit, and so does
 `set_mode`. `scratch_pool()` throws `UnsupportedExecution` on a recorder built without a pool.
 
 `GraphTaskSink` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in

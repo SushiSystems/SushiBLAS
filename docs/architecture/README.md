@@ -57,7 +57,8 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
     operands/           The operand checks and views the families share
     functor_map/        The per-element seam: the map task and its bindings
   operations/
-    blas/, elementwise/, nonlinear/, reductions/, random/, logic/, sparse/, spatial/, gather/
+    blas/, elementwise/, nonlinear/, reductions/, random/, logic/, sparse/, spatial/, broadcast/,
+    gather/, index/, signal/, blend/
                         One operation view each, with one <op>.cpp per operation
     io/                 Host transfer, save, load and print (native, .npy, raw binary)
     experimental/       The batched FFT, LU and GMRES; the other LAPACK declarations are undefined

@@ -35,7 +35,7 @@ Keep both parts objects until every session started with the registry has stoppe
 
 ## Read the table
 
-The `roofline` table has a row per node, with the achieved FLOP/s and bytes/s, the intensity, and, where the device has ceilings in the record, the bound, the share of the bound reached and whether the node is compute or memory limited. A node with no cost is not in the table; the record's spans show it with no `flops` attribute. A device with no ceilings file is stated `unmeasured` in the record's facts and its rows have no bound.
+The `roofline` table has a row per node, with the achieved FLOP/s and bytes/s, the intensity, and, where the device has ceilings in the record, the bound, the share of the bound reached and whether the node is compute or memory limited. A node with no cost is not in the table; the record's spans show it with none of the cost attributes (`flops`, `bytes`, `read_bytes`, `written_bytes`, `operation_kind`, `dtype`). A device with no ceilings file is stated `unmeasured` in the record's facts and its rows have no bound.
 
 ## Name what you record
 

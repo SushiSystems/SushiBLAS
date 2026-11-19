@@ -73,7 +73,8 @@ engine on: `runtime.advanced().queue(SushiRuntime::DeviceIndex{0})`, `runtime.wa
 A caller that records owns a graph and a `LateCountHold` that lives as long as the graph's nodes,
 and builds a `TaskRecorder` over that graph's recorder, with the engine's pool, the hold and the
 engine's mode. An operation view (`BLASOps`, `SparseOps`, `SpatialOps`,
-`ElementwiseOps`, `NonLinearOps`, `ReductionOps`, `RandomOps`, `LogicOps`) is built over that
+`ElementwiseOps`, `NonLinearOps`, `ReductionOps`, `RandomOps`, `PositionedRandomOps`, `LogicOps`,
+`BroadcastOps`, `RowIndexOps`, `IndexOps`, `SignalOps`, `BlendOps`) is built over that
 recorder, and `RandomOps` also takes the engine's `rng()`:
 
 ```cpp
@@ -236,10 +237,10 @@ Returns: The base address of the runtime's buffer.
 
 Warning: This is the *allocation* base, never a tensor's data. Handing this pointer to a kernel
 silently ignores `Tensor::storage_offset`, so a tensor that is a view at a non-zero offset reads or
-writes the start of the allocation instead of its own elements, which is exactly the defect that
-made this member private. Use `Tensor::data()` / `Tensor::data_as<T>()` to address a tensor's
-elements, and `Tensor::region()` to describe them to the dependency tracker. The only legitimate
-uses of the base are identity ("which allocation is this?") and deallocation.
+writes the start of the allocation instead of its own elements. The member is public. Use
+`Tensor::data()` / `Tensor::data_as<T>()` to address a tensor's elements, and `Tensor::region()` to
+describe them to the dependency tracker. The identity of an allocation is
+`Storage::global_handle()`, not its base address.
 
 ## `tensor.hpp`
 
@@ -351,10 +352,10 @@ memory rather than about element count.
 
 ### `Tensor::region`
 
-Keyed on the allocation base (the tracker's identity for "same buffer") and narrowed to the view's
-own byte interval, so two disjoint views of one allocation, what a memory planner produces when it
-packs an arena, are correctly seen as *not* conflicting, while two overlapping views still are.
-A bare base pointer passed instead makes every tensor in an arena alias every other one.
+Keyed on the `GlobalHandle` of the view's allocation (`Storage::global_handle()`, the runtime's
+identity for "same buffer") and narrowed to the view's own byte interval, so two disjoint views of
+one allocation, what a memory planner produces when it packs an arena, are correctly seen as *not*
+conflicting, while two overlapping views still are.
 
 The length is `element_span` rather than `num_elements`, so the bound stays true for a strided view
 as well as a contiguous one. Stopping at the element count would under-declare what the view

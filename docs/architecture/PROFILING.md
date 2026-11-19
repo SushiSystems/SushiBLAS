@@ -6,8 +6,8 @@ What SushiBLAS tells SushiProfiler about the work it records, and how a span of 
 
 1. A seam states facts it already holds in a `CostShape`: the extents of a GEMM, the element count of an elementwise operation, the window of a pool. It sets `TaskDescription::shape` and records.
 2. `GraphTaskSink`, adding the node, calls `cost_of(description.operation, description.shape)`. The table of the `cost` module returns FLOPs and a dtype class, or the reason the task states none.
-3. The sink adds the bytes the operands declared (`OperandSet::declared_bytes`) and passes the result to SushiRuntime as `NodeOptions::cost`, mapping the dtype to the runtime's class.
-4. The runtime keeps the cost with the node, through plan rebuilds and replays, and its device source writes `flops`, `bytes` and `dtype` on the span of each dispatch.
+3. `task_cost` adds the bytes the operands declared (`OperandSet::declared_read_bytes()` and `declared_written_bytes()`). The sink turns the result into a `NodeCost` of `operations`, `read_bytes`, `written_bytes`, `kind` and `dtype`, mapping the dtype to the runtime's class, and passes it to SushiRuntime as `NodeOptions::cost`.
+4. The runtime keeps the cost with the node, through plan rebuilds and replays. The device source of SushiRuntime v0.6.0 writes on the span of each dispatch `flops` (the operations), `bytes` (read plus written), `read_bytes`, `written_bytes`, `operation_kind` and `dtype`.
 5. SushiProfiler's `roofline` reads those attributes and the ceiling facts of the record and states, per node, the achieved rate and its share of the bound.
 
 A task with no cost carries no `NodeCost`, so its span has no attributes and `roofline` skips it. A late-count task is such a task, because its width is read on the device at run time.

@@ -41,8 +41,9 @@ stride-explicit constructor. `Tensor::element_span()` gives the distance from it
 to its last, `1 + sum((shape[i] - 1) * strides[i])`, which is what the capacity check and
 `region()` measure.
 
-An operation addresses a tensor through three accessors and never through the allocation base,
-which is private to `Storage`:
+An operation addresses a tensor through three accessors and never through the allocation base.
+`Storage::allocation_base()` is public, and the identity of an allocation is
+`Storage::global_handle()`:
 
 | Accessor | Gives | Used for |
 | --- | --- | --- |
@@ -56,9 +57,10 @@ ordered.
 
 ## Storage and alignment
 
-`Storage` (`tensor/storage.hpp`) owns one reference-counted USM allocation with a
-`SushiRuntime::Residency` (`Shared`, `Device` or `Host`) on one device queue of a
-`SushiRuntime::Runtime`. The allocation is a `SushiRuntime::Buffer<std::byte>` from
+`Storage` (`tensor/storage.hpp`) is a reference-counted object that holds one `StorageBlock`. A
+`RuntimeBlock` owns one reference-counted USM allocation with a `SushiRuntime::Residency` (`Shared`,
+`Device` or `Host`) on one device queue of a `SushiRuntime::Runtime`; `Residency::Planned` belongs
+to `PlannedBlock`, which has no address and no device. The allocation is a `SushiRuntime::Buffer<std::byte>` from
 `Runtime::buffer`, which takes the alignment as an argument. Every allocation base is aligned to
 `K_STORAGE_ALIGNMENT`, 128 bytes, and the allocated size is the requested size rounded up to
 that. An address off that boundary fails an `SB_ASSERT`. The buffer shares ownership of the runtime's state, so a `Storage` may outlive the `Runtime`
@@ -70,21 +72,22 @@ size of zero and a device index the runtime does not drive. `Storage::queue()` r
 A `Storage` holds its bytes through the `StorageBlock` port (`tensor/storage_block.hpp`) and
 forwards to it: `data`, `size_bytes`, `residency`, `device_index`, an optional queue, the observer of
 a borrowed owner, and the copies of bytes out to host memory and in from it. `RuntimeBlock`
-(`tensor/runtime_block.hpp`) is the adapter over a `SushiRuntime::Buffer` and the only tensor header
-that includes `SushiRuntime/sushiruntime.hpp`; `HostBlock` (`tensor/host_block.hpp`) is the adapter
+(`tensor/runtime_block.hpp`) is the adapter over a `SushiRuntime::Buffer`; it and `PlannedBlock`
+(`tensor/planned_block.hpp`) are the two tensor headers that include `SushiRuntime/sushiruntime.hpp`; `HostBlock` (`tensor/host_block.hpp`) is the adapter
 over host memory. `Storage::queue()` throws `UnsupportedExecution` when the block has no queue.
 
 A host `Storage`, built by `make_host_storage(n_bytes)`, owns aligned host memory that no `Runtime`
 allocated. It rounds and aligns its size as a runtime
 storage does, and frees the memory with itself. `allocation_base()` and `size_bytes()` and a
-tensor's `data()` work on it, `residency()` reports `Residency::Host` and `device_index()` is 0, and its block has no queue,
+tensor's `data()` work on it, `residency()` reports `Residency::Host` and `device_index()` returns `std::optional` holding 0, and its block has no queue,
 as no device owns the memory.
 
 A borrowed `Storage`, built by `borrow_runtime_storage(runtime, buffer)` over a `Buffer<std::byte>` another
-owner keeps alive (such as one from SushiRuntime's `Interop::borrow`), owns nothing and allocates
-nothing. Its size is the buffer's, and its base is aligned to `alignof(std::max_align_t)` at
-least, so `Tensor::is_aligned()` may be false for it. An empty or misaligned buffer, or one on a
-device the runtime does not drive, throws `std::runtime_error`.
+owner keeps alive, owns nothing and allocates nothing. The buffer comes from SushiRuntime's
+`Interop::borrow` for foreign memory, or from `Buffer::as_bytes()` for a buffer a runtime allocated,
+which keeps that buffer's handle. Its size is the buffer's, and its base is aligned to `alignof(std::max_align_t)` at
+least, so `Tensor::is_aligned()` may be false for it. An empty or misaligned buffer, one that states
+no device (a planned buffer) or one on a device the runtime does not drive throws `std::runtime_error`.
 
 `TensorFactory` (`tensor/tensor_factory.hpp`) allocates dense tensors of one default layout through
 a `BlockMaker` it owns (`HostBlockMaker` or `RuntimeBlockMaker`); the runtime of the second must outlive the factory. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
@@ -97,15 +100,13 @@ throws `UnsupportedExecution`.
 
 ## Retention
 
-A recorded task keeps its operands' owned storage alive, and watches the owner of a borrowed one:
-`OperandSet` collects one liveness observer per borrowed storage and the task declares it, so a run
-after the owner let go is refused as `DanglingResource`.
-
-A recorded task keeps its operands' storage alive. `OperandSet` takes one reference to the
-`Storage` of every tensor declared on it, in an `Internal::StorageKeepAlive` (six references
-inline, the rest on the heap), and `record_pair` copies that list into the task. The storage of a
-tensor the caller drops between the record call and `Graph::run()` is therefore still referenced when
-the task runs. A pointer hidden inside a bare functor is not a declared operand: nothing retains it,
+A recorded task keeps its operands' storage alive, and watches the owner of a borrowed one.
+`OperandSet` takes one reference to the `Storage` of every tensor declared on it, in an
+`Internal::StorageKeepAlive` (six references inline, the rest on the heap), and `record_pair` copies
+that list into the task. The storage of a tensor the caller drops between the record call and
+`Graph::run()` is therefore still referenced when the task runs. `OperandSet` also collects one
+liveness observer per borrowed storage and the task declares it, so a run after the owner let go is
+refused as `DanglingResource`. A pointer hidden inside a bare functor is not a declared operand: nothing retains it,
 orders against it, or checks it under `ForceReference`.
 
 ## The scratch pool

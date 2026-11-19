@@ -60,11 +60,12 @@ as a foreign universe and none is ever given to a runtime graph.
 
 `borrow_runtime_storage(runtime, std::move(buffer))` builds a `Storage` over a
 `SushiRuntime::Buffer<std::byte>` whose memory another owner keeps alive, such as the result of
-`Interop::borrow`. It allocates nothing on the device and copies nothing; the cost of a call is the
+`Interop::borrow` for foreign memory, or `Buffer::as_bytes()` for a buffer a runtime allocated, which
+keeps that buffer's handle. It allocates nothing on the device and copies nothing; the cost of a call is the
 one reference-counted `Storage` object. The device, the residency and the size are the buffer's,
 and the size is not rounded. The address must be aligned to `alignof(std::max_align_t)`, not to
-`K_STORAGE_ALIGNMENT`. An empty buffer, a misaligned one and a device the runtime does not drive
-throw `std::runtime_error`.
+`K_STORAGE_ALIGNMENT`. An empty buffer, a misaligned one, a buffer that states no device (a planned
+one, `runtime_block.hpp`) and a device the runtime does not drive throw `std::runtime_error`.
 
 An `OperandSet` hands the owner's observer of each borrowed storage to the runtime, so a run that
 names a tensor after the owner let go is refused with `DanglingResource`. The memory must be
@@ -75,7 +76,7 @@ reachable by the device a task runs on.
 `make_host_storage(n_bytes)` builds a `Storage` over a `HostBlock`: aligned host
 memory that no `SushiRuntime::Runtime` owns, freed with the storage. The size is rounded up to
 `K_STORAGE_ALIGNMENT` and the base is aligned to it, as for a runtime storage. A tensor's `data()` and
-`allocation_base()` work, `residency()` reports `Residency::Host`, `device_index()` is 0 and its block has
+`allocation_base()` work, `residency()` reports `Residency::Host`, `device_index()` holds 0 and its block has
 no queue (`block().queue()` is null). `Storage::queue()` throws `UnsupportedExecution`, because no device owns the memory. A zero size throws
 `std::runtime_error`.
 

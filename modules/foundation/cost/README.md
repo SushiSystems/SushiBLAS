@@ -13,9 +13,9 @@ It depends on [`core`](../core/README.md) and on SushiRuntime for `OperationID`.
 
 ## How a cost is stated
 
-`TaskRecorder::insert` is the one place that states it. It calls `cost_of(description.operation, description.shape)`, adds the bytes the operands declared (`OperandSet::declared_read_bytes` and `declared_written_bytes`, through `Cost::with_traffic`) and hands the result to the runtime as `NodeOptions::cost`. A call site states only facts it already holds: the extents, in the shape struct of its family. The knowledge of what an operation costs is in `cost_table.cpp`.
+`GraphTaskSink::add_pair` (`graph_task_sink.cpp`) states it, and `HostTaskSink::add_pair` computes it for a host recording. Both call `task_cost` (`task_cost.hpp`), which calls `cost_of(description.operation, description.shape)` and adds the bytes the operands declared (`OperandSet::declared_read_bytes` and `declared_written_bytes`, through `Cost::with_traffic`). The graph sink hands the result to the runtime as `NodeOptions::cost`, a `NodeCost` of `operations`, `read_bytes`, `written_bytes`, `kind` and `dtype`. A call site states only facts it already holds: the extents, in the shape struct of its family. The knowledge of what an operation costs is in `cost_table.cpp`.
 
-A task that states no cost carries no `NodeCost` at all; the runtime then writes no `flops` or `bytes` attribute on its span. A stated zero is a real zero: an `im2col` moves data and does no arithmetic, and its row says so. The reason a task has no cost is one of:
+A task that states no cost carries no `NodeCost` at all; the runtime then writes none of the cost attributes (`flops`, `bytes`, `read_bytes`, `written_bytes`, `operation_kind`, `dtype`) on its span. A stated zero is a real zero: an `im2col` moves data and does no arithmetic, and its row says so. The reason a task has no cost is one of:
 
 | `UncostedReason` | Meaning |
 | --- | --- |

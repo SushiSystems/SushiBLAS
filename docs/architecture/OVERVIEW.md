@@ -3,9 +3,11 @@
 SushiBLAS is a C++17 tensor and BLAS library on
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. The scheduler, the
 execution engine and the USM allocator are SushiRuntime's. SushiBLAS adds a `Tensor`, an `Engine`
-that owns one graph, and eight operation families: dense BLAS, sparse BLAS, elementwise
-arithmetic, non-linear activations, logic and comparison, reductions, random generation and
-spatial (windowed) operations.
+that owns one graph, and thirteen operation families: dense BLAS, sparse BLAS, elementwise
+arithmetic, non-linear activations, logic and comparison, broadcast arithmetic, reductions, random
+generation, spatial (windowed) operations, row gather and scatter by index, per-index functor
+tasks, per-row signal operations and indexed transform blends. Host transfer (`IO`) and the
+experimental batched FFT, LU and GMRES sit beside them.
 
 Two commitments shape every operation.
 

@@ -54,10 +54,9 @@ prerequisites for both; [Building](docs/getting_started/BUILDING.md) covers a CM
 
 SushiBLAS is at 0.1.2, below 1.0.0, so a MINOR release may break its
 public interface. Dense BLAS levels 1 to 3, sparse BLAS over CSR and the elementwise, non-linear,
-logic, reduction, random and spatial operations work, each with a reference path and a SYCL
-kernel. GPU coverage and performance are not yet measured, and
-[`KNOWN_ISSUES.md`](docs/backlog/README.md) lists the limits. What is left is in
-[`REMAINING_WORK.md`](docs/backlog/README.md).
+logic, broadcast, reduction, random, spatial, row index, per-index, signal and blend operations
+work, each with a reference path and a SYCL kernel. GPU coverage and performance are not yet
+measured. The limits and what is left are in [the backlog](docs/backlog/README.md).
 
 ## Documentation
 

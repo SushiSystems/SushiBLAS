@@ -23,12 +23,16 @@ modules by their own path, such as `<SushiRuntime/core/span.hpp>` and
 
 | SushiRuntime name | Where SushiBLAS uses it |
 | --- | --- |
-| `Runtime` | `Engine`, `TensorFactory`, `Storage` and `ScratchPool` are each built on a `Runtime&`; a `Storage` and a `TensorFactory` also have a host form that needs none |
-| `Runtime::buffer`, `Buffer<std::byte>`, `Residency`, `DeviceIndex` | `Storage` allocates through them, or borrows a buffer another owner keeps alive (`tensor/storage.hpp`) |
+| `Runtime` | `Engine` and `TensorFactory` take a `Runtime&`, as do `RuntimeScratchSource` and `make_runtime_storage`. `ScratchPool` takes a `ScratchBlockSource&` and `Storage` takes a `StorageBlock`; `RuntimeBlock` allocates or borrows through the runtime. An `Engine` and a `TensorFactory` also have a host form that needs none |
+| `Runtime::buffer`, `Buffer<std::byte>`, `Residency`, `DeviceIndex` | `RuntimeBlock` allocates through them, or borrows a buffer another owner keeps alive (`tensor/runtime_block.hpp`) |
 | `AdvancedControls` (`Runtime::advanced()`) | `Storage::queue()` and the device count the factory checks |
 | `Graph`, `Graph::plan()`, `RunReport` | The program owns the graph, records on it through a `TaskRecorder` and runs it |
 | `Recorder::task`, `Access`, `NodeOptions`, `OperationID` | `TaskRecorder` records every tensor operation through them (`engine/task_recorder.hpp`) |
 | `Recorder::refusal()` | `TaskRecorder` reads it to report a recording the runtime refused |
 | `BufferRegion` | `Tensor::region()` and `OperandSet` |
+| `GlobalHandle` | `Storage::global_handle()`, the key of every `BufferRegion` (`tensor/storage.hpp`) |
+| `NodeCost` | `node_cost_of`, passed as `NodeOptions::cost` (`engine/task_cost.hpp`) |
+| `LivenessToken` | The owner token of a late count's borrowed words (`engine/late_count_keeper.hpp`) |
+| `Interop` | `LateCountHold` borrows the words of a late count through `Runtime::interop()` (`engine/late_count_hold.hpp`) |
 | `Result`, `Error`, `ErrorCode` | The return of the graph primitives |
 | `sushi_ptr`, `RefCounted`, `span` | `Storage` ownership and the span parameters of the public headers |
