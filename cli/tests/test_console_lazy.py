@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from sushicore.cli_console import LazyConsole
+from sushicore.errors import ProjectRootNotFoundError
 
 pytestmark = pytest.mark.small
 
@@ -21,7 +22,7 @@ K_CLI_DIR = Path("checkout") / "cli"
 
 def _outside_a_checkout() -> Path:
     """Reports what `config_dir` reports outside a checkout."""
-    raise SystemExit("Not inside a SushiBLAS project")
+    raise ProjectRootNotFoundError("Not inside a SushiBLAS project")
 
 
 @pytest.mark.parametrize("config_dir", [lambda: K_CLI_DIR, _outside_a_checkout],
