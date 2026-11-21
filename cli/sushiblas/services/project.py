@@ -31,6 +31,7 @@ from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.testing.program_runner import ProgramRunner
 from sushicore.toolchain_args import c_compiler_for
 from sushicore.toolchain_args import vcpkg_prefix
+from sushicore.tree_reuse import refuse_unreusable_tree
 
 from ..config import PROFILE, Config
 from .build_type import K_BENCHMARK_BUILD_TYPE, BuildType
@@ -232,6 +233,8 @@ class ProjectService:
 
         refuse_another_build_type(build_dir, tree.cmake_type, defines or ())
         refuse_a_stopped_gate(build_dir)
+        refuse_unreusable_tree(self._driver, build_dir, generator=cfg.generator, root=root,
+                               program="sb")
 
         compiler = cfg.resolved_compiler(root)
         self._console.info(f"Compiler: {compiler}")
@@ -239,12 +242,6 @@ class ProjectService:
 
         fresh = self._driver.needs_configure(build_dir, cfg.generator, root=root)
         if fresh:
-            if build_dir.is_dir():
-                self._console.info(
-                    f"{build_dir} was configured for another generator or source path; "
-                    "starting from an empty tree.",
-                )
-                self._remove_tree(build_dir)
             self._console.info(f"Configuring CMake... (type={build_type.value})")
         else:
             self._console.info("Reconfiguring in place...")

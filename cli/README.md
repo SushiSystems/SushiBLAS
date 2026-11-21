@@ -126,6 +126,9 @@ Cache variables persist in the build tree, so dropping the flag on a later run
 does **not** unset them. Pass `VAR=` to clear one, or `sb clean --yes` to start over.
 A new `--type` is a new tree, so pass the variables again with it.
 
+A build never removes a tree. A tree configured with another generator, or for another source
+folder, is refused with a message that names `sb clean`, because CMake cannot change either in place.
+
 The options SushiBLAS itself defines:
 
 | Option | Default | What it does |

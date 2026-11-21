@@ -88,16 +88,26 @@ def _remove_debug_tree(root: Path) -> None:
     (root / K_DEBUG_TREE).rmdir()
 
 
-def test_build_says_it_replaces_a_tree_of_another_generator(service, runner, console, checkout):
-    """A tree the driver cannot reuse is removed out loud, not silently."""
-    runner.script(K_CONFIGURE_FAILED)
-    with pytest.raises(StepFailedError) as raised:
+def test_build_refuses_a_tree_of_another_generator_and_keeps_it(service, runner, checkout):
+    """A tree the driver cannot reuse stops the build, names `sb clean` and stays on disk."""
+    tree = checkout / K_DEBUG_TREE
+    (tree / "CMakeCache.txt").write_text("CMAKE_GENERATOR:INTERNAL=Another Generator" + chr(10))
+    (tree / "object.o").write_text("")
+    with pytest.raises(ConfigError) as raised:
         service.build(BuildType.DEBUG)
-    assert raised.value.exit_code == K_CONFIGURE_FAILED
-    assert not (checkout / K_DEBUG_TREE).exists()
-    said = console.texts("info")
-    reason = next(text for text in said if "empty tree" in text)
-    assert said.index(reason) < said.index(f"Removing {checkout / K_DEBUG_TREE}...")
+    assert "`sb clean`" in str(raised.value)
+    assert runner.commands == []
+    assert (tree / "object.o").is_file()
+
+
+def test_build_keeps_an_unconfigured_tree_when_the_configure_fails(service, runner, console,
+                                                                  checkout):
+    """A tree with no cache is configured in place; a failed configure removes nothing."""
+    runner.script(K_CONFIGURE_FAILED)
+    with pytest.raises(StepFailedError):
+        service.build(BuildType.DEBUG)
+    assert (checkout / K_DEBUG_TREE).is_dir()
+    assert not [text for text in console.texts("info") if text.startswith("Removing")]
 
 
 def test_build_removes_nothing_when_there_is_no_tree(service, runner, console, checkout):
@@ -106,7 +116,6 @@ def test_build_removes_nothing_when_there_is_no_tree(service, runner, console, c
     runner.script(K_CONFIGURE_FAILED)
     with pytest.raises(StepFailedError):
         service.build(BuildType.DEBUG)
-    assert not [text for text in console.texts("info") if "empty tree" in text]
     assert not [text for text in console.texts("info") if text.startswith("Removing")]
 
 
