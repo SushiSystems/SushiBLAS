@@ -12,6 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from sushicore.example_catalog import ExampleCatalog
+
 
 class ExecutableLookup(Protocol):
     """Finds the executables of a build tree.
@@ -24,6 +26,10 @@ class ExecutableLookup(Protocol):
         """Returns the executable *query* names under *build_root*, or None."""
         ...
 
-    def select(self, build_root: Path, console) -> Path | None:
-        """Returns the executable the user picks under *build_root*, or None when there is none."""
+    def select(self, build_root: Path, console, *,
+               examples: ExampleCatalog | None = None) -> Path | None:
+        """Returns the executable the user picks under *build_root*, or None when there is none.
+
+        With *examples* the pick lists the built examples, when the tree holds any.
+        """
         ...

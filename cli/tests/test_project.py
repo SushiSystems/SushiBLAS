@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from command_harness import K_DEBUG_TREE, K_EXECUTABLE, K_RELEASE_TREE, Commands
+from command_harness import K_DEBUG_TREE, K_EXECUTABLE, K_RELEASE_TREE, Commands, make_service
 from sushicore.build_admission import BuildStoppedError, hardware_threads, stop_file
 from sushicore.console_memory import RecordingConsole
 from sushicore.errors import ConfigError
@@ -326,6 +326,29 @@ def test_run_raises_for_a_target_that_matches_nothing(service):
     """An unknown target raises instead of returning a bare 1."""
     with pytest.raises(ExecutableNotFoundError):
         service.run(target="no_such_binary")
+
+
+def _register_example(checkout: Path, name: str) -> None:
+    """Registers *name* as the one example of the checkout."""
+    examples = checkout / "applications" / "examples"
+    examples.mkdir(parents=True)
+    (examples / "CMakeLists.txt").write_text(f"add_executable({name} {name}.cpp)\n", encoding="utf-8")
+
+
+def test_run_sort_picks_from_the_registered_examples(checkout):
+    """`sb run --sort` offers the example, though another program is listed before it."""
+    _register_example(checkout, "demo")
+    runner, _, service = make_service(checkout, executables=("alpha_tests", "demo"))
+    service.run(sort=True)
+    assert Path(runner.commands[0].argv[0]).name == "demo"
+
+
+def test_run_sort_all_picks_from_every_program(checkout):
+    """`sb run --sort --all` offers the other program too, first in its order."""
+    _register_example(checkout, "demo")
+    runner, _, service = make_service(checkout, executables=("alpha_tests", "demo"))
+    service.run(sort=True, list_all=True)
+    assert Path(runner.commands[0].argv[0]).name == "alpha_tests"
 
 
 def test_run_raises_without_a_build_tree(service, checkout):

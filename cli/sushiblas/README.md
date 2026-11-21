@@ -139,6 +139,10 @@ built program through the `ExecutableLookup` port. sushicore's `StackBuildEnv` a
 list of names, each in its own `_memory.py` file beside its port, so the tests of the service run
 no shell and walk no tree.
 
+`select` takes the `ExampleCatalog` of the checkout, so `sb run --sort` lists the built examples
+and `--all` lists every program. `MemoryExecutableLookup` keeps the names that catalog registers,
+or every name when it registers none, as `ExecutableIndex` does.
+
 ## services/project.py
 
 ### The gate and the type

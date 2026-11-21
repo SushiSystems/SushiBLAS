@@ -25,6 +25,7 @@ from sushicore.build_tree import refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
+from sushicore.example_catalog import ExampleCatalog
 from sushicore.provision.sushi_packages import configure_arguments
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.testing.program_runner import ProgramRunner
@@ -353,8 +354,11 @@ class ProjectService:
         return code
 
     def run(self, target: str | None = None, sort: bool = False,
-            app_args: Sequence[str] = (), tree: TreeChoice = K_DEFAULT_TREE) -> int:
+            app_args: Sequence[str] = (), tree: TreeChoice = K_DEFAULT_TREE,
+            list_all: bool = False) -> int:
         """Runs a built executable with *app_args* and returns its exit code.
+
+        With *sort* the pick lists the built examples; *list_all* lists every program.
 
         Raises:
             BuildTreeMissingError: There is no build tree.
@@ -365,7 +369,8 @@ class ProjectService:
         build_dir = _existing_build_dir(root, tree)
         env = self._run_env(cfg, build_dir)
 
-        exe = self._pick_executable(build_dir, target, sort, cfg.target_bin)
+        examples = None if list_all else ExampleCatalog.in_project(root)
+        exe = self._pick_executable(build_dir, target, sort, cfg.target_bin, examples)
         if exe is None:
             return 1
 
@@ -422,14 +427,16 @@ class ProjectService:
         return True
 
     def _pick_executable(self, build_dir: Path, target: str | None, sort: bool,
-                         default: str) -> Path | None:
+                         default: str, examples: ExampleCatalog | None) -> Path | None:
         """Returns the executable to run; None when the interactive pick found none.
+
+        The pick lists the built *examples*, or every program when *examples* is None.
 
         Raises:
             ExecutableNotFoundError: *target*, or *default*, matches nothing.
         """
         if sort:
-            return self._index.select(build_dir, self._console)
+            return self._index.select(build_dir, self._console, examples=examples)
         if target:
             exe = self._index.match(build_dir, target)
             if exe is None:

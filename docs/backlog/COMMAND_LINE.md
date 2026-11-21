@@ -9,6 +9,7 @@
 | RW-82 | P2 | open | Link the colour, theme and exit code page from `cli/README.md` | `cli/README.md` links the one page sushicore writes (C14) |  |  | 2026-10-19 |
 | RW-83 | P2 | open | State the default run target once | the default run target is written in one place (C18) |  |  | 2026-10-19 |
 | RW-84 | P2 | open | Let `sb test --package` report a locked DLL | a locked DLL beside the consumer ends in a console error, not a traceback |  |  | 2026-10-19 |
+| RW-164 | P2 | open | List only the examples, each described, in sb run --sort | sb run --sort lists the built examples with their brief and sb run --sort --all lists every program |  | `cli/sushiblas/services/project.py` | 2026-11-21 |
 
 ## Known issues
 

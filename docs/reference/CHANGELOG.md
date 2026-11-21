@@ -5,6 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-21 — cli: Changed `sb run --sort` to list the built examples, each with its description; `sb run --sort --all` lists every program as before (RW-164).
 
 ## v0.2.0 — 2026-11-19
 

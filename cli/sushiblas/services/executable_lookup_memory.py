@@ -13,6 +13,8 @@ import typing
 from dataclasses import dataclass
 from pathlib import Path
 
+from sushicore.example_catalog import ExampleCatalog
+
 
 @typing.final
 @dataclass(frozen=True, slots=True)
@@ -29,6 +31,14 @@ class MemoryExecutableLookup:
         """Returns ``build_root / query`` when *query* is one of the names, else None."""
         return build_root / query if query in self.names else None
 
-    def select(self, build_root: Path, console) -> Path | None:
-        """Returns the first name under *build_root*, as a pick of the first row; None when empty."""
-        return build_root / self.names[0] if self.names else None
+    def select(self, build_root: Path, console, *,
+               examples: ExampleCatalog | None = None) -> Path | None:
+        """Returns the first row of the pick under *build_root*; None when there is no row.
+
+        With *examples* the rows are the names those examples register, or every name when none is.
+        """
+        names = self.names
+        if examples is not None:
+            registered = {example.name for example in examples.entries()}
+            names = tuple(name for name in names if name in registered) or names
+        return build_root / names[0] if names else None

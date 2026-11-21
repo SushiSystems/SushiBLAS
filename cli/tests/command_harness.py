@@ -69,12 +69,13 @@ class Commands:
 
 def make_service(root: Path, config: Config | None = None, packages: PackageSource | None = None,
                  environment: Mapping[str, str] | None = None,
+                 executables: tuple[str, ...] = (K_EXECUTABLE,),
                  ) -> tuple[RecordingRunner, RecordingConsole, ProjectService]:
     """Returns a recording runner and console and the real service, with its real CMake driver, on them.
 
-    The service finds one executable, K_EXECUTABLE, directly under any tree. The packages are those
-    of *packages*, none when it is not given, and every tree's subprocesses run under
-    *environment*, an empty one when it is not given.
+    The service finds *executables* directly under any tree, K_EXECUTABLE alone when they are not
+    given. The packages are those of *packages*, none when it is not given, and every tree's
+    subprocesses run under *environment*, an empty one when it is not given.
     """
     console = RecordingConsole()
     runner = RecordingRunner(console)
@@ -83,7 +84,7 @@ def make_service(root: Path, config: Config | None = None, packages: PackageSour
         console=console,
         runner=runner,
         driver=CMakeDriver(console, runner),
-        index=MemoryExecutableLookup((K_EXECUTABLE,)),
+        index=MemoryExecutableLookup(executables),
         build_env=MemoryBuildEnvironment(dict(environment or {})),
         find_root=lambda: root,
         load_config=lambda: settings,
