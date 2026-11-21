@@ -54,7 +54,6 @@ machine-specific toolchain paths are resolved (`cli/config.local.toml`).
 ```bash
 sb build                          # Debug, in build/default-debug
 sb build --type release           # Release, in build/default-release
-sb build --clean                  # wipe the build tree first
 
 sb test --label small             # no device, fast, run this often
 sb test                           # small and medium, what pre-merge CI runs

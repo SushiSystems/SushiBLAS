@@ -75,7 +75,7 @@ def _run_main(monkeypatch, capsys, *args: str) -> tuple[int, list[str]]:
 def test_main_exits_zero_after_a_command_that_succeeds(checkout, monkeypatch, capsys):
     """A command that works leaves exit code 0 through main()."""
     checkout("")
-    code, _ = _run_main(monkeypatch, capsys, "clean")
+    code, _ = _run_main(monkeypatch, capsys, "clean", "--yes")
     assert code == 0
 
 

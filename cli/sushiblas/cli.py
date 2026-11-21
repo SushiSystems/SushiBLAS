@@ -13,6 +13,7 @@ from typing import NoReturn, Optional
 
 import typer
 from sushicore import entry
+from sushicore.clean_command import register_clean_command
 from sushicore.diag_commands import register_diagnostic_commands
 from sushicore.backlog import register_backlog_commands
 from sushicore.design import register_design_commands
@@ -31,7 +32,7 @@ from .config import PROFILE, load_config
 from .services.build_type import K_BENCHMARK_BUILD_TYPE, K_DEFAULT_BUILD_TYPE, BuildType
 from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
 from .services.errors import CLIOptionError, PackageOptionError, ProjectError
-from .services.sanitizer import Sanitizer
+from .services.sanitizer import K_SANITIZE_TREE, Sanitizer
 from .services.tree_choice import TreeChoice
 
 K_PROJECT = "Project"
@@ -98,7 +99,6 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
     rich_help_panel=K_PROJECT,
     epilog="sb build\n"
            "sb build --type release  # The Release tree, build/default-release\n"
-           "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
            "sb build --distributed  # Also build the cluster module\n"
            "sb build --jobs 4  # Run at most 4 compile jobs at once\n"
@@ -112,8 +112,6 @@ def build(
         K_DEFAULT_BUILD_TYPE, "--type", "-t", case_sensitive=False,
         help="Build type: release | debug | relwithdebinfo. "
              "Each type builds in a tree of its own, build/<name>-<type>."),
-    clean: bool = typer.Option(
-        False, "--clean", help="Delete the build tree before configuring."),
     benchmarks: Optional[bool] = typer.Option(
         None, "--benchmarks/--no-benchmarks",
         help="Build the benchmark programs under tests/, or stop building them. "
@@ -151,7 +149,7 @@ def build(
 
     Cache variables set with -D persist in the build tree, so dropping the
     flag on a later run does not unset them; pass VAR= to clear one, or
-    --clean to start over. A different --type builds in another tree, and a
+    remove the tree with `sb clean --yes` to start over. A different --type builds in another tree, and a
     tree configured as one type is never configured as another.
     """
     context = context_of_run()
@@ -160,7 +158,7 @@ def build(
     def step() -> int:
         """Builds and announces success."""
         rc = context.service_factory().build(
-            type, clean, define, benchmarks, sanitize, jobs, distributed, lean, build_dir, report)
+            type, define, benchmarks, sanitize, jobs, distributed, lean, build_dir, report)
         context.console.success("Build completed successfully!")
         return rc
 
@@ -303,31 +301,13 @@ def run(
         tree=TreeChoice(type, sanitize)))
 
 
-@app.command(
-    "clean",
-    rich_help_panel=K_PROJECT,
-    epilog="sb clean\n"
-           "sb clean --type release  # The Release tree\n"
-           "sb clean --sanitize thread",
-)
-def clean(
-    type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
-    sanitize: Optional[Sanitizer] = _sanitize_option(),
-) -> None:
-    """Remove one build tree: the Debug one unless --type says another."""
-    context = context_of_run()
-    context.console.header("Project Clean")
-
-    def step() -> int:
-        """Removes the tree and says what happened."""
-        result = context.service_factory().clean(TreeChoice(type, sanitize))
-        if result.removed:
-            context.console.success(f"{result.tree} removed.")
-        else:
-            context.console.info(f"{result.tree} does not exist, nothing to clean.")
-        return 0
-
-    _exit_with(step)
+register_clean_command(
+    app, lambda ctx: context_of_run().service_factory().clean_target(), program="sb",
+    panel=K_PROJECT,
+    names={None: K_SANITIZE_TREE[Sanitizer.NONE],
+           **{sanitizer.value: name for sanitizer, name in K_SANITIZE_TREE.items()
+              if sanitizer is not Sanitizer.NONE}},
+    build_types=[build_type.value for build_type in BuildType])
 
 
 def _build_api_reference() -> int:

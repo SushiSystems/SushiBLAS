@@ -72,16 +72,18 @@ K_SCENARIO_PROGRAMS = frozenset({"benchmark_gemm_blocking"})
 
 
 @dataclass(frozen=True, slots=True)
-class CleanResult:
-    """Describes what `clean` did to the build tree.
+class CleanTarget:
+    """What the shared `clean` command acts on: the checkout, where it prints and the driver.
 
     Args:
-        tree: The build tree the command addressed.
-        removed: True when the tree existed and is now gone; False when there was none.
+        root: The checkout's root folder.
+        console: Receives the lines the command prints.
+        driver: Removes one build tree.
     """
 
-    tree: Path
-    removed: bool
+    root: Path
+    console: object
+    driver: CMakeDriver
 
 
 def validate_defines(defines: Sequence[str] | None) -> list[str]:
@@ -189,7 +191,6 @@ class ProjectService:
     def build(
         self,
         build_type: BuildType,
-        clean: bool = False,
         defines: Sequence[str] | None = None,
         benchmarks: bool | None = None,
         sanitizer: Sanitizer | None = None,
@@ -231,8 +232,6 @@ class ProjectService:
 
         refuse_another_build_type(build_dir, tree.cmake_type, defines or ())
         refuse_a_stopped_gate(build_dir)
-        if clean:
-            self._remove_tree(build_dir)
 
         compiler = cfg.resolved_compiler(root)
         self._console.info(f"Compiler: {compiler}")
@@ -378,14 +377,9 @@ class ProjectService:
         self._console.console.print(f"[muted]{exe}[/muted]")
         return self._runner.run([str(exe), *app_args], root, env)
 
-    def clean(self, tree: TreeChoice = K_DEFAULT_TREE) -> CleanResult:
-        """Removes the build tree *tree* names.
-
-        Raises:
-            TreeNotRemovedError: The tree is still there after the removal.
-        """
-        build_dir = tree.directory(self._find_root())
-        return CleanResult(build_dir, self._remove_tree(build_dir))
+    def clean_target(self) -> CleanTarget:
+        """Returns the checkout this service works on, with its console and its driver."""
+        return CleanTarget(self._find_root(), self._console, self._driver)
 
     def docs(self) -> int:
         """Generates the Doxygen API reference from the repository's Doxyfile."""

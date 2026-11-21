@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -28,9 +27,8 @@ from sushiblas.services.errors import (
     ExecutableNotFoundError,
     InvalidDefineError,
     StepFailedError,
-    TreeNotRemovedError,
 )
-from sushiblas.services.project import CleanResult, ProjectService
+from sushiblas.services.project import ProjectService
 
 pytestmark = pytest.mark.medium
 
@@ -117,7 +115,7 @@ def test_build_rejects_a_bad_define_before_touching_the_tree(service, runner, co
     marker = checkout / K_DEBUG_TREE / "CMakeCache.txt"
     marker.write_text("")
     with pytest.raises(InvalidDefineError) as raised:
-        service.build(BuildType.DEBUG, clean=True, defines=["SB_ENABLE_LOGGING=OFF", "NOVALUE"])
+        service.build(BuildType.DEBUG, defines=["SB_ENABLE_LOGGING=OFF", "NOVALUE"])
     assert raised.value.exit_code == K_EXIT_USAGE
     assert marker.is_file()
     assert runner.commands == []
@@ -281,37 +279,39 @@ def test_build_command_forwards_the_report_option(commands):
         commands.console.texts("info"))
 
 
-@pytest.mark.parametrize(
-    ("prepare", "removed"),
-    [(_keep_tree, True), (_remove_debug_tree, False)],
-)
-def test_clean_reports_whether_it_removed_the_tree(
-    service, checkout, prepare: Callable[[Path], None], removed
-):
-    """clean returns the tree and whether it removed one; a missing tree is not an error."""
-    prepare(checkout)
-    assert service.clean() == CleanResult(checkout / K_DEBUG_TREE, removed)
+def test_clean_without_yes_says_what_it_would_remove_and_removes_none(commands, checkout):
+    """`sb clean` alone exits 2 and leaves every tree, so no tree goes by a stray command."""
+    assert commands.invoke("clean").exit_code == 2
+    assert (checkout / K_DEBUG_TREE).is_dir()
+    assert (checkout / K_RELEASE_TREE).is_dir()
+
+
+def test_clean_with_a_type_and_yes_removes_that_tree_only(commands, checkout):
+    """`sb clean --type debug --yes` removes the Debug tree and leaves the Release one."""
+    assert commands.invoke("clean", "--type", "debug", "--yes").exit_code == 0
     assert not (checkout / K_DEBUG_TREE).exists()
     assert (checkout / K_RELEASE_TREE).is_dir()
 
 
-def test_clean_raises_when_the_tree_remains(service, checkout, monkeypatch):
-    """A tree the removal could not delete raises instead of reporting success."""
+def test_clean_with_yes_alone_removes_every_tree(commands, checkout):
+    """`sb clean --yes` removes every build tree."""
+    assert commands.invoke("clean", "--yes").exit_code == 0
+    assert not (checkout / K_DEBUG_TREE).exists()
+    assert not (checkout / K_RELEASE_TREE).exists()
+
+
+def test_clean_exits_one_when_a_tree_remains(commands, checkout, monkeypatch):
+    """A tree the removal could not delete ends the command with exit code 1."""
     monkeypatch.setattr(shutil, "rmtree", lambda path, ignore_errors=False: None)
-    with pytest.raises(TreeNotRemovedError) as raised:
-        service.clean()
-    assert raised.value.exit_code == 1
+    result = commands.invoke("clean", "--type", "debug", "--yes")
+    assert result.exit_code == 1
     assert (checkout / K_DEBUG_TREE).is_dir()
 
 
-def test_clean_command_exits_one_when_the_tree_remains(commands, monkeypatch):
-    """sb clean prints the failure and exits 1, with no success line."""
-    monkeypatch.setattr(shutil, "rmtree", lambda path, ignore_errors=False: None)
-    result = commands.invoke("clean")
-    assert result.exit_code == 1
-    assert len(commands.console.texts("error")) == 1
-    assert str(commands.root / K_DEBUG_TREE) in commands.console.texts("error")[0]
-    assert commands.console.texts("success") == []
+def test_build_no_longer_takes_clean(commands, checkout):
+    """`sb build --clean` is refused: a build never removes the tree it configures."""
+    assert commands.invoke("build", "--clean").exit_code == 2
+    assert (checkout / K_DEBUG_TREE).is_dir()
 
 
 def test_run_returns_the_exit_code_of_the_child(service, runner, checkout):

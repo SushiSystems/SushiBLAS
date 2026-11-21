@@ -84,7 +84,6 @@ sb build                  # Debug build (the default), in build/default-debug
 sb build --type release   # Release build, in build/default-release
 sb build --type relwithdebinfo
 sb build --sanitize address-undefined   # ASan and UBSan, in build/asan-debug
-sb build --clean          # delete the build tree first, then build from scratch
 sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
 sb build --distributed    # also build the cluster module (--no-distributed stops)
 sb build --jobs 4         # run at most 4 compile jobs at once
@@ -95,7 +94,7 @@ sb build --build-dir build/pkg-x --lean   # what a consumer's package build runs
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
 `--jobs` (`-j`) reaches `cmake --build` as `--parallel`; left out, the count is one job per
 hardware thread, and `CMAKE_BUILD_PARALLEL_LEVEL` is honoured. Flags can be combined, e.g.
-`sb build --type release --clean`.
+`sb build --type release --jobs 4`.
 
 Every build type has a tree of its own, `build/<name>-<type>`: `default-debug`,
 `default-release`, `default-relwithdebinfo`, and `asan-` or `tsan-` plus the type for a
@@ -121,11 +120,10 @@ sb build -D SB_SYCL_TARGETS="spir64;nvptx64-nvidia-cuda"   # quote values with '
 ```
 
 Every `-D` is checked for the `VAR=VALUE` form before anything else happens;
-a malformed one exits 2 and leaves the build tree untouched, even with
-`--clean`.
+a malformed one exits 2 and leaves the build tree untouched.
 
 Cache variables persist in the build tree, so dropping the flag on a later run
-does **not** unset them. Pass `VAR=` to clear one, or `--clean` to start over.
+does **not** unset them. Pass `VAR=` to clear one, or `sb clean --yes` to start over.
 A new `--type` is a new tree, so pass the variables again with it.
 
 The options SushiBLAS itself defines:
@@ -268,13 +266,17 @@ exit code 2. It is never taken as the target name or passed to the program.
 ## `sb clean` and `sb docs`
 
 ```bash
-sb clean                         # remove the Debug tree; --type and --sanitize pick another
+sb clean                         # say which trees it would remove, remove none
+sb clean --yes                   # remove every build tree
+sb clean --type debug --yes      # remove build/default-debug only
+sb clean --sanitize thread --yes # remove the trees of one sanitizer
 sb docs                          # generate the Doxygen API reference into build/docs/api-site/html/
 sb docs bundle --release 1.2.3   # pack the documentation bundle into build/docs/bundle/
 ```
 
-`sb clean` exits 1 and names the directory when the tree is still there
-after the removal, for example because a running program holds a file in it.
+`sb clean` removes nothing without `--yes`: it lists the trees it would remove, with their
+sizes, and exits 2. With `--yes` it exits 1 when a tree is still there afterwards, for example
+because a running program holds a file in it.
 
 `sb docs` is a command group that `sushicore.docs_bundle` registers. Without a
 subcommand it generates the API reference and exits with Doxygen's code. `sb

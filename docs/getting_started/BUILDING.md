@@ -28,10 +28,9 @@ This puts two equivalent commands on the PATH, `sb` and `sushiblas`. Run `sb set
 sb build                      # debug (default), in build/default-debug
 sb build --type release       # release, in build/default-release
 sb build --type relwithdebinfo
-sb build --clean              # wipe the build tree first
 ```
 
-Every build type has a tree of its own below `build/`; `sb clean` removes one. Every command is described in [cli/README.md](../../cli/README.md).
+Every build type has a tree of its own below `build/`; `sb clean --type <type> --yes` removes one. Every command is described in [cli/README.md](../../cli/README.md).
 
 ### Targeting an NVIDIA GPU
 
@@ -45,7 +44,7 @@ Keep `spir64` in the list to keep the CPU device reachable from the same build.
 
 The flag cannot check two requirements. The compiler must be an intel-llvm built with `--cuda`; a stock oneAPI release has no CUDA backend and rejects the triple. And intel-llvm documents support for `sm_75` and newer.
 
-`-D` passes a cache variable to CMake and is repeatable. The value stays in the build tree after the flag is dropped; pass `-D SB_SYCL_TARGETS=` to clear it, or `--clean` to start over.
+`-D` passes a cache variable to CMake and is repeatable. The value stays in the build tree after the flag is dropped; pass `-D SB_SYCL_TARGETS=` to clear it, or `sb clean --yes` to start over.
 
 To see whether a kernel spills registers:
 
