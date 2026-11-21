@@ -93,5 +93,5 @@ sb test --repeat 5               # re-run until first failure
 sb run sushiblas_operations_tests -- --gtest_filter='Medium_GEMMTest.*'
 
 # or pick one of the built examples from a list, each with its description
-sb run --sort                    # add --all to list the test and benchmark programs too
+sb run --pick                    # add --all to list the test and benchmark programs too
 ```

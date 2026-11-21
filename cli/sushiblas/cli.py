@@ -271,8 +271,8 @@ def bench(
     "run",
     rich_help_panel=K_PROJECT,
     epilog="sb run quickstart_demo\n"
-           "sb run --sort  # Pick an example from a list\n"
-           "sb run --sort --all  # Pick from every program, tests and benchmarks included\n"
+           "sb run --pick  # Pick an example from a list\n"
+           "sb run --pick --all  # Pick from every program, tests and benchmarks included\n"
            "sb run sushiblas_operations_tests -- --gtest_filter='Medium_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True},
 )
@@ -280,10 +280,13 @@ def run(
     ctx: typer.Context,
     target: Optional[str] = typer.Argument(
         None, help="Executable name to run (exact, then substring match)."),
+    pick: bool = typer.Option(
+        False, "--pick", help="Interactively pick an example."),
     sort: bool = typer.Option(
-        False, "--sort", help="Interactively pick an example."),
+        False, "--sort", hidden=True, callback=K_ALIASES.flag_announcer("sb run --sort"),
+        help="The old spelling of --pick."),
     list_all: bool = typer.Option(
-        False, "--all", help="With --sort, also list the test and benchmark programs."),
+        False, "--all", help="With --pick, also list the test and benchmark programs."),
     type: BuildType = _type_option(K_DEFAULT_BUILD_TYPE),
     sanitize: Optional[Sanitizer] = _sanitize_option(),
 ) -> None:
@@ -296,7 +299,7 @@ def run(
     context = context_of_run()
     context.console.header("Project Run")
     _exit_with(lambda: context.service_factory().run(
-        target=target, sort=sort, list_all=list_all, app_args=list(ctx.args),
+        target=target, sort=pick or sort, list_all=list_all, app_args=list(ctx.args),
         tree=TreeChoice(type, sanitize)))
 
 

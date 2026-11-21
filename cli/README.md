@@ -250,7 +250,7 @@ prints the value in effect.
 sb run                                # run the default target from the Debug tree
 sb run --type release                 # ... from the Release tree
 sb run quickstart_demo              # run a specific binary by name
-sb run --sort                         # interactively pick from the list of executables
+sb run --pick                         # pick one of the built examples; --all lists every program
 ```
 
 The target name is matched exactly first, then by substring. Anything after

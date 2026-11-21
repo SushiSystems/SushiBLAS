@@ -336,7 +336,7 @@ def _register_example(checkout: Path, name: str) -> None:
 
 
 def test_run_sort_picks_from_the_registered_examples(checkout):
-    """`sb run --sort` offers the example, though another program is listed before it."""
+    """`sb run --pick` offers the example, though another program is listed before it."""
     _register_example(checkout, "demo")
     runner, _, service = make_service(checkout, executables=("alpha_tests", "demo"))
     service.run(sort=True)
@@ -344,7 +344,7 @@ def test_run_sort_picks_from_the_registered_examples(checkout):
 
 
 def test_run_sort_all_picks_from_every_program(checkout):
-    """`sb run --sort --all` offers the other program too, first in its order."""
+    """`sb run --pick --all` offers the other program too, first in its order."""
     _register_example(checkout, "demo")
     runner, _, service = make_service(checkout, executables=("alpha_tests", "demo"))
     service.run(sort=True, list_all=True)

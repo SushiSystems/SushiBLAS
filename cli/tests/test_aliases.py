@@ -12,7 +12,7 @@ import pytest
 
 from sushiblas.aliases import K_ALIASES
 
-K_OLD_SPELLINGS = ["sb doxygen"]
+K_OLD_SPELLINGS = ["sb doxygen", "sb run --sort"]
 K_LAST_DAY = date(2027, 3, 25)
 K_DOCS_EXIT_CODE = 7
 

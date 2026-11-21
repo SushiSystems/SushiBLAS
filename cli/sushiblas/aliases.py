@@ -16,4 +16,5 @@ K_REMOVED_AFTER = date(2027, 3, 25)
 
 K_ALIASES = AliasTable(PROFILE.program, (
     Alias("sb doxygen", "sb docs", K_REMOVED_AFTER),
+    Alias("sb run --sort", "sb run --pick", K_REMOVED_AFTER),
 ))
