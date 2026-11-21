@@ -26,4 +26,3 @@
 | KI-18 | own | A rank-0 tensor prints as `[]` | read the value with `to_vector` | RW-64 |  | 2026-10-19 |
 | KI-20 | toolchain | A generic lambda calling a SYCL task body fails to link on Windows | write the dtype arm as a named class, as `execute_random` and `execute_typed_task` do |  |  | 2026-10-19 |
 | KI-22 | own | `sb test --package` ends in a traceback when a DLL is locked | close the program holding the DLL | RW-84 |  | 2026-10-19 |
-| KI-23 | own | `sb run --sort` keeps a name the sibling command lines renamed | spell `--sort` | RW-80 |  | 2026-10-19 |

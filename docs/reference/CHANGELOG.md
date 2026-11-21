@@ -5,7 +5,7 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
-- 2026-11-21 — cli: Renamed `sb run --sort` to `sb run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-80, KI-23).
+- 2026-11-21 — cli: Renamed `sb run --sort` to `sb run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-80, KI-23, `e73466d4`).
 - 2026-11-21 — cli: Changed `sb run --sort` to list the built examples, each with its description; `sb run --sort --all` lists every program as before (RW-164, `d13a72a2`).
 
 ## v0.2.0 — 2026-11-19
