@@ -34,6 +34,15 @@ K_DEBUG_TREE = Path("build") / "default-debug"
 K_RELEASE_TREE = Path("build") / "default-release"
 
 
+def shown(runner: RecordingRunner) -> list:
+    """Returns each command *runner* recorded as run with its output shown, in order.
+
+    A captured command, such as a question the CMake driver asks the compiler before a configure,
+    is left out, so the configure and the compile keep their places.
+    """
+    return [command for command in runner.commands if not command.captured]
+
+
 def make_config(**fields) -> Config:
     """Returns the real configuration of a Linux checkout that resolves no vcpkg tree and no package.
 

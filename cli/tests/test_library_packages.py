@@ -17,7 +17,7 @@ except ModuleNotFoundError:  # Python below 3.11
     import tomli as tomllib
 
 import pytest
-from command_harness import K_EXECUTABLE, make_service
+from command_harness import K_EXECUTABLE, make_service, shown
 from sushicore import deps_fragment
 from typer.testing import CliRunner
 
@@ -120,7 +120,7 @@ class TestABuildLinksThePackages:
         """Each library reaches cmake as its package's config folder, never as the checkout beside it."""
         runner, service = built
         assert service.build(BuildType.RELEASE) == 0
-        configured = runner.commands[0].argv
+        configured = shown(runner)[0].argv
         assert f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}" in configured
         assert f"-DSushiLog_DIR={K_LOG_CONFIG}" in configured
         assert f"-DSushiProfiler_DIR={K_PROFILER_CONFIG}" in configured
@@ -130,7 +130,7 @@ class TestABuildLinksThePackages:
         """The configure runs with the package folders first on the library path, before the old ones."""
         runner, service = built
         assert service.build(BuildType.RELEASE) == 0
-        assert _search_path(runner.commands[0].env) == [*K_RUN_DIRS, K_OLD_PATH]
+        assert _search_path(shown(runner)[0].env) == [*K_RUN_DIRS, K_OLD_PATH]
 
     def test_a_build_records_the_run_dirs_in_its_tree(self, built, checkout):
         """The build writes the package folders into the tree it configured."""
@@ -157,13 +157,13 @@ class TestABuildLinksThePackages:
         """A lean build configures no tests, examples or benchmarks; a plain one asks for the tests and examples."""
         runner, service = built
         assert service.build(BuildType.RELEASE, lean=lean) == 0
-        assert set(expected) <= set(runner.commands[0].argv)
+        assert set(expected) <= set(shown(runner)[0].argv)
 
     def test_the_build_command_forwards_the_tree_and_lean(self, commands):
         """`sb build --build-dir build/pkg-x --lean` configures that tree below the checkout as a lean one."""
         result = commands.invoke("build", "--build-dir", K_PACKAGE_TREE, "--lean")
         assert result.exit_code == 0, result.output
-        configured = commands.runner.commands[0].argv
+        configured = shown(commands.runner)[0].argv
         assert "-DSB_BUILD_TESTS=OFF" in configured
         assert configured[configured.index("-B") + 1] == str(commands.root / "build" / "pkg-x")
 

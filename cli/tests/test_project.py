@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from command_harness import K_DEBUG_TREE, K_EXECUTABLE, K_RELEASE_TREE, Commands, make_service
+from command_harness import K_DEBUG_TREE, K_EXECUTABLE, K_RELEASE_TREE, Commands, make_service, shown
 from sushicore.build_admission import BuildStoppedError, hardware_threads, stop_file
 from sushicore.console_memory import RecordingConsole
 from sushicore.errors import ConfigError
@@ -134,14 +134,14 @@ def test_build_rejects_a_bad_define_before_touching_the_tree(service, runner, co
 def test_build_appends_defines_after_every_default(service, runner):
     """Caller -D flags end the configure line, so no default outranks them."""
     service.build(BuildType.RELEASE, defines=["SB_ENABLE_LOGGING=OFF", "SB_NATIVE_ARCH="])
-    assert runner.commands[0].argv[-2:] == ("-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH=")
+    assert shown(runner)[0].argv[-2:] == ("-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH=")
 
 
 @pytest.mark.parametrize(("jobs", "expected"), [(4, "4"), (None, str(hardware_threads()))])
 def test_build_hands_the_jobs_to_the_compile(service, runner, jobs, expected):
     """The jobs given reach the compile as given, and one per hardware thread when not given."""
     assert service.build(BuildType.RELEASE, jobs=jobs) == 0
-    assert _option(runner.commands[1].argv, "--parallel") == expected
+    assert _option(shown(runner)[1].argv, "--parallel") == expected
 
 
 @pytest.mark.parametrize(
@@ -152,7 +152,7 @@ def test_build_configures_the_tree_of_its_type(service, runner, checkout, build_
                                                cmake_type):
     """The configure line names the tree of the type and its CMake spelling."""
     service.build(build_type)
-    configured = runner.commands[0].argv
+    configured = shown(runner)[0].argv
     assert _option(configured, "-B") == str(checkout / tree)
     assert _definitions(configured)["CMAKE_BUILD_TYPE"] == cmake_type
 
@@ -187,7 +187,7 @@ def test_build_refuses_while_the_memory_gate_is_stopped(service, runner, checkou
 def test_build_configure_carries_both_gate_launchers(service, runner):
     """The configure line runs every compile and every link through the one gate launcher."""
     service.build(BuildType.DEBUG)
-    entries = _definitions(runner.commands[0].argv)
+    entries = _definitions(shown(runner)[0].argv)
     assert entries[K_COMPILER_LAUNCHER] == entries[K_LINKER_LAUNCHER]
     assert entries[K_COMPILER_LAUNCHER].endswith(K_GATE_LAUNCHER_END)
 
@@ -246,7 +246,7 @@ def test_test_cli_runs_pytest_with_the_marker_expression(service, runner, checko
 
 def _forwarded(commands: Commands) -> dict[str, list[str] | str | None]:
     """Returns what one build command handed cmake: its two switches and the compile's jobs."""
-    configure, compile_line = commands.runner.commands[0].argv, commands.runner.commands[1].argv
+    configure, compile_line = shown(commands.runner)[0].argv, shown(commands.runner)[1].argv
     return {
         "benchmarks": _flags_starting(configure, "-DSB_BUILD_BENCHMARKS"),
         "distributed": _flags_starting(configure, "-DSB_ENABLE_DISTRIBUTED"),
@@ -277,7 +277,7 @@ def test_build_command_forwards_each_option_to_the_service(commands, args, key, 
 def test_build_command_defaults_to_debug_with_no_report(commands):
     """With no option the build command asks for the Debug tree and prints no report."""
     assert commands.invoke("build").exit_code == 0
-    assert _definitions(commands.runner.commands[0].argv)["CMAKE_BUILD_TYPE"] == "Debug"
+    assert _definitions(shown(commands.runner)[0].argv)["CMAKE_BUILD_TYPE"] == "Debug"
     assert not [text for text in commands.console.texts("info") if text.startswith("Report:")]
 
 
