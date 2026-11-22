@@ -34,6 +34,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/graph_probe/graph_probe.hpp>
 
@@ -117,15 +118,18 @@ namespace SushiBLAS
         TEST_F(Medium_ScratchLease, ALevelOneLeaseIsThePlannedPartialsTimesThePartialBytes)
         {
             GraphProbe probe;
-            const Tensor x = engine->create_tensor({1024});
+            // The fewest elements a CPU device folds in two stages, which every device plans partials for.
+            constexpr std::size_t K_ELEMENTS = Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS;
+            const Tensor x = engine->create_tensor({static_cast<int64_t>(K_ELEMENTS)});
             OperandSet operands;
             constexpr std::size_t K_PARTIAL_BYTES = 8;
+            const std::size_t planned = Reduce::planned_partials(Dispatch::profile_of(x), K_ELEMENTS);
+            ASSERT_GT(planned, std::size_t{1});
 
             const ScratchBuffer scratch =
-                Internal::allocate_level1_scratch(probe.recorder(), x, 1024, K_PARTIAL_BYTES, operands);
+                Internal::allocate_level1_scratch(probe.recorder(), x, K_ELEMENTS, K_PARTIAL_BYTES, operands);
 
-            EXPECT_EQ(scratch.bytes(),
-                      Reduce::planned_partials(Dispatch::profile_of(x), 1024) * K_PARTIAL_BYTES);
+            EXPECT_EQ(scratch.bytes(), planned * K_PARTIAL_BYTES);
             EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
         }
     } // namespace Test

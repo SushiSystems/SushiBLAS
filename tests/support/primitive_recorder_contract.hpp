@@ -159,6 +159,12 @@ namespace SushiBLAS
                 const SushiRuntime::BufferRegion width_region = scratch_region_of(subject, width, 1);
                 write_once(subject, width_region,
                            [width](std::size_t) { width[0] = K_CONTRACT_LIVE_WIDTH; });
+                // A runtime buffer starts unwritten, so every item is cleared before the launch.
+                subject.port().kernel(
+                    K_CONTRACT_ITEMS,
+                    SushiRuntime::Access(SushiRuntime::Reads(),
+                                         SushiRuntime::Writes(subject.output_region(K_CONTRACT_ITEMS))),
+                    [out](std::size_t t) { out[t] = 0u; });
                 subject.port().kernel(
                     SushiRuntime::DeviceSized{K_CONTRACT_ITEMS, width, nullptr},
                     SushiRuntime::Access(SushiRuntime::Reads(width_region),
