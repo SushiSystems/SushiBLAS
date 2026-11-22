@@ -43,6 +43,15 @@ def shown(runner: RecordingRunner) -> list:
     return [command for command in runner.commands if not command.captured]
 
 
+def script_a_failed_configure(runner: RecordingRunner, exit_code: int) -> None:
+    """Scripts the configure of the next build to exit with *exit_code*.
+
+    The answer is queued twice, so when the CMake driver captures a question to the compiler before
+    the configure, that question takes the first and the configure still takes *exit_code*.
+    """
+    runner.script(exit_code).script(exit_code)
+
+
 def make_config(**fields) -> Config:
     """Returns the real configuration of a Linux checkout that resolves no vcpkg tree and no package.
 

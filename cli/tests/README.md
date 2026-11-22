@@ -21,7 +21,8 @@ A command test builds the real `ProjectService` and sushicore's `CMakeDriver` ov
 checkout, a `RecordingRunner` and a `RecordingConsole`, wraps them in a `CommandContext` and
 runs the command inside `command_context.using(context)`. It then reads what the service gave cmake, ctest and the
 programs from `runner.commands`, the configure and the compile from `shown(runner)` of
-`command_harness.py`, which leaves out the captured commands, and what the command printed from the console. No test replaces a
+`command_harness.py`, which leaves out the captured commands, and what the command printed from the console.
+A test of a failed configure scripts it with `script_a_failed_configure()`. No test replaces a
 function of `sushiblas`. The `commands` fixture in `conftest.py` makes one. The executable lookup,
 the build environment and the package source are the in-memory adapters that ship beside their
 ports in `sushiblas/services/` (`MemoryExecutableLookup`, `MemoryBuildEnvironment`,

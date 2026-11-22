@@ -12,7 +12,15 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from command_harness import K_DEBUG_TREE, K_EXECUTABLE, K_RELEASE_TREE, Commands, make_service, shown
+from command_harness import (
+    K_DEBUG_TREE,
+    K_EXECUTABLE,
+    K_RELEASE_TREE,
+    Commands,
+    make_service,
+    script_a_failed_configure,
+    shown,
+)
 from sushicore.build_admission import BuildStoppedError, hardware_threads, stop_file
 from sushicore.console_memory import RecordingConsole
 from sushicore.errors import ConfigError
@@ -103,7 +111,7 @@ def test_build_refuses_a_tree_of_another_generator_and_keeps_it(service, runner,
 def test_build_keeps_an_unconfigured_tree_when_the_configure_fails(service, runner, console,
                                                                   checkout):
     """A tree with no cache is configured in place; a failed configure removes nothing."""
-    runner.script(K_CONFIGURE_FAILED)
+    script_a_failed_configure(runner, K_CONFIGURE_FAILED)
     with pytest.raises(StepFailedError):
         service.build(BuildType.DEBUG)
     assert (checkout / K_DEBUG_TREE).is_dir()
@@ -113,7 +121,7 @@ def test_build_keeps_an_unconfigured_tree_when_the_configure_fails(service, runn
 def test_build_removes_nothing_when_there_is_no_tree(service, runner, console, checkout):
     """A first build has no tree to announce or remove."""
     _remove_debug_tree(checkout)
-    runner.script(K_CONFIGURE_FAILED)
+    script_a_failed_configure(runner, K_CONFIGURE_FAILED)
     with pytest.raises(StepFailedError):
         service.build(BuildType.DEBUG)
     assert not [text for text in console.texts("info") if text.startswith("Removing")]
