@@ -49,21 +49,14 @@ namespace SushiBLAS
         /// @brief A term the plain sum of K_LARGE_TERM, this and -K_LARGE_TERM loses.
         constexpr double K_SMALL_TERM = 1.0;
 
-        /// @brief Returns a float reference sum of count terms of 1.
-        static Kernels::ReferenceSum<float> sum_of_ones(std::int64_t count)
-        {
-            Kernels::ReferenceSum<float> sum;
-            for (std::int64_t i = 0; i < count; ++i)
-            {
-                sum.add(1.0);
-            }
-            return sum;
-        }
-
         TEST(Small_ReferenceAccumulator, AFloatSumHoldsAnIntegerFloatCannot)
         {
-            EXPECT_EQ(sum_of_ones(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD).value(),
-                      static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD));
+            // A float running sum would round the 1 added to 2^24 away.
+            Kernels::ReferenceSum<float> sum;
+            sum.add(static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD - 1));
+            sum.add(1.0);
+
+            EXPECT_EQ(sum.value(), static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD));
         }
 
         TEST(Small_ReferenceAccumulator, ADoubleSumKeepsWhatAnAdditionRoundsOff)
