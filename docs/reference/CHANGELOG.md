@@ -8,6 +8,7 @@ original text is frozen in the changelog document in the version history.
 
 ## v0.3.0 — 2026-11-23
 
+- 2026-11-23 — tests: Split the exact-operations test of the functor reference into a FLOAT32 and a FLOAT64 test, since the two together took 5.7 s alone on the Windows runner (`test_dispatch.cpp`).
 - 2026-11-23 — ci: Kept the kernels the SYCL runtime JIT-compiles on disk, so a test rerun alone over its limit no longer pays their first compile again (`SYCL_CACHE_PERSISTENT`, `ci.yml`).
 - 2026-11-23 — deps: Pinned SushiRuntime v0.7.1 and SushiLog and SushiProfiler v0.5.1, whose CLIs take SushiCore 0.16 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — tests: Expected the CMake module folder SushiCore 0.16 puts after the caller defines of `sb build` (`test_project.py`).

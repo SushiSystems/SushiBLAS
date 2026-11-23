@@ -755,10 +755,15 @@ namespace SushiBLAS
                 }
         };
 
-        /** @brief Tests that the operations built from exact arithmetic agree to the bit. */
-        TEST_F(Medium_FunctorReference, ExactOperationsAgreeToTheBit)
+        /** @brief Tests that the FLOAT32 operations built from exact arithmetic agree to the bit. */
+        TEST_F(Medium_FunctorReference, ExactFloatOperationsAgreeToTheBit)
         {
             expect_exact_operations_agree<float>();
+        }
+
+        /** @brief Tests that the FLOAT64 operations built from exact arithmetic agree to the bit. */
+        TEST_F(Medium_FunctorReference, ExactDoubleOperationsAgreeToTheBit)
+        {
             expect_exact_operations_agree<double>();
         }
 
