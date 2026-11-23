@@ -8,5 +8,3 @@
 # its limit, so the list only shrinks.
 
 [exempt]
-"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/ColumnMajor_ForceSYCL_HALF_NoTrans_NoTrans_33x131x4133_scaled" = "RW-167"
-"Medium_GemmAgreement.TheSyclKernelAgreesWithTheReferenceKernel/RowMajor_ForceSYCL_HALF_NoTrans_NoTrans_33x131x4133_scaled" = "RW-167"

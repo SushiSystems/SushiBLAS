@@ -8,7 +8,7 @@ original text is frozen in the changelog document in the version history.
 
 ## v0.3.0 — 2026-11-23
 
-- 2026-11-23 — tests: Cut the deep GEMM agreement row from 130x131x4133 to 33x131x4133, whose FLOAT64 cases took 5.3 s on Windows; its COMPLEX cases left the exemptions (RW-160), HALF waits on RW-167 (`test_gemm.cpp`).
+- 2026-11-23 — tests: Cut the deep GEMM agreement row from 130x131x4133 to 33x131x4133, whose FLOAT64 cases took 5.3 s on Windows; its COMPLEX and HALF cases left the exemptions (RW-160, RW-167) (`test_gemm.cpp`).
 - 2026-11-23 — tests: Reached 2^24 + 1 in the float reference-sum test with two terms instead of 16 777 217 ones, which took 0.1 s on the Windows runner, the small limit (`test_reference_accumulator.cpp`).
 - 2026-11-23 — tests: Split the exact-operations test of the functor reference into a FLOAT32 and a FLOAT64 test, since the two together took 5.7 s alone on the Windows runner (`test_dispatch.cpp`).
 - 2026-11-23 — ci: Kept the kernels the SYCL runtime JIT-compiles on disk, so a test rerun alone over its limit no longer pays their first compile again (`SYCL_CACHE_PERSISTENT`, `ci.yml`).
