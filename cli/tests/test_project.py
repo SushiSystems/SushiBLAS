@@ -22,6 +22,7 @@ from command_harness import (
     shown,
 )
 from sushicore.build_admission import BuildStoppedError, hardware_threads, stop_file
+from sushicore.cmake_modules import K_CMAKE_MODULES, K_MODULE_PATH_ENTRY
 from sushicore.console_memory import RecordingConsole
 from sushicore.errors import ConfigError
 from sushicore.proc import Runner
@@ -140,9 +141,11 @@ def test_build_rejects_a_bad_define_before_touching_the_tree(service, runner, co
 
 
 def test_build_appends_defines_after_every_default(service, runner):
-    """Caller -D flags end the configure line, so no default outranks them."""
+    """Caller -D flags end the configure line, before only SushiCore's CMake module folder."""
     service.build(BuildType.RELEASE, defines=["SB_ENABLE_LOGGING=OFF", "SB_NATIVE_ARCH="])
-    assert shown(runner)[0].argv[-2:] == ("-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH=")
+    argv = shown(runner)[0].argv
+    assert argv[-1] == f"-D{K_MODULE_PATH_ENTRY}={K_CMAKE_MODULES.as_posix()}"
+    assert argv[-3:-1] == ("-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH=")
 
 
 @pytest.mark.parametrize(("jobs", "expected"), [(4, "4"), (None, str(hardware_threads()))])

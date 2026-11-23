@@ -5,6 +5,8 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-11-23 — deps: Pinned SushiRuntime v0.7.0 and SushiLog and SushiProfiler v0.5.1, whose CLIs take SushiCore 0.16 (`cli/sushistack.deps.toml`).
+- 2026-11-23 — tests: Expected the CMake module folder SushiCore 0.16 puts after the caller defines of `sb build` (`test_project.py`).
 - 2026-11-21 — cli: Breaking change: `sb build` no longer removes the tree it configures; it refuses a tree of another generator or source folder and names `sb clean`, and configures any other tree in place (RW-166, `e1d286ce`).
 - 2026-11-21 — cli: Breaking change: Removed `sb build --clean`, and made `sb clean` the shared command, which says what it would remove and removes trees only with `--yes` (RW-165, `6fb21513`).
 - 2026-11-21 — cli: Renamed `sb run --sort` to `sb run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-80, KI-23, `e73466d4`).

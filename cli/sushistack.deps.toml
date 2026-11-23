@@ -31,17 +31,17 @@ cli = "sb"
 # it directly; the CLI builds or reuses its package at this tag and hands its config folder to
 # CMake.
 [sushisystems.sushilog]
-version = "v0.5.0"
-commit  = "af61821a0986c169feb0f9cbac5188d62ef8a74a"
+version = "v0.5.1"
+commit  = "1618f172700da31dd4686fec24bc7ad2ef98d2d6"
 
 # SushiProfiler, which the profile and profiling modules write zones, values and device spans to
 # when SB_ENABLE_PROFILER is on. The CLI builds or reuses its package at this commit and hands
 # its config folder to CMake.
 [sushisystems.sushiprofiler]
-version = "v0.5.0"
-commit  = "c5afed01ad276370216a937e9a66ba89da929063"
+version = "v0.5.1"
+commit  = "c5d873f862173109213407955d327668547bad9b"
 
 # SushiRuntime, the task graph and devices. The CLI builds or reuses its package at this tag, so no checkout beside this one is needed, and hands its config folder to CMake.
 [sushisystems.sushiruntime]
-version = "v0.6.0"
-commit  = "1ce4814e25fd4c40767e86bcce0861b237a43c9c"
+version = "v0.7.0"
+commit  = "b71c688e3c462cd9c8f57a48e13986210a3710c0"
