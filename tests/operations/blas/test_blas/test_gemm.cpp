@@ -342,7 +342,7 @@ namespace SushiBLAS
                 {Transpose::NoTrans, Transpose::NoTrans, 5, 7, 4133, 1, 1.0 / 4096.0, 0.0},
                 {Transpose::NoTrans, Transpose::Trans, 5, 7, 4133, 1, 1.0 / 4096.0, 0.5},
                 {Transpose::Trans, Transpose::Trans, 9, 4, 4133, 1, 1.0 / 4096.0, 0.5},
-                {Transpose::NoTrans, Transpose::NoTrans, 130, 131, 4133, 1, 1.0 / 4096.0, 0.5},
+                {Transpose::NoTrans, Transpose::NoTrans, 33, 131, 4133, 1, 1.0 / 4096.0, 0.5},
                 {Transpose::Trans, Transpose::NoTrans, 41, 70, 4133, 1, 1.0 / 4096.0, 0.0},
                 {Transpose::NoTrans, Transpose::NoTrans, 5, 6, 4100, 3, 1.0 / 4096.0, 0.5},
                 // The four forms of op(A) and op(B) under scalars that scale both terms.
