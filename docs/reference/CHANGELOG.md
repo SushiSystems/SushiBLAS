@@ -5,6 +5,9 @@ original text is frozen in the changelog document in the version history.
 
 ## Unreleased
 
+
+## v0.3.0 — 2026-11-23
+
 - 2026-11-23 — ci: Kept the kernels the SYCL runtime JIT-compiles on disk, so a test rerun alone over its limit no longer pays their first compile again (`SYCL_CACHE_PERSISTENT`, `ci.yml`).
 - 2026-11-23 — deps: Pinned SushiRuntime v0.7.1 and SushiLog and SushiProfiler v0.5.1, whose CLIs take SushiCore 0.16 (`cli/sushistack.deps.toml`).
 - 2026-11-23 — tests: Expected the CMake module folder SushiCore 0.16 puts after the caller defines of `sb build` (`test_project.py`).
@@ -12,9 +15,6 @@ original text is frozen in the changelog document in the version history.
 - 2026-11-21 — cli: Breaking change: Removed `sb build --clean`, and made `sb clean` the shared command, which says what it would remove and removes trees only with `--yes` (RW-165, `6fb21513`).
 - 2026-11-21 — cli: Renamed `sb run --sort` to `sb run --pick`, and kept `--sort` as a hidden alias that names `--pick` until 2027-03-25 (RW-80, KI-23, `e73466d4`).
 - 2026-11-21 — cli: Changed `sb run --sort` to list the built examples, each with its description; `sb run --sort --all` lists every program as before (RW-164, `d13a72a2`).
-
-## v0.2.0 — 2026-11-19
-
 - 2026-11-19 — deps: Pinned SushiRuntime v0.6.0 in place of v0.5.2, which names a buffer by its `GlobalHandle` and releases a borrow when its buffer dies (`sushistack.deps.toml`).
 - 2026-11-17 — deps: Upgraded SushiLog to v0.4.1 (`sushistack.deps.toml`, `23e874aa`).
 - 2026-11-17 — cluster: Shared a tensor pack by its `global_handle()`, gave a remote task `TaskBuffer` views with their handles and kept a late count's borrowed words with the owner token (`d93d2d1c`).
