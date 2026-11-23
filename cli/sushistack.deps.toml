@@ -43,5 +43,5 @@ commit  = "c5d873f862173109213407955d327668547bad9b"
 
 # SushiRuntime, the task graph and devices. The CLI builds or reuses its package at this tag, so no checkout beside this one is needed, and hands its config folder to CMake.
 [sushisystems.sushiruntime]
-version = "v0.7.0"
-commit  = "b71c688e3c462cd9c8f57a48e13986210a3710c0"
+version = "v0.7.1"
+commit  = "862741cfed12a5640851d39ddf25ee0c9cbcdb5d"
