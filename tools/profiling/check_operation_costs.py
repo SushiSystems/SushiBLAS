@@ -21,7 +21,7 @@ from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Checker, Issue, run  # noqa: E402
+from sushicore.tools.checking.checker import Checker, Issue, run  # noqa: E402
 
 K_MODULES_FOLDER = "modules"
 K_COST_MODULE = Path("modules/foundation/cost")

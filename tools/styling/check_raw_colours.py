@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Checker, Issue, run  # noqa: E402
+from sushicore.tools.checking.checker import Checker, Issue, run  # noqa: E402
 
 #: The package whose strings are read, below the repository root.
 K_PACKAGE_FOLDER = Path("cli") / "sushiblas"

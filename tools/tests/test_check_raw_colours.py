@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Issue  # noqa: E402
+from sushicore.tools.checking.checker import Issue  # noqa: E402
 from styling.check_raw_colours import K_CHECKER, PythonSource, rule_raw_colour_strings  # noqa: E402
 
 K_TEST_SIZE = "small"

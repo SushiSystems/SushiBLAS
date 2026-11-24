@@ -51,7 +51,7 @@ Lines 21 and 22 of each file's license block carry the upstream lines. This comm
 repository root, writes every license block in the repository and keeps them:
 
 ```
-python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syr2k.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
+python -m sushicore.tools.licensing.write_license_block . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syr2k.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
 ```
 
 The command was extended with the `syr2k.hpp` argument on 2026-10-07 and has not been run in

@@ -19,7 +19,7 @@ named follow the `documentation` skill. Neither is restated here.
 - The manual says what is. What changed goes to the changelog, and a page carries no "previously",
   "no longer" or "new in".
 - Prose in the manual uses no em dash. The entry format of `reference/CHANGELOG.md` keeps its
-  dash, because `tools/documentation/check_changelog.py` requires it.
+  dash, because `sushicore.tools.documentation.check_changelog` requires it.
 - A figure states what was measured, on which device and when. A claim that was derived and not
   measured says so; [the GPU validation design](design/GPU_VALIDATION/README.md) holds the claims that
   wait for hardware.

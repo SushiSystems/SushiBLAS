@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from settings import K_TIER_ORDER  # noqa: E402
+from sushicore.tools.repo_settings import K_TIER_ORDER  # noqa: E402
 
 K_REPOSITORY = Path(__file__).resolve().parents[2]
 K_LAYERS_FILE = K_REPOSITORY / "cmake" / "SushiBLASLayers.cmake"

@@ -53,7 +53,7 @@ timeout per case times the cases of the shard.
 The timeout is the point where CTest stops a hung test, not the time a test may take. The budget
 is far shorter: 100 ms for a `small` test, 5 s for a `medium` test after the shared fixture, and
 600 s of wall time for the whole `small` and `medium` run. `sb test` reads the times through
-`tools/testing/test_budget.py` and prints the budget line. No test is exempt from its limit, so the repository has no exemption
+`sushicore.tools.testing.test_budget` and prints the budget line. No test is exempt from its limit, so the repository has no exemption
 file.
 
 A test's size is the prefix of its GoogleTest suite name: `Small_`, `Medium_` or `Large_`, as in
@@ -78,7 +78,7 @@ quarantines run in one test of their own, `<program>.<size>_quarantined`, which 
 `sb run <program> -- --gtest_filter=<Suite.Case>`.
 
 Each shard writes its cases to `test_results/gtest/<shard>.xml` in the build tree.
-`tools/testing/test_budget.py --cases <folder>` reads those files, so the per-case limits apply
+`python -m sushicore.tools.testing.test_budget --cases <folder>` reads those files, so the per-case limits apply
 to a case in a shard; the shard's own CTest entry has no size and counts nowhere.
 `GTEST_SHUFFLE` and `GTEST_RANDOM_SEED` of the calling environment reach every shard, and a
 death test's child process runs outside the sharding.

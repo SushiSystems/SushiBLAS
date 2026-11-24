@@ -96,7 +96,7 @@ and the Apache License 2.0 notice. A Python, shell or CMake file carries
 four `#` lines: the file name, the project line
 `SushiBLAS - https://github.com/SushiSystems/SushiBLAS`, the copyright line
 and the licence line. The `@file` block follows the box after one blank line.
-`tools/licensing/write_license_block.py` in SushiSkills writes it; do not type
+`sushicore.tools.licensing.write_license_block` in SushiSkills writes it; do not type
 or edit it by hand. [`NOTICE.md`](../NOTICE.md) records the exact command,
 which also keeps the upstream lines of the three files that carry portBLAS tiling.
 
@@ -454,8 +454,8 @@ Before a commit that touches `docs/`, run the two documentation checkers; see
 [`tools/README.md`](../tools/README.md).
 
 ```bash
-python tools/documentation/check_docs_layout.py .
-python tools/documentation/check_changelog.py .
+python -m sushicore.tools.documentation.check_docs_layout .
+python -m sushicore.tools.documentation.check_changelog .
 ```
 
 ---

@@ -38,14 +38,14 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
 ## Check before reporting work as finished
 
 ```
-python tools/documentation/check_docs_layout.py .
-python tools/documentation/check_changelog.py .
-python tools/documentation/check_source_comments.py .
-python tools/documentation/check_docs_truth.py .
-python tools/layering/check_layering.py .
+python -m sushicore.tools.documentation.check_docs_layout .
+python -m sushicore.tools.documentation.check_changelog .
+python -m sushicore.tools.documentation.check_source_comments .
+python -m sushicore.tools.documentation.check_docs_truth .
+python -m sushicore.tools.layering.check_layering .
 python tools/layering/check_tier_contents.py .
 python tools/layering/check_engine_seams.py .
-python tools/testing/check_test_mirror.py .
+python -m sushicore.tools.testing.check_test_mirror .
 python tools/versioning/check_version.py .
 python -m unittest discover -s tools/tests
 ```

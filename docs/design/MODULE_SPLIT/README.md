@@ -7,7 +7,7 @@
 ## Problem
 
 SushiBLAS was laid out as one module: `include/SushiBLAS/` and `source/` under the root, one CMake
-target, one test program. The tree already had boundaries, and `tools/layering/check_layering.py`
+target, one test program. The tree already had boundaries, and `sushicore.tools.layering.check_layering`
 enforced them by pattern matching on include lines. The repository layout names a module tree for
 a project with more than one module; the build should enforce the boundaries and a file's path
 should name its owner.
