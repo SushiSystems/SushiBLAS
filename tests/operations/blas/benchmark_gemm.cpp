@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
 
@@ -39,6 +40,7 @@ namespace
     namespace Bench = SushiBLAS::Bench;
     using SushiBLAS::Core::DataType;
     using SushiBLAS::Core::Layout;
+    using SushiBLAS::Core::Transpose;
 
     /// @brief Square matrix orders timed when no size is given.
     const std::vector<int64_t> K_DEFAULT_SIZES = {128, 512, 1024, 2048};
@@ -144,6 +146,72 @@ namespace
                         Bench::K_FLOPS_PER_GIGAFLOP);
     }
 
+    /// @brief Holds one convolution product of a YOLOv4 training step, as SushiAI lowers it.
+    struct YoloShape
+    {
+        const char* role = "";                  ///< F, dX or dW.
+        Transpose trans_a = Transpose::NoTrans; ///< How A is read.
+        Transpose trans_b = Transpose::NoTrans; ///< How B is read.
+        int64_t m = 0;                          ///< Rows of C.
+        int64_t n = 0;                          ///< Columns of C.
+        int64_t k = 0;                          ///< The summed extent.
+    };
+
+    /// @brief The products that take most GEMM time in a YOLOv4 step at 608 x 608, batch 2.
+    const std::vector<YoloShape> K_YOLOV4_SHAPES = {
+        {"dW", Transpose::Trans, Transpose::NoTrans, 256, 1152, 11552},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 64, 288, 184832},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 256, 2304, 2888},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 512, 2304, 2888},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 128, 1152, 11552},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 1024, 4608, 722},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 64, 64, 184832},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 32, 64, 184832},
+        {"dW", Transpose::Trans, Transpose::NoTrans, 27, 32, 739328},
+        {"F", Transpose::NoTrans, Transpose::Trans, 722, 1024, 4608},
+        {"F", Transpose::NoTrans, Transpose::Trans, 2888, 512, 2304},
+        {"F", Transpose::NoTrans, Transpose::Trans, 2888, 256, 2304},
+        {"dX", Transpose::NoTrans, Transpose::NoTrans, 4608, 722, 1024},
+        {"dX", Transpose::NoTrans, Transpose::NoTrans, 2888, 2304, 512},
+        {"dX", Transpose::NoTrans, Transpose::NoTrans, 11552, 1152, 128}};
+
+    /// @brief Returns the dims an operand is stored in: transposed operands store K first.
+    std::vector<int64_t> stored_dims(Transpose trans, int64_t rows, int64_t cols)
+    {
+        if (SushiBLAS::Core::is_transposed(trans))
+            return {cols, rows};
+        return {rows, cols};
+    }
+
+    /// @brief Times one YOLOv4 product in FLOAT32 and prints one row named by role and extents.
+    void benchmark_yolov4_gemm(SushiRuntime::Runtime& runtime, SushiBLAS::Engine& engine,
+                               const Bench::ResultTable& table, const YoloShape& shape)
+    {
+        SushiBLAS::RecordingGraph graph(runtime, engine.scratch_pool(), engine.mode());
+        Bench::label_graph(graph, "gemm");
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        const DataType dtype = DataType::Float32;
+        const std::vector<int64_t> a_dims = stored_dims(shape.trans_a, shape.m, shape.k);
+        const std::vector<int64_t> b_dims = stored_dims(shape.trans_b, shape.k, shape.n);
+        SushiBLAS::Tensor a = engine.create_tensor({a_dims[0], a_dims[1]}, dtype);
+        SushiBLAS::Tensor b = engine.create_tensor({b_dims[0], b_dims[1]}, dtype);
+        SushiBLAS::Tensor c = engine.create_tensor({shape.m, shape.n}, dtype);
+        Bench::fill_tensor(a, K_A_VALUE);
+        Bench::fill_tensor(b, K_B_VALUE);
+
+        const Bench::Timing timing = Bench::measure(graph, [&]()
+        {
+            SushiBLAS::BLASOps(recorder).gemm(a, b, c, shape.trans_a, shape.trans_b);
+        });
+        const double flops = 2.0 * static_cast<double>(shape.m) * static_cast<double>(shape.n) *
+                             static_cast<double>(shape.k);
+        const std::string label = std::string("gemm yolov4 ") + shape.role + " " +
+                                  std::to_string(shape.m) + "x" + std::to_string(shape.n) + "x" +
+                                  std::to_string(shape.k);
+        table.print_row(label.c_str(), dtype, shape.k, timing, flops,
+                        Bench::K_FLOPS_PER_GIGAFLOP);
+    }
+
     /// @brief Times every section in one layout, under the environment lines that name it.
     void benchmark_layout(SushiRuntime::Runtime& runtime, Layout layout,
                           const std::vector<int64_t>& sizes)
@@ -169,6 +237,11 @@ namespace
 
         for (const DeepShape& shape : K_STRIDED_SHAPES)
             benchmark_strided_gemm(runtime, engine, table, shape);
+
+        // SushiAI lowers every convolution to RowMajor products.
+        if (layout == Layout::RowMajor)
+            for (const YoloShape& shape : K_YOLOV4_SHAPES)
+                benchmark_yolov4_gemm(runtime, engine, table, shape);
         std::printf("\n");
     }
 

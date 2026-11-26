@@ -244,6 +244,55 @@ namespace SushiBLAS
             {
                 return GridCoord{e / fragment, e % fragment};
             }
+
+            /**
+             * @brief Returns the tile coordinate of entry `item` of a work-item's register block when
+             *        each work-item owns runs of `fragment` neighbouring coordinates.
+             * @param local The work-item's position along the axis inside its work-group.
+             * @param group_items Work-items of a work-group along the axis.
+             * @see modules/kernels/blas_seam_kernels/README.md
+             */
+            [[nodiscard]] constexpr int64_t fragment_coord(int64_t local, int64_t item,
+                                                           int64_t fragment,
+                                                           int64_t group_items) noexcept
+            {
+                return (item / fragment) * group_items * fragment + local * fragment +
+                       item % fragment;
+            }
+
+            /** @brief Holds the batch entry and the depth slice of one group of a depth-sliced launch. */
+            struct SliceGroup
+            {
+                int64_t batch = 0; /**< Batch entry. */
+                int64_t slice = 0; /**< Depth slice inside that entry. */
+            };
+
+            /** @brief Splits a flat group id along the batch axis into its batch entry and slice. */
+            [[nodiscard]] constexpr SliceGroup slice_group(int64_t group, int64_t slices) noexcept
+            {
+                return SliceGroup{group / slices, group % slices};
+            }
+
+            /** @brief Holds the half-open range of K-steps one depth slice sums. */
+            struct DepthRange
+            {
+                int64_t begin = 0; /**< First K-step. */
+                int64_t end = 0;   /**< One past the last K-step. */
+            };
+
+            /**
+             * @brief Returns the K-steps slice `slice` sums: `depth` of them, the last slice cut at k.
+             * @param depth K-steps per slice; 0 gives the whole extent to slice 0.
+             */
+            [[nodiscard]] constexpr DepthRange slice_depth_range(int64_t slice, int64_t depth,
+                                                                 int64_t k) noexcept
+            {
+                if (depth <= 0)
+                    return DepthRange{0, k};
+                const int64_t begin = slice * depth;
+                const int64_t end = begin + depth;
+                return DepthRange{begin < k ? begin : k, end < k ? end : k};
+            }
         }
     }
 }

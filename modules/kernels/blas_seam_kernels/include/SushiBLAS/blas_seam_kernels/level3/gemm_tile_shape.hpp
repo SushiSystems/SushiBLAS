@@ -30,6 +30,7 @@
 #pragma once
 
 #include <cstddef>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 
 namespace SushiBLAS
@@ -59,6 +60,49 @@ namespace SushiBLAS
          * @see modules/kernels/blas_seam_kernels/README.md
          */
         inline constexpr int K_GEMM_TILE_ITEM_CAP = 8;
+
+        /** @brief Holds the elements of T one 128-bit load reads; 1 marks a scalar-read type. */
+        template<typename T>
+        struct GemmVectorLanes
+        {
+            /** @brief Elements one load reads. */
+            static constexpr int K_VALUE = 1;
+        };
+
+        /** @brief Holds the four float lanes of one 128-bit load. */
+        template<>
+        struct GemmVectorLanes<float>
+        {
+            /** @brief Elements one load reads. */
+            static constexpr int K_VALUE = 4;
+        };
+
+        /** @brief Holds the two double lanes of one 128-bit load. */
+        template<>
+        struct GemmVectorLanes<double>
+        {
+            /** @brief Elements one load reads. */
+            static constexpr int K_VALUE = 2;
+        };
+
+        /** @brief Holds the eight HALF lanes of one 128-bit load. */
+        template<>
+        struct GemmVectorLanes<sycl::half>
+        {
+            /** @brief Elements one load reads. */
+            static constexpr int K_VALUE = 8;
+        };
+
+        /**
+         * @brief Returns the elements of a register block edge one local load reads together.
+         * @param item_dim The register block edge, a power of two.
+         * @return The vector lanes of T, capped at item_dim.
+         */
+        template<typename T>
+        [[nodiscard]] inline constexpr int gemm_fragment_dim(int item_dim) noexcept
+        {
+            return GemmVectorLanes<T>::K_VALUE < item_dim ? GemmVectorLanes<T>::K_VALUE : item_dim;
+        }
 
         /**
          * @brief Holds the geometry of one tiled GEMM kernel for element type T.
@@ -97,18 +141,30 @@ namespace SushiBLAS
             static constexpr int K_TILE_K = TileK;
 
             /**
-             * @brief Leading dimension of the A tile, one past the depth to step off a bank multiple.
+             * @brief Neighbouring rows or columns of a register block that one local load reads.
              * @see modules/kernels/blas_seam_kernels/README.md
              */
-            static constexpr int K_TILE_A_LD = K_TILE_K + 1;
+            static constexpr int K_FRAGMENT = gemm_fragment_dim<T>(K_ITEM_ROWS);
 
-            /** @brief Leading dimension of the B tile, padded off a bank multiple. */
-            static constexpr int K_TILE_B_LD = K_BLOCK_N + 2;
+            /**
+             * @brief Leading dimension of the A tile, one row per K-step, padded by a fragment.
+             * @see modules/kernels/blas_seam_kernels/README.md
+             */
+            static constexpr int K_TILE_A_LD = K_BLOCK_M + K_FRAGMENT;
+
+            /**
+             * @brief Leading dimension of the B tile, padded off a bank multiple by a fragment.
+             * @see modules/kernels/blas_seam_kernels/README.md
+             */
+            static constexpr int K_TILE_B_LD = K_BLOCK_N + (K_FRAGMENT > 2 ? K_FRAGMENT : 2);
+
+            static_assert(K_ITEM_ROWS % K_FRAGMENT == 0 && K_ITEM_COLS % K_FRAGMENT == 0,
+                          "a register block splits into whole fragments");
 
             /** @brief Returns the local memory one work-group needs, in bytes. */
             [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
             {
-                return (static_cast<std::size_t>(K_BLOCK_M) * K_TILE_A_LD +
+                return (static_cast<std::size_t>(K_TILE_K) * K_TILE_A_LD +
                         static_cast<std::size_t>(K_TILE_K) * K_TILE_B_LD) * sizeof(T);
             }
         };

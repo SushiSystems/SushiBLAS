@@ -90,6 +90,9 @@ namespace SushiBLAS
                     case Device::KernelVariant::GemmPacked:
                         SB_INSTANT("blas.gemm.packed");
                         return;
+                    case Device::KernelVariant::GemmDepthSliced:
+                        SB_INSTANT("blas.gemm.depth_sliced");
+                        return;
                 }
             }
         } // namespace

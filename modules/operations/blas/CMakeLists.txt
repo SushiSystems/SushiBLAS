@@ -66,6 +66,7 @@ sushiblas_add_test_program(
         test_blas_task.cpp
         test_gemm_bindings.cpp
         test_gemm_recording.cpp
+        test_gemm_scratch.cpp
         test_local_tile.cpp
         test_packed_operand.cpp
         test_packed_product_scratch.cpp

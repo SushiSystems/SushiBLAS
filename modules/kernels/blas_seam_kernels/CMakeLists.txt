@@ -17,6 +17,7 @@ sushiblas_add_test_program(
     MODULE blas_seam_kernels
     TESTS
         level3/test_channel_bias_epilogue.cpp
+        level3/test_gemm_depth_slice_plan.cpp
         level3/test_gemm_epilogue.cpp
         level3/test_gemm_strategy.cpp
         level3/test_gemm_tile_catalog.cpp
@@ -26,6 +27,7 @@ sushiblas_add_test_program(
         level3/test_packed_product_plan.cpp
         reference/level3/test_gemm.cpp
         sycl/level3/test_gemm_log.cpp
+        sycl/level3/test_gemm_store.cpp
         sycl/level3/test_memory_store.cpp
         sycl/level3/test_packed_micro_kernel.cpp
         sycl/level3/test_packed_panel.cpp
@@ -44,6 +46,7 @@ sushiblas_add_test_program(
     DEVICE_TESTS
         sycl/level3/test_gemm.cpp
         sycl/level3/test_gemm_accessed_packed.cpp
+        sycl/level3/test_gemm_depth_sliced.cpp
         sycl/level3/test_gemm_joint_matrix.cpp
         sycl/level3/test_gemm_packed.cpp
         sycl/level3/test_packed_product.cpp

@@ -45,9 +45,9 @@ namespace SushiBLAS
             EXPECT_EQ(Balanced::K_BLOCK_M, 64);
             EXPECT_EQ(Balanced::K_BLOCK_N, 64);
             EXPECT_EQ(Balanced::K_TILE_K, 16);
-            EXPECT_EQ(Balanced::K_TILE_A_LD, 17);
-            EXPECT_EQ(Balanced::K_TILE_B_LD, 66);
-            EXPECT_EQ(Balanced::local_mem_bytes(), std::size_t{(64 * 17 + 16 * 66) * 4});
+            EXPECT_EQ(Balanced::K_TILE_A_LD, 68);
+            EXPECT_EQ(Balanced::K_TILE_B_LD, 68);
+            EXPECT_EQ(Balanced::local_mem_bytes(), std::size_t{(16 * 68 + 16 * 68) * 4});
         }
 
         TEST(Small_GemmTileCatalog, WideDoublesTheRowsAndTheDepthOfBalanced)
@@ -58,7 +58,7 @@ namespace SushiBLAS
             EXPECT_EQ(Wide::K_BLOCK_M, 128);
             EXPECT_EQ(Wide::K_BLOCK_N, 64);
             EXPECT_EQ(Wide::K_TILE_K, 32);
-            EXPECT_EQ(Wide::K_TILE_A_LD, 33);
+            EXPECT_EQ(Wide::K_TILE_A_LD, 132);
         }
 
         TEST(Small_GemmTileCatalog, CompactHalvesTheBalancedBlockForEveryDtype)

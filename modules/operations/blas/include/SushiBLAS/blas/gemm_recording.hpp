@@ -47,7 +47,7 @@
 #include <SushiBLAS/blas/shape_check.hpp>
 #include <SushiBLAS/blas/gemm_bindings.hpp>
 #include <SushiBLAS/blas/gemm_split_regions.hpp>
-#include <SushiBLAS/blas/packed_product_scratch.hpp>
+#include <SushiBLAS/blas/gemm_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
@@ -78,7 +78,7 @@ namespace SushiBLAS
             Core::DataType dtype = Core::DataType::Float32;     /**< The element type of A, B and C. */
             TaskDescription description;                        /**< The name, scalars, flags and shape. */
             OperandSet operands;                                /**< A, B and C, and the epilogue's. */
-            ScratchBuffer pack;                                 /**< The panels of a packed product. */
+            ScratchBuffer scratch;                              /**< The packed panels or the depth-slice sums. */
             GemmGeometry geometry;                              /**< The extents and strides. */
             Core::Layout layout = Core::Layout::RowMajor;       /**< The layout of C. */
             Core::Transpose trans_a = Core::Transpose::NoTrans; /**< How A is read. */
@@ -173,7 +173,7 @@ namespace SushiBLAS
             gemm.regions = GemmOperandRegions{A.region(), B.region(), C.region(),
                                               epilogue.operands.read_regions()};
 
-            gemm.pack = Internal::allocate_packed_product_scratch(
+            gemm.scratch = Internal::allocate_gemm_scratch(
                 recorder, C, g.m, g.n, g.k, g.batch_size, gemm.operands);
 
             gemm.description = Internal::BLASMetadata(name, op_id)
@@ -189,8 +189,8 @@ namespace SushiBLAS
             gemm.alpha = alpha;
             gemm.beta = beta;
 
-            // A leased panel and an epilogue operand cannot be rebound, so a call with either records addresses.
-            const bool is_bindable = gemm.pack.is_empty() &&
+            // Leased scratch and an epilogue operand cannot be rebound, so a call with either records addresses.
+            const bool is_bindable = gemm.scratch.is_empty() &&
                                      epilogue.operands.read_regions().empty() &&
                                      epilogue.operands.write_regions().empty();
             if (is_bindable)

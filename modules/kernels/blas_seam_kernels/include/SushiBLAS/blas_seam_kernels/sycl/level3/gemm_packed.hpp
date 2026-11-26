@@ -45,6 +45,8 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_depth_sliced.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_store.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp>
 
 namespace SushiBLAS
@@ -55,64 +57,6 @@ namespace SushiBLAS
         {
             namespace Detail
             {
-                /**
-                 * @brief Stores `epilogue(alpha * sum + beta * C)` for each element of a packed
-                 *        GEMM.
-                 * @see modules/kernels/blas_seam_kernels/README.md
-                 */
-                template<typename T, typename Epilogue>
-                class GemmStore final
-                {
-                    public:
-                        /** @brief Binds the scalars, the addressing of C and the epilogue. */
-                        GemmStore(T alpha, T beta, OperandAccess c_access,
-                                  Epilogue epilogue) noexcept
-                            : alpha_(alpha), beta_(beta), c_access_(c_access), epilogue_(epilogue)
-                        {
-
-                        }
-
-                        /** @brief Returns true: a GEMM writes every macro-block of C. */
-                        [[nodiscard]] constexpr bool
-                        wants([[maybe_unused]] int64_t row0, [[maybe_unused]] int64_t rows,
-                              [[maybe_unused]] int64_t col0,
-                              [[maybe_unused]] int64_t cols) const noexcept
-                        {
-                            return true;
-                        }
-
-                        /**
-                         * @brief Writes element (row, col) of one matrix of C from its sum.
-                         * @param c The first element of the matrix.
-                         */
-                        void operator()(T* c, int64_t row, int64_t col, Accumulator<T> sum) const
-                        {
-                            using W = Accumulator<T>;
-
-                            const int64_t c_idx = c_access_.index(row, col);
-
-                            // A zero beta must not read C, whose prior value may be uninitialised.
-                            const T value = (beta_ == T(0))
-                                ? T(multiply(W(alpha_), sum))
-                                : T(multiply(W(alpha_), sum) + multiply(W(beta_), W(c[c_idx])));
-
-                            c[c_idx] = epilogue_(value, row, col);
-                        }
-
-                    private:
-                        /// @brief The scale of the product.
-                        T alpha_;
-
-                        /// @brief The scale of the prior C; exactly zero skips reading it.
-                        T beta_;
-
-                        /// @brief How element (row, col) of C is addressed.
-                        OperandAccess c_access_;
-
-                        /// @brief The functor applied to each element before it is stored.
-                        Epilogue epilogue_;
-                };
-
                 /**
                  * @brief Launches `C = Epilogue(alpha * X * Y + beta * C)` on the packed product.
                  * @tparam AccessA Brick with `T at(const T*, int64_t, int64_t) const`; AccessB too.
@@ -140,9 +84,9 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
-             * @brief Computes GEMM as the form without scratch does, and packs the operands when
-             *        the device profile selects the packed kernel.
-             * @param scratch Device memory for the packed panels; may be null.
+             * @brief Computes GEMM as the form without scratch does, and packs the operands or
+             *        slices K when the device profile selects the packed or depth-sliced kernel.
+             * @param scratch Device memory for the packed panels or the slice sums; may be null.
              * @param scratch_bytes Bytes behind scratch; below the plan's demand nothing is packed.
              * @param packing A blocking to pack under in place of the profile's; empty by default.
              * @param c Must not overlap A, B or scratch.
@@ -164,9 +108,12 @@ namespace SushiBLAS
                                            packing);
 
                 if (!packed_product_is_ready(plan, scratch, scratch_bytes))
-                    return gemm<T, Epilogue>(queue, layout, transA, transB, m, n, k,
-                                             alpha, a, lda, str_a, b, ldb, str_b,
-                                             beta, c, ldc, str_c, batch_size, deps, epilogue);
+                    return Detail::gemm_sliced_or_accessed<T>(
+                        queue, m, n, k,
+                        alpha, a, operand_access(layout, transA, lda), str_a,
+                        b, operand_access(layout, transB, ldb), str_b,
+                        beta, c, operand_access(layout, Core::Transpose::NoTrans, ldc), str_c,
+                        batch_size, scratch, scratch_bytes, deps, epilogue);
 
                 return Detail::packed_gemm<T>(
                     queue, plan, m, n, k,

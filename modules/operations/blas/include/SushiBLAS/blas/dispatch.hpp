@@ -251,7 +251,7 @@ namespace SushiBLAS
                 TaskHandle record(TaskRecorder& recorder, const PreparedGemm& gemm) override
                 {
                     const Epilogue kernel_epilogue = epilogue_;
-                    const ScratchBuffer pack = gemm.pack;
+                    const ScratchBuffer scratch = gemm.scratch;
                     const int64_t m = gemm.geometry.m;
                     const int64_t n = gemm.geometry.n;
                     const int64_t k = gemm.geometry.k;
@@ -322,8 +322,8 @@ namespace SushiBLAS
                                     return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n,
                                                                   k, alpha_t, pA, lda, str_a, pB,
                                                                   ldb, str_b, beta_t, pC, ldc,
-                                                                  str_c, batch_size, pack.data(),
-                                                                  pack.bytes(), deps2,
+                                                                  str_c, batch_size, scratch.data(),
+                                                                  scratch.bytes(), deps2,
                                                                   kernel_epilogue);
                                 });
                         });

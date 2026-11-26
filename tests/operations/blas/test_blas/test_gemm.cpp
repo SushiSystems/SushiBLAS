@@ -45,6 +45,7 @@
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_depth_sliced.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -352,7 +353,10 @@ namespace SushiBLAS
                 {Transpose::Trans, Transpose::Trans, 17, 19, 11, 1, 1.5, 0.5},
                 // Distinct m, n and k give the three operands three distinct batch strides.
                 {Transpose::NoTrans, Transpose::NoTrans, 13, 7, 5, 4, 1.5, 0.5},
-                {Transpose::NoTrans, Transpose::NoTrans, 33, 17, 23, 3, 1.0, 0.0}};
+                {Transpose::NoTrans, Transpose::NoTrans, 33, 17, 23, 3, 1.0, 0.0},
+                // Weight-gradient forms deep enough to be cut into depth slices on a GPU.
+                {Transpose::Trans, Transpose::NoTrans, 64, 72, 2600, 2, 1.0 / 4096.0, 0.5},
+                {Transpose::Trans, Transpose::NoTrans, 27, 32, 3000, 1, 1.0 / 4096.0, 0.0}};
 
             /** @brief Returns the rows of every element type, layout and agreement case. */
             [[nodiscard]] std::vector<Row<GemmCase>> agreement_rows()
@@ -391,6 +395,17 @@ namespace SushiBLAS
                 // A ragged shape under alpha, and transposes on odd extents.
                 {Transpose::NoTrans, Transpose::NoTrans, 37, 45, 23, 1, 1.5, 0.0},
                 {Transpose::Trans, Transpose::Trans, 19, 21, 17, 1, 1.0, 0.0}};
+
+            /** @brief Shapes the depth-sliced kernel is compared with the reference on, in three slices. */
+            const std::vector<GemmCase> K_DEPTH_SLICED_CASES = {
+                // K = 100 in slices of 48 leaves a last slice of 4; each case mixes whole and edge tiles.
+                {Transpose::Trans, Transpose::NoTrans, 70, 45, 100, 1, 1.5, 0.5},
+                {Transpose::NoTrans, Transpose::Trans, 130, 70, 100, 2, 1.0, 0.5},
+                {Transpose::NoTrans, Transpose::NoTrans, 65, 64, 100, 2, 1.0, 0.0},
+                {Transpose::Trans, Transpose::Trans, 19, 21, 100, 1, 1.5, 0.5}};
+
+            /** @brief Holds the K-steps of each slice the depth-sliced rows run with. */
+            constexpr int64_t K_SLICE_DEPTH = 48;
 
             /** @brief Shapes every tile shape of the catalog is compared with Balanced on. */
             [[nodiscard]] std::vector<GemmCase> tile_shape_cases()
@@ -786,6 +801,68 @@ namespace SushiBLAS
             , Medium_GemmLocalTiledAgreement,
             ::testing::ValuesIn(rows_of({DataType::Float32, DataType::Float64, DataType::Half},
                                         {ExecutionMode::ForceSYCL}, K_LOCAL_TILED_CASES)),
+            row_name<GemmCase>);
+
+        /** @brief Compares the depth-sliced kernel with the reference GEMM. */
+        class Medium_GemmDepthSlicedAgreement : public LocalTiledRow
+        {
+            protected:
+                /** @brief Runs the depth-sliced kernel on a case in three slices and compares it. */
+                template<typename T>
+                void expect_matches_reference(Layout layout, const GemmCase& c)
+                {
+                    if (!hosts_local_tiled<T>(Device::profile_for(TestEnvironment::queue())))
+                    {
+                        GTEST_SKIP() << "device cannot host the local-tiled work-group";
+                    }
+                    const CaseStorage s = storage_of(layout, c);
+                    const DataType dtype = sushiblas_dtype<T>();
+                    Tensor A = engine->create_tensor({c.batch * s.str_a}, dtype);
+                    Tensor B = engine->create_tensor({c.batch * s.str_b}, dtype);
+                    Tensor C = engine->create_tensor({c.batch * s.str_c}, dtype);
+                    fill_random<T>(A);
+                    fill_random<T>(B);
+                    fill_random<T>(C);
+
+                    const HostProduct<T> truth = host_product<T>(
+                        layout, c, download_as<T>(A), download_as<T>(B), download_as<T>(C));
+
+                    const int64_t slices = Kernels::Indexing::ceil_div(c.k, K_SLICE_DEPTH);
+                    const std::size_t bytes =
+                        static_cast<std::size_t>(slices * c.batch * c.m * c.n) * sizeof(T);
+                    const Kernels::GemmDepthSlicePlan plan{slices, K_SLICE_DEPTH, bytes};
+                    sycl::queue& queue = TestEnvironment::queue();
+                    void* scratch = sycl::malloc_device(bytes, queue);
+                    ASSERT_NE(scratch, nullptr);
+
+                    Kernels::SYCL::Detail::gemm_depth_sliced<T>(
+                        queue, plan, c.m, c.n, c.k,
+                        element_of<T>(c.alpha), static_cast<const T*>(A.data()),
+                        Kernels::operand_access(layout, c.trans_a, s.lda), s.str_a,
+                        static_cast<const T*>(B.data()),
+                        Kernels::operand_access(layout, c.trans_b, s.ldb), s.str_b,
+                        element_of<T>(c.beta), static_cast<T*>(C.data()),
+                        Kernels::operand_access(layout, Transpose::NoTrans, s.ldc), s.str_c,
+                        c.batch, scratch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+                    sycl::free(scratch, queue);
+
+                    expect_close<T>(download_as<T>(C), truth.value, truth.magnitude, c);
+                }
+        };
+
+        TEST_P(Medium_GemmDepthSlicedAgreement, TheDepthSlicedKernelAgreesWithTheReferenceKernel)
+        {
+            with_element(GetParam().type, [&](auto element)
+            {
+                using T = typename decltype(element)::type;
+                expect_matches_reference<T>(GetParam().layout, GetParam().axis);
+            });
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            , Medium_GemmDepthSlicedAgreement,
+            ::testing::ValuesIn(rows_of({DataType::Float32, DataType::Float64, DataType::Complex32},
+                                        {ExecutionMode::ForceSYCL}, K_DEPTH_SLICED_CASES)),
             row_name<GemmCase>);
 
         /** @brief Compares every tile shape of the catalog with Balanced, bit for bit. */

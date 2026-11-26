@@ -43,7 +43,8 @@ namespace SushiBLAS
             GemmJointMatrix, /**< The GEMM on the matrix units. */
             GemmDepthSplit,  /**< The GEMM that splits the depth over work groups. */
             GemmNoLocal,     /**< The GEMM that uses no local memory. */
-            GemmPacked       /**< The GEMM over packed panels. */
+            GemmPacked,      /**< The GEMM over packed panels. */
+            GemmDepthSliced  /**< The tiled GEMM over slices of K, folded in order. */
         };
 
         /** @brief The function a note is handed to; it must not throw. */

@@ -38,6 +38,7 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_depth_sliced.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
 
 namespace SushiBLAS
@@ -48,9 +49,9 @@ namespace SushiBLAS
         {
             /**
              * @brief Computes what gemm_accessed without scratch computes, and packs the operands
-             *        when the device profile selects the packed kernel.
+             *        or slices K when the device profile selects the packed or depth-sliced kernel.
              * @tparam AccessA Brick with `T at(const T*, int64_t, int64_t) const`; AccessB too.
-             * @param scratch Device memory for the packed panels; may be null.
+             * @param scratch Device memory for the packed panels or the slice sums; may be null.
              * @param c Must not overlap a, b or scratch.
              * @see modules/kernels/blas_seam_kernels/README.md
              */
@@ -71,9 +72,10 @@ namespace SushiBLAS
                                            packing);
 
                 if (!packed_product_is_ready(plan, scratch, scratch_bytes))
-                    return gemm_accessed<T, AccessA, AccessB, Epilogue>(
+                    return Detail::gemm_sliced_or_accessed<T>(
                         queue, m, n, k, alpha, a, a_access, str_a, b, b_access, str_b,
-                        beta, c, c_access, str_c, batch_size, deps, epilogue);
+                        beta, c, c_access, str_c, batch_size, scratch, scratch_bytes, deps,
+                        epilogue);
 
                 return Detail::packed_gemm<T>(queue, plan, m, n, k,
                                               alpha, a, a_access, str_a, b, b_access, str_b,

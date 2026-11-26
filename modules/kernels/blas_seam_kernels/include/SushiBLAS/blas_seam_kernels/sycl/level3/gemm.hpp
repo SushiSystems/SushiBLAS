@@ -152,31 +152,7 @@ namespace SushiBLAS
                 struct StagedLanes
                 {
                     /** @brief Elements one load reads. */
-                    static constexpr int K_VALUE = 1;
-                };
-
-                /// @brief Holds the four float lanes of one 128-bit load.
-                template<>
-                struct StagedLanes<float>
-                {
-                    /** @brief Elements one load reads. */
-                    static constexpr int K_VALUE = 4;
-                };
-
-                /// @brief Holds the two double lanes of one 128-bit load.
-                template<>
-                struct StagedLanes<double>
-                {
-                    /** @brief Elements one load reads. */
-                    static constexpr int K_VALUE = 2;
-                };
-
-                /// @brief Holds the eight HALF lanes of one 128-bit load.
-                template<>
-                struct StagedLanes<sycl::half>
-                {
-                    /** @brief Elements one load reads. */
-                    static constexpr int K_VALUE = 8;
+                    static constexpr int K_VALUE = GemmVectorLanes<T>::K_VALUE;
                 };
 
                 /**
@@ -250,14 +226,78 @@ namespace SushiBLAS
                 }
 
                 /**
+                 * @brief Reads and writes the elements of a local tile whose rows are split into
+                 *        fragments of F neighbouring elements, read by one load each.
+                 * @tparam F A power of two; 1 stores plain elements.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T, int F>
+                struct LocalFragment
+                {
+                    /** @brief The element type of the local accessor that holds the tile. */
+                    using Element = std::conditional_t<(F > 1), sycl::vec<T, F>, T>;
+
+                    /** @brief Writes value at element offset of the tile. */
+                    template<typename Tile>
+                    static void store(const Tile& tile, int offset, T value) noexcept
+                    {
+                        if constexpr (F > 1)
+                            tile[offset / F][offset % F] = value;
+                        else
+                            tile[offset] = value;
+                    }
+
+                    /**
+                     * @brief Copies the F elements at element offset of the tile into out.
+                     * @pre offset is a multiple of F.
+                     */
+                    template<typename Tile>
+                    static void load(const Tile& tile, int offset, T* out) noexcept
+                    {
+                        if constexpr (F > 1)
+                        {
+                            const Element lanes = tile[offset / F];
+                            for (int l = 0; l < F; ++l)
+                                out[l] = lanes[l];
+                        }
+                        else
+                        {
+                            out[0] = tile[offset];
+                        }
+                    }
+                };
+
+                /**
+                 * @brief Writes element (r, c) of a staged block into a local tile of leading
+                 *        dimension Ld, row by row, or column by column when Transposed.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T, int F, int Ld, bool Transposed, typename Tile>
+                struct TileWriter
+                {
+                    /** @brief The local tile written. */
+                    Tile tile;
+
+                    /** @brief Writes value as element (r, c) of the staged block. */
+                    void operator()(int r, int c, T value) const noexcept
+                    {
+                        const int offset = Transposed
+                            ? static_cast<int>(Indexing::row_major_offset(c, Ld, r))
+                            : static_cast<int>(Indexing::row_major_offset(r, Ld, c));
+                        LocalFragment<T, F>::store(tile, offset, value);
+                    }
+                };
+
+                /**
                  * @brief Stages the Rows x Cols block of op(X) at (row0, col0) into a local tile.
+                 * @param write Writes element (r, c) of the block into the tile.
                  * @param linear The work-item's linear id in a group of Items work-items.
                  * @param rows The extent of op(X) down its rows, as cols is across its columns.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
-                template<int Rows, int Cols, int Ld, int Items, typename T, typename Access,
-                         typename Tile>
-                inline void stage_block(const Tile& tile, int linear, const T* p, int64_t row0,
+                template<int Rows, int Cols, int Items, typename T, typename Access,
+                         typename Writer>
+                inline void stage_block(const Writer& write, int linear, const T* p, int64_t row0,
                                         int64_t col0, int64_t rows, int64_t cols,
                                         const Access& s, const StagePlan& plan) noexcept
                 {
@@ -281,10 +321,12 @@ namespace SushiBLAS
                                 const int c = static_cast<int>(at.col);
                                 const auto lanes = load_lanes(p + s.index(row0 + r, col0 + c));
                                 for (int l = 0; l < K_LANES; ++l)
-                                    tile[plan.columns_contiguous
-                                             ? Indexing::row_major_offset(r + l, Ld, c)
-                                             : Indexing::row_major_offset(r, Ld, c + l)] =
-                                        lanes[l];
+                                {
+                                    if (plan.columns_contiguous)
+                                        write(r + l, c, lanes[l]);
+                                    else
+                                        write(r, c + l, lanes[l]);
+                                }
                             }
                             return;
                         }
@@ -296,9 +338,9 @@ namespace SushiBLAS
                             Indexing::stage_coord(idx, Rows, Cols, plan.columns_contiguous);
                         const int r = static_cast<int>(at.row);
                         const int c = static_cast<int>(at.col);
-                        tile[Indexing::row_major_offset(r, Ld, c)] =
-                            full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
-                                 : load_operand(p, row0 + r, col0 + c, rows, cols, s);
+                        write(r, c,
+                              full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
+                                   : load_operand(p, row0 + r, col0 + c, rows, cols, s));
                     }
                 }
 
@@ -361,11 +403,27 @@ namespace SushiBLAS
                 };
 
                 /**
+                 * @brief Holds how a tiled launch cuts K into slices, each summed into its own C.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                struct DepthSlices
+                {
+                    /** @brief Slices per batch entry; 1 sums the whole K into C. */
+                    int64_t count = 1;
+
+                    /** @brief K-steps per slice, a multiple of the K tile; 0 with one slice. */
+                    int64_t depth = 0;
+
+                    /** @brief Elements between the C of two neighbouring slices. */
+                    int64_t c_stride = 0;
+                };
+
+                /**
                  * @brief Computes GEMM by tiling A and B through local memory, for devices with real scratchpad memory.
                  * @tparam Shape A GemmTileShape of T; every geometry constant comes from it.
                  * @pre The local allocation fits the device; gemm checks this before it calls.
-                 * @param beta Exactly zero skips reading C.
-                 * @param c Must not overlap A or B.
+                 * @param c Must not overlap A or B; read only when beta is not exactly zero.
+                 * @param slices Cuts of whole K tiles; slice s of entry i writes c + i*str_c + s*c_stride.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
                 template<typename T, typename Shape = GemmTile<T, GemmTileRole::Balanced>,
@@ -377,10 +435,13 @@ namespace SushiBLAS
                     const T* b, AccessB b_access, int64_t str_b,
                     T beta, T* c, OperandAccess c_access, int64_t str_c,
                     int64_t batch_size, const std::vector<sycl::event>& deps,
-                    Epilogue epilogue)
+                    Epilogue epilogue, DepthSlices slices = DepthSlices{})
                 {
                     using W = Accumulator<T>;
                     using Configuration = Shape;
+                    constexpr int K_FRAGMENT = Configuration::K_FRAGMENT;
+                    using Fragment = LocalFragment<T, K_FRAGMENT>;
+                    using Element = typename Fragment::Element;
 
                     SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, Device::hosts_local_tile(
                                   Device::profile_for(queue),
@@ -391,8 +452,12 @@ namespace SushiBLAS
                     const int64_t m_groups = Indexing::group_count(m, Configuration::K_BLOCK_M);
                     const int64_t n_groups = Indexing::group_count(n, Configuration::K_BLOCK_N);
 
+                    SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
+                              slices.count == 1 || slices.depth % Configuration::K_TILE_K == 0,
+                              "a depth slice must hold whole K tiles");
+
                     const sycl::range<3> global(
-                        static_cast<std::size_t>(batch_size),
+                        static_cast<std::size_t>(batch_size * slices.count),
                         static_cast<std::size_t>(m_groups * Configuration::K_WG_ROWS),
                         static_cast<std::size_t>(n_groups * Configuration::K_WG_COLS));
                     const sycl::range<3> local(
@@ -411,19 +476,24 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
 
-                        sycl::local_accessor<T, 1> tile_a(
-                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BLOCK_M) *
-                                           Configuration::K_TILE_A_LD),
-                            h);
-                        sycl::local_accessor<T, 1> tile_b(
+                        // The A tile holds one row per K-step, so a fragment of rows is one load.
+                        sycl::local_accessor<Element, 1> tile_a(
                             sycl::range<1>(static_cast<std::size_t>(Configuration::K_TILE_K) *
-                                           Configuration::K_TILE_B_LD),
+                                           Configuration::K_TILE_A_LD / K_FRAGMENT),
+                            h);
+                        sycl::local_accessor<Element, 1> tile_b(
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_TILE_K) *
+                                           Configuration::K_TILE_B_LD / K_FRAGMENT),
                             h);
 
                         h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
                         {
                             // Only global offsets and strides are 64-bit; see modules/kernels/blas_seam_kernels/README.md.
-                            const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
+                            const Indexing::SliceGroup owner = Indexing::slice_group(
+                                static_cast<int64_t>(item.get_group(0)), slices.count);
+                            const int64_t batch_id = owner.batch;
+                            const Indexing::DepthRange depth =
+                                Indexing::slice_depth_range(owner.slice, slices.depth, k);
                             const int64_t row0 = Indexing::block_origin(
                                 static_cast<int64_t>(item.get_group(1)), Configuration::K_BLOCK_M, 0);
                             const int64_t col0 = Indexing::block_origin(
@@ -437,47 +507,71 @@ namespace SushiBLAS
                             const T* B = b + batch_id * str_b;
 
                             // Only C is __restrict__: a and b may alias; see modules/kernels/blas_seam_kernels/README.md.
-                            T* __restrict__ C = c + batch_id * str_c;
+                            T* __restrict__ C =
+                                c + batch_id * str_c + owner.slice * slices.c_stride;
+
+                            const TileWriter<T, K_FRAGMENT, Configuration::K_TILE_A_LD, true,
+                                             decltype(tile_a)>
+                                write_a{tile_a};
+                            const TileWriter<T, K_FRAGMENT, Configuration::K_TILE_B_LD, false,
+                                             decltype(tile_b)>
+                                write_b{tile_b};
 
                             W acc[Configuration::K_ITEM_ROWS][Configuration::K_ITEM_COLS];
+                            #pragma unroll
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                #pragma unroll
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                     acc[ii][jj] = W(0);
 
                             // One local buffer and two barriers per K-step; see modules/kernels/blas_seam_kernels/README.md.
-                            for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
+                            for (int64_t k0 = depth.begin; k0 < depth.end;
+                                 k0 += Configuration::K_TILE_K)
                             {
                                 // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
                                 stage_block<Configuration::K_BLOCK_M, Configuration::K_TILE_K,
-                                            Configuration::K_TILE_A_LD,
                                             Configuration::K_WG_ITEMS>(
-                                    tile_a, local_linear, A, row0, k0, m, k, a_access, a_plan);
+                                    write_a, local_linear, A, row0, k0, m, k, a_access, a_plan);
                                 stage_block<Configuration::K_TILE_K, Configuration::K_BLOCK_N,
-                                            Configuration::K_TILE_B_LD,
                                             Configuration::K_WG_ITEMS>(
-                                    tile_b, local_linear, B, k0, col0, k, n, b_access, b_plan);
+                                    write_b, local_linear, B, k0, col0, k, n, b_access, b_plan);
 
                                 sycl::group_barrier(item.get_group());
 
                                 // Staged out-of-range elements are zero, so the full tile_k width sums exactly; see modules/kernels/blas_seam_kernels/README.md.
+                                #pragma unroll
                                 for (int kk = 0; kk < Configuration::K_TILE_K; ++kk)
                                 {
-                                    // tile_a_ld is one past the depth; see modules/kernels/blas_seam_kernels/README.md.
+                                    // Each work-item reads its rows and columns as whole fragments; see modules/kernels/blas_seam_kernels/README.md.
                                     T reg_a[Configuration::K_ITEM_ROWS];
                                     T reg_b[Configuration::K_ITEM_COLS];
 
-                                    for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
-                                        reg_a[ii] = tile_a[Indexing::row_major_offset(
-                                            Indexing::lattice_coord(local_row, ii,
-                                                                    Configuration::K_WG_ROWS),
-                                            Configuration::K_TILE_A_LD, kk)];
-                                    for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                        reg_b[jj] = tile_b[Indexing::row_major_offset(
-                                            kk, Configuration::K_TILE_B_LD,
-                                            Indexing::lattice_coord(local_col, jj,
-                                                                    Configuration::K_WG_COLS))];
+                                    #pragma unroll
+                                    for (int ii = 0; ii < Configuration::K_ITEM_ROWS;
+                                         ii += K_FRAGMENT)
+                                        Fragment::load(
+                                            tile_a,
+                                            static_cast<int>(Indexing::row_major_offset(
+                                                kk, Configuration::K_TILE_A_LD,
+                                                Indexing::fragment_coord(
+                                                    local_row, ii, K_FRAGMENT,
+                                                    Configuration::K_WG_ROWS))),
+                                            reg_a + ii);
+                                    #pragma unroll
+                                    for (int jj = 0; jj < Configuration::K_ITEM_COLS;
+                                         jj += K_FRAGMENT)
+                                        Fragment::load(
+                                            tile_b,
+                                            static_cast<int>(Indexing::row_major_offset(
+                                                kk, Configuration::K_TILE_B_LD,
+                                                Indexing::fragment_coord(
+                                                    local_col, jj, K_FRAGMENT,
+                                                    Configuration::K_WG_COLS))),
+                                            reg_b + jj);
 
+                                    #pragma unroll
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                        #pragma unroll
                                         for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                             acc[ii][jj] =
                                                 Kernels::Detail::multiply_add(W(reg_a[ii]), W(reg_b[jj]), acc[ii][jj]);
@@ -486,17 +580,19 @@ namespace SushiBLAS
                                 sycl::group_barrier(item.get_group());
                             }
 
+                            #pragma unroll
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
-                                const int64_t global_row = Indexing::lattice_coord(
-                                    row0 + local_row, ii, Configuration::K_WG_ROWS);
+                                const int64_t global_row = row0 + Indexing::fragment_coord(
+                                    local_row, ii, K_FRAGMENT, Configuration::K_WG_ROWS);
                                 if (global_row >= m)
                                     continue;
 
+                                #pragma unroll
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
-                                    const int64_t global_col = Indexing::lattice_coord(
-                                        col0 + local_col, jj, Configuration::K_WG_COLS);
+                                    const int64_t global_col = col0 + Indexing::fragment_coord(
+                                        local_col, jj, K_FRAGMENT, Configuration::K_WG_COLS);
                                     if (global_col >= n)
                                         continue;
 

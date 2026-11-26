@@ -52,7 +52,7 @@ namespace SushiBLAS
             using Shape = Kernels::GemmTileShape<sycl::half, 8, 8, 256, 16>;
 
             EXPECT_EQ(Shape::K_ITEM_ROWS, 8);
-            EXPECT_EQ(Shape::local_mem_bytes(), std::size_t{(64 * 17 + 16 * 66) * 2});
+            EXPECT_EQ(Shape::local_mem_bytes(), std::size_t{(16 * 72 + 16 * 72) * 2});
         }
 
         TEST(Small_GemmTileShape, BlocksAndPaddingFollowTheWorkGroupAndTheDepth)
@@ -63,9 +63,26 @@ namespace SushiBLAS
             EXPECT_EQ(Shape::K_ITEM_ROWS, 4);
             EXPECT_EQ(Shape::K_BLOCK_M, 16);
             EXPECT_EQ(Shape::K_BLOCK_N, 64);
-            EXPECT_EQ(Shape::K_TILE_A_LD, 9);
+            EXPECT_EQ(Shape::K_TILE_A_LD, 18);
             EXPECT_EQ(Shape::K_TILE_B_LD, 66);
-            EXPECT_EQ(Shape::local_mem_bytes(), std::size_t{(16 * 9 + 8 * 66) * 8});
+            EXPECT_EQ(Shape::local_mem_bytes(), std::size_t{(8 * 18 + 8 * 66) * 8});
+        }
+
+        TEST(Small_GemmTileShape, TheFragmentIsOne128BitLoadCappedAtTheRegisterBlock)
+        {
+            EXPECT_EQ((Kernels::GemmTileShape<float, 8, 8, 256, 16>::K_FRAGMENT), 4);
+            EXPECT_EQ((Kernels::GemmTileShape<double, 8, 8, 256, 16>::K_FRAGMENT), 2);
+            EXPECT_EQ((Kernels::GemmTileShape<sycl::half, 8, 8, 256, 16>::K_FRAGMENT), 8);
+            EXPECT_EQ((Kernels::GemmTileShape<float, 8, 8, 16, 16>::K_FRAGMENT), 2);
+            EXPECT_EQ((Kernels::GemmTileShape<std::complex<float>, 8, 8, 256, 16>::K_FRAGMENT), 1);
+        }
+
+        TEST(Small_GemmTileShape, AScalarReadTypeKeepsTheOneAndTwoElementPadding)
+        {
+            using Shape = Kernels::GemmTileShape<std::complex<double>, 8, 8, 256, 16>;
+
+            EXPECT_EQ(Shape::K_TILE_A_LD, Shape::K_BLOCK_M + 1);
+            EXPECT_EQ(Shape::K_TILE_B_LD, Shape::K_BLOCK_N + 2);
         }
     } // namespace Test
 } // namespace SushiBLAS

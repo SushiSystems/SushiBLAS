@@ -642,5 +642,79 @@ namespace SushiBLAS
                                  ::testing::Values(FragmentElementRow{0, 0, 0}, FragmentElementRow{15, 0, 15},
                                                    FragmentElementRow{16, 1, 0}, FragmentElementRow{37, 2, 5},
                                                    FragmentElementRow{255, 15, 15}));
+
+        /** @brief Holds one fragment_coord call and the tile coordinate it gives. */
+        struct FragmentCoordRow
+        {
+            int64_t local;
+            int64_t item;
+            int64_t fragment;
+            int64_t group_items;
+            int64_t coord;
+        };
+
+        class Small_GemmIndexFragmentCoord : public ::testing::TestWithParam<FragmentCoordRow>
+        {
+        };
+
+        TEST_P(Small_GemmIndexFragmentCoord, AWorkItemOwnsRunsOfFragmentCoordinatesOneGroupApart)
+        {
+            const FragmentCoordRow row = GetParam();
+
+            EXPECT_EQ(Indexing::fragment_coord(row.local, row.item, row.fragment, row.group_items),
+                      row.coord);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmIndexFragmentCoord,
+                                 ::testing::Values(FragmentCoordRow{0, 0, 4, 8, 0},
+                                                   FragmentCoordRow{0, 3, 4, 8, 3},
+                                                   FragmentCoordRow{1, 0, 4, 8, 4},
+                                                   FragmentCoordRow{7, 3, 4, 8, 31},
+                                                   FragmentCoordRow{0, 4, 4, 8, 32},
+                                                   FragmentCoordRow{2, 5, 4, 8, 41},
+                                                   FragmentCoordRow{7, 7, 4, 8, 63},
+                                                   FragmentCoordRow{3, 2, 1, 8, 19}));
+
+        TEST(Small_GemmIndexFragmentLattice, AFragmentOfOneIsTheStridedLattice)
+        {
+            EXPECT_EQ(Indexing::fragment_coord(5, 3, 1, 16), Indexing::lattice_coord(5, 3, 16));
+        }
+
+        TEST(Small_GemmIndexSliceGroup, AGroupIdSplitsIntoBatchEntryThenSlice)
+        {
+            const Indexing::SliceGroup owner = Indexing::slice_group(7, 3);
+
+            EXPECT_EQ(owner.batch, 2);
+            EXPECT_EQ(owner.slice, 1);
+        }
+
+        /** @brief Holds one slice_depth_range call over k = 150 and the range it gives. */
+        struct DepthRangeRow
+        {
+            int64_t slice;
+            int64_t depth;
+            int64_t begin;
+            int64_t end;
+        };
+
+        class Small_GemmIndexSliceDepthRange : public ::testing::TestWithParam<DepthRangeRow>
+        {
+        };
+
+        TEST_P(Small_GemmIndexSliceDepthRange, ASliceSumsItsDepthAndTheLastIsCutAtK)
+        {
+            const DepthRangeRow row = GetParam();
+            const Indexing::DepthRange range = Indexing::slice_depth_range(row.slice, row.depth, 150);
+
+            EXPECT_EQ(range.begin, row.begin);
+            EXPECT_EQ(range.end, row.end);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(, Small_GemmIndexSliceDepthRange,
+                                 ::testing::Values(DepthRangeRow{0, 0, 0, 150},
+                                                   DepthRangeRow{0, 64, 0, 64},
+                                                   DepthRangeRow{1, 64, 64, 128},
+                                                   DepthRangeRow{2, 64, 128, 150},
+                                                   DepthRangeRow{3, 64, 150, 150}));
     } // namespace Test
 } // namespace SushiBLAS
