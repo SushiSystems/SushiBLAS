@@ -32,10 +32,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/tensor/block_maker.hpp>
@@ -51,7 +53,7 @@ namespace SushiBLAS
     /**
      * @class RuntimeBlock
      * @brief Adapts a SushiRuntime buffer to StorageBlock: USM the runtime allocated, or USM
-     *        another owner keeps alive. It copies through the queue of its device.
+     *        another owner keeps alive. It copies through the buffer's range calls.
      * @see modules/data/tensor/README.md
      */
     class RuntimeBlock final : public StorageBlock
@@ -152,26 +154,40 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Copies bytes out of the buffer through its queue and waits.
-             * @throws std::runtime_error if the range lies outside the block.
+             * @brief Copies bytes out of the buffer through Buffer::read_range, which copies on
+             *        the device queue, waits and counts the bytes moved.
+             * @throws std::runtime_error if the range lies outside the block or the read fails.
              */
             void copy_to_host(void* destination, std::size_t offset,
                               std::size_t bytes) const override
             {
                 require_range(offset, bytes);
-                queue()->memcpy(destination, static_cast<const std::byte*>(data()) + offset,
-                                bytes).wait();
+                if (bytes == 0)
+                    return;
+                const SushiRuntime::Result<std::vector<std::byte>> read =
+                    buffer_.read_range(SushiRuntime::ElementRange{offset, bytes});
+                SB_THROW_IF(!read, "Reading {} bytes at offset {} of a runtime buffer failed: {}",
+                            bytes, offset, read.error().message);
+                std::memcpy(destination, read->data(), bytes);
             }
 
             /**
-             * @brief Copies bytes into the buffer through its queue and waits.
-             * @throws std::runtime_error if the range lies outside the block.
+             * @brief Copies bytes into the buffer through Buffer::write_range, which copies on
+             *        the device queue, waits and counts the bytes moved.
+             * @throws std::runtime_error if the range lies outside the block or the write fails.
              */
             void copy_from_host(const void* source, std::size_t offset,
                                 std::size_t bytes) const override
             {
                 require_range(offset, bytes);
-                queue()->memcpy(static_cast<std::byte*>(data()) + offset, source, bytes).wait();
+                if (bytes == 0)
+                    return;
+                const SushiRuntime::Result<void> written = buffer_.write_range(
+                    SushiRuntime::ElementRange{offset, bytes},
+                    SushiRuntime::span<const std::byte>(static_cast<const std::byte*>(source),
+                                                        bytes));
+                SB_THROW_IF(!written, "Writing {} bytes at offset {} of a runtime buffer failed: {}",
+                            bytes, offset, written.error().message);
             }
 
             /** @brief Returns whether the buffer belongs to another owner. */

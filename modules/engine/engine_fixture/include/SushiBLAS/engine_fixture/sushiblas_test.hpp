@@ -104,8 +104,7 @@ namespace SushiBLAS
                 Tensor create_initialized_tensor(std::initializer_list<int64_t> dims, const std::vector<T>& data)
                 {
                     auto t = engine->create_tensor(dims, sushiblas_dtype<T>());
-                    auto& q = TestEnvironment::queue();
-                    q.memcpy(t.data(), data.data(), data.size() * sizeof(T)).wait();
+                    t.storage->copy_from_host(data.data(), 0, data.size() * sizeof(T));
                     return t;
                 }
         };

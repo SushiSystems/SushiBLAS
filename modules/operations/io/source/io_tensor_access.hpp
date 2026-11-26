@@ -50,12 +50,33 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Returns the queue of the device that holds the tensor's storage.
-         * @pre t has storage.
+         * @brief Copies bytes of the tensor's payload to host memory through its storage and
+         *        waits, so the runtime sees the copy.
+         * @param payload_offset First payload byte to copy.
+         * @pre t has storage, t is dense, and payload_offset + bytes is at most payload_bytes(t).
+         * @throws std::runtime_error if the storage fails the copy.
          */
-        inline sycl::queue& storage_queue(const Tensor& t)
+        inline void read_payload_bytes(const Tensor& t, size_t payload_offset, void* destination,
+                                       size_t bytes)
         {
-            return t.storage->queue();
+            const size_t base = static_cast<size_t>(t.storage_offset) *
+                                Core::bytes_per_element(t.dtype);
+            t.storage->copy_to_host(destination, base + payload_offset, bytes);
+        }
+
+        /**
+         * @brief Copies host bytes into the tensor's payload through its storage and waits, so
+         *        the runtime sees the copy.
+         * @param payload_offset First payload byte to write.
+         * @pre t has storage, t is dense, and payload_offset + bytes is at most payload_bytes(t).
+         * @throws std::runtime_error if the storage fails the copy.
+         */
+        inline void write_payload_bytes(const Tensor& t, size_t payload_offset, const void* source,
+                                        size_t bytes)
+        {
+            const size_t base = static_cast<size_t>(t.storage_offset) *
+                                Core::bytes_per_element(t.dtype);
+            t.storage->copy_from_host(source, base + payload_offset, bytes);
         }
     } // namespace Detail
 } // namespace SushiBLAS

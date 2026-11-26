@@ -31,6 +31,13 @@ optional; a caller that needs a device calls `Storage::require_device_index(oper
 `UnsupportedExecution` naming the operation when the allocation is planned. Tensor packs, late counts,
 reduction scratch and scratch leases call it, and so refuse a planned operand with a message.
 
+`copy_to_host` and `copy_from_host` of every block return with the copy done and throw
+`std::runtime_error` for a range outside the block. `RuntimeBlock` copies through the buffer's
+`read_range` and `write_range`, as `PlannedBlock` does, so the runtime sees each copy and a
+`Residency::Device` buffer, which a runtime configured to guard device memory page-protects against
+host access, is opened for it. Host code never submits a raw `queue()->memcpy` on a runtime buffer outside a
+recorded task. A read stages the bytes in a `std::vector` before the copy to the caller.
+
 ## Handle
 
 `Tensor::global_handle()` returns the `SushiRuntime::GlobalHandle` of the allocation the tensor views,

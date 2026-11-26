@@ -56,7 +56,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiRuntime/distributed/distributed.hpp>
-#include <SushiRuntime/distributed/in_process_transport.hpp>
+#include <SushiRuntime/in_process_transport/in_process_transport.hpp>
 #include <SushiBLAS/engine/runtime_scratch_source.hpp>
 
 namespace SushiBLAS

@@ -117,11 +117,10 @@ namespace SushiBLAS
 
             const size_t chunk_bytes = std::min(bytes, K_IO_CHUNK_BYTES);
             const std::unique_ptr<char[]> chunk(new char[chunk_bytes]);
-            sycl::queue& queue = storage_queue(t);
             for (size_t done = 0; done < bytes; done += chunk_bytes)
             {
                 const size_t step = std::min(chunk_bytes, bytes - done);
-                queue.memcpy(chunk.get(), source + done, step).wait();
+                read_payload_bytes(t, done, chunk.get(), step);
                 write_checked(ofs, chunk.get(), step, "tensor data", path);
             }
         }
@@ -148,12 +147,11 @@ namespace SushiBLAS
 
             const size_t chunk_bytes = std::min(bytes, K_IO_CHUNK_BYTES);
             const std::unique_ptr<char[]> chunk(new char[chunk_bytes]);
-            sycl::queue& queue = storage_queue(t);
             for (size_t done = 0; done < bytes; done += chunk_bytes)
             {
                 const size_t step = std::min(chunk_bytes, bytes - done);
                 read_tensor_bytes(ifs, chunk.get(), step, path);
-                queue.memcpy(destination + done, chunk.get(), step).wait();
+                write_payload_bytes(t, done, chunk.get(), step);
             }
         }
     } // namespace Detail

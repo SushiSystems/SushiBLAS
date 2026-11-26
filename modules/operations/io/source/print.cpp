@@ -46,7 +46,7 @@ namespace SushiBLAS
     namespace
     {
         using Detail::is_device_allocated;
-        using Detail::storage_queue;
+        using Detail::read_payload_bytes;
 
         /** @brief Returns element @p index of a host buffer of @p dtype as a (real, imag) pair. */
         std::pair<double, double> decode_element(const char* buf, Core::DataType dtype,
@@ -86,20 +86,20 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Reads runs of a tensor's elements as (real, imaginary) pairs, through the queue
-         *        for device storage.
+         * @brief Reads runs of a tensor's elements as (real, imaginary) pairs, through the
+         *        storage's host copy for device storage.
          */
         class ElementRunReader
         {
             public:
                 /**
-                 * @brief Binds the reader to the tensor's first element, dtype and queue.
-                 * @pre t has storage or holds no elements.
+                 * @brief Binds the reader to the tensor's first element, dtype and storage.
+                 * @pre t has storage or holds no elements, and outlives the reader.
                  */
                 explicit ElementRunReader(const Tensor& t)
                     : base_(static_cast<const char*>(t.data_or_null())), dtype_(t.dtype),
                       element_bytes_(Core::bytes_per_element(t.dtype)),
-                      queue_(t.storage && is_device_allocated(t) ? &storage_queue(t) : nullptr)
+                      device_tensor_(t.storage && is_device_allocated(t) ? &t : nullptr)
                 {
 
                 }
@@ -111,7 +111,7 @@ namespace SushiBLAS
                 void read(int64_t first, int64_t count, int64_t stride,
                           std::vector<std::pair<double, double>>& out)
                 {
-                    if (queue_ == nullptr)
+                    if (device_tensor_ == nullptr)
                     {
                         for (int64_t i = 0; i < count; ++i)
                             out.push_back(decode_element(base_, dtype_, first + i * stride));
@@ -123,9 +123,10 @@ namespace SushiBLAS
                     staging_.resize(static_cast<size_t>(per_copy) * element_bytes_);
                     for (int64_t i = 0; i < count; i += per_copy)
                     {
-                        const char* source =
-                            base_ + static_cast<size_t>(first + i * stride) * element_bytes_;
-                        queue_->memcpy(staging_.data(), source, staging_.size()).wait();
+                        const size_t offset =
+                            static_cast<size_t>(first + i * stride) * element_bytes_;
+                        read_payload_bytes(*device_tensor_, offset, staging_.data(),
+                                           staging_.size());
                         for (int64_t k = 0; k < per_copy; ++k)
                             out.push_back(decode_element(staging_.data(), dtype_, k));
                     }
@@ -141,8 +142,8 @@ namespace SushiBLAS
                 /// @brief The bytes one element takes.
                 size_t element_bytes_;
 
-                /// @brief The queue device storage is copied through; null when host-readable.
-                sycl::queue* queue_;
+                /// @brief The tensor whose device storage is copied out; null when host-readable.
+                const Tensor* device_tensor_;
 
                 /// @brief The host bytes of the run being decoded.
                 std::vector<char> staging_;

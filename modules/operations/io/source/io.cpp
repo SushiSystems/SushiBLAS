@@ -52,7 +52,8 @@ namespace SushiBLAS
         using Detail::read_payload;
         using Detail::refusals_as_failures;
         using Detail::status_of;
-        using Detail::storage_queue;
+        using Detail::read_payload_bytes;
+        using Detail::write_payload_bytes;
         using Detail::write_checked;
         using Detail::write_file;
         using Detail::write_payload;
@@ -297,7 +298,7 @@ namespace SushiBLAS
         require_payload_bytes(t, bytes, "io.read");
 
         if (bytes > 0)
-            storage_queue(t).memcpy(dst, t.data(), bytes).wait();
+            read_payload_bytes(t, 0, dst, bytes);
     }
 
     void IO::write(Tensor& t, const void* src, size_t bytes)
@@ -306,7 +307,7 @@ namespace SushiBLAS
         require_payload_bytes(t, bytes, "io.write");
 
         if (bytes > 0)
-            storage_queue(t).memcpy(t.data(), src, bytes).wait();
+            write_payload_bytes(t, 0, src, bytes);
     }
 
     void IO::require_element_type(const Tensor& t, Core::DataType expected, const char* op)

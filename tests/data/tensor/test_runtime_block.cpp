@@ -23,7 +23,7 @@
 
 /**
  * @file test_runtime_block.cpp
- * @brief Tests that RuntimeBlock allocates or borrows a buffer and copies through its device queue.
+ * @brief Tests that RuntimeBlock allocates or borrows a buffer and copies through the buffer's range calls.
  * @author Mustafa Garip
  */
 
@@ -170,6 +170,33 @@ namespace SushiBLAS
             block.copy_to_host(read.data(), 4, read.size());
 
             EXPECT_EQ(read[1], std::byte{9});
+        }
+
+        TEST(Medium_RuntimeBlock, ADeviceBlockRoundTripsBytesThroughTheHostCopies)
+        {
+            const RuntimeBlock block(TestEnvironment::runtime(), K_BORROWED_BYTES,
+                                     SushiRuntime::Residency::Device);
+            std::vector<std::byte> written(K_BORROWED_BYTES / 2);
+            for (std::size_t i = 0; i < written.size(); ++i)
+                written[i] = static_cast<std::byte>(i + 1);
+            std::vector<std::byte> read(written.size());
+
+            block.copy_from_host(written.data(), 8, written.size());
+            block.copy_to_host(read.data(), 8, read.size());
+
+            EXPECT_EQ(read, written);
+        }
+
+        TEST(Medium_RuntimeBlock, ADeviceBlockCopyRefusesARangePastItsEnd)
+        {
+            const RuntimeBlock block(TestEnvironment::runtime(), K_BORROWED_BYTES,
+                                     SushiRuntime::Residency::Device);
+            std::vector<std::byte> host(K_BORROWED_BYTES);
+
+            EXPECT_THROW(block.copy_to_host(host.data(), 1, block.size_bytes()),
+                         std::runtime_error);
+            EXPECT_THROW(block.copy_from_host(host.data(), 1, block.size_bytes()),
+                         std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS
