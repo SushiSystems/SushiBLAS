@@ -19,19 +19,14 @@
 | RW-43 | P2 | open | Move the complex operators onto `safe_mul` and `safe_div` | the elementwise and nonlinear kernels use them for complex values |  |  | 2026-10-19 |
 | RW-44 | P2 | blocked | Bring the batch feed into the compiled plan | a batch step costs no extra dispatch round | sushiruntime RW-59 |  | 2026-10-19 |
 | RW-45 | P2 | open | Batch level 1 and level 2 operations over tensors above rank 1 | each level 1 and level 2 operation takes a batched tensor |  |  | 2026-10-19 |
-| RW-46 | P2 | open | Record a plan once | `Engine::execute` keeps the compiled graph instead of discarding it on every call |  |  | 2026-10-19 |
 | RW-47 | P2 | open | Fuse kernels as a pass over the recorded graph | the pass exists and is measured |  |  | 2026-10-19 |
 | RW-48 | P2 | open | Write a parallel `shuffle`, then freeze the permutation a seed gives | `shuffle` runs in parallel and a test pins the permutation of a seed |  |  | 2026-10-19 |
 | RW-49 | P2 | open | Design what SushiAI's gather-based loss asks for | broadcasting binaries, a concatenation along a non-channel axis and a row gather with a gather-form backward are designed, with a general group count for… |  |  | 2026-10-19 |
 | RW-50 | P2 | open | Round host `HALF` in the subnormal range | the host conversion rounds below 2^-13 as a device does |  |  | 2026-10-19 |
-| RW-93 | P2 | open | Fill a random tensor from a stream position read when the task runs | `PositionedRandomOps` fills from a position held in a tensor operand, and a plan replayed twice with the position rewritten between runs draws two different… |  |  | 2026-10-19 |
-| RW-94 | P2 | open | Add an index family: rows by index and one element per row | `IndexOps` gathers rows by an INT32 or INT64 index with a defined result out of range and a gather-form backward, with tests |  |  | 2026-10-19 |
 | RW-95 | P2 | open | Add a broadcast seam, one value per row or per column under any functor | `Dispatch::execute_broadcast` and `BroadcastOps` exist with tests, and no existing plan records different tasks |  |  | 2026-10-19 |
-| RW-96 | P2 | open | Add bilinear upsampling and its gradient | `upsample_bilinear` and its backward exist in both kernels, with tests |  |  | 2026-10-19 |
-| RW-97 | P2 | open | Add the index of the maximum along one axis | `argmax_along` folds through `Reduce::RunningArgMax`, the lowest index winning a tie, with tests |  |  | 2026-10-19 |
 | RW-98 | P2 | open | Add GELU by the error function | `gelu_erf` and `gelu_erf_backward` exist beside `gelu`, whose formula stays, with tests |  |  | 2026-10-19 |
 | RW-99 | P2 | open | Add a mask of the k largest of each row | `ReductionOps::top_k_mask_along` exists with tests, the lowest index winning a tie |  |  | 2026-10-19 |
-| RW-100 | P2 | blocked | Add the index of the rows a mask selects | `IndexOps::select_rows` exists with tests | RW-94 |  | 2026-10-19 |
+| RW-100 | P2 | open | Add the index of the rows a mask selects | `IndexOps::select_rows` exists with tests |  |  | 2026-10-19 |
 | RW-103 | P2 | open | Add a bfloat16 `DataType` | `Core::DataType` holds bfloat16 and the operations that take HALF take it, with tests |  |  | 2026-10-19 |
 
 ## Known issues
